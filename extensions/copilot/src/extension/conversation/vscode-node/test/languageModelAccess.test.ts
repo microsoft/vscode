@@ -143,6 +143,41 @@ suite('CopilotLanguageModelWrapper', () => {
 			assert.deepStrictEqual(decoded, expectedUsage);
 		});
 	});
+
+	suite('length finish reason', () => {
+		let wrapper: CopilotLanguageModelWrapper;
+		let endpoint: IChatEndpoint;
+		let fetcher: MockChatMLFetcher;
+		setup(async () => {
+			createAccessor();
+			fetcher = accessor.get(IChatMLFetcher) as MockChatMLFetcher;
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
+		});
+
+		test('does not throw when the response is truncated due to length', async () => {
+			// A model (e.g. a custom/BYOK endpoint) can legitimately stop generating
+			// because it hit the context window ceiling, returning finish_reason "length"
+			// together with the partial text it already streamed. This must not surface
+			// as a hard "Response too long." failure that discards the generated text.
+			fetcher.setNextResponse({
+				type: ChatFetchResponseType.Length,
+				reason: 'Response too long.',
+				requestId: 'test-request-id',
+				serverRequestId: 'test-server-request-id',
+				truncatedValue: 'partial answer'
+			});
+
+			await wrapper.provideLanguageModelResponse(
+				endpoint,
+				[vscode.LanguageModelChatMessage.User('hello')],
+				{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+				vscode.extensions.all[0].id,
+				{ report: () => { } },
+				CancellationToken.None
+			);
+		});
+	});
 });
 
 suite('LanguageModelAccess model info', () => {
@@ -176,6 +211,7 @@ suite('LanguageModelAccess model info', () => {
 		testingServiceCollection.define(IAutomodeService, {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
+			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);
 		testingServiceCollection.define(IEndpointProvider, {
@@ -244,6 +280,89 @@ suite('LanguageModelAccess model info', () => {
 		try {
 			await internals._refreshUtilityOverrides();
 			assert.strictEqual(internals._resolvedUtilityEndpoints.get('copilot-utility-small')?.endpoint, resolvedEndpoint);
+		} finally {
+			languageModelAccess.dispose();
+		}
+	});
+
+	test('does not publish utility aliases when the provider declines to resolve them (BYOK)', async () => {
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => { throw new Error('No utility model is configured while the selected main model is BYOK.'); },
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_registerUtilityAliasModels(models: vscode.LanguageModelChatInformation[]): void;
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = { getBaseCount: async () => 0 };
+
+		try {
+			// The provider gates every utility family, so nothing is resolved or cached.
+			await internals._refreshUtilityOverrides();
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
+
+			// With an empty cache, no aliases are published into the model list.
+			const models: vscode.LanguageModelChatInformation[] = [];
+			internals._registerUtilityAliasModels(models);
+			assert.deepStrictEqual(models.map(model => model.id), []);
+		} finally {
+			languageModelAccess.dispose();
+		}
+	});
+
+	test('does not cache a utility endpoint from an obsolete refresh', async () => {
+		const endpoint = {
+			model: 'gpt-4o-mini',
+			modelProvider: 'copilot',
+		} as IChatEndpoint;
+		const baseCount = new DeferredPromise<number>();
+		const baseCountStarted = new DeferredPromise<void>();
+		let endpointRequestCount = 0;
+		const testingServiceCollection = createExtensionTestingServices();
+		testingServiceCollection.define(IEndpointProvider, {
+			_serviceBrand: undefined,
+			onDidModelsRefresh: Event.None,
+			getAllCompletionModels: async () => [],
+			getAllChatEndpoints: async () => [],
+			getChatEndpoint: async () => {
+				if (endpointRequestCount++ === 0) {
+					return endpoint;
+				}
+				throw new Error('No utility model configured');
+			},
+			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
+		} as unknown as IEndpointProvider);
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const languageModelAccess = accessor.get(IInstantiationService).createInstance(LanguageModelAccess);
+		const internals = languageModelAccess as unknown as {
+			_resolvedUtilityEndpoints: Map<string, { endpoint: IChatEndpoint; baseCount: number }>;
+			_promptBaseCountCache: { getBaseCount(endpoint: IChatEndpoint): Promise<number> };
+			_refreshUtilityOverrides(): Promise<void>;
+		};
+		internals._promptBaseCountCache = {
+			getBaseCount: async () => {
+				baseCountStarted.complete();
+				return baseCount.p;
+			}
+		};
+
+		try {
+			const obsoleteRefresh = internals._refreshUtilityOverrides();
+			await baseCountStarted.p;
+			const currentRefresh = internals._refreshUtilityOverrides();
+			baseCount.complete(0);
+			await Promise.all([obsoleteRefresh, currentRefresh]);
+
+			assert.strictEqual(internals._resolvedUtilityEndpoints.size, 0);
 		} finally {
 			languageModelAccess.dispose();
 		}
@@ -392,88 +511,80 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(normalizeTokenPrices(undefined), undefined);
 	});
 
-	test('returns undefined when flat fields are missing', () => {
+	test('returns undefined when default tier is missing or incomplete', () => {
 		assert.strictEqual(normalizeTokenPrices({ batch_size: 1_000_000 }), undefined);
-		assert.strictEqual(normalizeTokenPrices({ input_price: 100 }), undefined);
-	});
-
-	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
-		const result = normalizeTokenPrices({
-			batch_size: 1_000_000,
-			input_price: 3_000_000_000,
-			output_price: 15_000_000_000,
-			cache_price: 375_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
-		assert.strictEqual(result.default.cachePrice, 0.375);
-		assert.strictEqual(result.longContext, undefined);
-	});
-
-	test('scales legacy prices when batch_size differs from 1M', () => {
-		const result = normalizeTokenPrices({
-			batch_size: 500_000,
-			input_price: 1_500_000_000,
-			output_price: 7_500_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
-		assert.strictEqual(result.default.cachePrice, undefined);
-	});
-
-	test('defaults batch_size to 1M when missing', () => {
-		const result = normalizeTokenPrices({
-			input_price: 1_000_000_000,
-			output_price: 2_000_000_000,
-		});
-		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 1);
-		assert.strictEqual(result.default.outputPrice, 2);
+		assert.strictEqual(normalizeTokenPrices({ default: { input_price: 100 } }), undefined);
 	});
 
 	test('converts tiered AIU prices to credits per 1M tokens', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
 		assert.strictEqual(result.default.outputPrice, 15);
 		assert.strictEqual(result.default.cachePrice, 0.375);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('leaves cacheWritePrice undefined when absent from response', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.cachePrice, undefined);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
 	});
 
 	test('includes long-context tier when present', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			default: { input_price: 3, output_price: 15, cache_price: 0.375 },
-			long_context: { input_price: 6, output_price: 30, cache_price: 0.75 },
+			default: { input_price: 3, output_price: 15, cache_price: 0.375, cache_write_price: 1.5 },
+			long_context: { input_price: 6, output_price: 30, cache_price: 0.75, cache_write_price: 3 },
 		});
 		assert.ok(result);
 		assert.strictEqual(result.default.inputPrice, 3);
+		assert.strictEqual(result.default.cacheWritePrice, 1.5);
 		assert.strictEqual(result.longContext?.inputPrice, 6);
 		assert.strictEqual(result.longContext?.outputPrice, 30);
 		assert.strictEqual(result.longContext?.cachePrice, 0.75);
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
 	});
 
-	test('tiered format takes precedence over flat fields', () => {
+	test('includes long-context tier when cache_write_price differs from default', () => {
 		const result = normalizeTokenPrices({
 			batch_size: 1_000_000,
-			input_price: 999_999_999,
-			output_price: 999_999_999,
-			default: { input_price: 3, output_price: 15 },
+			default: { input_price: 3, output_price: 15, cache_write_price: 1.5 },
+			long_context: { input_price: 3, output_price: 15, cache_write_price: 3 },
 		});
 		assert.ok(result);
-		assert.strictEqual(result.default.inputPrice, 3);
-		assert.strictEqual(result.default.outputPrice, 15);
+		assert.ok(result.longContext, 'long-context tier should be included when cache_write_price differs');
+		assert.strictEqual(result.longContext?.cacheWritePrice, 3);
+	});
+
+	test('converts legacy flat nano-AIU prices to credits per 1M tokens', () => {
+		// Shape returned by the cloud agents endpoint (/agents/swe/models)
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			input_price: 500_000_000_000,
+			output_price: 2_500_000_000_000,
+			cache_price: 50_000_000_000,
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.inputPrice, 500);
+		assert.strictEqual(result.default.outputPrice, 2500);
+		assert.strictEqual(result.default.cachePrice, 50);
+		assert.strictEqual(result.default.cacheWritePrice, undefined);
+		assert.strictEqual(result.longContext, undefined);
 	});
 });
 
 suite('formatPricingLabel', () => {
 	function tier(inputPrice: number, outputPrice: number) {
-		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0 } };
+		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0, cacheWriteTokenPrice: 0 } };
 	}
 
 	test('renders zero prices as 0 instead of exponential notation', () => {
@@ -488,4 +599,3 @@ suite('formatPricingLabel', () => {
 		assert.strictEqual(formatPricingLabel(tier(3, 15)), 'In: 3 · Out: 15 AICs/1M tokens');
 	});
 });
-

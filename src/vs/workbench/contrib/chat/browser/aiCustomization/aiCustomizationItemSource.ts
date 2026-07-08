@@ -282,6 +282,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}));
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this.cachedPromise = undefined;
+	}
+
 	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
 			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
@@ -412,6 +417,25 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}
 
 		return items.map(item => item.description ? item : { ...item, description: descriptionsByUri.get(item.uri.toString()) });
+	}
+}
+
+export class EmptyItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
+
+	readonly onDidAICustomizationItemsChange = Event.None;
+
+	constructor(
+		readonly sessionResource: URI,
+	) {
+		super();
+	}
+
+	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		return Promise.resolve([]);
 	}
 }
 

@@ -155,7 +155,10 @@ export class RenameSuggestionsProvider implements vscode.NewSymbolNamesProvider 
 						);
 						const fetchTime = sw.elapsed();
 
-						if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || (fetchResult.type === ChatFetchResponseType.RateLimited && this._authService.copilotToken?.isNoAuthUser)) {
+						// @ulugbekna: only show the quota exceeded dialog when the user manually invoked rename suggestions.
+						// For automatic triggers (e.g., when pressing F2), showing a modal dialog steals focus from the
+						// rename widget and cancels the user's rename action - see https://github.com/microsoft/vscode/issues/319414
+						if (RenameSuggestionsProvider.shouldShowQuotaExceededDialog(triggerKind, fetchResult.type, this._authService.copilotToken?.isNoAuthUser ?? false)) {
 							await this._notificationService.showQuotaExceededDialog({ isNoAuthUser: this._authService.copilotToken?.isNoAuthUser ?? false });
 						}
 
@@ -288,8 +291,22 @@ export class RenameSuggestionsProvider implements vscode.NewSymbolNamesProvider 
 		return newSymbolNames.map(newSymbolName => enforceNamingConvention(newSymbolName, targetNamingConvention));
 	}
 
-	public static parseResponse(reply: string): { replyFormat: ReplyFormat; redundantCharCount: number; symbolNames: string[] } {
+	/**
+	 * Determines whether to show the quota exceeded dialog for a rename suggestions fetch result.
+	 *
+	 * The dialog is only shown for manually-invoked rename suggestions ({@link NewSymbolNameTriggerKind.Invoke}).
+	 * For automatic triggers (e.g., when pressing F2), showing a modal dialog steals focus from the rename
+	 * widget and cancels the user's rename action - see https://github.com/microsoft/vscode/issues/319414
+	 */
+	public static shouldShowQuotaExceededDialog(triggerKind: NewSymbolNameTriggerKind, fetchResultType: ChatFetchResponseType, isNoAuthUser: boolean): boolean {
+		if (triggerKind !== NewSymbolNameTriggerKind.Invoke) {
+			return false;
+		}
+		return fetchResultType === ChatFetchResponseType.QuotaExceeded
+			|| (fetchResultType === ChatFetchResponseType.RateLimited && isNoAuthUser);
+	}
 
+	public static parseResponse(reply: string): { replyFormat: ReplyFormat; redundantCharCount: number; symbolNames: string[] } {
 		const parsedAsJSONStringArray = RenameSuggestionsProvider._parseReplyAsJSONStringArray(reply);
 		if (parsedAsJSONStringArray !== undefined) {
 			return parsedAsJSONStringArray;

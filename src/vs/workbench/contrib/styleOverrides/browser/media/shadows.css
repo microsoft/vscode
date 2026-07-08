@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "No Part Shadows".
+ *
+ * The `workbench.shadows` setting (default on) casts elevation shadows from the
+ * workbench parts onto their neighbours: the title bar, the activity bar, the
+ * editor tabs and the panel "depth" shadows that fall on the editor surface.
+ * The Modern UI look is flat, so this module neutralises those part shadows
+ * regardless of the `workbench.shadows` setting.
+ *
+ * Only the part-level shadows are suppressed. The floating-modal shadows
+ * (`--vscode-shadow-lg` / `--vscode-shadow-xl` used by hovers, dropdowns,
+ * dialogs and notifications) are intentionally left alone — these are preserved
+ * even when `workbench.shadows` is disabled.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ */
+
+.style-override.monaco-workbench {
+	/*
+	 * Use zero-offset transparent shadows instead of `none` because these
+	 * variables are interpolated into multi-value box-shadow declarations.
+	 */
+	--vscode-shadow-active-tab: 0 0 0 0 transparent;
+	--vscode-shadow-depth-x: 0 0 0 0 transparent;
+	--vscode-shadow-depth-y: 0 0 0 0 transparent;
+	--vscode-shadow-sm: 0 0 0 0 transparent;
+}
+
+.style-override.monaco-workbench .part.titlebar,
+.style-override.monaco-workbench .part.activitybar,
+.style-override.monaco-workbench.nosidebar .part.activitybar,
+.style-override.monaco-workbench.activitybar-right .part.activitybar,
+.style-override.monaco-workbench .part.editor .tabs-container > .tab,
+.style-override.monaco-workbench .part.editor .tabs-container > .tab:hover:not(.active),
+.style-override.monaco-workbench .part.editor .tabs-container > .tab.active {
+	box-shadow: none !important;
+}
+
+.style-override.monaco-workbench:not(.hc-black):not(.hc-light) .terminal-resize-overlay {
+	box-shadow: var(--vscode-shadow-lg);
+}

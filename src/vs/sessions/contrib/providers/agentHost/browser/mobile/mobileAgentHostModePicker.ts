@@ -34,24 +34,26 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
-			return;
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+		if (!anchor) {
+			return false;
 		}
 		// Guard applies to both the phone sheet and the desktop popover —
 		// either path can dispatch through `setSessionConfigValue`.
 		if (this._isCurrentlyResolvingConfig()) {
-			return;
+			return false;
 		}
 		if (this._phonePresenter.enabled.get()) {
 			// The presenter's agent-host branch reads mode + model
 			// directly from the active session's provider, so we don't
 			// need to pass chat-input delegates here.
-			const trigger = this._triggerElement;
-			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
-				.finally(() => trigger.focus());
-			return;
+			this._phonePresenter.showCombinedModeAndModelSheet(anchor, undefined, undefined)
+				.finally(() => {
+					anchor.focus();
+					onHide?.();
+				});
+			return true;
 		}
-		super._showPicker();
+		return super._showPicker(anchor, onHide);
 	}
 }

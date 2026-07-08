@@ -25,6 +25,7 @@ import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _viewModel = observableValue<MultiDiffEditorViewModel | undefined>(this, undefined);
+	private readonly _renderSideBySide = observableValue<boolean | undefined>(this, undefined);
 
 	private readonly _widgetImpl = derived(this, (reader) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -34,6 +35,7 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._dimension,
 			this._viewModel,
 			this._workbenchUIElementFactory,
+			this._renderSideBySide,
 		));
 	});
 
@@ -55,12 +57,29 @@ export class MultiDiffEditorWidget extends Disposable {
 		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
 
-	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined): void {
+	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean }): void {
+		// An editor opened with `preserveFocus` (e.g. restored in the background
+		// or on a session switch) must not have its automatic first-change
+		// selection steal keyboard focus from elsewhere (such as the chat input).
+		this._widgetImpl.get().setPreserveFocusOnLoad(!!options?.preserveFocus);
 		this._viewModel.set(viewModel, undefined);
 	}
 
 	public layout(dimension: Dimension): void {
 		this._dimension.set(dimension, undefined);
+	}
+
+	/**
+	 * Overrides whether the embedded diffs render side by side (`true`) or inline
+	 * (`false`) as editor-local state, independent of the
+	 * `diffEditor.renderSideBySide` setting. When left unset the setting applies.
+	 */
+	public setRenderSideBySide(renderSideBySide: boolean): void {
+		this._renderSideBySide.set(renderSideBySide, undefined);
+	}
+
+	public toggleRenderSideBySide(): void {
+		this._renderSideBySide.set(!(this._renderSideBySide.get() ?? true), undefined);
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));

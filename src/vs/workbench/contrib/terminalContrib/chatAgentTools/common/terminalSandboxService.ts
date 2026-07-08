@@ -25,7 +25,7 @@ import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../.
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
-import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -34,8 +34,8 @@ import { ElicitationState, IChatService } from '../../../chat/common/chatService
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
 
-export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -129,6 +129,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails, requestAllowNetwork);
 	}
 
+	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult> {
+		return this._engine.checkFileAccess(permission, paths, precheckInputs);
+	}
+
 	checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
 		return this._engine.checkForSandboxingPrereqs(forceRefresh, precheckInputs);
 	}
@@ -175,14 +179,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch, nativeModulesDir: 'node_modules' };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
 		const localAppRootUri = FileAccess.asFileUri('');
 		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch };
+		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch, nativeModulesDir };
 	}
 
 	private _toWindowsPath(uri: URI): string {
@@ -283,7 +288,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	async installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
 		const depsList = missingDependencies.join(' ');
-		const installCommand = `sudo apt install -y ${depsList}`;
+		return this._runSandboxPrerequisiteCommand(`sudo apt install -y ${depsList}`, sessionResource, token, options);
+	}
+
+	async runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
+		let command: string;
+		switch (remediation) {
+			case TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction:
+				command = 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0';
+				break;
+			default:
+				throw new Error('Unsupported sandbox remediation');
+		}
+		return this._runSandboxPrerequisiteCommand(command, sessionResource, token, options);
+	}
+
+	private async _runSandboxPrerequisiteCommand(command: string, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
 		const instance = await options.createTerminal();
 
 		// Wait for the install command to finish so the chat can proceed automatically.
@@ -320,7 +340,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			// Handle cancellation
 			store.add(token.onCancellationRequested(() => resolveOnce(undefined)));
 
-			// Safety timeout — 5 minutes should be more than enough for apt install
+			// Safety timeout — 5 minutes should be enough for package or system-policy remediation.
 			const safetyTimeout = timeout(5 * 60 * 1000);
 			store.add({ dispose: () => safetyTimeout.cancel() });
 			safetyTimeout.then(() => resolveOnce(undefined));
@@ -338,7 +358,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Set installCommandSent only after sendText completes because sendText
 		// fires onDidInputData internally, and the password-prompt listener would
 		// dismiss the elicitation prematurely if the flag were already true.
-		await instance.sendText(installCommand, true);
+		await instance.sendText(command, true);
 		installCommandSent = true;
 
 		return { exitCode: await completionPromise };
@@ -363,7 +383,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			localize('runInTerminal.missingDeps.passwordPromptTitle', "The terminal is awaiting input."),
 			new MarkdownString(localize(
 				'runInTerminal.missingDeps.passwordPromptMessage',
-				"Installing missing sandbox dependencies may prompt for your sudo password. Select Focus Terminal to type it in the terminal."
+				"Applying sandbox prerequisites may prompt for your sudo password. Select Focus Terminal to type it in the terminal."
 			)),
 			'',
 			localize('runInTerminal.missingDeps.focusTerminal', 'Focus Terminal'),
@@ -387,4 +407,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}));
 		return store;
 	}
+
 }
+

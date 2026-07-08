@@ -9,7 +9,7 @@ import { localize } from '../../../../nls.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { chatLinesAddedForeground, chatLinesRemovedForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { getUntitledSessionTitle, ISession } from '../../../services/sessions/common/session.js';
 
 /**
  * Aggregated insertions/deletions across all of a session's changes,
@@ -52,7 +52,7 @@ export function buildSessionHoverContent(
 	const md = new MarkdownString('', { supportThemeIcons: true, supportHtml: true });
 
 	// Line 1: session icon + bold title
-	const title = session.title.get() || localize('agentSessions.newSession', "New Session");
+	const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 	if (session.icon) {
 		md.appendMarkdown(`$(${session.icon.id}) `);
 	}

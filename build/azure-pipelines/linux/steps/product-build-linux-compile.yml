@@ -34,9 +34,9 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
+      azureSubscription: vscode-oss-build-secrets
+      KeyVaultName: vscode-oss-build-secrets
+      SecretsFilter: "github-token-code-oss"
 
   - script: |
       set -e
@@ -60,6 +60,8 @@ steps:
   - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
+
+  - template: ../../common/apply-sdk-canary.yml@self
 
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
@@ -104,7 +106,7 @@ steps:
       done
     workingDirectory: build
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Install build dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -120,7 +122,7 @@ steps:
       SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Download vscode sysroots
 
   - script: |
@@ -145,7 +147,7 @@ steps:
       VSCODE_ARCH: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -170,16 +172,33 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
+  # Start pulling the CG-generated NOTICE from the parallel Quality stage
+  # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
+  # Publish builds only (CIBUILD=false) — CI test jobs never ship a notice.
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadNotice.ts
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+      displayName: Pull CG NOTICE (background)
+
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+    - template: ../../common/agent-sdk-produce.yml@self
+      parameters:
+        vscodePlatform: linux
 
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX (background)
 
+  - template: ../../common/mixin-vscode-capi.yml@self
+
   - script: npm run gulp core-ci
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
 
   - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
@@ -204,6 +223,17 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
 
+  # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
+  # right before gulp packages it. Non-fatal: falls back to legacy on any problem.
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/downloadNotice.ts
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        VSCODE_OVERWRITE_TPN: $(VSCODE_OVERWRITE_TPN)
+      displayName: Apply CG NOTICE
+      # deemon --attach can exit non-zero if the background daemon died; never fail for that.
+      continueOnError: true
+
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
@@ -212,7 +242,8 @@ steps:
       echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       echo "##vso[task.setvariable variable=CLIENT_ARCHIVE_NAME]$(basename $ARCHIVE_PATH)"
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
@@ -240,7 +271,7 @@ steps:
       set -e
       tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
     env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Archive client
 
   - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
@@ -255,7 +286,8 @@ steps:
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
         echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
       env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        GITHUB_TOKEN: "$(github-token-code-oss)"
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server
 
     - script: |
@@ -267,7 +299,8 @@ steps:
         tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)-web
         echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        GITHUB_TOKEN: "$(github-token-code-oss)"
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server (web)
 
   - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
@@ -289,7 +322,7 @@ steps:
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
       env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        GITHUB_TOKEN: "$(github-token-code-oss)"
       displayName: Prepare deb package
 
     - script:  |
@@ -366,7 +399,7 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpCodeSigning@5
+    - task: EsrpCodeSigning@6
       inputs:
         UseMSIAuthentication: true
         ConnectedServiceName: vscode-esrp

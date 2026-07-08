@@ -95,14 +95,12 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
  * re-encoded as PNG.
  * @param data The image bytes.
  * @param maxSize The maximum width or height of the thumbnail, in pixels.
- * @param targetWindow The window whose document is used to decode and resize the
- * image, so the work happens in the same window that renders the thumbnail.
  * @returns A promise that resolves to a {@link Blob} of the thumbnail, or `undefined` on failure.
  */
-function createImageThumbnail(data: Uint8Array, maxSize: number, targetWindow: Window): Promise<Blob | undefined> {
+function createImageThumbnail(data: Uint8Array, maxSize: number): Promise<Blob | undefined> {
 	return new Promise((resolve) => {
 		const blob = new Blob([data as Uint8Array<ArrayBuffer>]);
-		const img = targetWindow.document.createElement('img');
+		const img = document.createElement('img');
 		const url = URL.createObjectURL(blob);
 		img.src = url;
 
@@ -113,7 +111,7 @@ function createImageThumbnail(data: Uint8Array, maxSize: number, targetWindow: W
 			const targetWidth = Math.max(1, Math.round(width * scaleFactor));
 			const targetHeight = Math.max(1, Math.round(height * scaleFactor));
 
-			const canvas = targetWindow.document.createElement('canvas');
+			const canvas = document.createElement('canvas');
 			canvas.width = targetWidth;
 			canvas.height = targetHeight;
 			const ctx = canvas.getContext('2d');
@@ -164,10 +162,9 @@ const THUMBNAIL_DECODE_TIMEOUT_MS = 10_000;
  * @param cacheKey A stable identifier for the source image (e.g. the attachment id).
  * @param data The image bytes.
  * @param maxSize The maximum width or height of the thumbnail, in pixels.
- * @param targetWindow The window whose document is used to decode and resize the image.
  * @returns A promise that resolves to a {@link Blob} of the thumbnail, or `undefined` on failure.
  */
-export function getOrCreateImageThumbnail(cacheKey: string, data: Uint8Array, maxSize: number, targetWindow: Window): Promise<Blob | undefined> {
+export function getOrCreateImageThumbnail(cacheKey: string, data: Uint8Array, maxSize: number): Promise<Blob | undefined> {
 	// Include the size and byte length so a reused id with different content or a
 	// different target size doesn't return a stale thumbnail.
 	const key = `${cacheKey}:${maxSize}:${data.byteLength}`;
@@ -176,7 +173,7 @@ export function getOrCreateImageThumbnail(cacheKey: string, data: Uint8Array, ma
 		return cached;
 	}
 
-	const thumbnail: Promise<Blob | undefined> = raceTimeout(createImageThumbnail(data, maxSize, targetWindow), THUMBNAIL_DECODE_TIMEOUT_MS).then(blob => {
+	const thumbnail: Promise<Blob | undefined> = raceTimeout(createImageThumbnail(data, maxSize), THUMBNAIL_DECODE_TIMEOUT_MS).then(blob => {
 		// Don't keep failures cached so a later render can retry. Only evict our own
 		// entry in case LRU eviction already replaced it with a newer decode.
 		if (!blob && thumbnailCache.peek(key) === thumbnail) {

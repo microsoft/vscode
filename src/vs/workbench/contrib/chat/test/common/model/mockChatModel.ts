@@ -56,6 +56,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 
 	readonly hasRequests = false;
 	readonly lastRequest: IChatRequestModel | undefined;
+	readonly sessionCost: number = 0;
 
 	override dispose() {
 		this.isDisposed = true;

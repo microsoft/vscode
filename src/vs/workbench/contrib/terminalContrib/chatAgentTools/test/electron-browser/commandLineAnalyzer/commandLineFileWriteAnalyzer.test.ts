@@ -110,6 +110,12 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
+			test('absolute path traversal outside workspace - block', () => t('echo hello > /workspace/project/test/../../../tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal to settings path outside workspace - block', () => t('echo "{}" > "/workspace/project/test/../../../../.config/Code/User/settings.json"', 'outsideWorkspace', false, 1));
+			test('absolute path traversal that remains inside workspace - allow', () => t('echo hello > /workspace/project/test/../file.txt', 'outsideWorkspace', true, 1));
+			test('triple-quoted absolute path outside workspace - block', () => t('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple-quoted settings path outside workspace - block', () => t('echo "{}" > \'\'\'/home/user/.config/Code/User/settings.json\'\'\'', 'outsideWorkspace', false, 1));
+			test('triple double-quoted absolute path outside workspace - block', () => t('echo hello > """/tmp/file.txt"""', 'outsideWorkspace', false, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
@@ -120,6 +126,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('brace expansion - block', () => t('echo hello > {a,b}.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
+		});
+
+		suite('tilde and environment-variable expansion', () => {
+			test('tilde home expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
+			test('windows-style env-var expansion - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
 		});
 
 		suite('blockDetectedFileWrites: all', () => {
@@ -156,6 +167,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				// /tmp writes are allowed only when session auto-approval is enabled
 				test('/tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', true, true));
 				test('/tmp subdirectory - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/sub/file.txt', 'outsideWorkspace', true, true));
+				test('triple-quoted /tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > \'\'\'/tmp/file.txt\'\'\'', 'outsideWorkspace', true, true));
 				test('/tmp - block when auto-approval disabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', false, false));
 
 				// Other outside-workspace paths remain blocked even with auto-approval enabled
@@ -293,6 +305,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('absolute path - C: drive - block', () => t('Write-Host "hello" > C:\\temp\\file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - D: drive - block', () => t('Write-Host "hello" > D:\\data\\config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - different drive than workspace - block', () => t('Write-Host "hello" > E:\\external\\file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal outside workspace - block', () => t('Write-Host "hello" > C:\\workspace\\project\\test\\..\\..\\other\\file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path traversal to settings path outside workspace - block', () => t('Write-Host "{}" > C:\\workspace\\project\\test\\..\\..\\..\\Users\\user\\AppData\\Roaming\\Code\\User\\settings.json', 'outsideWorkspace', false, 1));
+			test('absolute path traversal that remains inside workspace - allow', () => t('Write-Host "hello" > C:\\workspace\\project\\test\\..\\file.txt', 'outsideWorkspace', true, 1));
 
 			// Absolute paths - UNC paths
 			test('absolute path - UNC path - block', () => t('Write-Host "hello" > \\\\server\\share\\file.txt', 'outsideWorkspace', false, 1));
@@ -304,6 +319,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('subexpression - block', () => t('Write-Host "hello" > $(Get-Date).log', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('Write-Host "hello" > %APPDATA%\\file.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('Write-Host "hello" > ~\\file.txt', 'outsideWorkspace', false, 1));
+		});
+
+		suite('tilde and environment-variable expansion', () => {
+			test('tilde home expansion - block', () => t('Write-Host "hello" > ~\\file.txt', 'outsideWorkspace', false, 1));
+			test('windows env-var expansion - block', () => t('Write-Host "hello" > %APPDATA%\\file.txt', 'outsideWorkspace', false, 1));
 		});
 
 		suite('blockDetectedFileWrites: all', () => {
@@ -561,6 +581,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		test('quoted absolute path to settings.json - block', () => t('echo hello > "/home/user/.vscode/settings.json"', false, 1));
 		test('unquoted absolute path inside remote workspace - allow', () => t('echo hello > /home/user/workspace/file.txt', true, 1));
 		test('unquoted absolute path outside remote workspace - block', () => t('echo hello > /home/user/other/file.txt', false, 1));
+		test('unquoted absolute path traversal outside remote workspace - block', () => t('echo hello > /home/user/workspace/test/../../other/file.txt', false, 1));
 		test('relative path in remote workspace - allow', () => t('echo hello > file.txt', true, 1));
 		test('relative path with subdirectory in remote workspace - allow', () => t('echo hello > subdir/file.txt', true, 1));
 	});

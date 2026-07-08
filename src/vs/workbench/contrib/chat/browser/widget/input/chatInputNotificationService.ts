@@ -33,6 +33,7 @@ export interface IChatInputNotificationMuteAction {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
 	readonly message: string | IMarkdownString;
 	readonly description: string | undefined;

@@ -24,7 +24,6 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 
 interface IConfiguration extends IWindowsConfiguration {
-	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } }; restrictUNCAccess?: boolean };
@@ -35,6 +34,9 @@ interface IConfiguration extends IWindowsConfiguration {
 		extensionUnification?: { enabled?: boolean };
 		agentHost?: {
 			enabled?: boolean;
+			claudeAgent?: { enabled?: boolean };
+			codexAgent?: { enabled?: boolean };
+			byokModels?: { enabled?: boolean };
 			otel?: {
 				enabled?: boolean;
 				exporterType?: string;
@@ -44,6 +46,8 @@ interface IConfiguration extends IWindowsConfiguration {
 				dbSpanExporter?: { enabled?: boolean };
 			};
 		};
+		agents?: { claude?: { preferAgentHost?: boolean } };
+		editor?: { claude?: { preferAgentHost?: boolean } };
 	};
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
@@ -58,7 +62,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
 		'window.controlsStyle',
-		'update.mode',
 		'editor.accessibilitySupport',
 		'security.workspace.trust.enabled',
 		'workbench.enableExperiments',
@@ -68,6 +71,11 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
 		'chat.agentHost.enabled',
+		'chat.agentHost.claudeAgent.enabled',
+		'chat.agentHost.codexAgent.enabled',
+		'chat.agentHost.byokModels.enabled',
+		'chat.agents.claude.preferAgentHost',
+		'chat.editor.claude.preferAgentHost',
 		'chat.agentHost.otel.enabled',
 		'chat.agentHost.otel.exporterType',
 		'chat.agentHost.otel.otlpEndpoint',
@@ -82,7 +90,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
 	private readonly controlsStyle = new ChangeObserver('string');
-	private readonly updateMode = new ChangeObserver('string');
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private readonly workspaceTrustEnabled = new ChangeObserver('boolean');
 	private readonly experimentsEnabled = new ChangeObserver('boolean');
@@ -92,6 +99,11 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
 	private readonly agentHostEnabled = new ChangeObserver('boolean');
+	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
+	private readonly agentHostCodexAgentEnabled = new ChangeObserver('boolean');
+	private readonly agentHostByokModelsEnabled = new ChangeObserver('boolean');
+	private readonly agentsClaudePreferAgentHost = new ChangeObserver('boolean');
+	private readonly editorClaudePreferAgentHost = new ChangeObserver('boolean');
 	private readonly agentHostOTelEnabled = new ChangeObserver('boolean');
 	private readonly agentHostOTelExporterType = new ChangeObserver('string');
 	private readonly agentHostOTelOtlpEndpoint = new ChangeObserver('string');
@@ -160,9 +172,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Windows/Linux: Window controls style
 			processChanged(!isMacintosh && this.controlsStyle.handleChange(config.window?.controlsStyle));
 
-			// Update mode
-			processChanged(this.updateMode.handleChange(config.update?.mode));
-
 			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
 			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
 				this.accessibilitySupport = config.editor.accessibilitySupport;
@@ -195,6 +204,16 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 		// Agent Host
 		processChanged(this.agentHostEnabled.handleChange(config.chat?.agentHost?.enabled));
+		processChanged(this.agentHostByokModelsEnabled.handleChange(config.chat?.agentHost?.byokModels?.enabled));
+
+		// Claude and Codex provider registration in the agent host is read at spawn
+		// time, and the two `preferAgentHost` gates pick which Claude implementation
+		// surfaces. Like the agent host child process, these only take effect after a
+		// full app restart.
+		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));
+		processChanged(this.agentHostCodexAgentEnabled.handleChange(config.chat?.agentHost?.codexAgent?.enabled));
+		processChanged(this.agentsClaudePreferAgentHost.handleChange(config.chat?.agents?.claude?.preferAgentHost));
+		processChanged(this.editorClaudePreferAgentHost.handleChange(config.chat?.editor?.claude?.preferAgentHost));
 
 		// Agent Host OTel: settings are forwarded as env vars when the agent host
 		// child process is spawned (see `electronAgentHostStarter.ts`). The child

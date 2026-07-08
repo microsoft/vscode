@@ -21,13 +21,11 @@ import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService, IThemingRegistry, Extensions as ThemingExtensions } from '../../../../platform/theme/common/themeService.js';
-import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
+import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
+import { ensureGlobalStylesInstalled, getStylesheetDocumentFiles, overrideStylesheetOrder, ReverseStylesheetsOption } from './fixtureUtilsCss.js';
 
 // Instantiation
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -69,6 +67,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -101,7 +100,9 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ISessionsService } from '../../../../sessions/services/sessions/browser/sessionsService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
@@ -244,9 +245,6 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
-const mockEnvironmentService: IEnvironmentService = Object.create(null);
-
 // Eagerly bundle all built-in theme JSON files so they can be served to
 // `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
@@ -296,68 +294,6 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 
-let globalStyleSheet: CSSStyleSheet | undefined;
-let iconsStyleSheetCache: CSSStyleSheet | undefined;
-let darkThemeStyleSheet: CSSStyleSheet | undefined;
-let lightThemeStyleSheet: CSSStyleSheet | undefined;
-
-function getGlobalStyleSheet(): CSSStyleSheet {
-	if (!globalStyleSheet) {
-		globalStyleSheet = new CSSStyleSheet();
-		const globalRules: string[] = [];
-		for (const sheet of Array.from(document.styleSheets)) {
-			try {
-				for (const rule of Array.from(sheet.cssRules)) {
-					globalRules.push(rule.cssText);
-				}
-			} catch {
-				// Cross-origin stylesheets can't be read
-			}
-		}
-		globalStyleSheet.replaceSync(globalRules.join('\n'));
-	}
-	return globalStyleSheet;
-}
-
-function getIconsStyleSheetCached(): CSSStyleSheet {
-	if (!iconsStyleSheetCache) {
-		iconsStyleSheetCache = new CSSStyleSheet();
-		const iconsSheet = getIconsStyleSheet(undefined);
-		iconsStyleSheetCache.replaceSync(iconsSheet.getCSS() as string);
-		iconsSheet.dispose();
-	}
-	return iconsStyleSheetCache;
-}
-
-function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
-	const isDark = theme.type === ColorScheme.DARK;
-	if (isDark && darkThemeStyleSheet) {
-		return darkThemeStyleSheet;
-	}
-	if (!isDark && lightThemeStyleSheet) {
-		return lightThemeStyleSheet;
-	}
-
-	const scopeSelector = '.' + theme.classNames[0];
-	const sheet = new CSSStyleSheet();
-	const css = generateColorThemeCSS(
-		theme,
-		scopeSelector,
-		themingRegistry.getThemingParticipants(),
-		mockEnvironmentService
-	);
-	sheet.replaceSync(css.code);
-
-	if (isDark) {
-		darkThemeStyleSheet = sheet;
-	} else {
-		lightThemeStyleSheet = sheet;
-	}
-	return sheet;
-}
-
-let globalStylesInstalled = false;
-
 let themesLoadedPromise: Promise<void> | undefined;
 function ensureThemesLoaded(): Promise<void> {
 	if (!themesLoadedPromise) {
@@ -369,24 +305,57 @@ function ensureThemesLoaded(): Promise<void> {
 	return themesLoadedPromise;
 }
 
-function installGlobalStyles(): void {
-	if (globalStylesInstalled) {
-		return;
-	}
-	globalStylesInstalled = true;
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		getGlobalStyleSheet(),
-		getIconsStyleSheetCached(),
-		getThemeStyleSheet(darkTheme),
-		getThemeStyleSheet(lightTheme),
-	];
-}
-
 export async function setupTheme(container: HTMLElement, theme: ColorThemeData): Promise<void> {
 	await ensureThemesLoaded();
-	installGlobalStyles();
+	await ensureGlobalStylesInstalled([darkTheme, lightTheme]);
 	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+}
+
+/**
+ * The recognized fields of the per-render `input` (passed via the CLI `--input`
+ * flag), parsed once into a typed shape by {@link parseFixtureInput}.
+ */
+interface FixtureRenderInput {
+	/** See {@link ReverseStylesheetsOption}; `false` when no reversal is requested. */
+	readonly reverseStylesheets: ReverseStylesheetsOption;
+	/** Whether the render should return its virtual-time trace as `output`. */
+	readonly outputTimeTrace: boolean;
+	/** Whether the render should return the bundled stylesheet files as `output`. */
+	readonly outputStylesheetFiles: boolean;
+}
+
+/**
+ * Parses the untyped render `input` into the recognized {@link FixtureRenderInput}
+ * fields. Unknown/extra fields are ignored; missing fields default to off.
+ */
+function parseFixtureInput(input: unknown): FixtureRenderInput {
+	if (!input || typeof input !== 'object') {
+		return { reverseStylesheets: false, outputTimeTrace: false, outputStylesheetFiles: false };
+	}
+	const record = input as Record<string, unknown>;
+	return {
+		reverseStylesheets: parseReverseOption(record.reverseStylesheets),
+		outputTimeTrace: !!record.outputTimeTrace,
+		outputStylesheetFiles: !!record.outputStylesheetFiles,
+	};
+}
+
+/**
+ * Validates a `reverseStylesheets` input value: `true` (reverse all stylesheet
+ * documents), `{ fromIndex, toIndex }` (reverse only that index window, used by
+ * the order-dependency bisection), or `false` when absent/unrecognized.
+ */
+function parseReverseOption(value: unknown): ReverseStylesheetsOption {
+	if (value === true) {
+		return true;
+	}
+	if (value && typeof value === 'object') {
+		const range = value as Record<string, unknown>;
+		if (typeof range.fromIndex === 'number' && typeof range.toIndex === 'number') {
+			return { fromIndex: range.fromIndex, toIndex: range.toIndex };
+		}
+	}
+	return false;
 }
 
 function getPlatformClass(): string {
@@ -586,6 +555,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		managedSettingsFetchStatus: null,
 		managedSettingsFetchedAt: null,
+		managedSettingsRawResponse: null,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -631,8 +601,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		hasLoadedFeedback: () => true,
 		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
@@ -642,8 +614,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
-		submitFeedback: async () => { },
+		markFeedbackSubmitted: () => { },
+		submitFeedback: async () => false,
 		addFeedbackAndSubmit: async () => { },
+		setFeedbackResolved: async () => { },
 	});
 
 	definePartialInstance(IChatEditingService, {
@@ -655,20 +629,18 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsManagementService, {
 		_serviceBrand: undefined,
-		activeSession: constObservable(undefined),
 		getSession: () => undefined,
 		getSessions: () => [],
 	});
 
+	definePartialInstance(ISessionsService, {
+		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
+	});
+
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
-		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
-		hasReview: () => false,
-		requestReview: () => { },
-		removeComment: () => { },
-		updateComment: () => { },
-		dismissReview: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
 	});
@@ -761,6 +733,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});
+
+	// Workspace trust stubs so chat-input fixtures can instantiate the model
+	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
+	// Reports the workspace as trusted so the picker renders normally.
+	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+		override onDidChangeTrust = Event.None;
+		override readonly workspaceTrustInitialized = Promise.resolve();
+		override isWorkspaceTrusted() { return true; }
+	}());
+	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
+		override async requestWorkspaceTrust() { return true; }
+	}());
 }
 
 
@@ -876,6 +860,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
+			const input = parseFixtureInput(context.input);
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
@@ -974,6 +959,13 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			async function actualRender() {
 				await setupTheme(container, theme);
 
+				// The order-dependency fuzzer reorders the bundled CSS for just
+				// this render; the override is scoped to the fixture's lifetime
+				// (disposed at teardown, where it is also leak-checked).
+				if (input.reverseStylesheets !== false) {
+					disposableStore.add(overrideStylesheetOrder(input.reverseStylesheets));
+				}
+
 				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1041,12 +1033,18 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
 			});
 
-			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
-
-			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
+			if (input.outputTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
 				return { output: renderSwimlanes(history) };
+			}
+
+			// The order-dependency bisection driver asks for the list of bundled
+			// stylesheet documents so it can name a conflicting document by index
+			// without itself parsing the bundle. Keeping this knowledge in the
+			// runtime means the driver only deals in indices and image hashes.
+			if (input.outputStylesheetFiles) {
+				return { output: { stylesheetFiles: await getStylesheetDocumentFiles() } };
 			}
 			return undefined;
 		},

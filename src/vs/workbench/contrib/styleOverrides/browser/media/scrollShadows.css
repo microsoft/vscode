@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Scroll Shadows".
+ *
+ * Fades the top and bottom edges of scrollable surfaces (lists / trees and the
+ * editor) into the colour of the surface they sit on, so content reads as
+ * scrolling underneath the surface rather than being clipped at a hard edge.
+ *
+ * The built-in scrollable element only paints a scroll-aware shadow on the top
+ * (and left) edge, and only when `useShadows` is enabled, with no bottom
+ * counterpart. To get a consistent top + bottom treatment everywhere, this
+ * module overlays two fixed pseudo-elements pinned to the viewport edges. Each
+ * one is a linear-gradient from the surface background colour to transparent, so
+ * the fade always matches whatever part it lives in (editor, panel, side bar,
+ * ...). The surface colour is supplied via the `--scroll-shadow-surface`
+ * variable, defaulted below and refined per part. The overlays are
+ * non-interactive and sit above the scrolling content.
+ *
+ * All rules are gated behind the `.style-override` class, which
+ * the StyleOverridesContribution toggles onto the workbench container(s) when
+ * the `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ */
+
+/*
+ * Surface colour the edges fade into. Default to the editor background, then
+ * refine per part so lists in the panel / side bar fade into their own surface.
+ */
+.style-override {
+	--scroll-shadow-surface: var(--vscode-editor-background);
+}
+
+.style-override .part.panel {
+	--scroll-shadow-surface: var(--vscode-panel-background);
+}
+
+.style-override .part.sidebar {
+	--scroll-shadow-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.style-override .part.auxiliarybar {
+	--scroll-shadow-surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+
+/* =============================================================================
+ * Editor area. The main editor viewport scrolls inside `.editor-scrollable`;
+ * pin the fades to that scrollable element so they share the scrollbar's
+ * stacking context and sit below it. Scope to the editor / panel parts so the
+ * fade never leaks onto inline editors such as the chat input.
+ * ========================================================================== */
+.style-override .part.editor .monaco-editor .editor-scrollable::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 8px;
+	pointer-events: none;
+	/* Below the scrollbar (z-index 11) so it is never obscured, above content. */
+	z-index: 10;
+}
+
+/* Editor top shadow: delegate to the built-in scroll-decoration element. */
+.style-override .part.editor .monaco-editor .scroll-decoration {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 8px;
+	box-shadow: var(--vscode-editor-background) 0 8px 8px -8px inset;
+}
+
+.style-override .part.panel .monaco-editor .editor-scrollable::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 8px;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.style-override .part.editor .monaco-editor .editor-scrollable::after,
+.style-override .part.panel .monaco-editor .editor-scrollable::after {
+	bottom: 0;
+	background: linear-gradient(to top, var(--scroll-shadow-surface), transparent);
+}
+
+/* =============================================================================
+ * Embedded single-line editors used as text inputs (settings / keybindings
+ * search boxes, etc.) live inside the editor part but should read as plain
+ * inputs, not as scrolling editor surfaces. Suppress the edge fades there so the
+ * input keeps a flat background and never shows the editor-coloured rectangle.
+ * ========================================================================== */
+.style-override .suggest-input-container .monaco-editor .editor-scrollable::before,
+.style-override .suggest-input-container .monaco-editor .editor-scrollable::after {
+	display: none;
+}

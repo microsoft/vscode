@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import { Suite, Context } from 'mocha';
 import { dirname, join } from 'path';
@@ -26,9 +27,9 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+export function installAllHandlers(logger: Logger, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions, beforeStart?: (app: Application) => Promise<void> | void) {
 	installDiagnosticsHandler(logger);
-	installAppBeforeHandler(optionsTransform);
+	installAppBeforeHandler(optionsTransform, beforeStart);
 	installAppAfterHandler();
 }
 
@@ -86,7 +87,7 @@ export function suiteCrashPath(options: ApplicationOptions, suiteName: string): 
 	return join(dirname(options.crashesPath), `${crashCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
 }
 
-function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions) {
+function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions, beforeStart?: (app: Application) => Promise<void> | void) {
 	before(async function () {
 		const suiteName = this.test?.parent?.title ?? 'unknown';
 
@@ -95,6 +96,7 @@ function installAppBeforeHandler(optionsTransform?: (opts: ApplicationOptions) =
 			logsPath: suiteLogsPath(this.defaultOptions, suiteName),
 			crashesPath: suiteCrashPath(this.defaultOptions, suiteName)
 		}, optionsTransform);
+		await beforeStart?.(this.app);
 		await this.app.start();
 	});
 }
@@ -125,6 +127,36 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
 	return app;
 }
 
+/**
+ * Pre-seed the default profile's storage DB so the
+ * `BuiltinChatExtensionEnablementMigration` does not disable the built-in
+ * copilot-chat extension on a fresh per-run profile. Without this, the first
+ * chat send routes through chat-setup's install path, which fails for a merely
+ * disabled built-in ("...is a built-in extension and not allowed to be
+ * installed") and surfaces a "try again" dialog before the retry recovers.
+ *
+ * Mirrors the perf:chat harness (`scripts/chat-simulation/common/utils.js`).
+ * Requires the `sqlite3` CLI on PATH; best-effort, so a missing CLI just falls
+ * back to the (working) retry path.
+ */
+export function preseedChatExtensionEnablement(userDataDir: string | undefined): void {
+	if (!userDataDir) {
+		return;
+	}
+	try {
+		const globalStorageDir = join(userDataDir, 'User', 'globalStorage');
+		fs.mkdirSync(globalStorageDir, { recursive: true });
+		const dbPath = join(globalStorageDir, 'state.vscdb');
+		const sql = [
+			'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
+			'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
+		].join(' ');
+		execFileSync('sqlite3', [dbPath, sql]);
+	} catch {
+		// best-effort: a missing `sqlite3` CLI just falls back to the retry path
+	}
+}
+
 export function getMockLlmServerPath(): string {
 	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.ts');
 }
@@ -143,7 +175,30 @@ export function buildCopilotChatToken(mockUrl: string): string {
 	})).toString('base64');
 }
 
-export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer): Readonly<Record<string, string | undefined>> {
+export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { userDataDir?: string }): Readonly<Record<string, string | undefined>> {
+	// When `userDataDir` is provided, isolate the Copilot CLI session store
+	// from the user's real `~/.copilot/` by pointing `XDG_STATE_HOME` at a
+	// sibling of the per-run `userDataDir`. The extension's `getCopilotHome()`
+	// / `getCopilotCLISessionStateDir()` (in
+	// `extensions/copilot/src/extension/chatSessions/copilotcli/node/cliHelpers.ts`)
+	// and the underlying CLI SDK both anchor to `XDG_STATE_HOME/.copilot/`
+	// when that env var is set, otherwise to `~/.copilot/`. Pinning it under
+	// the per-run `userDataDir` means the smoke-test cleanup (which removes
+	// the whole `testDataPath`) also wipes the Copilot state, so repeated
+	// local runs don't accumulate sessions that slow down `listSessions`
+	// and other startup paths.
+	let xdgStateHome: string | undefined;
+	if (opts?.userDataDir) {
+		xdgStateHome = `${opts.userDataDir}-copilot-state`;
+		try {
+			fs.mkdirSync(xdgStateHome, { recursive: true });
+		} catch {
+			// best effort — the dir will be created by the extension on first
+			// write if mkdir fails here (e.g. due to a race with a sibling
+			// suite). The env var is still honoured.
+		}
+	}
+
 	return {
 		// Mirror the env-var bypass used by `scripts/chat-simulation/common/utils.js#buildEnv`
 		// for perf-regression / memory-leak runs:
@@ -156,6 +211,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer): Readonly<Rec
 		GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1',
 		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+		XDG_STATE_HOME: xdgStateHome,
 	};
 }
 

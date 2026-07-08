@@ -7,7 +7,7 @@ import { DisposableMap } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { AgentHostCompletionReferenceKind, agentHostCompletionVariableValue, type IAgentHostCompletionVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry, type IAgentHostCompletionVariableValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
@@ -199,11 +199,13 @@ class AgentHostReferenceArgument {
 	}
 
 	static forSkill(widget: IChatWidget, uri: URI, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
-		return new AgentHostReferenceArgument(widget, uri.toString(), agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Skill), displayName, false, false, range, _meta);
+		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, displayName ?? uri.toString(), uri, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, displayName, false, false, range, _meta);
 	}
 
 	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
-		return new AgentHostReferenceArgument(widget, 'agent-host-command:' + command, agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Command), description, false, false, range, _meta);
+		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
 	}
 }
 

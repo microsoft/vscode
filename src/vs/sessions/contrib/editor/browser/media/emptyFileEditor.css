@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.empty-file-editor {
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-agentsPanel-foreground);
+	background: var(--vscode-editor-background);
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.empty-file-editor:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.empty-file-editor-placeholder {
+	color: var(--vscode-descriptionForeground);
+}
