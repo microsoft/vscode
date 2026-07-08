@@ -141,10 +141,7 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 	if (session.parentSession) {
 		await expandTo(session.parentSession, tree);
 	}
-	// Refresh the session's children before expanding. This ensures that if the session was
-	// previously expanded with empty or stale children (e.g. the thread was running when it
-	// was last expanded), the children are reloaded so that stack frames are present in the
-	// tree's nodes map and can be selected via setSelection().
+	// Refresh children before expanding so setSelection() can find stack frames even after a stale/empty expansion
 	await tree.updateChildren(session);
 	await tree.expand(session);
 }

@@ -742,7 +742,12 @@ export class DebugSession implements IDebugSession {
 
 		this.setLastSteppingGranularity(threadId, granularity);
 		this.steppingThreadIds.add(threadId);
-		await this.raw.next({ threadId, granularity });
+		try {
+			await this.raw.next({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -753,7 +758,12 @@ export class DebugSession implements IDebugSession {
 
 		this.setLastSteppingGranularity(threadId, granularity);
 		this.steppingThreadIds.add(threadId);
-		await this.raw.stepIn({ threadId, targetId, granularity });
+		try {
+			await this.raw.stepIn({ threadId, targetId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -764,7 +774,12 @@ export class DebugSession implements IDebugSession {
 
 		this.setLastSteppingGranularity(threadId, granularity);
 		this.steppingThreadIds.add(threadId);
-		await this.raw.stepOut({ threadId, granularity });
+		try {
+			await this.raw.stepOut({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
@@ -775,7 +790,12 @@ export class DebugSession implements IDebugSession {
 
 		this.setLastSteppingGranularity(threadId, granularity);
 		this.steppingThreadIds.add(threadId);
-		await this.raw.stepBack({ threadId, granularity });
+		try {
+			await this.raw.stepBack({ threadId, granularity });
+		} catch (e) {
+			this.steppingThreadIds.delete(threadId);
+			throw e;
+		}
 	}
 
 	async continue(threadId: number): Promise<void> {
