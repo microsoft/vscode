@@ -59,6 +59,16 @@ function enableASARSupport(): void {
 		return false;
 	}
 
+	// Electron injects a synthetic 'electron' module (also reachable via the
+	// 'electron/main', 'electron/common' and 'electron/renderer' aliases) that
+	// the loader resolves to the 'electron:' URL scheme rather than a real file.
+	// 'node:module#isBuiltin' does not recognize it, so we detect it explicitly
+	// and treat it like a Node built-in: it lives in the runtime, never in
+	// 'node_modules', and must never be redirected into the archive.
+	function isElectronBuiltin(specifier) {
+		return specifier === 'electron' || specifier.startsWith('electron/');
+	}
+
 	function normalizeDriveLetter(path) {
 		if (process.platform === 'win32'
 			&& path.length >= 2
@@ -103,7 +113,7 @@ function enableASARSupport(): void {
 			};
 		}
 
-		if (asarRequire && context.parentURL && !isRelativeSpecifier(specifier) && !isBuiltin(specifier)) {
+		if (asarRequire && context.parentURL && !isRelativeSpecifier(specifier) && !isBuiltin(specifier) && !isElectronBuiltin(specifier)) {
 			let parentPath;
 			try { parentPath = normalizeDriveLetter(fileURLToPath(context.parentURL)); } catch { parentPath = undefined; }
 			if (parentPath && parentPath.startsWith(resourcesPath)) {
