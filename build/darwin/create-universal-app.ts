@@ -34,6 +34,23 @@ function crossCopyPlatformDir(x64AppPath: string, arm64AppPath: string, relative
 	}
 }
 
+/**
+ * Like {@link crossCopyPlatformDir} but for a single file. Copies the file from whichever build
+ * has it into the one that does not, creating the parent directory if needed.
+ */
+function crossCopyFile(x64AppPath: string, arm64AppPath: string, relativePath: string): void {
+	const inX64 = path.join(x64AppPath, relativePath);
+	const inArm64 = path.join(arm64AppPath, relativePath);
+
+	if (fs.existsSync(inX64) && !fs.existsSync(inArm64)) {
+		fs.mkdirSync(path.dirname(inArm64), { recursive: true });
+		fs.cpSync(inX64, inArm64);
+	} else if (fs.existsSync(inArm64) && !fs.existsSync(inX64)) {
+		fs.mkdirSync(path.dirname(inX64), { recursive: true });
+		fs.cpSync(inArm64, inX64);
+	}
+}
+
 async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
 
@@ -80,6 +97,14 @@ async function main(buildDir?: string) {
 		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'tgrep', 'bin', plat));
 	}
 
+	// MSAL ships arch-suffixed native broker dylibs (libmsalruntime_x64.dylib / libmsalruntime_arm64.dylib),
+	// each present only in its own arch's build. The universal merger requires both builds to have identical
+	// file trees, so cross-copy each dylib into the other build. They are then kept as single-arch files
+	// (x64ArchFiles below) and excluded from Mach-O arch verification (verify-macho.ts).
+	const msalDistDir = path.join('Contents', 'Resources', 'app', 'extensions', 'microsoft-authentication', 'dist');
+	crossCopyFile(x64AppPath, arm64AppPath, path.join(msalDistDir, 'libmsalruntime_x64.dylib'));
+	crossCopyFile(x64AppPath, arm64AppPath, path.join(msalDistDir, 'libmsalruntime_arm64.dylib'));
+
 	const filesToSkip = [
 		'**/CodeResources',
 		'**/Credits.rtf',
@@ -121,7 +146,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/**,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@microsoft/mxc-sdk/bin/**,**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**}',
+		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime_x64.dylib,**/extensions/microsoft-authentication/dist/libmsalruntime_arm64.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/**,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@microsoft/mxc-sdk/bin/**,**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {

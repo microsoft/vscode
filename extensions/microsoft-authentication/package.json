@@ -151,6 +151,9 @@
     "keytar": "file:./packageMocks/keytar",
     "vscode-tas-client": "^0.1.84"
   },
+  "overrides": {
+    "@azure/msal-node-runtime": "0.20.5"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"

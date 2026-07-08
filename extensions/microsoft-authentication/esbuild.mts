@@ -13,41 +13,50 @@ const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const isLinux = !isWindows && !isMacOS;
 
-const windowsArches = ['x64'];
+const windowsArches = ['x64', 'arm64'];
 const linuxArches = ['x64'];
-
-let platformFolder: string;
-switch (process.platform) {
-	case 'win32': platformFolder = 'windows'; break;
-	case 'darwin': platformFolder = 'macos'; break;
-	case 'linux': platformFolder = 'linux'; break;
-	default: throw new Error(`Unsupported platform: ${process.platform}`);
-}
 
 const arch = process.env.VSCODE_ARCH || process.arch;
 
+const msalRuntimeDistDir = path.join(import.meta.dirname, 'node_modules', '@azure', 'msal-node-runtime', 'dist');
+const isMsalBinary = (file: string) => /^(lib)?msal.*\.(node|dll|dylib|so)$/.test(file);
+
 /**
- * Copy native MSAL runtime binaries to the output directory.
+ * Copy every MSAL native binary from `srcDir` into `destDir` (created if needed).
+ * No-op if `srcDir` does not exist (unsupported platform/arch).
  */
-async function copyNativeMsalFiles(outDir: string): Promise<void> {
-	if (
-		!(isWindows && windowsArches.includes(arch)) &&
-		!isMacOS &&
-		!(isLinux && linuxArches.includes(arch))
-	) {
+async function copyMsalBinaries(srcDir: string, destDir: string): Promise<void> {
+	let files: string[];
+	try {
+		files = await fs.promises.readdir(srcDir);
+	} catch {
 		return;
 	}
-
-	const msalRuntimeDir = path.join(import.meta.dirname, 'node_modules', '@azure', 'msal-node-runtime', 'dist', platformFolder, arch);
-	try {
-		const files = await fs.promises.readdir(msalRuntimeDir);
-		for (const file of files) {
-			if (/^(lib)?msal.*\.(node|dll|dylib|so)$/.test(file)) {
-				await fs.promises.copyFile(path.join(msalRuntimeDir, file), path.join(outDir, file));
-			}
+	await fs.promises.mkdir(destDir, { recursive: true });
+	for (const file of files) {
+		if (isMsalBinary(file)) {
+			await fs.promises.copyFile(path.join(srcDir, file), path.join(destDir, file));
 		}
-	} catch {
-		// Skip if directory doesn't exist (unsupported platform/arch)
+	}
+}
+
+/**
+ * Copy the native MSAL runtime broker binaries into the extension output directory, where MSAL's
+ * `require('./msal-node-runtime')` resolves them.
+ *
+ * For Windows and macOS the target arch can differ from the build host (cross-arch / universal builds),
+ * so we copy the binaries for the specific target arch out of the package's `dist/<platform>/<arch>/`.
+ * Linux binaries are distro-specific, and `@azure/msal-node-runtime`'s own install script
+ * (`copyBinaries.js`) already selects and flattens the correct binary for the build machine into the
+ * package's `dist/` root — so we use the package as-is and copy those flattened binaries.
+ */
+async function copyNativeMsalFiles(outDir: string): Promise<void> {
+	if (isWindows && windowsArches.includes(arch)) {
+		await copyMsalBinaries(path.join(msalRuntimeDistDir, 'windows', arch), outDir);
+	} else if (isMacOS) {
+		await copyMsalBinaries(path.join(msalRuntimeDistDir, 'macos', arch), outDir);
+	} else if (isLinux && linuxArches.includes(arch)) {
+		await copyMsalBinaries(msalRuntimeDistDir, outDir);
 	}
 }
 

@@ -23,8 +23,10 @@ const MACHO_X86_64_CPU_TYPE = new Set([
 
 // Files to skip during architecture validation
 const FILES_TO_SKIP = [
-	// MSAL runtime files are only present in ARM64 builds
-	'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
+	// MSAL runtime dylibs are arch-suffixed and intentionally shipped as single-arch files in the
+	// universal app (see create-universal-app.ts), so exclude them from the universal arch check.
+	'**/extensions/microsoft-authentication/dist/libmsalruntime_x64.dylib',
+	'**/extensions/microsoft-authentication/dist/libmsalruntime_arm64.dylib',
 	'**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
 	// Copilot SDK: universal app has both x64 and arm64 platform packages
 	'**/node_modules/@github/copilot-darwin-x64/**',
