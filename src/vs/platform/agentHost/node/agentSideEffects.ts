@@ -1343,7 +1343,13 @@ export class AgentSideEffects extends Disposable {
 
 		await Promise.all(selectionUpdates);
 
-		await agent.chats.sendMessage(chatUri, message.text, message.attachments, turnId, senderClientId).catch(err => {
+		// Prepend the context of any pending host-injected local turns (e.g.
+		// `!command` runs the model never saw) so the model learns what the user
+		// did out-of-band. Only the text sent to the agent is augmented — the
+		// transcript / UI message is unchanged.
+		const text = this._augmentWithPendingLocalContext(chat, message.text);
+
+		await agent.chats.sendMessage(chatUri, text, message.attachments, turnId, senderClientId).catch(err => {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 			this._stateManager.dispatchServerAction(turnChannel, {
@@ -1354,6 +1360,26 @@ export class AgentSideEffects extends Disposable {
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
 			this._toolCallTracker.clearSession(turnChannel);
 		});
+	}
+
+	/**
+	 * Prepends the model-facing context of the pending host-injected local turns
+	 * in `chat` (the trailing locals in the transcript — see
+	 * {@link AgentHostLocalTurns.collectPendingModelContext}) to `text`. Returns
+	 * `text` unchanged when there is no pending context. The in-flight real
+	 * message being sent lives in the active turn, so the pending locals are the
+	 * trailing completed turns the model has not yet seen.
+	 */
+	private _augmentWithPendingLocalContext(chat: ProtocolURI, text: string): string {
+		const turns = this._stateManager.getSessionState(chat)?.turns;
+		if (!turns) {
+			return text;
+		}
+		const context = this._options.localTurns.collectPendingModelContext(chat, turns);
+		if (context.length === 0) {
+			return text;
+		}
+		return `${context.join('\n\n')}\n\n${text}`;
 	}
 
 

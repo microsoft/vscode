@@ -112,6 +112,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			payload        TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 9,
+		sql: `ALTER TABLE local_turns ADD COLUMN model_context TEXT`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -434,21 +438,22 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(async () => {
 			const db = await this._ensureDb();
 			await dbRun(db,
-				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
-				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload, model_context) VALUES (?, ?, ?, ?, ?, ?)',
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload, record.modelContext ?? null],
 			);
 		});
 	}
 
 	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
 		const db = await this._ensureDb();
-		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, model_context FROM local_turns ORDER BY seq', []);
 		return rows.map(r => ({
 			turnId: r.turn_id as string,
 			chatUri: r.chat_uri as string,
 			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
 			seq: r.seq as number,
 			payload: r.payload as string,
+			modelContext: (r.model_context as string | null) ?? undefined,
 		}));
 	}
 

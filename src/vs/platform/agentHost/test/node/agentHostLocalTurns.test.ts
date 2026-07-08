@@ -67,4 +67,40 @@ suite('AgentHostLocalTurns', () => {
 		assert.strictEqual(registry.resolveConcreteTurnId(chatA, 'local-x'), 'real-9');
 		assert.strictEqual(registry.isLocal(chatB, 'local-y'), true);
 	});
+
+	test('carries model context through record, persistence, and reload', async () => {
+		const db = new TestSessionDatabase();
+		const chat = 'ahp-chat://default/xyz';
+		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		registry.record(session, chat, turn('local-a'), 'real-1', 'ran !ls\nfoo');
+		registry.record(session, chat, turn('local-b'), 'real-1');
+
+		assert.strictEqual(registry.getModelContext(chat, 'local-a'), 'ran !ls\nfoo');
+		assert.strictEqual(registry.getModelContext(chat, 'local-b'), undefined);
+
+		// Survives a reload into a fresh registry backed by the same database.
+		const reloaded = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		await reloaded.loadForChat(session, chat);
+		assert.strictEqual(reloaded.getModelContext(chat, 'local-a'), 'ran !ls\nfoo');
+		assert.strictEqual(reloaded.getModelContext(chat, 'local-b'), undefined);
+	});
+
+	test('collectPendingModelContext returns context of the trailing locals after the last concrete turn, in order, skipping context-less locals', () => {
+		const db = new TestSessionDatabase();
+		const chat = 'ahp-chat://default/xyz';
+		const registry = new AgentHostLocalTurns(createSessionDataService(db), new NullLogService());
+		// A bang (ctx) and a context-less local (e.g. /rename) recorded after real-1.
+		registry.record(session, chat, turn('local-a'), 'real-1', 'ctx-a');
+		registry.record(session, chat, turn('local-rename'), 'real-1');
+		// The in-flight real message being sent is NOT part of the completed
+		// transcript, so the pending locals are the trailing entries.
+		const transcript = [turn('real-1'), turn('local-a'), turn('local-rename')];
+
+		// Context of the pending locals since real-1, in order (rename skipped).
+		assert.deepStrictEqual(registry.collectPendingModelContext(chat, transcript), ['ctx-a']);
+		// No trailing locals once the transcript ends on a concrete turn.
+		assert.deepStrictEqual(registry.collectPendingModelContext(chat, [turn('real-1')]), []);
+		// Empty transcript yields nothing.
+		assert.deepStrictEqual(registry.collectPendingModelContext(chat, []), []);
+	});
 });

@@ -27,8 +27,8 @@ import type { Turn } from '../common/state/sessionState.js';
  */
 export class AgentHostLocalTurns {
 
-	/** chat URI → (localTurnId → { anchorTurnId, seq }). */
-	private readonly _byChat = new Map<string, Map<string, { readonly anchorTurnId: string | undefined; readonly seq: number }>>();
+	/** chat URI → (localTurnId → { anchorTurnId, seq, modelContext }). */
+	private readonly _byChat = new Map<string, Map<string, { readonly anchorTurnId: string | undefined; readonly seq: number; readonly modelContext: string | undefined }>>();
 	/** session URI → highest `seq` assigned so far (seq is session-global for stable ordering). */
 	private readonly _seqBySession = new Map<string, number>();
 
@@ -60,14 +60,52 @@ export class AgentHostLocalTurns {
 	}
 
 	/**
+	 * Returns the model-facing context contributed by the local turn `turnId` in
+	 * `chat`, or `undefined` when it is not a local turn or contributes nothing.
+	 */
+	getModelContext(chat: string, turnId: string): string | undefined {
+		return this._byChat.get(chat)?.get(turnId)?.modelContext;
+	}
+
+	/**
+	 * Collects the model-facing context of the *pending* local turns in `chat`:
+	 * the trailing local turns in `turns` (the completed transcript), i.e. those
+	 * recorded after the last concrete (SDK-backed) turn and not yet followed by
+	 * a real message, so the model has not seen them. The in-flight real message
+	 * being sent is not part of `turns` (it lives in the active turn), so the
+	 * pending locals are exactly the trailing ones. Returned in chronological
+	 * order so callers can prepend them to the next real message.
+	 */
+	collectPendingModelContext(chat: string, turns: readonly Turn[]): string[] {
+		const map = this._byChat.get(chat);
+		if (!map) {
+			return [];
+		}
+		const contexts: string[] = [];
+		for (let i = turns.length - 1; i >= 0; i--) {
+			const entry = map.get(turns[i].id);
+			if (!entry) {
+				// Hit a concrete turn the model has already seen — stop.
+				break;
+			}
+			if (entry.modelContext !== undefined) {
+				contexts.unshift(entry.modelContext);
+			}
+		}
+		return contexts;
+	}
+
+	/**
 	 * Persist a local turn and remember it in memory. `anchorTurnId` is the id
 	 * of the preceding concrete turn in `chat` (or `undefined` when there is
-	 * none). `session` identifies the database to persist into.
+	 * none). `session` identifies the database to persist into. `modelContext`,
+	 * when provided, is prepended to the next real message so the model learns
+	 * what the user did out-of-band.
 	 */
-	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void {
+	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined, modelContext?: string): void {
 		const seq = (this._seqBySession.get(session) ?? 0) + 1;
-		this._noteInMemory(session, chat, turn.id, anchorTurnId, seq);
-		const record: ILocalTurnRecord = { turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
+		this._noteInMemory(session, chat, turn.id, anchorTurnId, seq, modelContext);
+		const record: ILocalTurnRecord = { turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn), modelContext };
 		let ref: IReference<ISessionDatabase>;
 		try {
 			ref = this._sessionDataService.openDatabase(URI.parse(session));
@@ -89,11 +127,6 @@ export class AgentHostLocalTurns {
 	async loadForChat(session: string, chat: string): Promise<ILocalTurnRecord[]> {
 		const records = await this._load(session);
 		return records.filter(r => r.chatUri === chat);
-	}
-
-	/** Note a local turn in memory only (used by fork seeding). */
-	noteInMemory(session: string, chat: string, turnId: string, anchorTurnId: string | undefined, seq: number): void {
-		this._noteInMemory(session, chat, turnId, anchorTurnId, seq);
 	}
 
 	/** Delete the given local turns from memory and the session database. */
@@ -119,11 +152,6 @@ export class AgentHostLocalTurns {
 		}).finally(() => ref.dispose());
 	}
 
-	/** Drop all in-memory state for a chat. */
-	forgetChat(chat: string): void {
-		this._byChat.delete(chat);
-	}
-
 	private async _load(session: string): Promise<ILocalTurnRecord[]> {
 		const ref = this._sessionDataService.tryOpenDatabase?.(URI.parse(session));
 		if (!ref) {
@@ -137,7 +165,7 @@ export class AgentHostLocalTurns {
 			try {
 				const records = await db.object.getLocalTurns();
 				for (const r of records) {
-					this._noteInMemory(session, r.chatUri, r.turnId, r.anchorTurnId, r.seq);
+					this._noteInMemory(session, r.chatUri, r.turnId, r.anchorTurnId, r.seq, r.modelContext);
 				}
 				return records;
 			} finally {
@@ -149,13 +177,13 @@ export class AgentHostLocalTurns {
 		}
 	}
 
-	private _noteInMemory(session: string, chat: string, turnId: string, anchorTurnId: string | undefined, seq: number): void {
+	private _noteInMemory(session: string, chat: string, turnId: string, anchorTurnId: string | undefined, seq: number, modelContext: string | undefined): void {
 		let map = this._byChat.get(chat);
 		if (!map) {
 			map = new Map();
 			this._byChat.set(chat, map);
 		}
-		map.set(turnId, { anchorTurnId, seq });
+		map.set(turnId, { anchorTurnId, seq, modelContext });
 		this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, seq));
 	}
 }

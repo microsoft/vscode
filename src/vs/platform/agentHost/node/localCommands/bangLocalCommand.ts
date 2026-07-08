@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ToolCallConfirmationReason, ToolResultContentType, type ToolResultContent, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolResultContent, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { parseBangCommand } from '../agentHostBangCommand.js';
 import { DEFAULT_SHELL_COMMAND_TIMEOUT_MS, executeShellCommand, shellTypeForExecutable, type IShellCommandResult } from '../shared/shellCommandExecution.js';
 import { ILocalChatCommand, ILocalChatCommandContext, ILocalChatCommandRequest, LocalChatCommandRegistry } from './localChatCommand.js';
@@ -45,6 +45,41 @@ export class BangLocalCommand extends Disposable implements ILocalChatCommand {
 			return undefined;
 		}
 		return () => this._run(request.turnChannel, request.turnId, command);
+	}
+
+	/**
+	 * Contributes the command the user ran and its captured output as
+	 * model-facing context so the next real message tells the model what
+	 * happened out-of-band. Reads the completed terminal tool call from the
+	 * (already sanitized) turn; returns `undefined` when no command is present.
+	 */
+	getModelContext(turn: Turn): string | undefined {
+		const part = turn.responseParts.find(p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolName === 'terminal');
+		if (!part || part.kind !== ResponsePartKind.ToolCall) {
+			return undefined;
+		}
+		const toolCall = part.toolCall;
+		// A finished bang tool call is always Completed (it never requests
+		// result confirmation); this narrows to the state carrying toolInput and
+		// content without an `in` check.
+		if (toolCall.status !== ToolCallStatus.Completed) {
+			return undefined;
+		}
+		const command = toolCall.toolInput;
+		if (!command) {
+			return undefined;
+		}
+		const output = (toolCall.content ?? [])
+			.flatMap(c => c.type === ToolResultContentType.Text ? [c.text] : [])
+			.join('\n')
+			.trim();
+		const lines = [`The user ran a terminal command themselves (not the assistant):`, '', `$ ${command}`];
+		if (output) {
+			lines.push('', 'Output:', output);
+		} else {
+			lines.push('', '(no output)');
+		}
+		return lines.join('\n');
 	}
 
 	private async _run(turnChannel: ProtocolURI, turnId: string, command: string): Promise<void> {

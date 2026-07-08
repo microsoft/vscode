@@ -73,6 +73,16 @@ export interface ILocalChatCommand extends IDisposable {
 	 * forwards the message to the agent).
 	 */
 	tryHandle(request: ILocalChatCommandRequest): (() => Promise<void>) | undefined;
+
+	/**
+	 * Optional model-facing context contributed by this command's completed
+	 * local turn `turn` — for example the command a `!command` ran and its
+	 * output. Persisted with the local turn and prepended to the next real
+	 * message so the model learns what the user did out-of-band. Return
+	 * `undefined` to contribute nothing (the default for commands that omit
+	 * this).
+	 */
+	getModelContext?(turn: Turn): string | undefined;
 }
 
 /** Constructs a {@link ILocalChatCommand} bound to a context. */
@@ -163,7 +173,7 @@ export class AgentHostLocalCommands extends Disposable {
 			// drain any messages queued behind it.
 			this._stateManager.dispatchServerAction(request.turnChannel, { type: ActionType.ChatTurnComplete, turnId: request.turnId });
 			if (command.recordsLocalTurn) {
-				this._recordLocalTurn(request.turnChannel, request.turnId);
+				this._recordLocalTurn(command, request.turnChannel, request.turnId);
 			}
 			this._notifyTurnConsumable(request.turnChannel);
 		}
@@ -174,9 +184,12 @@ export class AgentHostLocalCommands extends Disposable {
 	 * it survives reload and fork/truncate can resolve it to the preceding
 	 * concrete turn. Works uniformly for the default chat and any peer chat —
 	 * the turn is keyed by its chat channel. Live terminal references are
-	 * stripped from the payload (the PTY does not survive a reload).
+	 * stripped from the payload (the PTY does not survive a reload). The
+	 * handling `command` may contribute model-facing context (see
+	 * {@link ILocalChatCommand.getModelContext}) that is prepended to the next
+	 * real message.
 	 */
-	private _recordLocalTurn(turnChannel: ProtocolURI, turnId: string): void {
+	private _recordLocalTurn(command: ILocalChatCommand, turnChannel: ProtocolURI, turnId: string): void {
 		const chat = turnChannel;
 		const session = isAhpChatChannel(turnChannel) ? parseRequiredSessionUriFromChatUri(turnChannel) : turnChannel;
 		const turns = this._stateManager.getSessionState(turnChannel)?.turns;
@@ -196,7 +209,9 @@ export class AgentHostLocalCommands extends Disposable {
 				break;
 			}
 		}
-		this._localTurns.record(session, chat, sanitizeLocalTurnForPersistence(turns[index]), anchorTurnId);
+		const sanitized = sanitizeLocalTurnForPersistence(turns[index]);
+		const modelContext = command.getModelContext?.(sanitized);
+		this._localTurns.record(session, chat, sanitized, anchorTurnId, modelContext);
 	}
 }
 

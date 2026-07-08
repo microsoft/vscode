@@ -1085,7 +1085,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const originalAnchor = this._localTurns.resolveConcreteTurnId(sourceChatUri, original.id);
 			const newAnchor = originalAnchor !== undefined ? mapping.get(originalAnchor) : undefined;
-			this._localTurns.record(persistSession, newChatUri, forkedTurns[i], newAnchor);
+			const modelContext = this._localTurns.getModelContext(sourceChatUri, original.id);
+			this._localTurns.record(persistSession, newChatUri, forkedTurns[i], newAnchor, modelContext);
 		}
 	}
 

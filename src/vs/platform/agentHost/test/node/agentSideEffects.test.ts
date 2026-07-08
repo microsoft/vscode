@@ -692,6 +692,29 @@ suite('AgentSideEffects', () => {
 			await new Promise(r => setTimeout(r, 10));
 			assert.deepStrictEqual(await db.getLocalTurns(), []);
 		});
+
+		test('prepends pending bang command + output to the next real message sent to the agent', async () => {
+			setupSession('file:///work');
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const se = createLocalTurnSideEffects(db, terminalManager);
+
+			seedRealTurn('real-1', 'hello');
+			await runBang(se, terminalManager, 'local-1');
+
+			// A subsequent real message carries the out-of-band command + output.
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted, turnId: 'real-2', message: { text: 'what did that show?', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: ++clientSeq });
+			se.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			const prompt = agent.sendMessageCalls.at(-1)!.prompt;
+			assert.ok(prompt.includes('echo hi'), `expected command in prompt: ${prompt}`);
+			assert.ok(prompt.includes('hi'), `expected output in prompt: ${prompt}`);
+			assert.ok(prompt.endsWith('what did that show?'), `expected user message last: ${prompt}`);
+		});
 	});
 
 	// ---- immediate title on first turn -----------------------------------
