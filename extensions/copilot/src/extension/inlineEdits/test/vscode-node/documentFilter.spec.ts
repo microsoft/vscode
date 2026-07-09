@@ -81,4 +81,28 @@ describe('DocumentFilter', () => {
 		const isEnabled1 = await documentFilter.isTrackingEnabled(doc);
 		expect(isEnabled1).toBe(true);
 	});
+
+	it('respects a per-language disablement even when the global setting is enabled (issue #323753)', async () => {
+		const defaultsConfigService = new DefaultsOnlyConfigurationService();
+		const configService = new InMemoryConfigurationService(defaultsConfigService);
+		configService.setConfig(ConfigKey.Enable, { '*': true, 'markdown': false });
+		const documentFilter = new DocumentFilter(ignoreService, configService);
+
+		expect(documentFilter.isLanguageEnabled('markdown')).toBe(false);
+		expect(documentFilter.isLanguageEnabled(js)).toBe(true);
+		expect(await documentFilter.isTrackingEnabled(createDoc('markdown'))).toBe(false);
+	});
+
+	it('ignoreCompletionsDisablement overrides only the global disablement, not a per-language one', () => {
+		const defaultsConfigService = new DefaultsOnlyConfigurationService();
+		const configService = new InMemoryConfigurationService(defaultsConfigService);
+		configService.setConfig(ConfigKey.Enable, { '*': false, 'markdown': false });
+		configService.setConfig(ConfigKey.TeamInternal.InlineEditsIgnoreCompletionsDisablement, true);
+		const documentFilter = new DocumentFilter(ignoreService, configService);
+
+		// a language without an explicit setting falls back to the (overridden) global setting
+		expect(documentFilter.isLanguageEnabled(js)).toBe(true);
+		// an explicit per-language disablement is still respected
+		expect(documentFilter.isLanguageEnabled('markdown')).toBe(false);
+	});
 });
