@@ -6,7 +6,6 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
@@ -17,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
@@ -42,27 +42,12 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
-/** Configuration key that controls whether the local agent host process is spawned. */
-export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
-
-/** Whether the local/process-backed agent host is enabled in this runtime. */
-export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
-}
-
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
-/** Configuration key that controls whether Agent Host uses its terminal tool override for Copilot SDK sessions. */
-export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
-
-/**
- * Configuration key that controls whether Copilot SDK sessions running a Claude
- * Opus 4.8 model apply the Opus 4.8-tuned system-prompt section overrides.
- * Forwarded into the agent host's root config (`opus48Prompt`) by
- * `AgentHostCopilotPromptContribution`.
- */
-export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+// The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
+// `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
+// root-config keys in `copilotCliConfig.ts`.
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -90,9 +75,11 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
  * Configuration key controlling whether the agent host *wires up* the BYOK
  * ("bring your own key") language-model bridge: the renderer LM handler, the
  * reverse-RPC channel, and the per-connection link to the node-side OpenAI
- * proxy + bridge registry. When `false` (the default), the proxy and registry
- * are still constructed but stay inert — the renderer's BYOK server channel and
- * the per-connection bridge are not wired, so the registry stays empty and
+ * proxy + bridge registry. When `true` (the default), the renderer's BYOK
+ * server channel and the per-connection bridge are wired so extension-provided
+ * BYOK models are reachable from agent-host sessions. When `false`, the proxy
+ * and registry are still constructed but stay inert — the BYOK server channel
+ * and the per-connection bridge are not wired, so the registry stays empty and
  * extension-provided BYOK models are never reachable from agent-host sessions.
  * The agent host process must be restarted for changes to take effect.
  */
@@ -126,9 +113,17 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
 /**
  * Environment variable form of {@link AgentHostByokModelsEnabledSettingId}.
  * Set by the agent host starters from the setting. Accepts `'true'` /
- * `'false'`; absent means "default" (`false`).
+ * `'false'`; absent means "default" (`true`).
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
+
+/**
+ * Overrides the grace period (in milliseconds) before an idle, fully
+ * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
+ * test hook so real-SDK integration tests can force a prompt release without
+ * waiting the full production grace; production does not set it.
+ */
+export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -156,7 +151,7 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
- * shell tool (the path taken when {@link AgentHostCustomTerminalToolEnabledSettingId}
+ * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
  * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
  *
  *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
@@ -166,7 +161,7 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
  *    Outbound network is enforced via the user's allow/deny host lists.
  *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
  *
- * Has no effect when {@link AgentHostCustomTerminalToolEnabledSettingId} is
+ * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
  * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
  * commands and reads `chat.agent.sandbox.enabled` directly.
  */
@@ -835,6 +830,20 @@ export interface IAgentCreateSessionConfig {
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
 	};
 	/**
+	 * Import an existing (e.g. local) conversation into a brand-new session as
+	 * real, editable turns. The provider translates {@link turns} into a
+	 * Copilot event log seeded on disk and resumes the session so the turns are
+	 * reconstituted as genuine backend events (editable / forkable / truncatable).
+	 *
+	 * The service layer assigns fresh UUID turn ids before handing the turns to
+	 * the provider so the seeded event ids and the seeded protocol turns stay
+	 * aligned. Mutually exclusive with {@link fork}.
+	 */
+	readonly importConversation?: {
+		readonly turns: readonly Turn[];
+		readonly model?: ModelSelection;
+	};
+	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
 	 * set, the service reports any long-running session bring-up work — chiefly
 	 * the lazy first-use SDK download — as `progress` notifications carrying
@@ -1453,6 +1462,17 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/**
+	 * Release a session's in-memory resources (SDK session/connection, cached
+	 * per-session state) without deleting any durable data. Unlike
+	 * {@link disposeSession}, this is non-destructive: the on-disk session log,
+	 * session database, and worktree are all preserved so the session can be
+	 * transparently resumed later. Used by idle-session eviction to bound
+	 * memory in long-lived host processes. Optional; providers that hold no
+	 * releasable in-memory state simply omit it.
+	 */
+	releaseSession?(session: URI): Promise<void>;
+
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
@@ -1580,6 +1600,12 @@ export interface IAgent {
 	 * @param id The opaque session-unique customization id.
 	 */
 	setCustomizationEnabled(id: string, enabled: boolean): void;
+
+	/** Request a session MCP server start/restart by customization id. */
+	startMcpServer?(session: URI, id: string): Promise<void>;
+
+	/** Request a session MCP server stop by customization id. */
+	stopMcpServer?(session: URI, id: string): Promise<void>;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -1941,6 +1967,15 @@ export interface IAgentConnection {
 	 * user-message input. Resolves once on first request and is cached.
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
+
+	/**
+	 * The host's `initialize` handshake result, exposed observably so callers
+	 * can derive advertised capabilities (e.g. {@link InitializeResult.terminalCommandPrefix},
+	 * {@link InitializeResult.completionTriggerCharacters}). `undefined` until
+	 * the handshake completes; local (in-process) connections synthesize a
+	 * minimal result carrying only the fields meaningful to that transport.
+	 */
+	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	disposeSession(session: URI): Promise<void>;
 
 	/**

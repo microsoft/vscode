@@ -9,7 +9,7 @@
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
 import type { SessionActiveClient } from './state.js';
-import type { Turn, MessageAttachment } from '../channels-chat/state.js';
+import type { MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
 
@@ -117,8 +117,16 @@ export interface DisposeSessionParams extends BaseParams { }
 // ─── fetchTurns ──────────────────────────────────────────────────────────────
 
 /**
- * Fetches historical turns for a chat. Used for lazy loading of conversation
- * history.
+ * Requests that the host load older historical turns into a chat state.
+ *
+ * The command result does not carry turns. Instead, before responding, the host
+ * MUST dispatch `chat/turnsLoaded` to insert any loaded turns into the chat
+ * channel's `turns` state, ahead of the already-loaded window, and update or
+ * clear `turnsNextCursor`.
+ *
+ * Before applying any operation that references a turn outside the currently
+ * loaded window, the host MUST eagerly load enough older turns into state for
+ * that operation to reduce against valid state.
  *
  * @category Commands
  * @method fetchTurns
@@ -127,39 +135,31 @@ export interface DisposeSessionParams extends BaseParams { }
  * @version 1
  * @example
  * ```jsonc
- * // Client → Server (fetch the 20 most recent turns)
+ * // Client → Server (load the next page indicated by ChatState.turnsNextCursor)
  * { "jsonrpc": "2.0", "id": 8, "method": "fetchTurns",
- *   "params": { "channel": "ahp-chat:/<uuid>", "limit": 20 } }
+ *   "params": { "channel": "ahp-chat:/<uuid>", "cursor": "opaque-cursor" } }
  *
- * // Server → Client
- * { "jsonrpc": "2.0", "id": 8, "result": {
- *   "turns": [ { "id": "t1", ... }, { "id": "t2", ... } ],
- *   "hasMore": true
- * }}
- *
- * // Client → Server (fetch 20 turns before t1)
- * { "jsonrpc": "2.0", "id": 9, "method": "fetchTurns",
- *   "params": { "channel": "ahp-chat:/<uuid>", "before": "t1", "limit": 20 } }
+ * // Server updates chat state, then responds
+ * { "jsonrpc": "2.0", "id": 8, "result": {} }
  * ```
  */
 export interface FetchTurnsParams extends BaseParams {
 	/** Chat URI */
 	channel: URI;
-	/** Turn ID to fetch before (exclusive). Omit to fetch from the most recent turn. */
-	before?: string;
-	/** Maximum number of turns to return. Server MAY impose its own upper bound. */
-	limit?: number;
+	/**
+	 * Opaque cursor from `ChatState.turnsNextCursor`.
+	 *
+	 * The host MUST reject unrecognised cursors with `InvalidParams`. Omit only
+	 * when asking the host to opportunistically load its next older page for the
+	 * chat, if any.
+	 */
+	cursor?: string;
 }
 
 /**
  * Result of the `fetchTurns` command.
  */
-export interface FetchTurnsResult {
-	/** The requested turns, ordered oldest-first */
-	turns: Turn[];
-	/** Whether more turns exist before the returned range */
-	hasMore: boolean;
-}
+export interface FetchTurnsResult { }
 
 // ─── completions ─────────────────────────────────────────────────────────────
 

@@ -19,6 +19,7 @@ import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/comm
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
@@ -28,6 +29,7 @@ import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -54,6 +56,7 @@ import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
 	isAgentFeedbackVariableEntry,
+	isBrowserViewVariableEntry,
 	isImageVariableEntry,
 	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
@@ -61,7 +64,7 @@ import {
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatQuestionAnswerValue, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -88,6 +91,7 @@ import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferen
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
@@ -183,6 +187,7 @@ interface ISubagentContext {
 
 interface IStartServerRequestOptions {
 	readonly isSystemInitiated?: boolean;
+	readonly isTerminalRequest?: boolean;
 }
 
 function userOriginMessage(text: string, attachments: readonly MessageAttachment[] | undefined): Message {
@@ -530,6 +535,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			prompt,
 			variableData,
 			isSystemInitiated: options?.isSystemInitiated,
+			isTerminalRequest: options?.isTerminalRequest,
 		});
 	}
 }
@@ -650,6 +656,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
+		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -896,7 +903,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						}
 						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
 						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext()));
+						history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, this._config.connectionAuthority, lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix));
 
 						// Enrich history with inner tool calls from subagent
 						// child sessions. Subscribes to each child session so
@@ -1132,7 +1139,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// folder-pick time, or this session was created via a legacy/
 			// test path). Fall back to the original create-then-subscribe
 			// flow.
-			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig);
+			//
+			// If a conversation was imported ("Continue in…") into this
+			// session, seed it as real editable history at creation time.
+			const imported = this._importConversationStore.take(request.sessionResource);
+			const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
+			await this._createAndSubscribe(request.sessionResource, model, undefined, request.agentHostSessionConfig, imported ? { turns: imported.turns, model: imported.model } : undefined);
 		} else {
 			// Eager-created session: take a refcounted subscription so the
 			// handler observes state changes for the duration of the chat
@@ -1240,18 +1252,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// (which would leave `onDidChange` silent and hang the await).
 		const pinRef = this._config.connection.getSubscription(StateComponents.Session, resolvedSession, 'AgentHostSessionHandler');
 		try {
-			await new Promise<void>(resolve => {
-				const store = new DisposableStore();
-				const settle = () => {
-					store.dispose();
-					resolve();
-				};
-				store.add(pinRef.object.onDidChange(settle));
-				store.add(token.onCancellationRequested(settle));
-				if (pinRef.object.value !== undefined || token.isCancellationRequested) {
-					settle();
-				}
-			});
+			// Settle on snapshot, error, or cancellation. Listening for the
+			// error transition is essential: a failed subscribe flips the
+			// subscription via `setError`, which fires `onDidError` but NOT
+			// `onDidChange`, so an `onDidChange`-only wait would hang for the
+			// full turn timeout (issue #5242).
+			await this._whenSubscriptionHydrated(pinRef.object, token);
 			const value = pinRef.object.value;
 			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
 			return value instanceof Error ? undefined : value;
@@ -1517,6 +1523,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
+					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 				},
 			);
 
@@ -2574,6 +2581,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				parameters,
 				context: { sessionResource: opts.sessionResource },
 				chatStreamToolCallId: toolCallId,
+				// If the agent host already resolved auto-approval for this call,
+				// pass it through so the invocation transitions straight to
+				// executing instead of briefly flashing a confirmation prompt
+				// (which would flicker "needs input" in the sessions list).
+				preApproved: shouldAutoApproveClientToolCall(tc)
+					? { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove }
+					: undefined,
 			};
 			const noOpCountTokens = async () => 0;
 			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);
@@ -3453,7 +3467,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>): Promise<URI> {
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }): Promise<URI> {
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
@@ -3474,6 +3488,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const activeClient = this._getCurrentActiveClient();
 
+		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
+		// so the editor window surfaces the same download notification the
+		// Agents window does. The host echoes the download's own identity on
+		// each frame; this token only records interest.
+		const progressToken = generateUuid();
+
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
@@ -3483,7 +3503,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				workingDirectory,
 				fork,
 				config,
+				importConversation,
 				activeClient,
+				progressToken,
 			});
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
@@ -3498,7 +3520,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						workingDirectory,
 						fork,
 						config,
+						importConversation,
 						activeClient,
+						progressToken,
 					});
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
@@ -3517,19 +3541,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
-			// Wait for the subscription to hydrate. Attach the listener
-			// before re-checking the value to close a race where another
-			// consumer (e.g. the chat-input picker) acquires the same
-			// subscription concurrently and triggers `handleSnapshot`
-			// between our `_getSessionState` check and the listener
-			// attachment.
-			await new Promise<void>(resolve => {
-				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
-				if (this._getSessionState(session.toString())) {
-					d.dispose();
-					resolve();
-				}
-			});
+			// Wait for the subscription to hydrate. `_whenSubscriptionHydrated`
+			// settles on snapshot, error, or cancellation and attaches its
+			// listeners before re-checking the value, closing the race where a
+			// concurrent consumer (e.g. the chat-input picker) hydrates the
+			// subscription between our check and the listener attachment. It
+			// also settles on `onDidError` — a failed subscribe flips the
+			// subscription via `setError`, which fires `onDidError` but NOT
+			// `onDidChange`, so an `onDidChange`-only wait would hang for the
+			// full turn timeout (issue #5242).
+			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
 		}
 
 		const rawState = this._requireRawSessionState(session.toString());
@@ -4041,6 +4062,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return undefined;
 			}
 			return this._toSessionReferenceAttachments(v, v.value, trajectoryPath, referenceRange);
+		}
+		// Browser views are live pages rather than filesystem resources. Preserve
+		// the page ID as model-readable context so the agent can address the page
+		// with browser tools without trying to read the vscode-browser URI.
+		if (isBrowserViewVariableEntry(v)) {
+			return this._toSimpleAttachment(
+				v.name,
+				v.modelDescription ?? `Browser page: ${v.name}. The pageId is "${v.browserId}".`,
+				{
+					...v._meta,
+					[BrowserViewAttachmentMetadataKey]: { browserId: v.browserId, browserUri: v.value.toString() },
+				},
+				BrowserViewAttachmentDisplayKind,
+				referenceRange,
+			);
 		}
 		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
 		// textual representation as an opaque attachment.

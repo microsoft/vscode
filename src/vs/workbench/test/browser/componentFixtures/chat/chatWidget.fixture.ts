@@ -6,8 +6,10 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -27,11 +29,22 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } fr
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
+import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
+
+export interface IFixtureFileChange {
+	readonly name: string;
+	readonly added: number;
+	readonly removed: number;
+	/** Whether the file was created (vs. edited) during the turn. */
+	readonly created: boolean;
+}
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
@@ -42,6 +55,12 @@ export interface IFixtureMessage {
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
+	/**
+	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
+	 * used by the turn changes summary. Requires `turnStatusPills` on the fixture
+	 * options to be rendered.
+	 */
+	readonly fileChanges?: ReadonlyArray<IFixtureFileChange>;
 }
 
 export interface IChatWidgetFixtureOptions {
@@ -61,6 +80,22 @@ export interface IChatWidgetFixtureOptions {
 	 * service graph.
 	 */
 	readonly decorateInputPart?: (inputPart: ChatInputPart, instantiationService: IInstantiationService) => void;
+	/**
+	 * When set, renders the chat as an agent host session and enables the turn
+	 * changes summary (`chat.turnStatusPills`), so completed turns with
+	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
+	 * response.
+	 */
+	readonly turnStatusPills?: { readonly changes?: boolean; readonly preview?: boolean };
+}
+
+function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
+	// A created file has no before-content, so the agent host provider maps its
+	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
+	// distinct original.
+	const modifiedURI = URI.file(`/repo/${change.name}`);
+	const originalURI = change.created ? modifiedURI : URI.file(`/repo/.original/${change.name}`);
+	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
 }
 
 function makeUserMessage(text: string) {
@@ -89,6 +124,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const riskFeatureExplicitlyDisabled = options.riskAssessmentEnabled === false;
 	const needsRiskService = hasRiskAssessment || hasRiskLoading || riskFeatureExplicitlyDisabled;
 
+	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
+	// the turn changes summary via the stubbed IChatResponseFileChangesService.
+	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
+	const needsTurnPills = !!options.turnStatusPills;
+
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
@@ -107,6 +147,14 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override getWidgetsByLocations() { return []; }
 				override register() { return { dispose() { } }; }
 			}());
+
+			if (needsTurnPills) {
+				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+					override getChangesForRequest(_sessionResource: URI, requestId: string) {
+						return constObservable(requestDiffs.get(requestId) ?? []);
+					}
+				}());
+			}
 
 			if (needsRiskService) {
 				reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
@@ -141,20 +189,35 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	});
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+	if (needsTurnPills) {
+		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, {
+			changes: !!options.turnStatusPills?.changes,
+			preview: !!options.turnStatusPills?.preview,
+		});
+	}
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
 	// real ChatViewModel + ChatListWidget — the same components used in production.
+	// The turn changes summary only renders for agent host sessions, whose frontend
+	// resource uses the session type as the scheme (e.g. `agent-host-copilotcli:/…`),
+	// which is what `getChatSessionType` / `toAgentHostBackendSessionUri` recognize.
+	const sessionResource = needsTurnPills
+		? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/turn-pills-session' })
+		: undefined;
 	const chatService = instantiationService.get(IChatService) as MockChatService;
 	const model = disposableStore.add(instantiationService.createInstance(
 		ChatModel,
 		undefined,
-		{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		{ initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: sessionResource }
 	));
 	chatService.addSession(model);
 
 	for (const message of options.messages) {
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
 		const response = request.response!;
+		if (message.fileChanges) {
+			requestDiffs.set(request.id, message.fileChanges.map(makeFileDiff));
+		}
 		for (const part of message.assistant ?? []) {
 			if (part.kind === 'markdown') {
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });

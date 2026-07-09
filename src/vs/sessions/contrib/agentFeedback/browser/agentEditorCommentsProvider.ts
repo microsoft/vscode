@@ -11,7 +11,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { getSessionEditorComments } from './sessionEditorComments.js';
+import { getSessionEditorComments, fromSessionEditorCommentId, SessionEditorCommentSource } from './sessionEditorComments.js';
 
 /**
  * Registers a provider with the workbench {@link IAgentEditorCommentsBridge}
@@ -35,6 +35,10 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		this._register(bridge.registerProvider(this));
 	}
 
+	acceptsComments(resource: URI): boolean {
+		return !!this._agentFeedbackService.getSessionForFile(resource);
+	}
+
 	getComments(resource: URI): readonly IAgentEditorComment[] {
 		const session = this._agentFeedbackService.getSessionForFile(resource);
 		if (!session) {
@@ -56,5 +60,19 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 			return;
 		}
 		this._agentFeedbackService.addFeedback(session.resource, resource, range, body);
+	}
+
+	deleteComment(resource: URI, id: string): void {
+		const session = this._agentFeedbackService.getSessionForFile(resource);
+		if (!session) {
+			return;
+		}
+		// Only agent feedback comments are surfaced to (and thus deletable from)
+		// custom editors; see `getComments`.
+		const parsed = fromSessionEditorCommentId(id);
+		if (parsed?.source !== SessionEditorCommentSource.AgentFeedback) {
+			return;
+		}
+		this._agentFeedbackService.removeFeedback(session.resource, parsed.sourceId);
 	}
 }

@@ -143,7 +143,7 @@ import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
-import './services/agentHost/browser/agentHostEnablementService.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -226,6 +226,10 @@ import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
+
+// Voice Mode (voice UI actions, settings and context keys)
+import '../workbench/contrib/agentsVoice/browser/agentsVoice.contribution.js';
+import './contrib/chat/browser/voiceBridge.contribution.js';
 
 // Interactive
 import '../workbench/contrib/interactive/browser/interactive.contribution.js';
@@ -457,6 +461,7 @@ import './browser/layoutActions.js';
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/promptTimeline/browser/promptTimeline.contribution.js';
 import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
 import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';

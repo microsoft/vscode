@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { acceptToolConfirmationIfPresent } from './chat';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
@@ -428,7 +429,7 @@ export class AgentsWindow {
 	 * well after the content is on screen, so requiring `:not(.chat-response-loading)`
 	 * causes false-negative timeouts.
 	 */
-	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000): Promise<string> {
+	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(RESPONSE, undefined, retryCount);
 
@@ -437,6 +438,12 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
+			// When requested, accept any pending terminal tool confirmation so
+			// the agentic loop can proceed. No-op for sessions that
+			// auto-approve their shell commands.
+			if (options?.acceptToolConfirmations) {
+				await acceptToolConfirmationIfPresent(this.code);
+			}
 			// Look in BOTH the active session view and the broader workbench
 			// scope. The Agents Window can auto-swap the active slot to a
 			// fresh untitled session immediately after a follow-up commits,
@@ -571,12 +578,16 @@ export class AgentsWindow {
 				// that intercepts pointer events while the action widget animates open.
 				await row.click({ force: true });
 				// Confirm the selection actually committed: the picker name button
-				// must now display the chosen model. A non-committing click (e.g.
+				// must now reflect the chosen model. A non-committing click (e.g.
 				// absorbed by the animating pointer-block overlay) silently leaves the
 				// previous model selected and the picker dismissed, so waiting only
-				// for the popup to close would miss it. Scope to `:visible` so a hidden
-				// overflow duplicate of the name button can't produce a false positive.
-				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`, { hasText: modelName })
+				// for the popup to close would miss it. Match on the button's accessible
+				// name (aria-label, e.g. "Models, <modelName>") rather than the visible
+				// text: when the input is narrow the picker collapses to an icon-only
+				// button and no longer renders the model name as visible text. Scope to
+				// `:visible` so a hidden overflow duplicate of the name button can't
+				// produce a false positive.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
 					.first()
 					.waitFor({ state: 'visible', timeout: 15_000 });
 				return;

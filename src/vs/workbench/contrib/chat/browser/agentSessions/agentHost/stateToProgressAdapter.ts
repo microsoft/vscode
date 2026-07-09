@@ -17,12 +17,14 @@ import { readToolCallMeta } from '../../../../../../platform/agentHost/common/me
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
-import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -238,6 +240,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined): IChatUsage |
 		promptTokens: usage?.inputTokens ?? 0,
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits,
+		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 	};
 }
 
@@ -251,6 +254,133 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	return typeof cost === 'number' && cost >= 0
 		? cost
 		: undefined;
+}
+
+/**
+ * Maps SDK `kind` values to display categories used by the context-usage
+ * widget. Categories follow the local agent's established grouping
+ * ("System" for infrastructure, "User Context" for conversation content).
+ */
+function kindToCategory(kind: string): string {
+	switch (kind) {
+		case 'system':
+		case 'toolDefinition':
+			return localize('contextAttribution.category.system', "System");
+		case 'tool':
+		case 'skill':
+		case 'subagent':
+		case 'mcpServer':
+		case 'plugin':
+			return localize('contextAttribution.category.userContext', "User Context");
+		default:
+			return localize('contextAttribution.category.userContext', "User Context");
+	}
+}
+
+/**
+ * Human-readable labels for aggregated `kind` groups. Entries of kind
+ * `system` are shown individually (they are already aggregated rollups);
+ * other kinds are summed into a single row per kind.
+ */
+function kindToAggregateLabel(kind: string): string {
+	switch (kind) {
+		case 'tool': return localize('contextAttribution.label.toolResults', "Tool Results");
+		case 'toolDefinition': return localize('contextAttribution.label.toolDefinitions', "Tool Definitions");
+		case 'skill': return localize('contextAttribution.label.skills', "Skills");
+		case 'subagent': return localize('contextAttribution.label.subAgents', "Sub-agents");
+		case 'mcpServer': return localize('contextAttribution.label.mcpTools', "MCP Tools");
+		case 'plugin': return localize('contextAttribution.label.plugins', "Plugins");
+		default: return kind;
+	}
+}
+
+/**
+ * Converts the SDK's flat `contextAttribution.entries[]` into the
+ * `promptTokenDetails` array consumed by the context-usage widget.
+ *
+ * Entries of `kind: "system"` are emitted individually (they are already
+ * high-level rollups like "System prompt") unless they are a parent of
+ * `toolDefinition` entries — in that case the rollup is skipped and the
+ * individual `toolDefinition` entries are aggregated into their own row.
+ * All other kinds are **aggregated into one row per kind** (e.g. all
+ * `mcpServer` entries become a single "MCP Tools" line) to match the
+ * CLI's `/context` summary view.
+ * Any remaining tokens not covered by entries are reported as "Messages"
+ * (conversation history: user/assistant messages and tool results).
+ */
+function contextAttributionToPromptTokenDetails(usage: UsageInfo | undefined): IChatUsagePromptTokenDetail[] | undefined {
+	const meta = readUsageInfoMeta(usage);
+	const attribution = meta?.contextAttribution;
+	if (!attribution || attribution.totalTokens <= 0 || attribution.entries.length === 0) {
+		return undefined;
+	}
+	const details: IChatUsagePromptTokenDetail[] = [];
+
+	// Identify system entries that are parents of other entries.
+	// These rollups are skipped because their children are aggregated
+	// directly into their own rows to avoid double-counting.
+	const parentIds = new Set<string>();
+	for (const entry of attribution.entries) {
+		if (entry.parentId) {
+			parentIds.add(entry.parentId);
+		}
+	}
+
+	// Accumulate tokens per aggregated kind
+	const kindTokens = new Map<string, number>();
+	// Track tokens accounted for by top-level entries (system rollups + aggregated kinds)
+	let accountedTokens = 0;
+
+	for (const entry of attribution.entries) {
+		if (entry.kind === 'system') {
+			if (parentIds.has(entry.id)) {
+				// This system entry is a rollup parent whose children are
+				// aggregated separately — skip to avoid double-counting.
+				continue;
+			}
+			// System entries are shown individually (already high-level rollups)
+			accountedTokens += entry.tokens;
+			const percentageOfPrompt = Math.round((entry.tokens / attribution.totalTokens) * 100);
+			if (percentageOfPrompt > 0) {
+				details.push({
+					category: kindToCategory('system'),
+					label: entry.label,
+					percentageOfPrompt,
+				});
+			}
+		} else {
+			// Aggregate all other kinds (including toolDefinition) into one row per kind
+			kindTokens.set(entry.kind, (kindTokens.get(entry.kind) ?? 0) + entry.tokens);
+		}
+	}
+
+	// Emit aggregated rows
+	for (const [kind, tokens] of kindTokens) {
+		accountedTokens += tokens;
+		const percentageOfPrompt = Math.round((tokens / attribution.totalTokens) * 100);
+		if (percentageOfPrompt <= 0) {
+			continue;
+		}
+		const category = kindToCategory(kind);
+		const label = kindToAggregateLabel(kind);
+		details.push({ category, label, percentageOfPrompt });
+	}
+
+	// The remainder is conversation messages (user/assistant turns, tool results)
+	// not attributed to any specific entry by the SDK.
+	const messageTokens = Math.max(0, attribution.totalTokens - accountedTokens);
+	if (messageTokens > 0) {
+		const percentageOfPrompt = Math.round((messageTokens / attribution.totalTokens) * 100);
+		if (percentageOfPrompt > 0) {
+			details.push({
+				category: localize('contextAttribution.category.userContext', "User Context"),
+				label: localize('contextAttribution.label.messages', "Messages"),
+				percentageOfPrompt,
+			});
+		}
+	}
+
+	return details.length > 0 ? details : undefined;
 }
 
 /**
@@ -349,7 +479,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -359,6 +489,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
+		// A message runs as a terminal command when it starts with the host's
+		// advertised prefix and has a non-empty command after it (mirroring the
+		// host-side bang parser, where a lone `!` is forwarded to the agent).
+		const isTerminalRequest = isTerminalCommandPrompt(turn.message.text, terminalCommandPrefix);
 		history.push({
 			id: turn.id,
 			type: 'request',
@@ -368,6 +502,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			variableData,
 			...(isSystemInitiated ? {
 				isSystemInitiated: true,
+			} : {}),
+			...(isTerminalRequest ? {
+				isTerminalRequest: true,
 			} : {}),
 		});
 
@@ -592,6 +729,20 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
+	if (isBrowserViewAttachment(attachment) && modelRepresentation !== undefined) {
+		const metadata = getBrowserViewAttachmentMetadata(attachment);
+		if (metadata) {
+			return {
+				kind: 'browserView',
+				id: metadata.browserUri,
+				name: attachment.label,
+				value: URI.parse(metadata.browserUri),
+				browserId: metadata.browserId,
+				modelDescription: modelRepresentation,
+				_meta: attachment._meta,
+			};
+		}
+	}
 	if (attachment.displayKind === 'workspace' && modelRepresentation !== undefined) {
 		return {
 			kind: 'workspace',
@@ -711,18 +862,37 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 
 	return undefined;
 }
+
 function getTerminalOutput(tc: ToolCallState) {
-	// TODO: Revisit whether SDK shell tool output should continue coming from
-	// ToolResultContentType.Text, or from shell_exit.outputPreview when available.
-	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(isToolResultTextContent)?.text : undefined;
-	if (!text) {
+	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
 		return undefined;
 	}
+
+	const terminalComplete = tc.content?.find(isToolResultTerminalCompleteContent);
+
+	// Prefer the structured terminal snapshot. Text content is a compatibility
+	// fallback for older/restored results and can include legacy bookkeeping.
+	let text = terminalComplete?.preview;
+	if (text === undefined) {
+		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
+		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
+	}
+	if (text === undefined || (!text && terminalComplete?.truncated !== true)) {
+		return undefined;
+	}
+
 	// The detached xterm used to render this output treats input as a raw TTY stream,
 	// so a lone `\n` only advances the row without resetting the column (producing a
 	// staircase). SDK terminal tools return plain text with `\n` line endings, so
 	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
-	return { text: text.replace(/\r?\n/g, '\r\n') };
+	return {
+		text: text.replace(/\r?\n/g, '\r\n'),
+		...(terminalComplete?.truncated !== undefined ? { truncated: terminalComplete.truncated } : {}),
+	};
+}
+
+function stripLegacyTerminalExitMarkers(text: string): string {
+	return text.replace(/<shellId:[^>\r\n]*completed with exit code \d+>\s*$/i, '');
 }
 
 function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
@@ -730,17 +900,17 @@ function isToolResultTextContent(content: ToolResultContent): content is Extract
 }
 
 function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
-	const shellExit = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
-		? tc.content?.find(isToolResultShellExitContent)
+	const terminalComplete = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
+		? tc.content?.find(isToolResultTerminalCompleteContent)
 		: undefined;
-	if (shellExit) {
-		return { exitCode: shellExit.exitCode };
+	if (terminalComplete?.exitCode !== undefined) {
+		return { exitCode: terminalComplete.exitCode };
 	}
 	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
 }
 
-function isToolResultShellExitContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.ShellExit }> {
-	return content.type === ToolResultContentType.ShellExit;
+function isToolResultTerminalCompleteContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.TerminalComplete }> {
+	return content.type === ToolResultContentType.TerminalComplete;
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -951,6 +1121,59 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
 }
 
 /**
+ * Builds the `sessionCreated` tool-specific data for a completed, successful
+ * `create_session` or `create_chat` tool call by recovering the open-session
+ * link from its textual result. Returns `undefined` when the tool isn't one of
+ * those or the result carries no recognizable link.
+ */
+function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success) {
+		return undefined;
+	}
+	const isSend = isSendMessageTool(tc.toolName);
+	if (!isCreateSessionTool(tc.toolName) && !isCreateChatTool(tc.toolName) && !isSend) {
+		return undefined;
+	}
+	const output = getToolOutputText(tc);
+	const match = output?.match(/agent-host-session:\/\/[^\s)<>;"']+/);
+	const openLink = match?.[0];
+	const backend = openLink ? parseOpenSessionLinkUri(openLink) : undefined;
+	if (!openLink || !backend) {
+		return undefined;
+	}
+	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
+	// shows the conversation icon; a session-scoped link shows the agent icon.
+	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
+	const label = createSessionTitleFromArgs(tc.toolInput) ?? (backend.path.replace(/^\//, '') || backend.toString());
+	return { kind: 'sessionCreated', openLink, label, isChat };
+}
+
+/**
+ * Derives a title for the "Open Session" button from a session tool's arguments —
+ * the `prompt` (create_session/create_chat) or `message` (send_message) it was
+ * started with, trimmed to one line.
+ */
+function createSessionTitleFromArgs(toolInput: string | undefined): string | undefined {
+	if (!toolInput) {
+		return undefined;
+	}
+	try {
+		const args = JSON.parse(toolInput) as { prompt?: unknown; message?: unknown };
+		const text = typeof args.prompt === 'string' ? args.prompt : (typeof args.message === 'string' ? args.message : undefined);
+		if (text === undefined) {
+			return undefined;
+		}
+		const firstLine = text.trim().split('\n')[0].trim();
+		if (!firstLine) {
+			return undefined;
+		}
+		return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
  */
@@ -991,7 +1214,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionCreatedData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -1000,11 +1223,14 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		const mcpAppData = getMcpAppData(tc, sessionResource);
-		if (mcpAppData) {
-			let rawInput: unknown;
-			try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
-			toolSpecificData = { kind: 'input', rawInput, mcpAppData };
+		toolSpecificData = buildSessionCreatedToolData(tc);
+		if (!toolSpecificData) {
+			const mcpAppData = getMcpAppData(tc, sessionResource);
+			if (mcpAppData) {
+				let rawInput: unknown;
+				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
+				toolSpecificData = { kind: 'input', rawInput, mcpAppData };
+			}
 		}
 	}
 
@@ -1508,6 +1734,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 					const originalContent = edit.beforeContentUri ? wrap(edit.beforeContentUri) : undefined;
 					return {
 						uri: resource,
+						editKind: edit.kind as ChatExternalEditKind,
 						originalUri: originalResource,
 						modifiedContentUri: modifiedContent,
 						originalContentUri: originalContent,
@@ -1739,6 +1966,18 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted) {
+		const sessionCreated = buildSessionCreatedToolData(tc);
+		if (sessionCreated) {
+			// The tool required confirmation, so it was created with
+			// `HiddenAfterComplete`; clear it so the "Open Session" pill stays
+			// visible after completion.
+			invocation.presentation = undefined;
+			invocation.toolSpecificData = sessionCreated;
+			invocation.notifyToolSpecificDataChanged();
+		}
+	}
+
+	if (isCompleted) {
 		const mcpAppData = getMcpAppData(tc, backendSession);
 		if (mcpAppData) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
@@ -1762,8 +2001,14 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
+	// The generic raw input/output details (the expandable JSON blob) are
+	// suppressed for tool kinds that render their own bespoke UI — the subagent
+	// card and the `sessionCreated` "Open Session" pill — so we don't duplicate
+	// the result underneath them. Search results and separately-rendered file
+	// edits are likewise excluded.
 	const resultDetails = !isTerminal
 		&& invocation.toolSpecificData?.kind !== 'subagent'
+		&& invocation.toolSpecificData?.kind !== 'sessionCreated'
 		&& getToolKind(tc) !== 'search'
 		&& fileEdits.length === 0
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)

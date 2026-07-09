@@ -12,6 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
@@ -47,6 +48,33 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
+
+suite('model provider icons', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses provider-specific icons', () => {
+		assert.deepStrictEqual([
+			getModelProviderIcon(createModel('gpt-5.6-terra', 'GPT-5.6 Terra')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5')).id,
+			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro')).id,
+			getModelProviderIcon(createAutoModel()).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'openai'), true).id,
+			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5'), true).id,
+		], [
+			'chat-model-provider-openai',
+			'chat-model-provider-claude',
+			'chat-model-provider-gemini',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-generic',
+			'chat-model-provider-generic',
+		]);
+	});
+});
 
 /**
  * Builds an agent-host model: all such models share a single vendor (the
@@ -691,6 +719,39 @@ suite('buildModelPickerItems', () => {
 		const actions = getActionItems(items);
 		assert.ok(actions.length >= 3); // Auto + 2 models (in other) + toggle + manage
 		assert.strictEqual(actions[0].label, 'Auto');
+	});
+
+	test('promo model is boosted right after Auto', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Limited time offer' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const actions = getActionItems(items);
+		// Auto first, then promo model immediately after
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'Gemini Flash');
+	});
+
+	test('promo model shows discount in description', () => {
+		const auto = createAutoModel();
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-2', discountPercent: 30, endsAt: '2026-07-20T23:59:59Z', message: 'Summer sale' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, promoModel]);
+		const promoItem = getActionItems(items).find(a => a.label === 'Gemini Flash');
+		assert.ok(promoItem);
+		const desc = typeof promoItem.item?.description === 'string' ? promoItem.item.description : '';
+		assert.ok(desc.includes('30%'), `Expected description to contain "30%" but got: ${desc}`);
+	});
+
+	test('promo model is not duplicated in Other Models section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-3', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Promo' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const allGemini = getActionItems(items).filter(a => a.label === 'Gemini Flash');
+		assert.strictEqual(allGemini.length, 1, 'Promo model should appear exactly once');
 	});
 
 	test('Other Models grouped by vendor with separator headers', () => {

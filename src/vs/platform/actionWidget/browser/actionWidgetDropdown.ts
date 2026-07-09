@@ -275,6 +275,14 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		);
 	}
 
+	override hide(): void {
+		const wasVisible = this.isVisible();
+		super.hide();
+		if (wasVisible) {
+			this.actionWidgetService.hide(true);
+		}
+	}
+
 	setEnabled(enabled: boolean): void {
 		this._enabled = enabled;
 	}

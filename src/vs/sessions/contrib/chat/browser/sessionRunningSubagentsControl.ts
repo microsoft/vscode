@@ -55,7 +55,7 @@ export class SessionRunningSubagentsControl extends Disposable {
 		this.element = $('.session-running-subagents');
 		this._button = this._register(new Button(this.element, { secondary: true, supportIcons: true, ...defaultButtonStyles }));
 		this._button.element.classList.add('session-running-subagents-button');
-		this._register(this._button.onDidClick(() => this._showMenu()));
+		this._register(this._button.onDidClick(() => this._onDidClick()));
 		this._setVisible(false);
 	}
 
@@ -124,6 +124,18 @@ export class SessionRunningSubagentsControl extends Disposable {
 			this._button.label = `$(${Codicon.loading.id}~spin) ${localize('runningSubagents.running', "{0} subagents running", count)}`;
 		}
 		this._setVisible(count > 0);
+	}
+
+	private _onDidClick(): void {
+		const session = this._session;
+		if (!session || this._subagents.length === 0) {
+			return;
+		}
+		if (this._subagents.length === 1) {
+			this.sessionsService.openChat(session, this._subagents[0].chat.resource);
+			return;
+		}
+		this._showMenu();
 	}
 
 	private _showMenu(): void {

@@ -6,14 +6,15 @@
 import './emptyFileEditor.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { SinglePaneChangesTabMissingContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
@@ -21,6 +22,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
+import { Menus } from '../../../browser/menus.js';
 
 export const NEW_FILE_TAB_COMMAND_ID = 'workbench.action.agentSessions.newFileTab';
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
@@ -51,10 +53,10 @@ export class NewFileTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyB),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: {
-				id: MenuId.EditorTabsBarAddTab,
+				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 1,
 				// Only offer when the Files tab is not already shown.
@@ -65,9 +67,11 @@ export class NewFileTabAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const group = editorGroupsService.mainPart.activeGroup;
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput), { pinned: true });
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput), { pinned: true, index: group.count }, group);
 	}
 }
 
@@ -84,10 +88,10 @@ export class NewBrowserTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK, KeyCode.KeyB),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
 			menu: {
-				id: MenuId.EditorTabsBarAddTab,
+				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
@@ -117,10 +121,10 @@ export class NewSearchTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
-				id: MenuId.EditorTabsBarAddTab,
+				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
 				when: addTabLayoutWhen
@@ -144,8 +148,14 @@ export class NewChangesTabAction extends Action2 {
 			icon: Codicon.gitCompare,
 			f1: false,
 			precondition: addTabActionWhen,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: addTabActionWhen,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
+			},
 			menu: {
-				id: MenuId.EditorTabsBarAddTab,
+				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 0,
 				// Only offer when the session has a Changes editor but its tab is closed.
@@ -155,12 +165,14 @@ export class NewChangesTabAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
 		const sessionResource = sessionsService.activeSession.get()?.resource;
 		if (sessionResource) {
-			await sessionChangesService.openChangesEditor(sessionResource);
+			const group = editorGroupsService.mainPart.activeGroup;
+			await sessionChangesService.openChangesEditor(sessionResource, { index: group.count }, group);
 		}
 	}
 }

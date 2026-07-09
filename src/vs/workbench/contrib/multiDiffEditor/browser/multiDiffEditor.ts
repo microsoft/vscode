@@ -77,6 +77,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+			undefined,
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {

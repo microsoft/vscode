@@ -102,11 +102,19 @@ export interface IModelTokenPrices {
 	long_context?: IModelTokenPriceTier;
 }
 
+export interface IModelPromo {
+	id: string;
+	discount_percent: number;
+	ends_at: string;
+	message: string;
+}
+
 export interface IModelBilling {
 	is_premium?: boolean;
 	multiplier?: number;
 	restricted_to?: string[];
 	token_prices?: IModelTokenPrices;
+	promo?: IModelPromo;
 }
 
 export interface IModelAPIResponse {

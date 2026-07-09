@@ -529,9 +529,22 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				modifiedAt: new Date(Date.now()).toISOString(),
 			};
 			delete next.inputRequests;
+			if (action.turnId === undefined) {
+				delete next.turnsNextCursor;
+			}
 			return {
 				...next,
 				status: summaryStatus(next),
+			};
+		}
+
+		case ActionType.ChatTurnsLoaded: {
+			const existingIds = new Set(state.turns.map(turn => turn.id));
+			const olderTurns = action.turns.filter(turn => !existingIds.has(turn.id));
+			return {
+				...state,
+				turns: [...olderTurns, ...state.turns],
+				turnsNextCursor: action.turnsNextCursor,
 			};
 		}
 

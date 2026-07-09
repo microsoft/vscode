@@ -52,6 +52,19 @@ export function changesetReducer(state: ChangesetState, action: ChangesetAction,
 			return { ...state, files: next };
 		}
 
+		case ActionType.ChangesetFilesReviewedChanged: {
+			let changed = false;
+			const ids = new Set(action.fileIds);
+			const next: ChangesetFile[] = state.files.map(f => {
+				if (!ids.has(f.id) || f.reviewed === action.reviewed) {
+					return f;
+				}
+				changed = true;
+				return { ...f, reviewed: action.reviewed };
+			});
+			return changed ? { ...state, files: next } : state;
+		}
+
 		case ActionType.ChangesetContentChanged: {
 			const next = action.operations === undefined
 				? { ...state, files: action.files }

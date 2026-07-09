@@ -61,6 +61,7 @@ export class MockAgent implements IAgent {
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
@@ -120,6 +121,12 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
+	/**
+	 * When set, {@link sendMessage} rejects with this error after recording the
+	 * call — used to simulate a failed first-turn materialization (e.g. worktree
+	 * or branch setup throwing).
+	 */
+	sendMessageError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
@@ -142,6 +149,9 @@ export class MockAgent implements IAgent {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
+		if (this.sendMessageError) {
+			throw this.sendMessageError;
+		}
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
@@ -159,6 +169,12 @@ export class MockAgent implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		this.disposeSessionCalls.push(session);
 		this._sessions.delete(AgentSession.id(session));
+	}
+
+	async releaseSession(session: URI): Promise<void> {
+		// Non-destructive: record the call but keep the session in the catalog
+		// so a later restore/resume still finds its durable data.
+		this.releaseSessionCalls.push(session);
 	}
 
 	async abortSession(session: URI): Promise<void> {

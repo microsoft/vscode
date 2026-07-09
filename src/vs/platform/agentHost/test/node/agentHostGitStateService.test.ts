@@ -13,6 +13,7 @@ import type { IAgentService } from '../../common/agentService.js';
 import { readSessionGitHubState, readSessionGitState, withSessionGitState, SessionStatus, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
@@ -50,6 +51,7 @@ suite('AgentHostGitStateService', () => {
 			gitService,
 			{} as unknown as IAgentHostOctoKitService,
 			{} as unknown as IAgentService,
+			createTestGitHubEndpointService(),
 			new NullLogService(),
 			sessionDataService,
 		));

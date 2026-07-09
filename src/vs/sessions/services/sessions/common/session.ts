@@ -382,6 +382,14 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * File changes produced by the chat's **last turn** only (as opposed to the
+	 * cumulative chat {@link changes}). Derived from the chat's live output
+	 * stream so consumers — e.g. the chat input status pills — can reflect just
+	 * what the most recent request produced. Providers that cannot determine
+	 * this omit the observable.
+	 */
+	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
