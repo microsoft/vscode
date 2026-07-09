@@ -1091,6 +1091,44 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources — its live SDK subprocess (via the disposed
+	 * pipeline) and cached entry — but preserves the on-disk session so it can
+	 * be transparently resumed later via {@link _resumeSession}. Used by
+	 * idle-session eviction to bound memory in long-lived host processes.
+	 *
+	 * No-ops for provisional sessions (never materialized, so nothing on disk to
+	 * resume from) and for sessions with a turn in flight — tearing the pipeline
+	 * down mid-turn would abort live work. Shares the same in-memory teardown as
+	 * {@link disposeSession}; the destructive difference (deleting durable data)
+	 * lives in the orchestrator, which only invokes it on dispose.
+	 */
+	releaseSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		return this._disposeSequencer.queue(sessionId, async () => {
+			const entry = this._sessions.get(sessionId);
+			if (!entry) {
+				return;
+			}
+			// Provisional sessions (default chat not materialized) have no
+			// on-disk SDK session to resume from; releasing would lose state.
+			if (!entry.defaultChat?.isPipelineReady) {
+				return;
+			}
+			// Defensive active-turn guard: the orchestrator already skips
+			// eviction while a turn is active, but `disposeSession` and
+			// `sendMessage` run on separate sequencers, so a turn could be in
+			// flight. Never tear the pipeline down under a live turn.
+			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
+				return;
+			}
+			this._logService.info(`[Claude:${sessionId}] Releasing idle session from memory (durable state preserved)`);
+			await this._teardownEntry(sessionId);
+			this._pruneActiveClientHandles(sessionId);
+		});
+	}
+
+	/**
 	 * Abort and dispose a session entry — its default chat and every peer chat.
 	 * Each peer teardown serializes on the peer's own {@link _sessionSequencer}
 	 * key so it waits for any in-flight materialize/send rather than disposing

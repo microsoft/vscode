@@ -1119,7 +1119,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
-				return { result: { contentItems: [{ type: 'inputText', text }], success: true } };
+				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
 			}
@@ -2111,6 +2111,51 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		await this._teardownSessionInMemory(session, sessionId);
+	}
+
+	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources but keeps its codex thread resumable — the
+	 * on-disk rollout is preserved and the shared codex process stays alive, so
+	 * the session transparently resumes on the next access. Used by idle-session
+	 * eviction to bound memory in long-lived host processes.
+	 *
+	 * No-ops for sessions that have nothing durable to resume from (provisional
+	 * sessions whose codex thread was never started) and for sessions with a
+	 * turn in flight — `thread/unsubscribe` mid-turn would drop live progress.
+	 */
+	async releaseSession(sessionUri: URI): Promise<void> {
+		const sessionId = AgentSession.id(sessionUri);
+		const session = this._sessions.get(sessionId);
+		if (!session) {
+			return;
+		}
+		// Provisional sessions have no codex thread on disk to resume from;
+		// releasing them would lose their in-memory state. Leave them in place.
+		if (session.threadId === undefined) {
+			return;
+		}
+		// Defensive active-turn guard: the orchestrator already skips eviction
+		// while a turn is active, but one could have started between that check
+		// and this call.
+		if (session.currentTurnId !== undefined) {
+			return;
+		}
+		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
+		await this._teardownSessionInMemory(session, sessionId);
+	}
+
+	/**
+	 * Shared in-memory teardown for a codex session: drops the tracked entry,
+	 * disposes its MCP controller, unparks pending approvals / client tool calls
+	 * / user inputs, and unsubscribes the codex thread (`thread/unsubscribe`).
+	 * Non-destructive — the codex thread's on-disk rollout is preserved, so the
+	 * session can be resumed later. Shared by {@link disposeSession} (which the
+	 * orchestrator pairs with durable deletion) and the non-destructive
+	 * {@link releaseSession}.
+	 */
+	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string): Promise<void> {
 		session.disposed = true;
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);

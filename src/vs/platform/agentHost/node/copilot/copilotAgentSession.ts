@@ -558,6 +558,11 @@ export class CopilotAgentSession extends Disposable {
 	/** 0-based ordinal of the active turn within the session, or `0` when idle. */
 	private get _turnOrdinal(): number { return this._currentTurn?.ordinal ?? 0; }
 	/**
+	 * Whether the session currently has an in-flight turn. Used by
+	 * non-destructive idle release to avoid disconnecting mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
+	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
 	 * direct {@link setModel} call). We rely on the
 	 * `Usage` event rather than the tool-call event itself because
@@ -1026,7 +1031,7 @@ export class CopilotAgentSession extends Disposable {
 			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
 				try {
 					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
-					return { textResultForLlm: text, resultType: 'success' };
+					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
 					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in server tool handler: tool=${def.name}`);
