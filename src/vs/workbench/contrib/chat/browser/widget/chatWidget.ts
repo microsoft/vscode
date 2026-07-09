@@ -1348,7 +1348,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const permissionLevel = this.inputPart.currentModeInfo.permissionLevel;
 			if (permissionLevel === ChatPermissionLevel.Autopilot) {
 				const autoSendHandoff = handoffs.find(h => h.send);
-				if (autoSendHandoff) {
+				if (autoSendHandoff && autoSendHandoff.agent !== responseMode.name.get()) {
 					this.handleNextPromptSelection(autoSendHandoff);
 					return;
 				}
