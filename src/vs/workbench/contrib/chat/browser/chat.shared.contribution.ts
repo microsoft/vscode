@@ -9,10 +9,11 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
-import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
-import '../../../../platform/agentHost/browser/agentHost.config.contribution.js';
+import '../../../../platform/agentHost/common/agentHostEnablementService.js';
+import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -57,7 +58,6 @@ import { ChatSlashCommandService, IChatSlashCommandService } from '../common/par
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
-import { LocalAgentDisabledInputTipContribution } from './agentSessions/localAgentDisabledInputTipContribution.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
 import { BYOKUtilityModelDefault, ChatAgentLocation, ChatConfiguration, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
@@ -170,6 +170,7 @@ import { ChatImplicitContextContribution } from './attachments/chatImplicitConte
 import './widget/input/editor/chatInputCompletions.js';
 import './widget/input/editor/agentHostInputCompletions.js';
 import './widget/input/editor/chatInputEditorContrib.js';
+import './widget/input/editor/chatInputCommandArgumentHint.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
@@ -210,6 +211,7 @@ import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 import { UtilityModelContribution, UtilitySmallModelContribution } from './utilityModelContribution.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
+import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
 
 CommandsRegistry.registerCommand('_chat.notifyQuestionCarouselAnswer', (accessor: ServicesAccessor, resolveId: string, answers?: import('../common/chatService/chatService.js').IChatQuestionAnswers) => {
 	accessor.get(IChatService).notifyQuestionCarouselAnswer('', resolveId, answers);
@@ -775,7 +777,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ClaudePreferAgentHostAgentsSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, Claude sessions opened from the Agents Window run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window. Requires `#{0}#`.", AgentHostEnabledSettingId),
+			markdownDescription: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, Claude sessions opened from the Agents Window run inside the agent host process instead of the GitHub Copilot Chat extension. Only one Claude implementation surfaces per window. Requires `#chat.agentHost.enabled#`."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -1256,6 +1258,27 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
 			default: false,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostReasoningEffortOverrideSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostModelCapabilityOverridesSettingId]: {
+			type: 'object',
+			markdownDescription: nls.localize('chat.agentHost.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id, intended for evaluating preview models against an existing model's profile. For each model id, declare an aliased `family` (for example `claude-opus-4-8`) to route the model to that family's tuned system prompt without a code change; the model id sent to the runtime is unaffected. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					family: {
+						type: 'string',
+						description: nls.localize('chat.agentHost.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+					},
+				},
+			},
+			default: {},
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
@@ -2506,7 +2529,6 @@ registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandl
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(LocalAgentDisabledInputTipContribution.ID, LocalAgentDisabledInputTipContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
@@ -2614,5 +2636,6 @@ registerSingleton(IPlanReviewFeedbackService, PlanReviewFeedbackService, Instant
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
+registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

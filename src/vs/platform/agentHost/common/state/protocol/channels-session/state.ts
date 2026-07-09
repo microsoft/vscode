@@ -782,6 +782,35 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
 }
 
 /**
+ * Fields shared by the leaf child customizations that live inside a
+ * container — {@link AgentCustomization}, {@link SkillCustomization},
+ * {@link PromptCustomization}, {@link RuleCustomization}, and
+ * {@link HookCustomization}.
+ *
+ * {@link McpServerCustomization} is also a child but does not extend this
+ * base: it always carries an explicit {@link McpServerCustomization.enabled}
+ * because it can appear as a top-level customization too.
+ *
+ * @category Customization Types
+ */
+interface ChildCustomizationBase extends CustomizationBase {
+	/**
+	 * Whether this child is individually enabled. Absent means enabled, so a
+	 * producer only needs to set it to surface a child that exists but is
+	 * turned off on its own.
+	 *
+	 * This flag is independent of the parent container's: the **effective**
+	 * enabled state of a child is
+	 * `container.enabled && (child.enabled ?? true)`, so a disabled container
+	 * disables every child regardless of each child's own flag.
+	 *
+	 * A child is turned on or off by id with
+	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * A custom agent contributed by a plugin or directory.
  *
  * Mirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)
@@ -790,7 +819,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  *
  * @category Customization Types
  */
-export interface AgentCustomization extends CustomizationBase {
+export interface AgentCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Agent;
 	/**
 	 * Short description of what the agent specializes in and when to
@@ -814,6 +843,18 @@ export interface AgentCustomization extends CustomizationBase {
 	 */
 	tools?: string[];
 	/**
+	 * When `true`, the agent will not auto-delegate to this custom agent
+	 * as a sub-agent; it can only be selected by the user. Absent or
+	 * `false` means the agent may delegate to it.
+	 */
+	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot select this custom agent (for example,
+	 * in a picker); it remains available for the agent to auto-delegate
+	 * to. Absent or `false` means the user may select it.
+	 */
+	disableUserInvocation?: boolean;
+	/**
 	 * Additional provider-specific metadata for this custom agent.
 	 *
 	 * Mirrors the MCP `_meta` convention.
@@ -831,7 +872,7 @@ export interface AgentCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface SkillCustomization extends CustomizationBase {
+export interface SkillCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Skill;
 	/**
 	 * Short description used for help text and auto-invocation matching.
@@ -844,6 +885,12 @@ export interface SkillCustomization extends CustomizationBase {
 	 * `disable-model-invocation` flag.
 	 */
 	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot directly invoke this skill (for example,
+	 * as a slash command); it remains available for the agent to
+	 * auto-invoke. Absent or `false` means the user may invoke it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -851,7 +898,7 @@ export interface SkillCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface PromptCustomization extends CustomizationBase {
+export interface PromptCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Prompt;
 	/** Short description of what the prompt does. */
 	description?: string;
@@ -870,7 +917,7 @@ export interface PromptCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface RuleCustomization extends CustomizationBase {
+export interface RuleCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Rule;
 	/**
 	 * Description of what the rule enforces.
@@ -894,7 +941,7 @@ export interface RuleCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface HookCustomization extends CustomizationBase {
+export interface HookCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Hook;
 }
 

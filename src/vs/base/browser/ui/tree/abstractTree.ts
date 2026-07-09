@@ -3110,6 +3110,22 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.view.getRelativeTop(index, stickyScrollNode?.position ?? this.stickyScrollController?.height);
 	}
 
+	/**
+	 * Returns the absolute top offset of an element in the tree's scroll/content
+	 * space, or `undefined` when the element is not in the tree. Unlike
+	 * {@link getRelativeTop}, this reads the layout height model, so it also
+	 * resolves elements outside the rendered viewport.
+	 */
+	getElementTop(location: TRef): number | undefined {
+		const index = this.model.getListIndex(location);
+
+		if (index === -1) {
+			return undefined;
+		}
+
+		return this.view.getElementTop(index);
+	}
+
 	getViewState(identityProvider = this.options.identityProvider): AbstractTreeViewState {
 		if (!identityProvider) {
 			throw new TreeError(this._user, 'Can\'t get tree view state without an identity provider');

@@ -85,6 +85,7 @@ export interface IAgentHostGitService {
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session

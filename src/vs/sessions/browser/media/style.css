@@ -317,9 +317,6 @@
 .agent-sessions-workbench .part.editor .title.tabs {
 	background-color: transparent !important;
 	--editor-group-tab-height: 26px !important;
-	/* Separate the tab bar from the editor content with the same border the
-	 * parts use (agentsPanel border). */
-	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
 }
 
 /* Editor tabs: match chat composite bar tab style */
@@ -363,6 +360,38 @@
 	overflow: visible;
 }
 
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab {
+	position: sticky;
+	right: 0;
+	z-index: 9;
+	display: flex;
+	align-items: center;
+	background: transparent;
+}
+
+/* Match the "New Chat" (+) button in the session-header chat tab bar: a compact,
+ * centered, rounded icon button rather than a full-height plain glyph. */
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label {
+	width: 22px;
+	height: 22px;
+	margin: 0 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground, currentColor);
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .agent-sessions-workbench .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
 	align-items: center;
@@ -404,9 +433,34 @@
 	--part-background: var(--vscode-editor-background);
 	--vscode-sideBar-background: var(--vscode-editor-background);
 	background: var(--vscode-editor-background);
-	border-left: var(--vscode-strokeThickness) solid var(--part-border-color, transparent);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	left: calc(-1 * var(--vscode-strokeThickness));
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
+}
+
+/* Divider under the editor header (spanning the editor content and docked detail)
+ * instead of a border on the aux-bar top, so the line runs the full header width.
+ * The docked aux bar starts one divider below its bottom, so its background does
+ * not overlay the line. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+}
+
+/* When the active editor has no header toolbars, put the divider under the tab
+ * bar instead so the separator is always present below the header row. */
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar > .content .pane-body,
@@ -417,10 +471,6 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
 	overflow: hidden;
-	/* The docked detail overlays the right part of the editor tab bar, hiding the
-	 * tab bar's bottom border there. Repeat the same border along the detail's top
-	 * edge so the tab-bar separator runs the full width. */
-	border-top: 1px solid var(--vscode-agentsPanel-border, transparent);
 }
 
 /* Previous (non-docked, original) layout: the auxiliary bar is a trailing grid

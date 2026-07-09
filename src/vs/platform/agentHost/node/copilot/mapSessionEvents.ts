@@ -48,12 +48,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 		switch (sdkContent.type) {
 			case 'shell_exit':
 				content.push({
-					type: ToolResultContentType.ShellExit,
-					shellId: sdkContent.shellId,
+					type: ToolResultContentType.TerminalComplete,
 					exitCode: sdkContent.exitCode,
-					...(sdkContent.cwd !== undefined ? { cwd: sdkContent.cwd } : {}),
-					...(sdkContent.outputPreview !== undefined ? { outputPreview: sdkContent.outputPreview } : {}),
-					...(sdkContent.outputTruncated !== undefined ? { outputTruncated: sdkContent.outputTruncated } : {}),
+					...(sdkContent.cwd !== undefined ? { cwd: URI.file(sdkContent.cwd).toString() } : {}),
+					...(sdkContent.outputPreview !== undefined ? { preview: sdkContent.outputPreview } : {}),
+					...(sdkContent.outputTruncated !== undefined ? { truncated: sdkContent.outputTruncated } : {}),
 				});
 				break;
 		}

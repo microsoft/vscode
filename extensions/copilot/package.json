@@ -1918,11 +1918,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "editTools": {
                     "type": "array",
@@ -1981,8 +1985,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -2089,11 +2104,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "editTools": {
                     "type": "array",
@@ -2176,8 +2195,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -2240,11 +2270,15 @@
                   },
                   "maxInputTokens": {
                     "type": "number",
-                    "description": "Maximum number of input tokens supported by the model"
+                    "markdownDescription": "Maximum number of input (prompt) tokens supported by the model. Optional when `contextWindow` is set, in which case it is derived as `contextWindow - maxOutputTokens`."
                   },
                   "maxOutputTokens": {
                     "type": "number",
                     "description": "Maximum number of output tokens supported by the model"
+                  },
+                  "contextWindow": {
+                    "type": "number",
+                    "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
                   "thinking": {
                     "type": "boolean",
@@ -2290,8 +2324,19 @@
                   "url",
                   "toolCalling",
                   "vision",
-                  "maxInputTokens",
                   "maxOutputTokens"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "maxInputTokens"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "contextWindow"
+                    ]
+                  }
                 ]
               }
             }
@@ -3191,6 +3236,14 @@
             "default": true,
             "markdownDescription": "%github.copilot.config.cloudAgent.enabled%"
           },
+          "github.copilot.chat.localIndex.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
+            "tags": [
+              "onExp"
+            ]
+          },
           "github.copilot.chat.codeGeneration.useInstructionFiles": {
             "type": "boolean",
             "default": true,
@@ -3358,6 +3411,11 @@
             "type": "boolean",
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
+          },
+          "github.copilot.chat.preferLongContext.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
           },
           "github.copilot.enable": {
             "type": "object",
@@ -4099,10 +4157,19 @@
               "onExp"
             ]
           },
-          "github.copilot.chat.claude47OpusPrompt.enabled": {
+          "github.copilot.chat.claude48OpusPrompt.enabled": {
             "type": "boolean",
             "default": false,
-            "markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
+            "markdownDescription": "%github.copilot.config.claude48OpusPrompt.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.claudeSonnet5Prompt.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.claudeSonnet5Prompt.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4302,15 +4369,6 @@
             "markdownDescription": "%github.copilot.config.exploreAgent.model%",
             "tags": [
               "experimental"
-            ]
-          },
-          "github.copilot.chat.localIndex.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.localIndex.enabled%",
-            "tags": [
-              "experimental",
-              "onExp"
             ]
           },
           "github.copilot.chat.conversationCompaction.usePrismCompaction": {
@@ -7200,7 +7258,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.67",
+    "@github/copilot": "^1.0.69-0",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

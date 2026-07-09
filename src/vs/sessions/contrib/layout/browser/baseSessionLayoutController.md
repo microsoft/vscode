@@ -29,7 +29,8 @@ Each session restores its own set of open editors when you activate it. Switchin
 editors you had open and applies the target session's. New / untitled sessions, and sessions with no
 saved editors, never force the editor area open or wipe it. If you hid the editor part for a session
 (e.g. by closing the Side Panel while keeping editors open), restoring it keeps the editor part hidden
-instead of forcing it back open.
+instead of forcing it back open. When an active draft is replaced by its committed session, the draft's
+editor-part hidden state follows the committed resource.
 
 ### Scenario: layout survives an app restart
 A session's remembered layout is preserved when the app is closed and restored when it reopens.
@@ -71,7 +72,9 @@ default layout instead of stale state. Open editors are still preserved.
   (`_editorPartHiddenBySession`, only while a single session is visible — the editor area is shared in
   multi-session mode; captured lazily at switch-away it would race the switch derive), so a switch-back
   `_applyWorkingSet` skips the editor-part reveal — and in single-pane actively re-hides it
-  (`_shouldHideEditorPartOnApply`) — for a session whose editor part was left hidden. Cleanup on
+  (`_shouldHideEditorPartOnApply`) — for a session whose editor part was left hidden. `onDidReplaceSession`
+  copies a replaced active draft's editor-part hidden state to the committed resource before that resource's
+  first working-set apply, avoiding a fall-through to the created-session default. Cleanup on
   `onDidChangeSessions` (`_deleteWorkingSet` drops only the working set, never view state).
 - **Persistence & migration [B3]** — per-session state is keyed by session `URI` and persisted to the
   workspace-scoped storage key `sessions.layoutState` (`StorageTarget.MACHINE`). `_loadState` restores

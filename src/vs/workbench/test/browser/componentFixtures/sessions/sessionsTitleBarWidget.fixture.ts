@@ -11,6 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
@@ -26,7 +27,7 @@ import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../..
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // ============================================================================
@@ -94,8 +95,6 @@ interface ITitleBarState {
 	blockedCount?: number;
 	/** Explicit typed blocked sessions (drives the specific requires-input message). */
 	blocked?: readonly IBlockedSpec[];
-	/** Whether the primary side bar is visible (requires-input only shows when hidden). */
-	sidebarVisible?: boolean;
 	/** Number of recently approved sessions (drives the green "Approved N sessions"). */
 	approvedCount?: number;
 }
@@ -112,7 +111,6 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 	const specs: readonly IBlockedSpec[] = state.blocked
 		?? Array.from({ length: state.blockedCount ?? 0 }, (): IBlockedSpec => ({ reason: BlockedSessionReason.NeedsInput }));
 	const { blocked, approvalModel } = buildBlocked(specs);
-	const sidebarVisible = state.sidebarVisible ?? true;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -130,9 +128,9 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;
-				override isVisible(part: Parts): boolean {
-					return part === Parts.SIDEBAR_PART ? sidebarVisible : true;
-				}
+			}());
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override readonly onShow = Event.None;
 			}());
 			// The blocked-sessions feature is only enabled outside of stable builds.
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
@@ -189,7 +187,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
 			blockedCount: 3,
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -201,7 +198,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -212,7 +208,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			blocked: [
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Question },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -224,7 +219,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.FailingCI },
 				{ reason: BlockedSessionReason.FailingCI },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -236,7 +230,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 				{ reason: BlockedSessionReason.FailingCI },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -254,7 +247,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
 			blockedCount: 3,
-			sidebarVisible: false,
 			approvedCount: 3,
 		}),
 	}),

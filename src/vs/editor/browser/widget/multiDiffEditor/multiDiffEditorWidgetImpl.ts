@@ -18,6 +18,7 @@ import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
@@ -44,6 +45,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _sizeObserver;
 
 	private readonly _objectPool;
+
+	private readonly _optionsOverride: IObservable<IDiffEditorOptions>;
 
 	public readonly scrollTop;
 	public readonly scrollLeft;
@@ -74,6 +77,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _renderSideBySide: IObservable<boolean | undefined>,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
@@ -102,12 +106,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			h('div.placeholder@placeholder', {}, [h('div')]),
 		]);
 		this._sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
+		this._optionsOverride = derived(this, reader => {
+			const renderSideBySide = this._renderSideBySide.read(reader);
+			// Also pin `useInlineViewWhenSpaceIsLimited` off so the toggle deterministically
+			// controls inline vs. side-by-side regardless of the available width.
+			const options: IDiffEditorOptions = renderSideBySide === undefined ? {} : { renderSideBySide, useInlineViewWhenSpaceIsLimited: false };
+			return options;
+		});
 		this._objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 			const template = this._instantiationService.createInstance(
 				DiffEditorItemTemplate,
 				this._scrollableElements.content,
 				this._scrollableElements.overflowWidgetsDomNode,
-				this._workbenchUIElementFactory
+				this._workbenchUIElementFactory,
+				this._optionsOverride,
 			);
 			template.setData(data);
 			return template;
@@ -173,6 +185,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			if (viewModel) {
 				const allCollapsed = viewModel.items.read(reader).every(item => item.collapsed.read(reader));
 				ctxAllCollapsed.set(allCollapsed);
+			}
+		}));
+
+		const ctxRenderSideBySide = this._parentContextKeyService.createKey<boolean>(EditorContextKeys.multiDiffEditorRenderSideBySide.key, true);
+		this._register(autorun((reader) => {
+			const renderSideBySide = this._renderSideBySide.read(reader);
+			if (renderSideBySide !== undefined) {
+				ctxRenderSideBySide.set(renderSideBySide);
 			}
 		}));
 

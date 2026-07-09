@@ -21,6 +21,7 @@ import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInst
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
+import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
@@ -203,6 +204,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context);
 			}
+		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {

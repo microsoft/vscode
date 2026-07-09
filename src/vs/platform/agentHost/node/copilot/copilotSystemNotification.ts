@@ -26,13 +26,10 @@ export function buildCopilotSystemNotification(event: SessionEventPayload<'syste
 		case 'shell_completed':
 		case 'shell_detached_completed': {
 			const description = kind.description;
-			const shellId = kind.shellId;
 			return {
 				messageText: description
 					? localize('agentHost.copilot.systemNotification.shellDescriptionCompleted', "`{0}` completed", description)
-					: shellId
-						? localize('agentHost.copilot.systemNotification.shellIdCompleted', "Shell `{0}` completed", shellId)
-						: localize('agentHost.copilot.systemNotification.shellCompleted', "Shell completed"),
+					: localize('agentHost.copilot.systemNotification.shellCompleted', "Shell completed"),
 				startsTurn: true,
 			};
 		}

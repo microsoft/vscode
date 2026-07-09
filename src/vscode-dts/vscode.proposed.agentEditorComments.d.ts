@@ -37,7 +37,18 @@ declare module 'vscode' {
 		readonly comments: readonly AgentEditorComment[];
 
 		/**
-		 * An event that fires whenever {@link comments} changes.
+		 * Whether new comments can be added for the resource. This is `false` when the
+		 * resource is not in scope for a session, in which case {@link addComment} is a
+		 * no-op. UI that lets the user author comments should be hidden while this is
+		 * `false`.
+		 *
+		 * Changes to this value are reported through {@link onDidChange}.
+		 */
+		readonly acceptsComments: boolean;
+
+		/**
+		 * An event that fires whenever {@link comments} or {@link acceptsComments}
+		 * changes.
 		 */
 		readonly onDidChange: Event<void>;
 
@@ -50,6 +61,15 @@ declare module 'vscode' {
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		addComment(range: Range, body: string): void;
+
+		/**
+		 * Delete the comment with the given id. No-op when no comment with that id
+		 * exists or the resource is not in scope for a session.
+		 *
+		 * @param id The {@link AgentEditorComment.id id} of the comment to delete.
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		deleteComment(id: string): void;
 	}
 
 	export namespace window {

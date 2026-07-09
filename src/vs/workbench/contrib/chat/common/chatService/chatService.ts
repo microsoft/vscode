@@ -743,7 +743,7 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
@@ -1021,7 +1021,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1118,11 +1118,29 @@ export interface IChatToolResourcesInvocationData {
 	readonly values: Array<URI | Location>;
 }
 
+/**
+ * Tool-specific data for a completed `create_session` / `create_chat`
+ * agent-host tool call. Carries a clickable link so the renderer can show a
+ * deterministic confirmation + "open" button instead of relying on the model
+ * to echo a markdown link.
+ */
+export interface IChatSessionCreatedData {
+	readonly kind: 'sessionCreated';
+	/** The `agent-host-session://` link that opens the created/owning session. */
+	readonly openLink: string;
+	/** Label for the button (e.g. the session title / prompt). */
+	readonly label: string;
+	/** Whether this is a `create_chat` result (vs `create_session`); selects the pill icon. */
+	readonly isChat?: boolean;
+}
+
 export interface IChatModifiedFilesConfirmationData {
 	readonly kind: 'modifiedFilesConfirmation';
 	readonly options: readonly string[];
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
+		/** The pending file operation represented by this entry. */
+		readonly editKind?: ChatExternalEditKind;
 		readonly originalUri?: UriComponents;
 		/**
 		 * Optional URI to read the modified (after) content from for the diff

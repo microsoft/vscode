@@ -103,7 +103,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
-	gap: 4px;
+	gap: 2px;
 	min-height: 28px;
 	justify-content: space-between;
 }
@@ -114,7 +114,7 @@
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
 	display: flex;
-	gap: 4px;
+	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -194,21 +194,23 @@
 
 /* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
 .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: 2px;
 }
 
 /* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
  * (e.g. session control pickers and repo config pickers) so they align with the
- * mode/model picker font in the input toolbar. */
+ * model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
-	padding: 3px 6px;
+	padding: 3px 8px;
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: auto;
+	height: auto;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
@@ -219,18 +221,6 @@
 
 .new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: none;
-}
-
-
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
-}
-
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	padding-left: 4px;
 }
 
 /* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
@@ -399,7 +389,7 @@
 	}
 }
 
-.sessions-chat-picker-slot .action-label .codicon {
+.interactive-input-part .sessions-chat-picker-slot .action-label .codicon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }

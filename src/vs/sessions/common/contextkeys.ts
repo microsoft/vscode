@@ -86,6 +86,12 @@ export const SessionChatsPickerVisibleContext = new RawContextKey<boolean>('sess
 
 //#endregion
 
+//#region < --- Blocked Sessions --- >
+
+export const SessionsBlockedSessionsVisibleContext = new RawContextKey<boolean>('sessionsBlockedSessionsVisible', false, localize('sessionsBlockedSessionsVisible', "Whether the blocked-sessions dropdown (surfacing sessions that require input) is open in the sessions titlebar"));
+
+//#endregion
+
 //#region < --- Aquarium --- >
 
 export const SessionsAquariumActiveContext = new RawContextKey<boolean>('sessionsAquariumActive', false, localize('sessionsAquariumActive', "Whether the sessions aquarium overlay is active"));

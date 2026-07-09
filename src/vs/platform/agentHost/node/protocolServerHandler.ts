@@ -1240,26 +1240,18 @@ export class ProtocolServerHandler extends Disposable {
 			return this._agentService.completions(params);
 		},
 		fetchTurns: async (_client, params) => {
-			const state = this._stateManager.getSessionState(params.channel);
+			const state = this._stateManager.getChatState(params.channel);
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			const turns = state.turns;
-			const limit = Math.min(params.limit ?? 50, 100);
-
-			let endIndex = turns.length;
-			if (params.before) {
-				const idx = turns.findIndex(t => t.id === params.before);
-				if (idx !== -1) {
-					endIndex = idx;
-				}
+			if (params.cursor && params.cursor !== state.turnsNextCursor) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unrecognized fetchTurns cursor`);
 			}
-
-			const startIndex = Math.max(0, endIndex - limit);
-			return {
-				turns: turns.slice(startIndex, endIndex),
-				hasMore: startIndex > 0,
-			};
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [],
+			});
+			return {};
 		},
 		resourceList: async (_client, params) => {
 			return this._agentService.resourceList(URI.parse(params.uri));

@@ -797,6 +797,7 @@ export interface IQuotaSnapshot {
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
 	readonly quotaRemaining?: number;
+	readonly creditsUsed?: number;
 }
 
 export interface IRateLimitSnapshot {
@@ -854,6 +855,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+			const parsedCreditsUsed = rawQuotaSnapshot.credits_used !== undefined ? Number(rawQuotaSnapshot.credits_used) : undefined;
 
 			// Skip snapshots where the user has no allocated entitlement for this
 			// category (e.g. free tier premium_interactions with 0 credits). Under
@@ -872,6 +874,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isFinite(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
 				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isFinite(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
+				creditsUsed: parsedCreditsUsed !== undefined && Number.isFinite(parsedCreditsUsed) && parsedCreditsUsed >= 0 ? parsedCreditsUsed : undefined,
 			};
 
 			switch (quotaType) {

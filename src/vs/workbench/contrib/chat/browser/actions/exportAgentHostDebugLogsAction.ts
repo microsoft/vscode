@@ -12,7 +12,8 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -373,7 +374,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsWebContext.negate(),
-				ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
+				AGENT_HOST_ENABLED_CONTEXT_KEY,
 			),
 		});
 	}

@@ -6,6 +6,7 @@
 import { LRUCache } from '../../../../base/common/map.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 
 export type FetchFunction = typeof globalThis.fetch;
 
@@ -95,7 +96,6 @@ export interface IAgentHostOctoKitService {
 
 export const IAgentHostOctoKitService = createDecorator<IAgentHostOctoKitService>('agentHostOctoKitService');
 
-const GITHUB_API_HOST = 'https://api.github.com';
 const GITHUB_API_VERSION = '2022-11-28';
 const MAX_ERROR_RESPONSE_BODY_LENGTH = 500;
 
@@ -119,6 +119,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	constructor(
 		fetchFn: FetchFunction | undefined,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitHubEndpointService private readonly _endpoint: IAgentHostGitHubEndpointService,
 	) {
 		this._fetch = fetchFn ?? globalThis.fetch;
 	}
@@ -197,7 +198,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		body?: Record<string, unknown>,
 		etag?: string
 	): Promise<IGitHubApiResponse<T>> {
-		const url = `${GITHUB_API_HOST}/${routeSlug}`;
+		const url = `${this._endpoint.getApiBaseUri()}/${routeSlug}`;
 		const headers: Record<string, string> = {
 			'Accept': 'application/vnd.github+json',
 			'Authorization': `Bearer ${token}`,
@@ -267,7 +268,7 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 		token: string,
 		signal: AbortSignal,
 	): Promise<unknown> {
-		const url = `${GITHUB_API_HOST}/graphql`;
+		const url = this._endpoint.getGraphQlUri();
 		const headers: Record<string, string> = {
 			'Accept': 'application/json',
 			'Authorization': `Bearer ${token}`,

@@ -16,12 +16,21 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 	public static readonly viewType = 'vscode.markdown.editor';
 
+	/**
+	 * Memento key under which the last chosen edit/read-only mode is remembered.
+	 * The value is a single global default shared by every Markdown editor, so
+	 * flipping the lock in one editor becomes the initial mode for the next.
+	 */
+	static readonly #readonlyStateKey = 'markdown.editor.readonly';
+
 	readonly #mediaRoot: vscode.Uri;
 	readonly #extensionUri: vscode.Uri;
+	readonly #globalState: vscode.Memento;
 
-	constructor(extensionUri: vscode.Uri) {
+	constructor(extensionUri: vscode.Uri, globalState: vscode.Memento) {
 		super();
 		this.#extensionUri = extensionUri;
+		this.#globalState = globalState;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 	}
 
@@ -43,7 +52,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
 				case 'ready': {
-					webview.postMessage({ type: 'init', content: document.getText(), readonly: false });
+					webview.postMessage({ type: 'init', content: document.getText(), readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, false) });
+					break;
+				}
+				case 'setReadonly': {
+					// Remember the edit/read-only choice as the global default for the
+					// next Markdown editor.
+					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
 					break;
 				}
 				case 'edit': {
@@ -77,12 +92,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		const highlight = this.#wireHighlight(webview);
 		const quickDiff = this.#wireQuickDiff(document, webview);
+		const comments = this.#wireComments(document, webview);
 
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
 			onDocumentChange.dispose();
 			highlight.dispose();
 			quickDiff.dispose();
+			comments.dispose();
 		});
 	}
 
@@ -124,6 +141,47 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
 	}
+
+	/**
+	 * Bridges the workbench's agent/session comments (the same store the code
+	 * editor renders its comments from) to the webview: existing comments are
+	 * forwarded for rendering, and comments the user adds in the Markdown editor
+	 * are written back to the shared store so they appear in the code editor too.
+	 * Comment ranges are converted between {@link vscode.Range} and the source
+	 * character offsets the webview works in.
+	 */
+	#wireComments(document: vscode.TextDocument, webview: vscode.Webview): vscode.Disposable {
+		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
+
+		const postComments = () => {
+			const comments = commentsProvider.comments.map(comment => ({
+				id: comment.id,
+				start: document.offsetAt(comment.range.start),
+				endExclusive: document.offsetAt(comment.range.end),
+				body: comment.body,
+				author: comment.author,
+			}));
+			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
+		};
+
+		const onChange = commentsProvider.onDidChange(postComments);
+		const onMessage = webview.onDidReceiveMessage((message) => {
+			if (message.type === 'ready') {
+				postComments();
+			} else if (message.type === 'addComment') {
+				const range = new vscode.Range(
+					document.positionAt(message.start),
+					document.positionAt(message.endExclusive),
+				);
+				commentsProvider.addComment(range, message.text);
+			} else if (message.type === 'deleteComment') {
+				commentsProvider.deleteComment(message.id);
+			}
+		});
+
+		return vscode.Disposable.from(commentsProvider, onChange, onMessage);
+	}
+
 
 	/**
 	 * Proxies the webview's syntax highlighting requests to the

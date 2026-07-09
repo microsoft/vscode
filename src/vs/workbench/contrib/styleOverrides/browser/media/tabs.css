@@ -39,6 +39,16 @@
 	--tab-border-top-color: transparent !important;
 }
 
+.style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 10px 0 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sizing-fit {
+	width: auto !important;
+	min-width: 0 !important;
+	flex: 0 0 auto !important;
+}
+
 /* Center tabs vertically and strip the bottom border so the pills float. */
 .style-override .part.editor .tabs-and-actions-container {
 	--tabs-border-bottom-color: transparent !important;
@@ -219,4 +229,8 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
 	padding: 4px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
+	vertical-align: sub;
 }

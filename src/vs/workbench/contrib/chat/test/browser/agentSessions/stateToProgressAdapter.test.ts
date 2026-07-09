@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -51,6 +52,13 @@ function createTurn(overrides?: Partial<Turn>): Turn {
 		state: TurnState.Complete,
 		...overrides,
 	};
+}
+
+function getSerializedTerminalData(serialized: IChatToolInvocationSerialized): IChatTerminalToolInvocationData {
+	const toolSpecificData = serialized.toolSpecificData;
+	assert.strictEqual(toolSpecificData?.kind, 'terminal');
+	assert.ok(toolSpecificData && hasKey(toolSpecificData, { commandLine: true }));
+	return toolSpecificData;
 }
 
 function message(text: string, kind = MessageKind.User): Message {
@@ -1406,6 +1414,41 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
 		});
 
+		test('preserves create metadata and proposed content for pending file confirmations', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-create',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Creating package.json',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Create file?',
+				edits: {
+					items: [{
+						after: {
+							uri: 'file:///workspace/package.json',
+							content: { uri: 'pending-edit-content://session/tc-create/package.json' },
+						},
+					}],
+				},
+			});
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'modifiedFilesConfirmation',
+				options: ['Allow'],
+				modifiedFiles: [{
+					uri: URI.file('/workspace/package.json'),
+					editKind: 'create',
+					originalUri: undefined,
+					modifiedContentUri: toAgentHostUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					originalContentUri: undefined,
+					insertions: undefined,
+					deletions: undefined,
+					title: 'package.json',
+					description: '/workspace/package.json',
+				}],
+			});
+		});
+
 		test('includes all parts in correct order', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Thinking...' },
@@ -1493,13 +1536,66 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
 		});
 
-		test('uses shell_exit exit code for completed SDK shell tool history', () => {
+		test('uses terminal completion exit code for completed SDK shell tool history', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'gti status',
 				content: [
-					{ type: ToolResultContentType.Text, text: 'command not found\n' },
-					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 127, cwd: '/repo', outputPreview: 'preview only\n' },
+					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString(), preview: 'preview only\n', truncated: true },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
+			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
+			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('strips legacy shell completion marker from terminal fallback output', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'ehco hi',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'bash: line 1: ehco: command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString() },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'bash: line 1: ehco: command not found\r\n');
+			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('keeps zero terminal completion exit code as success for completed SDK shell tool history', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'pwd',
+				content: [
+					{ type: ToolResultContentType.Text, text: '/repo\n' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 0, cwd: URI.file('/repo').toString() },
 				],
 				success: true,
 			});
@@ -1514,18 +1610,17 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
-			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
-			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'command not found\r\n');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode: number } };
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
-		test('keeps zero shell_exit exit code as success for completed SDK shell tool history', () => {
+		test('falls back to tool success when terminal completion has no exit code', () => {
 			const tc = createCompletedToolCall({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'pwd',
 				content: [
 					{ type: ToolResultContentType.Text, text: '/repo\n' },
-					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 0, cwd: '/repo' },
+					{ type: ToolResultContentType.TerminalComplete, cwd: URI.file('/repo').toString() },
 				],
 				success: true,
 			});
@@ -1595,7 +1690,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
-		test('finalize uses shell_exit exit code over SDK tool success', () => {
+		test('finalize uses terminal completion exit code over SDK tool success', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'false',
@@ -1616,7 +1711,7 @@ suite('stateToProgressAdapter', () => {
 				pastTenseMessage: 'Ran false',
 				content: [
 					{ type: ToolResultContentType.Text, text: '' },
-					{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 1, cwd: '/repo' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 1, cwd: URI.file('/repo').toString() },
 				],
 			});
 

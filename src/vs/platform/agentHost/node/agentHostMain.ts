@@ -19,6 +19,7 @@ import { AgentHostByokModelsEnabledEnvVar, AgentHostClaudeAgentEnabledEnvVar, Ag
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -148,7 +149,7 @@ async function startAgentHost(): Promise<void> {
 	// them), but when off they stay inert: the per-connection bridge and the
 	// renderer's BYOK server channel are not wired, so the registry stays empty
 	// and the proxy never binds.
-	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], false);
+	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -182,15 +183,8 @@ async function startAgentHost(): Promise<void> {
 		const agentSdkDownloader = disposables.add(instantiationService.createInstance(AgentSdkDownloader));
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		sdkDownloadProgress = agentSdkDownloader.onDidDownloadProgress;
-		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
-		diServices.set(ICopilotApiService, copilotApiService);
-		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
-		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
-		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
-		diServices.set(ICodexProxyService, codexProxyService);
 		// BYOK language-model proxy + bridge registry. Always registered so the
 		// session launcher can inject them, but BYOK *use* is gated: the
 		// per-connection bridge below (and the renderer's server channel) are only
@@ -214,7 +208,19 @@ async function startAgentHost(): Promise<void> {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
+
+		// CopilotApiService and the proxies that consume it are created AFTER the
+		// GitHub endpoint service is re-exported (above) so CAPI endpoint discovery
+		// can target a GitHub Enterprise host. Matches agentHostServerMain ordering.
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		diServices.set(ICopilotApiService, copilotApiService);
+		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
+		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		diServices.set(IClaudeProxyService, claudeProxyService);
+		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
+		diServices.set(ICodexProxyService, codexProxyService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
