@@ -313,8 +313,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Pending confirmation phase 2 (see `_activateShownSession`): send
 	 * `agent_state` after `is_active` has settled so it narrates.
+	 *
+	 * Keyed per session so activating one confirmation session never cancels
+	 * another's pending phase-2 (which would leave it stuck reporting `thinking`
+	 * and only narrate on a second focus).
 	 */
-	private _confirmationActivateTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly _confirmationActivateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private static readonly _CONFIRMATION_ACTIVATE_DELAY_MS = 250;
 
 	/** Model refs eagerly loaded for sessions awaiting input (no UI focus needed). */
@@ -1313,10 +1317,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._lastHeardTranscriptById.clear();
 		this._forceThinkingOnce.clear();
 		this._awaitingReplyForSession = undefined;
-		if (this._confirmationActivateTimer) {
-			clearTimeout(this._confirmationActivateTimer);
-			this._confirmationActivateTimer = undefined;
-		}
+		for (const t of this._confirmationActivateTimers.values()) { clearTimeout(t); }
+		this._confirmationActivateTimers.clear();
 		this._prevSessionStates.clear();
 		for (const t of this._userCancelledSessions.values()) { clearTimeout(t); }
 		this._userCancelledSessions.clear();
@@ -2239,20 +2241,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._sendContext();
 			this.voiceClientService.flushSessionContext();
 			// Phase 2: after `is_active` settles, send `waiting_for_confirmation`.
-			if (this._confirmationActivateTimer) {
-				clearTimeout(this._confirmationActivateTimer);
+			// Timers are keyed per session so activating another confirmation
+			// session can't cancel this one's phase-2 (which would strand it as
+			// `thinking` and narrate only on a second focus).
+			const existing = this._confirmationActivateTimers.get(key);
+			if (existing) {
+				clearTimeout(existing);
 			}
-			this._confirmationActivateTimer = setTimeout(() => {
-				this._confirmationActivateTimer = undefined;
-				// Clear all one-shot keys; rapid switches can preempt older timers,
-				// so per-key cleanup could leave a session stuck as `thinking`.
-				this._forceThinkingOnce.clear();
+			this._confirmationActivateTimers.set(key, setTimeout(() => {
+				this._confirmationActivateTimers.delete(key);
+				this._forceThinkingOnce.delete(key);
 				// Only ship the transition if this session is still active.
 				if (this._getActiveSessionId() === key) {
 					this._sendContext();
 					this.voiceClientService.flushSessionContext();
 				}
-			}, VoiceSessionController._CONFIRMATION_ACTIVATE_DELAY_MS);
+			}, VoiceSessionController._CONFIRMATION_ACTIVATE_DELAY_MS));
 			return;
 		}
 		this._sendContext();
