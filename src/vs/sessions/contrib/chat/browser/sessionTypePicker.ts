@@ -92,12 +92,7 @@ export class SessionTypePicker extends Disposable {
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
 
-	/**
-	 * Optional folder that drives the available session types instead of the
-	 * active session. Set via {@link setFolderSource}; `undefined` keeps the
-	 * default session-driven behavior. When set, the picker lists the folder's
-	 * session types and defaults independently of any session.
-	 */
+	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
 	private readonly _folderSourceWatch = this._register(new MutableDisposable());
 
@@ -165,24 +160,15 @@ export class SessionTypePicker extends Disposable {
 		return session ? this._sessionTypesForSession(session) : [];
 	}
 
-	/**
-	 * The pick to display for the current source. Session-driven pickers
-	 * reflect the active session's type (or the stored preference when there
-	 * is no session). Folder-driven pickers keep the current pick while it is
-	 * served by the folder, otherwise fall back to the stored preference and
-	 * finally the folder's preferred (first) type.
-	 */
+	/** The pick to display for the current source: the active session's type, otherwise the folder or stored default. */
 	protected _computeCurrentPick(): IPreferredSessionType | undefined {
 		const session = this._session.get();
 		if (!this._folderSource && session) {
-			// Reflect the active session's type in the trigger label, but do not
-			// persist it: the stored preference must only change when the user
-			// explicitly picks a type via the picker.
+			// Reflect the session's type without persisting it; storage changes only on an explicit user pick.
 			return { providerId: session.providerId, sessionTypeId: session.sessionType };
 		}
 		if (!this._folderSource) {
-			// Session-driven picker with no active session: preserve the stored
-			// pick so it can seed the next new session.
+			// No active session: keep the stored pick to seed the next new session.
 			return this._readStoredPick();
 		}
 		const candidate = this._picked ?? this._readStoredPick();
@@ -203,13 +189,7 @@ export class SessionTypePicker extends Disposable {
 			(pick.providerId === undefined || t.providerId === pick.providerId));
 	}
 
-	/**
-	 * Drive the picker from a folder instead of the active session. The picker
-	 * then lists the folder's session types and defaults independently of any
-	 * session. Optionally seeds the initially displayed pick (e.g. a value
-	 * restored from a saved record); the user's own picks and the stored
-	 * preference take over from there.
-	 */
+	/** Drive the picker from a folder instead of the active session, optionally seeding the initial pick. */
 	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType }): void {
 		this._folderSource = source;
 		this._picked = options?.initialPick ?? this._readStoredPick();
@@ -449,10 +429,7 @@ export class SessionTypePicker extends Disposable {
 		} else {
 			this._writeStoredPick(pick);
 		}
-		// Reflect the new pick in the trigger immediately. Session-driven
-		// callers previously got this for free when the pick changed the active
-		// session (re-running the refresh autorun), but folder-driven callers
-		// have no such trigger, so update the label directly here.
+		// Folder-driven callers have no session change to re-run the refresh autorun, so refresh the label here.
 		this._updateTriggerLabel();
 		// Only notify (and trigger draft recreation) when the visible pick
 		// actually changed, to avoid unnecessary work.
