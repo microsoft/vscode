@@ -76,7 +76,8 @@
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .actions-container > li:last-child,
-.style-override.monaco-workbench .part > .title .title-actions .actions-container > li:last-child {
+.style-override.monaco-workbench .part > .title .title-actions .actions-container > li:last-child,
+.style-override.monaco-workbench .part > .title .global-actions .actions-container > li:last-child {
 	margin-right: 0;
 }
 
@@ -190,7 +191,8 @@
 	padding: 4px 6px;
 	min-width: 19px;
 	min-height: 19px;
+}
+
 .style-override.monaco-workbench .interactive-session .interactive-input-part {
 	padding-bottom: 0;
 }
-
