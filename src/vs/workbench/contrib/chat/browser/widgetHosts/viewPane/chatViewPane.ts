@@ -580,10 +580,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					listeningSession = targetSession ?? currentSession;
 					ownerSession = listeningSession;
 				} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
-					// User switched to a different session mid-dictation — stop
-					// transcription so it isn't sent to the newly focused session.
-					this.voiceSessionController.stopListening();
-					listeningSession = undefined;
+					// User switched to a different session while listening. Only
+					// stop when there's dictation in progress, so it isn't
+					// misrouted to the newly focused session. If nothing has been
+					// recorded yet (e.g. clicking "New Chat" while idly listening
+					// hands-free), keep listening and just follow the new session.
+					const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
+					if (activelyDictating) {
+						this.voiceSessionController.stopListening();
+						listeningSession = undefined;
+					} else {
+						listeningSession = currentSession;
+						ownerSession = currentSession;
+					}
 				}
 			} else {
 				// Allow the next dictation to re-capture the owning session.

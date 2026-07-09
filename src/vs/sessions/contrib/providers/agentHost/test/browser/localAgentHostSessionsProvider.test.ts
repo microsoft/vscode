@@ -2010,6 +2010,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			forwardedToAgentHost: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+		});
+	});
+
 	test('createNewSession gives chat.defaultConfiguration precedence over remembered autoApprove while normalizing by policy', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({

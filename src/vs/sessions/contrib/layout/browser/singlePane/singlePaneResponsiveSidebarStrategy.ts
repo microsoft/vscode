@@ -18,13 +18,16 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { SinglePaneDetailChangesOrFilesActiveContext } from '../../../../common/contextkeys.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor title bar. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-// Toggle Details renders in the editor-title layout cluster, after maximize/restore.
+// Toggle Details is conditional (hidden for tab types with no detail, e.g. browser
+// and search). It keeps its trailing position after the always-present
+// maximize/restore and hide chevron.
 const singlePaneLayoutToggleDetailsOrder = 30;
 
 /**
@@ -163,12 +166,15 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: singlePaneLayoutToggleDetailsOrder,
+						// Not every tab type has a detail panel to show/hide (e.g. browser
+						// and search tabs), so only surface the toggle for tab types that do.
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
-							MainEditorAreaVisibleContext)
+							MainEditorAreaVisibleContext,
+							SinglePaneDetailChangesOrFilesActiveContext)
 					}
 				});
 			}

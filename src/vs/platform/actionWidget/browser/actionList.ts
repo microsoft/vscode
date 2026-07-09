@@ -633,6 +633,11 @@ export interface IActionListOptions {
 	 * before the context view is hidden.
 	 */
 	readonly closeAnimation?: IActionListCloseAnimation;
+
+	/**
+	 * Optional fixed side of the anchor where the action list should render.
+	 */
+	readonly anchorPosition?: AnchorPosition;
 }
 
 /**
@@ -2007,6 +2012,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -2037,6 +2043,9 @@ export class ActionList<T> extends Disposable {
 	 * Used by the context view delegate to lock the dropdown direction.
 	 */
 	get anchorPosition(): AnchorPosition | undefined {
+		if (this._preferredAnchorPosition !== undefined) {
+			return this._preferredAnchorPosition;
+		}
 		if (this._showAbove === undefined) {
 			return undefined;
 		}
@@ -2057,6 +2066,7 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
+		this._preferredAnchorPosition = options?.anchorPosition;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,
@@ -2148,7 +2158,7 @@ export class ActionList<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
-		if (this.hasDynamicHeight()) {
+		if (this.hasDynamicHeight() || this._preferredAnchorPosition !== undefined) {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
@@ -2160,8 +2170,9 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = chromeHeight + this._widget.computeFullHeight();
-				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
+				this._showAbove = this._preferredAnchorPosition !== undefined
+					? this._preferredAnchorPosition === AnchorPosition.ABOVE
+					: (chromeHeight + this._widget.computeFullHeight() > spaceBelow && spaceAbove > spaceBelow);
 			}
 			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
@@ -2173,6 +2184,11 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
+		if (this._preferredAnchorPosition !== undefined) {
+			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
+			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
+			return Math.max(0, height - chromeHeight);
+		}
 		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + chromeHeight, maxHeight);
 		return height - chromeHeight;

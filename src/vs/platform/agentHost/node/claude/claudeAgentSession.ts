@@ -594,6 +594,13 @@ export class ClaudeAgentSession extends Disposable {
 	/** True once {@link materialize} has installed the SDK pipeline. */
 	get isPipelineReady(): boolean { return this._pipeline !== undefined; }
 
+	/**
+	 * Whether this chat currently has a turn in flight or queued. False when
+	 * provisional (no pipeline) or idle between turns. Used by non-destructive
+	 * idle release to avoid disconnecting mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return this._pipeline?.hasActiveTurn ?? false; }
+
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
 

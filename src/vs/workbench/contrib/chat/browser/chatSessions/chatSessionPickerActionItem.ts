@@ -21,7 +21,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerOptions, withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -73,6 +73,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			actionBarActionProvider: undefined,
 			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
 			getAnchor: () => this._getAnchorElement(),
+			listOptions: withChatInputPickerMotion(undefined),
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

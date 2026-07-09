@@ -59,7 +59,8 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				editorActions: Menus.SessionsEditorTitle,
-				tabsBarContext: Menus.SessionsEditorTabsBarContext
+				tabsBarContext: Menus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			}
 		};
 	}

@@ -44,6 +44,7 @@ import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
@@ -845,7 +846,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging');
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'terminal-command-request');
 		templateData.dragHandle?.remove();
 		templateData.dragHandle = undefined;
 		delete templateData.rowContainer.dataset.pendingRequestId;
@@ -1541,6 +1542,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		templateData.rowContainer.classList.toggle('pending-request', !!element.pendingKind);
 		templateData.rowContainer.classList.toggle('system-initiated-request', !!element.isSystemInitiated);
+		templateData.rowContainer.classList.toggle('terminal-command-request', !element.isSystemInitiated && element.isTerminalCommand);
 
 		// System-initiated requests render as compact progress-style messages
 		if (element.isSystemInitiated) {
@@ -2188,6 +2190,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Don't pin subagent tools to thinking parts - they have their own grouping
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isSubagentToolInvocation(part)) {
+			return false;
+		}
+
+		// Don't pin session-created tools (create_session / create_chat) — their
+		// "Open Session" button must stay visible, not hidden inside a collapsed
+		// thinking group. Keyed on toolId so this holds while the tool streams too
+		// (before `toolSpecificData` is set on completion).
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (isCreateSessionTool(part.toolId) || isCreateChatTool(part.toolId) || isSendMessageTool(part.toolId))) {
 			return false;
 		}
 

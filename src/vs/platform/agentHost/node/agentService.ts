@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -40,7 +40,8 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
-import { serverToolGroups } from './shared/serverToolGroups.js';
+import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { type IChatContextSnapshot, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
@@ -90,6 +91,24 @@ const SESSION_GC_GRACE_MS = 30_000;
  * envelope replay buffer for the same reason.
  */
 const RESOURCE_WATCH_GRACE_MS = 30_000;
+
+/**
+ * Grace period before an idle session (one with turns, no remaining
+ * subscribers) is released from memory via {@link AgentService._maybeEvictIdleSession}.
+ * Deferring the release aligns it with the client disconnect-grace window: a
+ * client that disconnects and quickly reconnects (or a rapid unsubscribe/
+ * re-subscribe) reuses the live provider SDK session instead of forcing an
+ * immediate {@link IAgent.releaseSession} (SDK `disconnect`) followed by a
+ * resume-from-disk. Releasing synchronously on every last-unsubscribe churns
+ * the shared provider runtime and races concurrent session operations.
+ *
+ * Overridable via {@link AgentHostSessionReleaseGraceMsEnvVar} (test hook).
+ */
+const SESSION_RELEASE_GRACE_MS = (() => {
+	const raw = process.env[AgentHostSessionReleaseGraceMsEnvVar];
+	const parsed = raw !== undefined ? parseInt(raw, 10) : NaN;
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : 30_000;
+})();
 
 /**
  * Session-database metadata key under which the orchestrator persists its own
@@ -233,6 +252,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 * whenever any client subscribes again or the timer fires.
 	 */
 	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
+
+	/**
+	 * Pending {@link _maybeEvictIdleSession} timers, keyed by session URI. A
+	 * timer is armed when an idle session (with turns) loses its last subscriber
+	 * — see {@link unsubscribe}. Cleared when any client subscribes again
+	 * ({@link addSubscriber}) or the timer fires. Deferring the release avoids
+	 * churning the provider SDK session on rapid disconnect/reconnect cycles.
+	 */
+	private readonly _pendingSessionRelease = this._register(new DisposableResourceMap<IDisposable>());
 
 	/**
 	 * Active resource watches keyed by the channel URI string
@@ -422,10 +450,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 
 		// Server-side tools, executed in-process against each session's own
-		// state. Tool groups are contributed here at startup (feedback today) and
-		// handed to providers that support them during registration (see
-		// registerProvider).
-		this._serverToolHost = new AgentServerToolHost(this._stateManager, serverToolGroups);
+		// state. The set of groups (and their display) is the single source of
+		// truth in `serverToolGroups.ts`; the session-management group's runtime
+		// dependency (this service) is injected via the accessor.
+		this._serverToolHost = new AgentServerToolHost(this._stateManager, buildServerToolGroups(this._createSessionServerToolAccessor()));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -510,6 +538,69 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	// ---- session management -------------------------------------------------
+
+	/**
+	 * Builds the dependency surface the session server-tool group needs, bound
+	 * to this service so the group stays decoupled from the concrete host.
+	 */
+	private _createSessionServerToolAccessor(): ISessionServerToolAccessor {
+		return {
+			listSessions: () => this.listSessions(),
+			createSession: config => this.createSession(config),
+			getModels: () => {
+				const models: IAgentModelInfo[] = [];
+				for (const provider of this._providers.values()) {
+					models.push(...provider.models.get());
+				}
+				return models;
+			},
+			startPrompt: (session, chat, prompt) => this._startSessionPrompt(session, chat, prompt),
+			createChat: (session, chat, options) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined)
+				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: { id: options.model.id } } : {}) }
+				: undefined),
+			deleteSession: session => this.disposeSession(session),
+			getChatContext: (session, chatId) => this._getChatContext(session, chatId),
+			// Reads the `create_session` spawn depth from a session's `_meta` (0 when absent).
+			getSessionSpawnDepth: session => readSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta),
+			// Stamps a session's `create_session` spawn depth into its `_meta` (merging existing keys).
+			setSessionSpawnDepth: (session, depth) => this._stateManager.dispatchServerAction(session.toString(), {
+				type: ActionType.SessionMetaChanged,
+				_meta: withSessionSpawnDepth(this._stateManager.getSessionSummary(session.toString())?._meta, depth),
+			}),
+		};
+	}
+
+	/**
+	 * Starts the first turn on a freshly-created session by dispatching a
+	 * `ChatTurnStarted` and routing it through the same side-effects path a
+	 * client-initiated turn takes (which sends the message to the provider).
+	 */
+	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
+		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
+		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), message } as const;
+		this._stateManager.dispatchServerAction(chat.toString(), action);
+		this._sideEffects.handleAction(chat.toString(), action);
+	}
+
+	/**
+	 * Reads a point-in-time snapshot of a session's chat conversation for the
+	 * `get_session_context` server tool. Targets the session's default chat, or a
+	 * specific peer chat when `chatId` is provided. Returns `undefined` when no
+	 * live conversation state exists (e.g. a cold/unsubscribed session).
+	 */
+	private _getChatContext(session: URI, chatId?: string): IChatContextSnapshot | undefined {
+		const chatState = chatId
+			? this._stateManager.getChatState(buildChatUri(session.toString(), chatId))
+			: this._stateManager.getDefaultChatState(session.toString());
+		if (!chatState) {
+			return undefined;
+		}
+		return {
+			turns: chatState.turns,
+			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
+			hasMoreHistory: !!chatState.turnsNextCursor,
+		};
+	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
@@ -742,6 +833,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// timer would still fire and dispose the just-revived session
 		// before the follow-up `subscribe` arrives.
 		this._cancelPendingSessionGc(session);
+		this._cancelPendingSessionRelease(session);
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
@@ -1444,8 +1536,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		set.add(clientId);
 		// A new subscriber means the session is being observed again; cancel
-		// any pending GC armed while it had no subscribers.
+		// any pending GC or idle-release armed while it had no subscribers.
 		this._cancelPendingSessionGc(resource);
+		this._cancelPendingSessionRelease(resource);
 		// 0→1 transition — covers both the full subscribe path AND the
 		// handshake fast-path used by `ProtocolServerHandler` when state is
 		// already cached. The coordinator decides whether the URI is one
@@ -1477,7 +1570,20 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._maybeScheduleSessionGc(resource)) {
 			return;
 		}
-		this._maybeEvictIdleSession(resource);
+		// Defer the idle-session release behind a grace window rather than
+		// releasing synchronously. A client that reconnects (or re-subscribes)
+		// within the window cancels this via {@link _cancelPendingSessionRelease}
+		// and keeps the live provider SDK session, avoiding a disconnect/resume
+		// churn cycle that races concurrent session operations on the shared
+		// provider runtime. A zero grace releases on the next tick.
+		this._pendingSessionRelease.set(resource, disposableTimeout(() => {
+			this._pendingSessionRelease.deleteAndDispose(resource);
+			this._maybeEvictIdleSession(resource);
+		}, SESSION_RELEASE_GRACE_MS));
+	}
+
+	private _cancelPendingSessionRelease(resource: URI): void {
+		this._pendingSessionRelease.deleteAndDispose(resource);
 	}
 
 	/**
@@ -1545,23 +1651,17 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Eviction is currently disabled: this is a no-op that keeps cached session
-	 * state in memory. When re-enabled, it should drop cached state for an idle
-	 * session that has no remaining subscribers (walking up subagent ancestry
-	 * and evicting the root session entry), allowing the session to be
-	 * rehydrated later via {@link restoreSession}.
+	 * If `resource` names an idle session and no client is still subscribed to
+	 * it (or, for a subagent URI, no sibling subagent under the same parent is
+	 * still subscribed), release its in-memory footprint: drop the cached AHP
+	 * state from the state manager AND ask the provider to release the session's
+	 * SDK resources ({@link IAgent.releaseSession}). Subagent URIs evict the
+	 * parent session entry; the parent owns the materialized turn tree that
+	 * backs every subagent view. Nothing durable is deleted — the next subscribe
+	 * rehydrates the session via {@link restoreSession} and the provider resumes
+	 * the SDK session on demand.
 	 */
 	private _maybeEvictIdleSession(resource: URI): void {
-		// Idle-session eviction is disabled while we investigate issues where
-		// cached session state is dropped while clients still expect it to be
-		// observable. Keeping the cached state in memory prevents spurious
-		// re-restores and state loss.
-		// TODO: re-enable eviction or add an LRU cap to avoid unbounded memory
-		// growth in long-lived agent-host processes.
-		void resource;
-		return;
-
-		/*
 		const key = resource.toString();
 		if (this._resourceSubscribers.has(resource)) {
 			return;
@@ -1585,6 +1685,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		const evictionTargetKey = evictionTarget.toString();
+		// A restore/resume racing this unsubscribe means a client is about to
+		// observe the session again; releasing now would tear down state that
+		// the in-flight rehydrate is populating.
+		if (this._restoreSessionInFlight.has(evictionTargetKey)) {
+			return;
+		}
 		const targetState = this._stateManager.getSessionState(evictionTargetKey);
 		if (!targetState || targetState.activeTurn !== undefined) {
 			return;
@@ -1598,7 +1704,15 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
-		*/
+		// Release the provider's in-memory SDK session in lockstep with the
+		// cached state. Non-destructive: durable data is preserved so the
+		// session resumes transparently on the next access. Fire-and-forget —
+		// the provider sequences the release internally and re-checks its own
+		// invariants (e.g. a turn that started after this call).
+		const provider = this._findProviderForSession(evictionTarget);
+		provider?.releaseSession?.(evictionTarget).catch(err => {
+			this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
+		});
 	}
 
 	// Returns true when a changeset is safe to drop from the in-memory cache.

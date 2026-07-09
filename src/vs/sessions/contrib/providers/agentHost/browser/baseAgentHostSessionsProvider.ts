@@ -2429,6 +2429,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			remembered[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
 		}
 
+		const worktreeIncludeFiles = this._baseConfigurationService.getValue<string[]>('git.worktreeIncludeFiles', { resource });
+		if (Array.isArray(worktreeIncludeFiles) && worktreeIncludeFiles.length > 0) {
+			remembered[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
+		}
+
 		return Object.keys(remembered).length > 0 ? remembered : undefined;
 	}
 

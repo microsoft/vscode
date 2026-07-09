@@ -96,7 +96,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 0 var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: default;

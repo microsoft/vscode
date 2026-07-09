@@ -152,6 +152,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		this.addedWorktrees.push({ repositoryRoot, worktree, branchName, startPoint });
 		this.existingBranches.add(branchName);
 	}
+	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
 		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
 	}
@@ -4029,6 +4030,53 @@ suite('CopilotAgent', () => {
 					worktreeValue: 'users/alice/',
 					folderHasProperty: true,
 					folderValue: 'users/alice/',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('resolveSessionConfig carries worktreeIncludeFiles so it reaches the agent host', async () => {
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-include-files');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// The include-files array is declared and echoed back for both
+				// isolations (like `worktreeBranchPrefix`), so the client-seeded
+				// value survives schema validation rather than being stripped and
+				// therefore reaches the agent (see `_resolveSessionWorkingDirectory`).
+				const includeFiles = ['.env', '.env.local', 'config/'];
+				const worktree = await agent.resolveSessionConfig({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', worktreeIncludeFiles: includeFiles },
+				});
+
+				const folder = await agent.resolveSessionConfig({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'folder', worktreeIncludeFiles: includeFiles },
+				});
+
+				assert.deepStrictEqual({
+					worktreeHasProperty: !!worktree.schema.properties?.[SessionConfigKey.WorktreeIncludeFiles],
+					worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+					folderHasProperty: !!folder.schema.properties?.[SessionConfigKey.WorktreeIncludeFiles],
+					folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+				}, {
+					worktreeHasProperty: true,
+					worktreeValue: includeFiles,
+					folderHasProperty: true,
+					folderValue: includeFiles,
 				});
 			} finally {
 				await disposeAgent(agent);

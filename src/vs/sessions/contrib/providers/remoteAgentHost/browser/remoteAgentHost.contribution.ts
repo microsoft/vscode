@@ -878,6 +878,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return connection.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 

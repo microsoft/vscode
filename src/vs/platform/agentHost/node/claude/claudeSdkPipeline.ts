@@ -266,6 +266,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
 
 	/**
+	 * Whether a turn is currently in flight or queued. False between turns (the
+	 * warm query parks with a drained queue). Used by non-destructive idle
+	 * release to avoid tearing the pipeline down mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
+
+	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.
 	 *
 	 * `WarmQuery[Symbol.asyncDispose]()` calls the query's `close()`, which

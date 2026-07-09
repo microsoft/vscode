@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -51,6 +52,13 @@ function createTurn(overrides?: Partial<Turn>): Turn {
 		state: TurnState.Complete,
 		...overrides,
 	};
+}
+
+function getSerializedTerminalData(serialized: IChatToolInvocationSerialized): IChatTerminalToolInvocationData {
+	const toolSpecificData = serialized.toolSpecificData;
+	assert.strictEqual(toolSpecificData?.kind, 'terminal');
+	assert.ok(toolSpecificData && hasKey(toolSpecificData, { commandLine: true }));
+	return toolSpecificData;
 }
 
 function message(text: string, kind = MessageKind.User): Message {
@@ -1533,8 +1541,8 @@ suite('stateToProgressAdapter', () => {
 				_meta: { toolKind: 'terminal' },
 				toolInput: 'gti status',
 				content: [
-					{ type: ToolResultContentType.Text, text: 'command not found\n' },
-					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString(), preview: 'preview only\n' },
+					{ type: ToolResultContentType.Text, text: 'command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString(), preview: 'preview only\n', truncated: true },
 				],
 				success: true,
 			});
@@ -1548,10 +1556,37 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const serialized = response.parts[0] as IChatToolInvocationSerialized;
-			assert.strictEqual(serialized.toolSpecificData?.kind, 'terminal');
-			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string }; terminalCommandState?: { exitCode: number } };
+			const termData = getSerializedTerminalData(serialized);
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
-			assert.strictEqual(termData.terminalCommandOutput?.text, 'command not found\r\n');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'preview only\r\n');
+			assert.strictEqual(termData.terminalCommandOutput?.truncated, true);
+			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
+		});
+
+		test('strips legacy shell completion marker from terminal fallback output', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'ehco hi',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'bash: line 1: ehco: command not found\n<shellId: 104 completed with exit code 127>' },
+					{ type: ToolResultContentType.TerminalComplete, exitCode: 127, cwd: URI.file('/repo').toString() },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = getSerializedTerminalData(serialized);
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 127);
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'bash: line 1: ehco: command not found\r\n');
+			assert.ok(!termData.terminalCommandOutput?.text.includes('shellId'));
 		});
 
 		test('keeps zero terminal completion exit code as success for completed SDK shell tool history', () => {

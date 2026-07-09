@@ -244,6 +244,13 @@ export interface InitializeResult {
 	 */
 	completionTriggerCharacters?: string[];
 	/**
+	 * The prefix (e.g. `!`) that marks a chat message as a terminal command to
+	 * be executed by the host rather than forwarded to the agent. Absent when
+	 * the host does not support inline terminal commands. Clients MUST NOT
+	 * assume a default when this is absent.
+	 */
+	terminalCommandPrefix?: string;
+	/**
 	 * OTLP telemetry channels the host emits, if any. Each populated field is
 	 * either a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a
 	 * client expands before subscribing (currently only the `logs` channel

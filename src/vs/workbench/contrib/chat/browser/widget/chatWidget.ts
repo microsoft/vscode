@@ -196,7 +196,7 @@ type ChatThinkingStyleUsageClassification = {
 	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the request was a new submit or a rerun.' };
 };
 
-const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 'terminalCommandPrefix'>> = {
 	supportsFileAttachments: true,
 	supportsToolAttachments: true,
 	supportsMCPAttachments: true,

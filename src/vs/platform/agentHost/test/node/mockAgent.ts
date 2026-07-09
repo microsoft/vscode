@@ -61,6 +61,7 @@ export class MockAgent implements IAgent {
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
@@ -168,6 +169,12 @@ export class MockAgent implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		this.disposeSessionCalls.push(session);
 		this._sessions.delete(AgentSession.id(session));
+	}
+
+	async releaseSession(session: URI): Promise<void> {
+		// Non-destructive: record the call but keep the session in the catalog
+		// so a later restore/resume still finds its durable data.
+		this.releaseSessionCalls.push(session);
 	}
 
 	async abortSession(session: URI): Promise<void> {

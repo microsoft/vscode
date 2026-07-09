@@ -123,6 +123,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._authenticationPending.set(pending, undefined);
 	}
 
+	override readonly initializeResult = constObservable(undefined);
+
 	// Track live subscriptions so fireAction can route to them. A subscription
 	// may hold a SessionState (for session channels) or a ChatState (for the
 	// per-session default chat channel).
@@ -134,6 +136,46 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+
+	// ---- Pending→error subscription support (repro for #5242) --------------
+	// Models a subscription that is first observed *pending* (value === undefined)
+	// and later transitions to an error via the real `BaseAgentSubscription.setError`
+	// semantics: it fires `onDidError` but NOT `onDidChange`. This is the exact
+	// shape that strands an awaiter which only listens to `onDidChange`.
+	private readonly _pendingErrorSubs = new Map<string, { onDidChange: Emitter<unknown>; onDidError: Emitter<Error>; error: Error | undefined }>();
+
+	/** Register a subscription for `resource` that starts pending (no snapshot, no error). */
+	public makePendingErrorSub(resource: string): void {
+		this._pendingErrorSubs.set(resource, { onDidChange: new Emitter<unknown>(), onDidError: new Emitter<Error>(), error: undefined });
+	}
+
+	/**
+	 * Transition a registered pending subscription to error, mirroring real
+	 * `setError`: set the error value and fire `onDidError` only (never
+	 * `onDidChange`). Then clear the pending registration and seed healthy
+	 * session state so a subsequent re-subscribe succeeds (models the race
+	 * finally resolving once the backend registers the session).
+	 */
+	public firePendingSubError(resource: string, err: Error): void {
+		const entry = this._pendingErrorSubs.get(resource);
+		if (!entry) {
+			throw new Error(`No pending-error sub registered for ${resource}`);
+		}
+		entry.error = err;
+		entry.onDidError.fire(err);
+		this._pendingErrorSubs.delete(resource);
+	}
+
+	private _buildPendingErrorSub<T>(entry: { onDidChange: Emitter<unknown>; onDidError: Emitter<Error>; error: Error | undefined }): IAgentSubscription<T> {
+		return {
+			get value() { return entry.error as T | Error | undefined; },
+			get verifiedValue() { return undefined; },
+			onDidChange: entry.onDidChange.event as Event<T>,
+			onDidError: entry.onDidError.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+	}
 
 	/**
 	 * If set, the next {@link createSession} call seeds the session summary's
@@ -259,6 +301,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const resourceStr = resource.toString();
+		const pendingEntry = this._pendingErrorSubs.get(resourceStr);
+		if (pendingEntry) {
+			return { object: this._buildPendingErrorSub<T>(pendingEntry), dispose: () => { } };
+		}
 		const emitter = new Emitter<T>();
 		const onWillApply = new Emitter<ActionEnvelope>();
 		const onDidApply = new Emitter<ActionEnvelope>();
@@ -328,6 +374,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	override getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		const pendingEntry = this._pendingErrorSubs.get(resource.toString());
+		if (pendingEntry) {
+			return this._buildPendingErrorSub<T>(pendingEntry);
+		}
 		const entry = this._liveSubscriptions.get(resource.toString());
 		if (!entry) {
 			return undefined;
@@ -2585,6 +2635,51 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Recovered']);
+		}));
+
+		test('recovers when session subscription errors AFTER being observed pending (repro #5242 hang)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Regression for the agent-host-copilotcli session-subscribe race
+			// (issue #5242): the client observes the session subscription while
+			// it is still pending (value === undefined), then the subscribe
+			// resolves to `-32603 Session not found on backend`, which flips the
+			// subscription into an error state via `setError` — firing
+			// `onDidError` but NOT `onDidChange`. A hydration await that listens
+			// only to `onDidChange` never wakes and the turn hangs for the full
+			// harness timeout. The handler must instead settle on the error and
+			// recover (create-and-subscribe), not park forever.
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-then-error-race' });
+			const backendSession = AgentSession.uri('copilot', 'pending-then-error-race');
+			const { agentHostService, chatAgentService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			// The session's subscription is observed *pending* — no snapshot yet.
+			agentHostService.makePendingErrorSub(backendSession.toString());
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			// Let the handler reach the hydration await on the pending subscription.
+			await timeout(10);
+
+			// The subscribe now fails: flip to error (fires onDidError only, like real setError).
+			agentHostService.firePendingSubError(backendSession.toString(), new Error(`Session not found on backend: ${backendSession.toString()}`));
+			await timeout(10);
+
+			// The handler must have progressed past the hydration await and started
+			// the turn. On the buggy (onDidChange-only) await this dispatch never
+			// happens — the turn hangs — and this assertion fails.
+			const dispatch = agentHostService.turnActions[0];
+			assert.ok(dispatch, 'turn must start after the subscription errors; handler hung waiting on onDidChange (issue #5242)');
+			const action = dispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
 		}));
 
 		test('rejects generic contributed-chat untitled resource', async () => {

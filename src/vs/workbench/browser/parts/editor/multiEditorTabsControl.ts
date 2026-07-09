@@ -198,8 +198,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
-		// Create add tab control
-		this.createAddTabControl();
+		// Create add tab control (only when a menu id is configured, e.g. in
+		// the single-pane Agents window layout). When unset, no add-tab control
+		// is created and the last tab remains the last child of the tabs
+		// container, which tab layout logic relies on (see #324902).
+		if (this.menuIds?.tabsBarAddTab) {
+			this.createAddTabControl(this.menuIds.tabsBarAddTab);
+		}
 
 		// Create Editor Toolbar
 		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
@@ -210,13 +215,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return this.tabsAndActionsContainer;
 	}
 
-	private createAddTabControl(): void {
+	private createAddTabControl(menuId: MenuId): void {
 		const tabsContainer = assertReturnsDefined(this.tabsContainer);
 		const container = $('.tabs-bar-add-tab');
 		tabsContainer.appendChild(container);
 		this.addTabContainer = container;
 
-		const menu = this._register(this.menuService.createMenu(MenuId.EditorTabsBarAddTab, this.contextKeyService));
+		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 
 		const addTabAction = toAction({
@@ -227,7 +232,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 
 		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
-			classNames: ThemeIcon.asClassNameArray(Codicon.add)
+			classNames: ThemeIcon.asClassNameArray(Codicon.add),
+			keybindingProvider: action => this.getKeybinding(action)
 		}));
 		dropdown.render(container);
 

@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
@@ -115,6 +116,14 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
  * `'false'`; absent means "default" (`true`).
  */
 export const AgentHostByokModelsEnabledEnvVar = 'VSCODE_AGENT_HOST_BYOK_MODELS_ENABLED';
+
+/**
+ * Overrides the grace period (in milliseconds) before an idle, fully
+ * unsubscribed session is released from memory. Defaults to 30_000. Primarily a
+ * test hook so real-SDK integration tests can force a prompt release without
+ * waiting the full production grace; production does not set it.
+ */
+export const AgentHostSessionReleaseGraceMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_GRACE_MS';
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
@@ -1453,6 +1462,17 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/**
+	 * Release a session's in-memory resources (SDK session/connection, cached
+	 * per-session state) without deleting any durable data. Unlike
+	 * {@link disposeSession}, this is non-destructive: the on-disk session log,
+	 * session database, and worktree are all preserved so the session can be
+	 * transparently resumed later. Used by idle-session eviction to bound
+	 * memory in long-lived host processes. Optional; providers that hold no
+	 * releasable in-memory state simply omit it.
+	 */
+	releaseSession?(session: URI): Promise<void>;
+
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
@@ -1947,6 +1967,15 @@ export interface IAgentConnection {
 	 * user-message input. Resolves once on first request and is cached.
 	 */
 	getCompletionTriggerCharacters(): Promise<readonly string[]>;
+
+	/**
+	 * The host's `initialize` handshake result, exposed observably so callers
+	 * can derive advertised capabilities (e.g. {@link InitializeResult.terminalCommandPrefix},
+	 * {@link InitializeResult.completionTriggerCharacters}). `undefined` until
+	 * the handshake completes; local (in-process) connections synthesize a
+	 * minimal result carrying only the fields meaningful to that transport.
+	 */
+	readonly initializeResult: IObservable<InitializeResult | undefined>;
 	disposeSession(session: URI): Promise<void>;
 
 	/**

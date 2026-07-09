@@ -33,6 +33,7 @@ import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -831,13 +832,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._shutdownPromise) {
 			return;
 		}
-		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => ({
-			provider: this.id,
-			id: `${m.vendor}/${m.id}`,
-			name: m.name ?? m.id,
-			maxContextWindow: m.maxContextWindowTokens,
-			supportsVision: m.supportsVision ?? false,
-		}));
+		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
+			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
+			return {
+				provider: this.id,
+				id: `${m.vendor}/${m.id}`,
+				name: m.name ?? m.id,
+				maxContextWindow: m.maxContextWindowTokens,
+				supportsVision: m.supportsVision ?? false,
+				...(byokMeta && { _meta: byokMeta }),
+			};
+		});
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
 	}
@@ -1874,6 +1879,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let branchProperty: ISchemaProperty<string> | undefined;
 		let branchDefault: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
+		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
@@ -1910,6 +1916,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				readOnly: true,
 				sessionMutable: false,
 			});
+
+			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
+				type: 'array',
+				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
+				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Glob patterns for git-ignored files to copy into the isolated worktree."),
+				items: {
+					type: 'string',
+					title: localize('agentHost.sessionConfig.worktreeIncludeFilesItem', "Pattern"),
+				},
+				readOnly: true,
+				sessionMutable: false,
+			});
 		}
 
 		const sessionSchema = createSchema({
@@ -1917,6 +1935,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...platformSessionSchema.definition,
 			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
 			...(worktreeBranchPrefixProperty ? { [SessionConfigKey.WorktreeBranchPrefix]: worktreeBranchPrefixProperty } : {}),
+			...(worktreeIncludeFilesProperty ? { [SessionConfigKey.WorktreeIncludeFiles]: worktreeIncludeFilesProperty } : {}),
 		});
 
 		const values = sessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
@@ -1927,9 +1946,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// falls through to the host-level `permissions` default, and only
 			// materializes on the session once the user hits "Allow in this
 			// Session".
-			// worktreeBranchPrefix intentionally omitted from defaults — the
-			// value originates on the client (`git.branchPrefix`); when the
-			// client doesn't supply one it simply stays unset.
+			// worktreeBranchPrefix / worktreeIncludeFiles intentionally omitted
+			// from defaults — the values originate on the client (`git.*`);
+			// when the client doesn't supply them they simply stay unset.
 			...(branchDefault !== undefined ? { [SessionConfigKey.Branch]: branchDefault } : {}),
 		});
 
@@ -2231,6 +2250,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (isWorkspaceless) {
 				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 			}
+		});
+	}
+
+	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources (SDK session/connection, cached entry,
+	 * active clients, MCP subscriptions) but preserves all durable data — the
+	 * SDK session log, session database, and worktree stay on disk. The session
+	 * transparently resumes on the next access via {@link _resumeSession}.
+	 *
+	 * No-ops for sessions that have nothing durable to resume from (provisional
+	 * sessions) or that aren't currently held in memory, and for sessions with a
+	 * running turn — disconnecting mid-turn would strand the SDK session.
+	 */
+	async releaseSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			// Provisional sessions were never persisted, so releasing them would
+			// lose state with no way to resume. Leave them in memory.
+			if (this._provisionalSessions.has(sessionId)) {
+				return;
+			}
+			const entry = this._sessions.get(sessionId);
+			if (!entry) {
+				return;
+			}
+			// Defensive active-turn guard: the orchestrator already skips
+			// eviction while a turn is active, but a turn could have started
+			// between that check and this sequenced callback.
+			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Releasing idle session from memory (durable state preserved)`);
+			await this._releaseSessionResources(sessionId);
 		});
 	}
 
@@ -2989,6 +3042,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
+		await this._releaseSessionResources(sessionId);
+		// `_releaseSessionResources` tears down everything in memory but leaves
+		// the worktree intact (it is reused by non-destructive release). The
+		// destructive dispose path additionally reaps the created worktree; this
+		// is a no-op for provisional sessions, which never created one.
+		await this._removeCreatedWorktree(sessionId);
+	}
+
+	/**
+	 * Tears down a session's in-memory resources without deleting any durable
+	 * data: the SDK session is disconnected, peer chats and MCP subscriptions
+	 * are disposed, the `_sessions` entry is dropped, and active clients are
+	 * released. The on-disk SDK session log, session database, and worktree are
+	 * left untouched, so the session can be resumed later via
+	 * {@link _resumeSession}. Shared by the non-destructive {@link releaseSession}
+	 * path and the destructive {@link _destroyAndDisposeSession} path (the
+	 * latter reaps the worktree afterwards).
+	 */
+	private async _releaseSessionResources(sessionId: string): Promise<void> {
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
@@ -3020,7 +3092,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._mcpNotificationSubs.deleteAndDispose(sessionId);
 		this._activeClients.get(sessionUri)?.dispose();
 		this._activeClients.delete(sessionUri);
-		await this._removeCreatedWorktree(sessionId);
 	}
 
 	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
@@ -3161,6 +3232,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runtime accepted undefined when `branch` was not set in config. Preserve
 		// that behavior by passing through whatever value (or undefined) was set.
 		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+
+		const worktreeIncludeFiles = Array.isArray(config.config[SessionConfigKey.WorktreeIncludeFiles]) &&
+			config.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
+			? config.config[SessionConfigKey.WorktreeIncludeFiles] as string[]
+			: undefined;
+		if (worktreeIncludeFiles?.length) {
+			try {
+				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles);
+			} catch (error) {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to copy worktree include files: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
 		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.

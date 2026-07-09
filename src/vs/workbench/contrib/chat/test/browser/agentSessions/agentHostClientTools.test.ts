@@ -348,6 +348,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidNotification = this._onDidNotification.event;
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
+			override readonly initializeResult = constObservable(undefined);
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];

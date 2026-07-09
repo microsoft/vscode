@@ -55,7 +55,10 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 // Single-pane "layout" actions (maximize/restore, hide editor, toggle details)
 // render in the editor-title *layout* cluster (MenuId.EditorTitleLayout), after
 // the editor-title actions and their separator — mirroring the classic layout.
-// Maximize/restore first, then the hide chevron, then the detail-panel toggle.
+// The detail-panel toggle is conditional (hidden for tab types with no detail,
+// e.g. browser and search — see `singlePaneLayoutToggleDetailsOrder` in
+// `singlePaneResponsiveSidebarStrategy.ts`) and keeps its trailing position after
+// the always-present maximize/restore and hide chevron.
 const singlePaneLayoutMaximizeOrder = 10;
 const singlePaneLayoutHideEditorOrder = 20;
 

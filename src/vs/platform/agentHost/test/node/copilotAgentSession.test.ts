@@ -17,7 +17,8 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -73,6 +74,10 @@ class MockCopilotSession {
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
+
+	getInstructionSourcesResult: { sources: Array<{ id: string; label: string; sourcePath: string; content: string; type: string; location: string; applyTo?: string[] }> } = { sources: [] };
+	getInstructionSourcesError: unknown = undefined;
+	getInstructionSourcesCallCount = 0;
 
 	on(handler: SessionEventHandler): () => void;
 	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void;
@@ -162,6 +167,15 @@ class MockCopilotSession {
 				if (params.sandboxConfig !== undefined) {
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
 				}
+			},
+		},
+		instructions: {
+			getSources: async () => {
+				this.getInstructionSourcesCallCount++;
+				if (this.getInstructionSourcesError !== undefined) {
+					throw this.getInstructionSourcesError;
+				}
+				return this.getInstructionSourcesResult;
 			},
 		},
 	};
@@ -2119,7 +2133,7 @@ suite('CopilotAgentSession', () => {
 	suite('system.notification', () => {
 
 		test('translator handles every notification kind and ignores empty content', () => {
-			const base = {
+			const base: Omit<SessionEventPayload<'system.notification'>, 'data'> = {
 				id: 'evt-system',
 				parentId: null,
 				timestamp: new Date().toISOString(),
@@ -2137,16 +2151,33 @@ suite('CopilotAgentSession', () => {
 				startsTurn: true,
 			});
 
-			assert.deepStrictEqual(buildCopilotSystemNotification({
+			const shellNotificationWithoutDescription = buildCopilotSystemNotification({
+				...base,
+				data: {
+					content: 'Shell done',
+					kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0 },
+				},
+			});
+			assert.ok(shellNotificationWithoutDescription);
+			assert.deepStrictEqual(shellNotificationWithoutDescription, {
+				messageText: 'Shell completed',
+				startsTurn: true,
+			});
+			assert.ok(!shellNotificationWithoutDescription.messageText.includes('shell-a'));
+
+			const detachedShellNotification = buildCopilotSystemNotification({
 				...base,
 				data: {
 					content: 'Detached done',
 					kind: { type: 'shell_detached_completed', shellId: 'detached-a' },
 				},
-			}), {
-				messageText: 'Shell `detached-a` completed',
+			});
+			assert.ok(detachedShellNotification);
+			assert.deepStrictEqual(detachedShellNotification, {
+				messageText: 'Shell completed',
 				startsTurn: true,
 			});
+			assert.ok(!detachedShellNotification.messageText.includes('detached-a'));
 
 			assert.deepStrictEqual(buildCopilotSystemNotification({
 				...base,
@@ -4886,6 +4917,98 @@ suite('CopilotAgentSession', () => {
 				servers: [{ name: 'late', status: 'connected' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+		});
+	});
+
+	suite('instructionsCollected telemetry', () => {
+
+		class CapturingTelemetryService implements ITelemetryService {
+			declare readonly _serviceBrand: undefined;
+			readonly telemetryLevel = TelemetryLevel.USAGE;
+			readonly sendErrorTelemetry = true;
+			readonly sessionId = 'sessionId';
+			readonly machineId = 'machineId';
+			readonly sqmId = 'sqmId';
+			readonly devDeviceId = 'devDeviceId';
+			readonly firstSessionDate = 'firstSessionDate';
+
+			readonly events: Array<{ eventName: string; data: unknown }> = [];
+
+			publicLog(): void { }
+			publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+				this.events.push({ eventName, data });
+			}
+			publicLogError(): void { }
+			publicLogError2(): void { }
+			setExperimentProperty(): void { }
+			setCommonProperty(): void { }
+		}
+
+		function fireUserMessage(mockSession: MockCopilotSession, overrides?: Partial<{ content: string; source: string }>) {
+			mockSession.fire('user.message', {
+				content: overrides?.content ?? 'hi',
+				...(overrides?.source !== undefined ? { source: overrides.source } : {}),
+			} as SessionEventPayload<'user.message'>['data']);
+		}
+
+		test('emits with counts derived from source types + AH identifiers', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			mockSession.getInstructionSourcesResult = {
+				sources: [
+					{ id: 'a', label: '', sourcePath: '.github/copilot-instructions.md', content: '', type: 'repo', location: 'repository' },
+					{ id: 'b', label: '', sourcePath: 'AGENTS.md', content: '', type: 'model', location: 'repository' },
+					{ id: 'c', label: '', sourcePath: 'CLAUDE.md', content: '', type: 'model', location: 'repository' },
+					{ id: 'd', label: '', sourcePath: '.github/instructions/ts.instructions.md', content: '', type: 'vscode', location: 'repository', applyTo: ['**/*.ts'] },
+					{ id: 'e', label: '', sourcePath: '.github/instructions/general.instructions.md', content: '', type: 'vscode', location: 'repository' },
+					{ id: 'f', label: '', sourcePath: 'nested AGENTS.md', content: '', type: 'nested-agents', location: 'working-directory' },
+					{ id: 'g', label: '', sourcePath: 'child instruction files', content: '', type: 'child-instructions', location: 'working-directory' },
+				],
+			};
+
+			fireUserMessage(mockSession);
+			await timeout(0);
+
+			const emitted = telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected');
+			assert.deepStrictEqual(emitted, [{
+				eventName: 'agentHost.instructionsCollected',
+				data: {
+					provider: 'copilot',
+					agentSessionId: 'test-session-1',
+					isSubagentSession: false,
+					totalInstructionsCount: 7,
+					agentInstructionsCount: 3, // repo + model + model
+					applyingInstructionsCount: 1, // only the ts.instructions.md has applyTo
+					referencedInstructionsCount: 2, // nested-agents + child-instructions
+					claudeMdCount: 1,
+				},
+			}]);
+			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
+		});
+
+		test('skips SDK-injected messages (source !== "user")', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			fireUserMessage(mockSession, { source: 'skill-pdf' });
+			await timeout(0);
+
+			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
+			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 0, 'should short-circuit before the RPC');
+		});
+
+		test('does not emit or leak an unhandled rejection when getSources throws', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+			mockSession.getInstructionSourcesError = new Error('rpc unavailable');
+
+			// Any unhandled rejection during this turn would fail the test process.
+			fireUserMessage(mockSession);
+			await timeout(0);
+
+			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
+			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 1);
 		});
 	});
 });

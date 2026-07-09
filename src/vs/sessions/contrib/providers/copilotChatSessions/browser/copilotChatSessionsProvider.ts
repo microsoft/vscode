@@ -508,6 +508,11 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			if (typeof branchPrefix === 'string' && branchPrefix.length > 0) {
 				config[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
 			}
+
+			const worktreeIncludeFiles = this.configurationService.getValue<string[]>('git.worktreeIncludeFiles', { resource: this._repoUri });
+			if (Array.isArray(worktreeIncludeFiles) && worktreeIncludeFiles.length > 0) {
+				config[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
+			}
 		}
 		return config;
 	}

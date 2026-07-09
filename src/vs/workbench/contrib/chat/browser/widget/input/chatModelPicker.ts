@@ -45,7 +45,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION, CHAT_INPUT_PICKER_DROPDOWN_CLASS, CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS, CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES } from './chatInputPickerActionItem.js';
+import { withChatInputPickerMotion } from './chatInputPickerActionItem.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -1419,7 +1419,7 @@ export class ModelPickerWidget extends Disposable {
 		// heading).
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
-		const listOptions = {
+		const listOptions = withChatInputPickerMotion({
 			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
 			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
@@ -1442,13 +1442,7 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
-			className: CHAT_INPUT_PICKER_DROPDOWN_CLASS,
-			closeAnimation: {
-				className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
-				duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
-				requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
-			},
-		};
+		});
 		const previouslyFocusedElement = dom.getActiveElement();
 
 		const delegate = {
@@ -1785,18 +1779,12 @@ export class ModelPickerWidget extends Disposable {
 				getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
 				getWidgetRole: () => 'menu' as const,
 			},
-			{
+			withChatInputPickerMotion({
 				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
-				className: CHAT_INPUT_PICKER_DROPDOWN_CLASS,
-				closeAnimation: {
-					className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
-					duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
-					requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
-				},
-			}
+			})
 		);
 
 		// Focus the requested section's first option (e.g. when opened from a
