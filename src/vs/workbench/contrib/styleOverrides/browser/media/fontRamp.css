@@ -185,19 +185,15 @@
 	.agent-session-section {
 		text-transform: none;
 	}
+
+	.agent-session-item .agent-session-details-row {
+		font-size: var(--vscode-agents-fontSize-label2);
+	}
 }
 
 .style-override.monaco-workbench .chat-viewpane.has-sessions-control {
 	.agent-session-section {
 		padding-left: 12px;
-	}
-}
-
-.style-override.monaco-workbench .agent-sessions-viewer {
-	& .agent-session-item {
-		& .agent-session-details-row {
-			font-size: var(--vscode-agents-fontSize-label2);
-		}
 	}
 }
 
