@@ -174,7 +174,7 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected _computeCurrentPick(): IPreferredSessionType | undefined {
 		const session = this._session.get();
-		if (session) {
+		if (!this._folderSource && session) {
 			// Reflect the active session's type in the trigger label, but do not
 			// persist it: the stored preference must only change when the user
 			// explicitly picks a type via the picker.
@@ -212,9 +212,7 @@ export class SessionTypePicker extends Disposable {
 	 */
 	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType }): void {
 		this._folderSource = source;
-		if (options?.initialPick) {
-			this._picked = options.initialPick;
-		}
+		this._picked = options?.initialPick ?? this._readStoredPick();
 		this._folderSourceWatch.value = autorun(reader => {
 			source.read(reader);
 			this._recompute();
