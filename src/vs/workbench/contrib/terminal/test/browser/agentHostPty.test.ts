@@ -69,6 +69,7 @@ class MockAgentConnection implements IAgentConnection {
 
 	// ---- Unused IAgentService methods (stubs) -----
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async startMcpServerOAuthLogin(_session: URI, _serverName: string): Promise<string | undefined> { return undefined; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }

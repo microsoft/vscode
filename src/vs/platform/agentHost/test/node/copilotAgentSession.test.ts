@@ -4702,7 +4702,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await authPromise, { kind: 'token', accessToken: 'token-1' });
 		});
 
-		test('needs-auth status remains starting when no auth request details are available', async () => {
+		test('needs-auth status surfaces AuthRequired with a minimal resource when no auth request details are available', async () => {
 			const { mockSession, waitForSignal } = await createAgentSession(disposables);
 
 			mockSession.fire('session.mcp_server_status_changed', {
@@ -4713,7 +4713,11 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)) as IAgentActionSignal;
 			const action = signal.action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
 			assert.strictEqual(action.customization.type, 'mcpServer');
-			assert.deepStrictEqual(action.customization.state, { kind: McpServerStatus.Starting });
+			assert.deepStrictEqual(action.customization.state, {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: '', resource_name: 'github', required: true },
+			});
 		});
 
 		test('seeds inventory from rpc.mcp.list at subscription time', async () => {

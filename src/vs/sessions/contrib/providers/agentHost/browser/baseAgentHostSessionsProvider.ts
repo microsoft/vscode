@@ -2637,6 +2637,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return connection.authenticate(params);
 	}
 
+	async startMcpServerOAuthLogin(sessionId: string, serverName: string): Promise<string | undefined> {
+		const connection = this.connection;
+		if (!connection) {
+			return undefined;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!cached || !rawId) {
+			return undefined;
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		return connection.startMcpServerOAuthLogin(sessionUri, serverName);
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;

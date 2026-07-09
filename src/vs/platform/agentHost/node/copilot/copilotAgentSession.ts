@@ -556,6 +556,15 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** Pending SDK MCP auth handler promises, keyed by SDK auth request id. */
 	private readonly _pendingMcpAuthRequests = new Map<string, IPendingMcpAuthRequest>();
+	/**
+	 * Protected-resource metadata learned for MCP servers that reported
+	 * `needs-auth`, keyed by server name. Populated from
+	 * {@link _handleMcpAuthRequest} (which carries the RFC 9728 resource) so
+	 * later `needs-auth` status transitions can surface a richer
+	 * {@link McpServerStatus.AuthRequired} state. CLI-discovered servers whose
+	 * config never reaches the client fall back to a minimal resource.
+	 */
+	private readonly _mcpServerAuthResources = new Map<string, ProtectedResourceMetadata>();
 	/** `pending-edit-content:` URIs written during permission requests, keyed
 	 *  by toolCallId. Cleaned up when the permission resolves or the session
 	 *  is disposed. */
@@ -1066,6 +1075,9 @@ export class CopilotAgentSession extends Disposable {
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
 		const resource = this._protectedResourceFromMcpAuthRequest(request);
 		const requiredScopes = this._requiredScopesFromMcpAuthRequest(request, resource);
+		// Remember the resource so a later bare `needs-auth` status transition
+		// (which carries no metadata) can still surface a rich AuthRequired state.
+		this._mcpServerAuthResources.set(request.serverName, resource);
 		const deferred = new DeferredPromise<McpAuthResult | null | undefined>();
 		this._pendingMcpAuthRequests.set(request.requestId, {
 			serverName: request.serverName,
@@ -3298,24 +3310,48 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Starts interactive OAuth for a remote MCP server via the SDK's
+	 * `mcp.oauth.login` RPC and returns the authorization URL the client
+	 * should open (or `undefined` when cached tokens already authenticated
+	 * the server, or the RPC surface is unavailable). Completion is signalled
+	 * asynchronously through `session.mcp_server_status_changed`, which flows
+	 * back into the inventory via {@link _translateSdkMcpStatus}.
+	 */
+	async startMcpServerOAuthLogin(serverName: string): Promise<string | undefined> {
+		const oauth = this._wrapper.session.rpc?.mcp?.oauth;
+		if (!oauth) {
+			// Older SDKs (and test mocks) may not expose the MCP OAuth RPC surface.
+			this._logService.warn(`[Copilot:${this.sessionId}] MCP OAuth login unavailable for '${serverName}'`);
+			return undefined;
+		}
+		const result = await oauth.login({ serverName, clientName: 'VS Code' });
+		return result.authorizationUrl || undefined;
+	}
+
+	/**
 	 * Translates the SDK's flat MCP status string into AHP's discriminated
 	 * {@link McpServerState} union. Returns `undefined` for
 	 * `not_configured`, which has no AHP equivalent — the server is
 	 * dropped from the inventory.
 	 *
-	 * V1 maps `needs-auth` to {@link McpServerStatus.Starting}: OAuth
-	 * handling is intentionally out of scope, so authRequired transitions
-	 * are masked as "still connecting" until the auth pipeline lands.
+	 * `needs-auth` becomes {@link McpServerStatus.AuthRequired} so the client
+	 * surfaces an actionable "Authentication required" state instead of a
+	 * misleading "still connecting". The SDK status event carries no
+	 * RFC 9728 metadata, so the resource is best-effort: the real resource
+	 * learned from a prior {@link _handleMcpAuthRequest} when available,
+	 * otherwise a minimal placeholder naming the server. The interactive
+	 * OAuth flow is driven by {@link startMcpServerOAuthLogin} (keyed on the
+	 * server name), so the placeholder resource is display-only.
 	 */
 	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer | undefined {
-		const state = this._translateSdkMcpStatus(status, error);
+		const state = this._translateSdkMcpStatus(name, status, error);
 		if (!state) {
 			return undefined;
 		}
 		return { name, state };
 	}
 
-	private _translateSdkMcpStatus(status: SdkMcpServerStatus, error?: string): McpServerState | undefined {
+	private _translateSdkMcpStatus(name: string, status: SdkMcpServerStatus, error?: string): McpServerState | undefined {
 		switch (status) {
 			case 'connected':
 				return { kind: McpServerStatus.Ready };
@@ -3327,10 +3363,13 @@ export class CopilotAgentSession extends Disposable {
 						message: error ?? 'MCP server failed to start',
 					},
 				};
-			case 'pending':
 			case 'needs-auth':
-				// TODO: surface `needs-auth` as McpServerStatus.AuthRequired
-				// once OAuth wiring is in place.
+				return {
+					kind: McpServerStatus.AuthRequired,
+					reason: McpAuthRequiredReason.Required,
+					resource: this._mcpServerAuthResources.get(name) ?? { resource: '', resource_name: name, required: true },
+				};
+			case 'pending':
 				return { kind: McpServerStatus.Starting };
 			case 'disabled':
 				return { kind: McpServerStatus.Stopped };

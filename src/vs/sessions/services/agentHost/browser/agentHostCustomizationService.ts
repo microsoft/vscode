@@ -68,6 +68,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			logOutputChannelId: servers[0]?.logOutputChannelId,
 			rootConfig: provider.getRootConfig(),
 			authenticate: request => provider.authenticate(request),
+			startMcpServerOAuthLogin: serverName => provider.startMcpServerOAuthLogin(session.sessionId, serverName),
 			setCustomizationEnabled: (rawId, enabled) => {
 				servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.setEnabled(enabled);
 			},

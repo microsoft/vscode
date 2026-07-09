@@ -47,6 +47,7 @@ import { IAccountQuery, IAuthenticationQueryService } from '../../../services/au
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IOutputService } from '../../../services/output/common/output.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -304,6 +305,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const outputService = accessor.get(IOutputService);
+		const openerService = accessor.get(IOpenerService);
 
 		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
 		if (!server) {
@@ -357,7 +359,10 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		}
 
 		if (picked.action === 'authenticate') {
-			await agentHostCustomizations.authenticateMcpServer(agentHostSession, server.id);
+			const authorizationUrl = await agentHostCustomizations.authenticateMcpServer(agentHostSession, server.id);
+			if (authorizationUrl) {
+				await openerService.open(URI.parse(authorizationUrl), { openExternal: true });
+			}
 			return;
 		}
 

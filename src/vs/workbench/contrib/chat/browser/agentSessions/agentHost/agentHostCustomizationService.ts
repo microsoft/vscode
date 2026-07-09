@@ -24,7 +24,6 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
@@ -58,11 +57,14 @@ export interface IAgentHostCustomizationService {
 	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void;
 
 	/**
-	 * Runs interactive authentication for an auth-required MCP server in an
-	 * agent-host session. Returns false when the session/server cannot be
-	 * resolved or authentication did not complete.
+	 * Starts interactive OAuth for an auth-required MCP server in an agent-host
+	 * session and returns the authorization URL the caller should open in a
+	 * browser (or `undefined` when the session/server cannot be resolved, the
+	 * server does not require authentication, or cached tokens already
+	 * authenticated it). Completion is observed asynchronously through the
+	 * server's MCP status transitioning to `Ready`.
 	 */
-	authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean>;
+	authenticateMcpServer(sessionResource: URI, serverId: string): Promise<string | undefined>;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -84,8 +86,8 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	addMcpServer(_sessionResource: URI, _name: string, _config: IMcpServerConfiguration): void {
 		// no-op
 	}
-	authenticateMcpServer(_sessionResource: URI, _serverId: string): Promise<boolean> {
-		return Promise.resolve(false);
+	authenticateMcpServer(_sessionResource: URI, _serverId: string): Promise<string | undefined> {
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -95,6 +97,12 @@ export interface IAgentHostCustomizationTarget {
 	readonly logOutputChannelId?: string;
 	readonly rootConfig?: RootConfigState;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
+	/**
+	 * Starts interactive OAuth for a remote MCP server owned by this target's
+	 * session, returning the authorization URL the client should open (or
+	 * `undefined` when cached tokens already authenticated the server).
+	 */
+	startMcpServerOAuthLogin(serverName: string): Promise<string | undefined>;
 	setCustomizationEnabled(rawId: string, enabled: boolean): void;
 	setRootConfigValue(property: string, value: unknown): void;
 }
@@ -160,33 +168,25 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		});
 	}
 
-	async authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean> {
+	async authenticateMcpServer(sessionResource: URI, serverId: string): Promise<string | undefined> {
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
-			return false;
+			return undefined;
 		}
 		const server = this._findMcpServer(target.customizations, serverId);
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
-			return false;
+			return undefined;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
-		const resource = {
-			...server.state.resource,
-			scopes_supported: server.state.requiredScopes ?? server.state.resource.scopes_supported,
-		};
+		// Drive the agent host's own OAuth flow (keyed on the server name). The
+		// runtime owns token acquisition/discovery and starts the callback
+		// listener; the returned authorization URL, when present, is opened by
+		// the caller. Completion is signalled asynchronously via the server's
+		// MCP status transitioning to `Ready`.
 		try {
-			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
-				allowInteraction: true,
-				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
-				mcpServerName: server.name,
-				mcpServerUrl: server.state.resource.resource,
-				agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
-				authenticate: request => target.authenticate(request),
-			});
+			return await target.startMcpServerOAuthLogin(server.name);
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to authenticate MCP server '${server.name}'`, err);
-			return false;
+			return undefined;
 		}
 	}
 
@@ -274,6 +274,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			logOutputChannelId: this._resolveLogOutputChannelId(sessionResource, target.backendSession),
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			authenticate: request => target.connection.authenticate(request),
+			startMcpServerOAuthLogin: serverName => target.connection.startMcpServerOAuthLogin(target.backendSession, serverName),
 			setCustomizationEnabled: (rawId, enabled) => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,

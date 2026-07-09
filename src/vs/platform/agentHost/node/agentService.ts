@@ -484,6 +484,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._authService.authenticate(params, this._providers.values());
 	}
 
+	async mcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined> {
+		const providerId = AgentSession.provider(session);
+		const provider = providerId ? this._providers.get(providerId) : undefined;
+		if (!provider?.startMcpServerOAuthLogin) {
+			return undefined;
+		}
+		return provider.startMcpServerOAuthLogin(session, serverName);
+	}
+
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
 		return this._authService.getAuthToken(request);
 	}

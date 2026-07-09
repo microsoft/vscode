@@ -659,6 +659,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return entry.handleMcpRequest(serverName, method, params);
 	}
 
+	async startMcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._findAnySession(sessionId);
+		return entry?.startMcpServerOAuthLogin(serverName);
+	}
+
 	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);

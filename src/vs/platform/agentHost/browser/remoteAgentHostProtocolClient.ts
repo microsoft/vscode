@@ -854,6 +854,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return { authenticated: true };
 	}
 
+	async startMcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined> {
+		const result = await this._sendRequest('mcpServerOAuthLogin', { channel: session.toString(), serverName });
+		return result.authorizationUrl;
+	}
+
 	/**
 	 * Gracefully shut down all sessions on the remote host.
 	 */

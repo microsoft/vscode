@@ -889,3 +889,51 @@ export interface AuthenticateParams extends BaseParams {
  */
 export interface AuthenticateResult {
 }
+
+// ─── mcpServerOAuthLogin ─────────────────────────────────────────────────────
+
+/**
+ * Starts interactive OAuth for a remote MCP server owned by the addressed
+ * session. Used by clients to proactively authenticate a server that reported
+ * {@link McpServerStatus.AuthRequired | `AuthRequired`} outside of an in-flight
+ * tool call (the reactive path is driven by the SDK's auth-request callback and
+ * needs no client command).
+ *
+ * The server starts the OAuth callback listener and returns the authorization
+ * URL the client should open in a browser (omitted when cached tokens already
+ * authenticated the server). Completion is signalled asynchronously via the
+ * server's MCP status transitioning to `Ready`.
+ *
+ * @category Commands
+ * @method mcpServerOAuthLogin
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @example
+ * ```jsonc
+ * // Client → Server
+ * { "jsonrpc": "2.0", "id": 4, "method": "mcpServerOAuthLogin",
+ *   "params": { "channel": "copilot:/<sessionId>", "serverName": "notion" } }
+ *
+ * // Server → Client
+ * { "jsonrpc": "2.0", "id": 4, "result": { "authorizationUrl": "https://…" } }
+ * ```
+ */
+export interface McpServerOAuthLoginParams extends BaseParams {
+	/** Session URI that owns the MCP server. */
+	channel: URI;
+	/** Name of the remote MCP server to authenticate. */
+	serverName: string;
+}
+
+/**
+ * Result of the `mcpServerOAuthLogin` command.
+ */
+export interface McpServerOAuthLoginResult {
+	/**
+	 * OAuth authorization URL the client should open in a browser. Omitted
+	 * when cached tokens already authenticated the server (no interaction
+	 * needed) or the host cannot start an interactive login.
+	 */
+	authorizationUrl?: string;
+}

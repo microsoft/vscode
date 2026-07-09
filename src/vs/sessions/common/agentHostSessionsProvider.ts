@@ -134,6 +134,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Authenticate against the backing agent-host connection. */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
+	/**
+	 * Starts interactive OAuth for a remote MCP server owned by the session,
+	 * returning the authorization URL the client should open (or `undefined`
+	 * when cached tokens already authenticated the server, or the session is
+	 * unknown).
+	 */
+	startMcpServerOAuthLogin(sessionId: string, serverName: string): Promise<string | undefined>;
+
 	// -- Custom Agents --
 
 	/**

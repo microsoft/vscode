@@ -1513,6 +1513,15 @@ export interface IAgent {
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
 	/**
+	 * Optionally starts interactive OAuth for a remote MCP server owned by the
+	 * given session, returning the authorization URL the client should open (or
+	 * `undefined` when cached tokens already authenticated the server, or the
+	 * agent doesn't own the session). Only implemented by agents whose runtime
+	 * exposes an MCP OAuth login RPC (Copilot).
+	 */
+	startMcpServerOAuthLogin?(session: URI, serverName: string): Promise<string | undefined>;
+
+	/**
 	 * Truncate a chat's history. If `turnId` is provided, keeps turns up to
 	 * and including that turn. If omitted, all turns are removed.
 	 *
@@ -1633,6 +1642,14 @@ export interface IAgentService {
 	 * bearer token delivery.
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
+	/**
+	 * Starts interactive OAuth for a remote MCP server owned by the given
+	 * session and returns the authorization URL the client should open (or
+	 * `undefined` when cached tokens already authenticated the server, or no
+	 * agent owns the session / supports MCP OAuth login).
+	 */
+	mcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined>;
 
 	/** Return a bearer token previously supplied via {@link authenticate}. */
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
@@ -1924,6 +1941,12 @@ export interface IAgentConnection {
 
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	/**
+	 * Starts interactive OAuth for a remote MCP server owned by `session`,
+	 * returning the authorization URL the client should open (or `undefined`
+	 * when cached tokens already authenticated the server).
+	 */
+	startMcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;

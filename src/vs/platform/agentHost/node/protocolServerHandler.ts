@@ -1298,6 +1298,10 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			return {};
 		},
+		mcpServerOAuthLogin: async (_client, params) => {
+			const authorizationUrl = await this._agentService.mcpServerOAuthLogin(URI.parse(params.channel), params.serverName);
+			return authorizationUrl ? { authorizationUrl } : {};
+		},
 		createTerminal: async (_client, params) => {
 			await this._agentService.createTerminal(params);
 			return null;

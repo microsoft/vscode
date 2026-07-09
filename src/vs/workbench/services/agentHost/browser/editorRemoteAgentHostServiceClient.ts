@@ -193,6 +193,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().authenticate(params);
 	}
 
+	startMcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined> {
+		return this._requireClient().startMcpServerOAuthLogin(session, serverName);
+	}
+
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._requireClient().listSessions();
 	}

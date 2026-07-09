@@ -270,6 +270,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._proxy.authenticate(params);
 	}
+	startMcpServerOAuthLogin(session: URI, serverName: string): Promise<string | undefined> {
+		return this._proxy.mcpServerOAuthLogin(session, serverName);
+	}
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._proxy.listSessions();
 	}
