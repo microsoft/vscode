@@ -16,7 +16,7 @@ import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../..
 const SCROLLBAR_OVERRIDE_SIZE = 8;
 
 /** Reduced collapsed notification row height (px) applied when the style-override experiment is on. */
-const NOTIFICATION_ROW_HEIGHT_OVERRIDE = 36;
+const NOTIFICATION_ROW_OVERRIDE_HEIGHT = 34;
 
 // Bundle the CSS for every style-override module. Every file gates all of its
 // rules behind the single `.style-override` ancestor class, so the styles are
@@ -161,7 +161,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	}
 
 	private applyNotificationRowHeight(enabled: boolean): void {
-		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_HEIGHT_OVERRIDE : DEFAULT_NOTIFICATION_ROW_HEIGHT);
+		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_OVERRIDE_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
 	override dispose(): void {
