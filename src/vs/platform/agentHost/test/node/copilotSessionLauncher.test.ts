@@ -16,6 +16,8 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import type { SchemaValues } from '../../common/agentHostSchema.js';
 import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -25,7 +27,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -608,5 +610,44 @@ suite('getCopilotReasoningEffort', () => {
 			accepted: [...reasoningEffortLevels],
 			rejectsUnknown: false,
 		});
+	});
+});
+
+/**
+ * Covers the full config-driven precedence chain: the per-model capability
+ * override (specific id, then the `*` wildcard) wins over the global override,
+ * which wins over the picker's thinking level; an invalid value at either
+ * stage falls through to the next.
+ */
+suite('resolveCopilotReasoningEffort', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Stubs the config service with a fixed root-value bag. */
+	function configOf(values: SchemaValues<typeof copilotCliConfigSchema.definition>): Pick<IAgentConfigurationService, 'getRootValue'> {
+		// The runtime value is correct by construction; `never` satisfies the
+		// generic return type without widening the stub to `any`.
+		return { getRootValue: (_schema, key) => values[key as keyof typeof values] as never };
+	}
+
+	test('per-model override beats global override beats picker; invalid stages fall through', () => {
+		const log = new NullLogService();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		assert.deepStrictEqual(
+			[
+				// per-model (specific id) wins over global + picker
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// wildcard entry applies to any model; a specific entry wins over it
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' }, 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// invalid per-model falls through to the global override
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
+				// no per-model entry, unset global ('' marker) → picker value
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
+				// no model: the per-model stage is skipped, the global override applies
+				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
+			],
+			['low', 'high', 'low', 'xhigh', 'medium', 'high']
+		);
 	});
 });

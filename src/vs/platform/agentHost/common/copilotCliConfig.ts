@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObject } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import type { ModelSelection } from './state/protocol/state.js';
@@ -63,13 +64,42 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 }
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
-interface ICopilotCliModelCapabilityOverride {
+export interface ICopilotCliModelCapabilityOverride {
 	/** Alias the model's family for prompt/capability routing (e.g. `"claude-opus-4-8"`). */
 	readonly family?: string;
+	/** Reasoning effort for sessions on this model; wins over the global {@link CopilotCliConfigKey.ReasoningEffortOverride}. Unrecognized values are ignored. */
+	readonly reasoningEffort?: string;
+	/** SDK tool allowlist, passed through as the session's `availableTools` (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
+	readonly availableTools?: readonly string[];
+	/** SDK tool denylist, passed through as the session's `excludedTools`; takes precedence over {@link availableTools}. */
+	readonly excludedTools?: readonly string[];
 }
 
 /** Map of model id → capability override. */
 export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModelCapabilityOverride>;
+
+/** Wildcard entry key matching every model id; a specific model-id entry wins field-by-field. */
+export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
+
+/**
+ * Resolves the effective capability override for `modelId`: the wildcard
+ * ({@link MODEL_CAPABILITY_OVERRIDE_WILDCARD}) entry merged field-by-field
+ * under the model's own entry, so a specific entry's fields win and the
+ * wildcard fills the gaps. Returns `undefined` when neither entry exists.
+ *
+ * Field values are NOT validated here: the root-config validator only checks
+ * that the setting is an object (it does not descend into
+ * `additionalProperties`), so use sites validate each field defensively —
+ * mirroring {@link getModelFamilyAlias}.
+ */
+export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string): ICopilotCliModelCapabilityOverride | undefined {
+	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];
+	const entry = overrides?.[modelId];
+	if (!isObject(wildcard) && !isObject(entry)) {
+		return undefined;
+	}
+	return { ...(isObject(wildcard) ? wildcard : undefined), ...(isObject(entry) ? entry : undefined) };
+}
 
 export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
@@ -122,7 +152,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',
 		title: localize('agentHost.config.modelCapabilityOverrides.title', "Model Capability Overrides"),
-		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model capability overrides for Copilot SDK sessions, keyed by model id. Aliasing a model id to a known `family` routes it to that family's tuned system prompt without changing the model id sent to the runtime. Only affects Copilot SDK sessions; intended for experimentation."),
+		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model capability overrides for Copilot SDK sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field). Aliasing a model id to a known `family` routes it to that family's tuned system prompt without changing the model id sent to the runtime; the remaining fields override reasoning effort and tool enablement per model. Only affects Copilot SDK sessions; intended for experimentation."),
 		additionalProperties: {
 			type: 'object',
 			title: localize('agentHost.config.modelCapabilityOverrides.entry.title', "Capability Override"),
@@ -133,6 +163,24 @@ export const copilotCliConfigSchema = createSchema({
 					title: localize('agentHost.config.modelCapabilityOverrides.family.title', "Family"),
 					description: localize('agentHost.config.modelCapabilityOverrides.family.description', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
 				},
+				reasoningEffort: {
+					type: 'string',
+					enum: ['low', 'medium', 'high', 'xhigh'],
+					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
+					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; wins over the global reasoning-effort override. Unrecognized values are ignored."),
+				},
+				availableTools: {
+					type: 'array',
+					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.availableTools.item.title', "Tool Name or Pattern") },
+					title: localize('agentHost.config.modelCapabilityOverrides.availableTools.title', "Available Tools"),
+					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names. Applied when the session launches."),
+				},
+				excludedTools: {
+					type: 'array',
+					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.item.title', "Tool Name or Pattern") },
+					title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.title', "Excluded Tools"),
+					description: localize('agentHost.config.modelCapabilityOverrides.excludedTools.description', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Applied when the session launches."),
+				},
 			},
 		},
 		default: {},
@@ -141,7 +189,7 @@ export const copilotCliConfigSchema = createSchema({
 
 /** Returns the configured family alias for `modelId`, or `undefined`. Malformed entries are treated as unset. */
 function getModelFamilyAlias(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string): string | undefined {
-	const family = overrides?.[modelId]?.family;
+	const family = resolveModelCapabilityOverride(overrides, modelId)?.family;
 	return typeof family === 'string' && family.length > 0 ? family : undefined;
 }
 
