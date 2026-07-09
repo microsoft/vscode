@@ -2220,40 +2220,40 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		// In embedder-driven mode, arm dedupe with the last heard reply so matching
 		// on-focus re-reads drop; new replies and confirmations still narrate.
-		if (this._externalActiveSessionMode) {
-			if (!this._recentlyFlushedResponse.has(key)) {
-				const heard = this._lastHeardTranscriptById.get(key);
-				if (heard) {
-					this._recentlyFlushedResponse.set(key, { transcript: heard, at: Date.now() });
-				}
+		if (this._externalActiveSessionMode && !this._recentlyFlushedResponse.has(key)) {
+			const heard = this._lastHeardTranscriptById.get(key);
+			if (heard) {
+				this._recentlyFlushedResponse.set(key, { transcript: heard, at: Date.now() });
 			}
-			// Split resident confirmations across deltas: flip `is_active` while
-			// holding `thinking`, then send `waiting_for_confirmation` so it narrates.
-			const model = this.chatService.getSession(resource);
-			const currentState = model ? this._getAgentStateInfo(model).state : undefined;
-			const awaitingConfirmation = currentState === 'waiting_for_confirmation';
-			if (awaitingConfirmation) {
-				// Phase 1: flip is_active while holding the session as `thinking`.
-				this._forceThinkingOnce.add(key);
-				this._sendContext();
-				this.voiceClientService.flushSessionContext();
-				// Phase 2: after `is_active` settles, send `waiting_for_confirmation`.
-				if (this._confirmationActivateTimer) {
-					clearTimeout(this._confirmationActivateTimer);
-				}
-				this._confirmationActivateTimer = setTimeout(() => {
-					this._confirmationActivateTimer = undefined;
-					// Clear all one-shot keys; rapid switches can preempt older timers,
-					// so per-key cleanup could leave a session stuck as `thinking`.
-					this._forceThinkingOnce.clear();
-					// Only ship the transition if this session is still active.
-					if (this._getActiveSessionId() === key) {
-						this._sendContext();
-						this.voiceClientService.flushSessionContext();
-					}
-				}, VoiceSessionController._CONFIRMATION_ACTIVATE_DELAY_MS);
-				return;
+		}
+		// Split resident confirmations across deltas: flip `is_active` while
+		// holding `thinking`, then send `waiting_for_confirmation` so it narrates.
+		// Without this, focusing an unfocused session awaiting confirmation ships
+		// the confirmation and `is_active` together and the backend narrates only
+		// on the next activation — so it's read on the second focus, not the first.
+		const model = this.chatService.getSession(resource);
+		const awaitingConfirmation = model ? this._getAgentStateInfo(model).state === 'waiting_for_confirmation' : false;
+		if (awaitingConfirmation) {
+			// Phase 1: flip is_active while holding the session as `thinking`.
+			this._forceThinkingOnce.add(key);
+			this._sendContext();
+			this.voiceClientService.flushSessionContext();
+			// Phase 2: after `is_active` settles, send `waiting_for_confirmation`.
+			if (this._confirmationActivateTimer) {
+				clearTimeout(this._confirmationActivateTimer);
 			}
+			this._confirmationActivateTimer = setTimeout(() => {
+				this._confirmationActivateTimer = undefined;
+				// Clear all one-shot keys; rapid switches can preempt older timers,
+				// so per-key cleanup could leave a session stuck as `thinking`.
+				this._forceThinkingOnce.clear();
+				// Only ship the transition if this session is still active.
+				if (this._getActiveSessionId() === key) {
+					this._sendContext();
+					this.voiceClientService.flushSessionContext();
+				}
+			}, VoiceSessionController._CONFIRMATION_ACTIVATE_DELAY_MS);
+			return;
 		}
 		this._sendContext();
 		this.voiceClientService.flushSessionContext();
