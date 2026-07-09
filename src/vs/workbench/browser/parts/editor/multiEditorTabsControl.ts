@@ -227,7 +227,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		});
 
 		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
-			classNames: ThemeIcon.asClassNameArray(Codicon.add)
+			classNames: ThemeIcon.asClassNameArray(Codicon.add),
+			keybindingProvider: action => this.getKeybinding(action)
 		}));
 		dropdown.render(container);
 

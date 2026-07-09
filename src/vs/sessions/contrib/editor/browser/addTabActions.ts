@@ -6,7 +6,7 @@
 import './emptyFileEditor.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -52,7 +52,7 @@ export class NewFileTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyB),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
 			menu: {
 				id: MenuId.EditorTabsBarAddTab,
@@ -87,7 +87,7 @@ export class NewBrowserTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK, KeyCode.KeyB),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
 			menu: {
 				id: MenuId.EditorTabsBarAddTab,
@@ -120,7 +120,7 @@ export class NewSearchTabAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: addTabActionWhen,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 			},
 			menu: {
 				id: MenuId.EditorTabsBarAddTab,
@@ -147,6 +147,12 @@ export class NewChangesTabAction extends Action2 {
 			icon: Codicon.gitCompare,
 			f1: false,
 			precondition: addTabActionWhen,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: addTabActionWhen,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
+			},
 			menu: {
 				id: MenuId.EditorTabsBarAddTab,
 				group: 'navigation',
