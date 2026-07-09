@@ -212,3 +212,12 @@
 .style-override.monaco-workbench .part.panel .pane-body.integrated-terminal .xterm {
 	padding-bottom: var(--vscode-spacing-size80, 8px);
 }
+
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource-group .actions-container,
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource .actions-container {
+	gap: 2px;
+}
+
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+	margin-right: 4px;
+}
