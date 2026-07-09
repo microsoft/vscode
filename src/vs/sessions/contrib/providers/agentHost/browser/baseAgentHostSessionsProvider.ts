@@ -2834,6 +2834,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						enabled,
 					});
 				},
+				start: async () => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionMcpServerStartRequested,
+						id: c.id,
+					});
+				},
+				stop: async () => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionMcpServerStopRequested,
+						id: c.id,
+					});
+				},
 			}));
 	}
 

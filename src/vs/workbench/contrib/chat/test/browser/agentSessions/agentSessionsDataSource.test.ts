@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate, getAgentSessionStatusIcon } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
+import { themeColorFromId } from '../../../../../../base/common/themables.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -120,6 +121,29 @@ suite('AgentSessionsDataSource', () => {
 			setRead: () => { },
 		};
 	}
+
+	suite('getAgentSessionStatusIcon', () => {
+
+		test('matches sessions window state icons', () => {
+			const cases = [
+				['read', createMockSession({ id: 'read' })],
+				['unread', createMockSession({ id: 'unread', isRead: false })],
+				['archived', createMockSession({ id: 'archived', isArchived: true, isRead: false })],
+				['in-progress', createMockSession({ id: 'in-progress', status: ChatSessionStatus.InProgress })],
+				['needs-input', createMockSession({ id: 'needs-input', status: ChatSessionStatus.NeedsInput })],
+				['failed', createMockSession({ id: 'failed', status: ChatSessionStatus.Failed })],
+			] as const;
+
+			assert.deepStrictEqual(cases.map(([name, session]) => [name, getAgentSessionStatusIcon(session)]), [
+				['read', { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
+				['unread', { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') }],
+				['archived', { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
+				['in-progress', { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') }],
+				['needs-input', { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') }],
+				['failed', { ...Codicon.error, color: themeColorFromId('errorForeground') }],
+			]);
+		});
+	});
 
 	function createMockModel(sessions: IAgentSession[]): IAgentSessionsModel {
 		return {

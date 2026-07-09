@@ -39,6 +39,10 @@
 	--tab-border-top-color: transparent !important;
 }
 
+.style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 10px 0 0 !important;
+}
+
 .style-override .part.editor .tabs-container > .tab.sizing-fit {
 	width: auto !important;
 	min-width: 0 !important;

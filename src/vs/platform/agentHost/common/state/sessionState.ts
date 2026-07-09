@@ -84,8 +84,9 @@ export {
 	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
-	type ToolResultShellExitContent,
+	type ToolResultTerminalCompleteContent,
 	type ToolResultSubagentContent,
+	type ToolResultTerminalContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
 	type Message
@@ -1042,6 +1043,31 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} recording how deeply a session
+ * was spawned via the `create_session` host tool (0 for a top-level, user-created
+ * session). Used to bound recursive session creation. VS Code-specific convention
+ * layered on top of the protocol's generic `_meta` bag.
+ */
+export const SESSION_META_SPAWN_DEPTH_KEY = 'agentHost/sessionSpawnDepth';
+
+/**
+ * Reads the `create_session` spawn depth from a {@link SessionSummaryMeta} bag,
+ * returning `0` when the key is absent or not a finite number.
+ */
+export function readSessionSpawnDepth(meta: SessionSummaryMeta | undefined): number {
+	const value = meta?.[SESSION_META_SPAWN_DEPTH_KEY];
+	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the `create_session` spawn depth
+ * set to `depth`, preserving any other keys in the bag.
+ */
+export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, depth: number): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
 }
 
 /**

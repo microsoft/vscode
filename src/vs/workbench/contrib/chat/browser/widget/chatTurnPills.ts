@@ -16,7 +16,6 @@ import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -59,22 +58,19 @@ export interface IDiffStats {
 
 export const EMPTY_DIFF_STATS: IDiffStats = { files: 0, insertions: 0, deletions: 0 };
 
-/** A markdown/HTML file the preview pill can open. */
+/** A markdown file the preview pill can open. */
 export interface IPreviewFile {
 	readonly uri: URI;
-	readonly kind: 'markdown' | 'html';
+	readonly kind: 'markdown';
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
 }
 
-/** Classify a resource as a previewable markdown or HTML file, if applicable. */
-export function previewKind(uri: URI): 'markdown' | 'html' | undefined {
+/** Classify a resource as a previewable markdown file, if applicable. */
+export function previewKind(uri: URI): 'markdown' | undefined {
 	const path = uri.path.toLowerCase();
 	if (path.endsWith('.md') || path.endsWith('.markdown')) {
 		return 'markdown';
-	}
-	if (path.endsWith('.html') || path.endsWith('.htm')) {
-		return 'html';
 	}
 	return undefined;
 }
@@ -96,17 +92,12 @@ export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPrevi
 }
 
 /**
- * Open a previewable file: markdown files open as a markdown preview, HTML files
- * open in the integrated browser (desktop only), falling back to the default
- * opener when neither is available (e.g. web).
+ * Open a previewable file: markdown files open as a markdown preview, falling
+ * back to the default opener when it is not available (e.g. web).
  */
 export async function openChatPreviewFile(file: IPreviewFile, commandService: ICommandService, openerService: IOpenerService, logService: ILogService): Promise<void> {
 	try {
-		if (file.kind === 'markdown') {
-			await commandService.executeCommand('markdown.showPreview', file.uri);
-		} else {
-			await commandService.executeCommand(BrowserViewCommandId.Open, file.uri.toString());
-		}
+		await commandService.executeCommand('markdown.showPreview', file.uri);
 	} catch (err) {
 		logService.trace('[ChatTurnPills] Falling back to default opener for preview', err);
 		await openerService.open(file.uri);
@@ -216,9 +207,9 @@ class ChangesPillActionViewItem extends BaseActionViewItem {
 
 /**
  * The preview pill: renders the primary previewable file as a resource label
- * (file icon + name) with a "preview" description. When more than one previewable
- * file exists, a separator and a dropdown chevron are shown; the chevron lists
- * every previewable file. Activating the label opens the primary file's preview.
+ * (file icon + name). When more than one previewable file exists, a separator
+ * and a dropdown chevron are shown; the chevron lists every previewable file.
+ * Activating the label opens the primary file's preview.
  */
 class PreviewPillActionViewItem extends BaseActionViewItem {
 
@@ -239,10 +230,6 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
 		this.element = container;
 		container.classList.add('chat-turn-pill-preview');
 
-		// The whole pill is one unified control: a primary resource label (file
-		// icon + name + "preview") on the left, an in-pill separator, and a dropdown
-		// chevron on the right. The inner buttons are transparent so the pill reads
-		// as a single element; each is an independent, tab-focusable button.
 		const primary = this._primary = this._register(new Button(container, { ...TRANSPARENT_BUTTON_STYLES }));
 		primary.element.classList.add('chat-turn-pill-preview-primary');
 		const label = this._register(this._resourceLabels.create(primary.element));
@@ -271,7 +258,7 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
 			const primaryFile = files.at(0);
 			if (primaryFile) {
 				label.setResource(
-					{ resource: primaryFile.uri, name: basename(primaryFile.uri), description: localize('chatTurnPills.preview.description', "preview") },
+					{ resource: primaryFile.uri, name: basename(primaryFile.uri) },
 					{ fileKind: FileKind.FILE },
 				);
 				const tooltip = localize('chatTurnPills.preview.tooltipOne', "Open Preview: {0}", basename(primaryFile.uri));
@@ -296,10 +283,9 @@ class PreviewPillActionViewItem extends BaseActionViewItem {
  *
  * - **Changes** — `<n> Files +ins -del` for the turn. Activating it opens the
  *   changes.
- * - **Preview** — shown when the turn created or edited a markdown or HTML file.
- *   Rendered as a resource label (file icon + name) with a "preview" description
- *   for the primary file. Activating it opens that file as a markdown preview or
- *   in the integrated browser; when several exist, a dropdown lists them all.
+ * - **Preview** — shown when the turn created or edited a markdown file.
+ *   Rendered as a resource label for the primary file. Activating it opens that
+ *   file as a markdown preview; when several exist, a dropdown lists them all.
  *
  * The data and the open actions are supplied by the {@link IChatTurnPillsModel}
  * so the same widget serves surfaces with different data sources.
@@ -398,7 +384,7 @@ export class ChatTurnPillsWidget extends Disposable {
 			getActions: () => files.map(file => toAction({
 				id: `${PREVIEW_PILL_ACTION_ID}.${file.uri.toString()}`,
 				label: basename(file.uri),
-				class: ThemeIcon.asClassName(file.kind === 'html' ? Codicon.globe : Codicon.openPreview),
+				class: ThemeIcon.asClassName(Codicon.openPreview),
 				run: () => this._model.openPreviewFile(file),
 			})),
 		});

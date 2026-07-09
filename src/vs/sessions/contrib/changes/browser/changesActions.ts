@@ -34,13 +34,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { isEqual } from '../../../../base/common/resources.js';
-
-/**
- * Command id of the {@link ViewAllChangesAction}. Opens the session's multi-file
- * diff editor. Exported so other session surfaces (e.g. the chat input pills)
- * can trigger the same "View Changes" behavior without duplicating the id.
- */
-export const VIEW_SESSION_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.viewChanges';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 
 // --- View All Changes action
 

@@ -503,7 +503,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('agents.voice.voice.daniel', "Daniel."),
 			],
 			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
-			default: 'victoria_neutral',
+			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.showTranscript': {
@@ -544,18 +544,6 @@ configurationRegistry.registerConfiguration({
 			items: { type: 'string' },
 			description: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Applies only when `agents.voice.turn.autoEndMode` is `phrase` or `both`; ignored otherwise. The backend strips the matched phrase from the transcript before it reaches the agent."),
 			default: ['send it'],
-			scope: ConfigurationScope.APPLICATION,
-		},
-		'agents.voice.turn.vadGateAsr': {
-			type: 'string',
-			enum: ['default', 'on', 'off'],
-			enumDescriptions: [
-				nls.localize('agents.voice.turn.vadGateAsr.default', "Let the backend decide (gates speech recognition only when `agents.voice.turn.autoEndMode` is `off`)."),
-				nls.localize('agents.voice.turn.vadGateAsr.on', "Always gate: only forward audio to speech recognition when the backend voice-activity detector hears speech."),
-				nls.localize('agents.voice.turn.vadGateAsr.off', "Never gate: forward all captured audio to speech recognition."),
-			],
-			description: nls.localize('agents.voice.turn.vadGateAsr', "Controls voice-activity noise-gating of the audio sent to speech recognition. Independent of `agents.voice.turn.autoEndMode`, except that `default` derives its behavior from it (gating only when `autoEndMode` is `off`). Use `on`/`off` to force gating regardless of `autoEndMode`."),
-			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
 		},
 	}

@@ -33,6 +33,7 @@ import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
@@ -57,6 +58,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentH
 import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { COPILOT_BRANCH_PREFIX, ICopilotBranchNameGenerator } from './copilotBranchNameGenerator.js';
+import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
@@ -663,6 +665,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return entry.handleMcpRequest(serverName, method, params);
 	}
 
+	async startMcpServer(session: URI, id: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._findAnySession(sessionId)?.startMcpServer(id);
+	}
+
+	async stopMcpServer(session: URI, id: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._findAnySession(sessionId)?.stopMcpServer(id);
+	}
+
 	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
 		const sessionId = AgentSession.id(session);
 		const provisional = this._provisionalSessions.get(sessionId);
@@ -820,13 +832,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._shutdownPromise) {
 			return;
 		}
-		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => ({
-			provider: this.id,
-			id: `${m.vendor}/${m.id}`,
-			name: m.name ?? m.id,
-			maxContextWindow: m.maxContextWindowTokens,
-			supportsVision: m.supportsVision ?? false,
-		}));
+		this._byokModels = this._byokBridgeRegistry.getModels().map((m): IAgentModelInfo => {
+			const byokMeta = createAgentModelByokMeta(m.modelIdentifier);
+			return {
+				provider: this.id,
+				id: `${m.vendor}/${m.id}`,
+				name: m.name ?? m.id,
+				maxContextWindow: m.maxContextWindowTokens,
+				supportsVision: m.supportsVision ?? false,
+				...(byokMeta && { _meta: byokMeta }),
+			};
+		});
 		this._logService.trace(`[Copilot] Found ${this._byokModels.length} BYOK models${this._byokModels.length ? ': ' + this._byokModels.map(m => m.name).join(', ') : ''}`);
 		this._publishModels();
 	}
@@ -1570,6 +1586,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		}
 
+		if (sessionConfig.importConversation) {
+			return this._importConversation(sessionConfig, sessionId, workingDirectory);
+		}
+
 		// Non-fork path: create a *provisional* session. The Copilot SDK
 		// session, the worktree (if any), and the on-disk metadata are all
 		// deferred until the first {@link sendMessage} via
@@ -1636,6 +1656,62 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
 		return { session: sessionUri, workingDirectory, provisional: true, ...(project ? { project } : {}) };
+	}
+
+	/**
+	 * Root directory the Copilot CLI uses for per-session state. The CLI stores
+	 * each session's files under `<root>/session-state/<sessionId>/` and resolves
+	 * `<root>` to `$COPILOT_HOME` or `~/.copilot`. The CLI subprocess inherits
+	 * `COPILOT_HOME` from this process's environment (see {@link _ensureClient},
+	 * which never overrides it), so reading it here matches what the CLI sees.
+	 */
+	private _copilotConfigRoot(): string {
+		return process.env['COPILOT_HOME'] || join(os.homedir(), '.copilot');
+	}
+
+	/**
+	 * Materializes an imported conversation into a real, editable Copilot
+	 * session. Translates the supplied turns into a Copilot event log, seeds it
+	 * at the CLI's native per-session store, then resumes the session so the
+	 * SDK reconstitutes the turns as genuine backend events (editable / forkable
+	 * / truncatable). The turns arrive with fresh UUID ids assigned by the
+	 * service layer, so the seeded event ids and the seeded protocol turns stay
+	 * aligned. Mirrors the immediate-materialization shape of the fork path.
+	 */
+	private async _importConversation(sessionConfig: IAgentCreateSessionConfig, sessionId: string, workingDirectory: URI): Promise<IAgentCreateSessionResult> {
+		const importConfig = sessionConfig.importConversation!;
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		return this._sessionSequencer.queue(sessionId, async () => {
+			this._logService.info(`[Copilot] Importing conversation into session ${sessionId} (${importConfig.turns.length} turns)`);
+			const model = importConfig.model ?? sessionConfig.model;
+
+			// Translate the conversation and seed it at the CLI's native
+			// per-session store so a normal resume reconstitutes editable turns.
+			// Detect the project concurrently with the (independent) event-log write
+			// so the git probe and file I/O overlap on the session-creation path.
+			const projectPromise = projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+			const eventsPath = join(this._copilotConfigRoot(), 'session-state', sessionId, 'events.jsonl');
+			const jsonl = buildSessionEventLogFromTurns(importConfig.turns, {
+				sessionId,
+				workingDirectory: workingDirectory.fsPath,
+				model: model?.id,
+			});
+			await fs.mkdir(dirname(eventsPath), { recursive: true });
+			await fs.writeFile(eventsPath, jsonl, 'utf8');
+
+			// Persist metadata before resume so `_resumeSession` can resolve the
+			// working directory and model.
+			const project = await projectPromise;
+			await this._storeSessionMetadata(sessionUri, model, workingDirectory, workingDirectory, project);
+			if (sessionConfig.agent !== undefined) {
+				await this._storeSessionAgentMetadata(sessionUri, sessionConfig.agent);
+			}
+
+			// Resume so the SDK loads the seeded history as editable turns.
+			await this._resumeSession(sessionId);
+			this._logService.info(`[Copilot] Imported session created: ${sessionUri.toString()}`);
+			return { session: sessionUri, workingDirectory, ...(project ? { project } : {}) };
+		});
 	}
 
 	/**
@@ -1825,7 +1901,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// worktree → folder → worktree keeps the prefix, and it reaches the
 			// agent via the send-time config snapshot. It has no
 			// `enum`/`enumDynamic`, so the config picker treats it as
-			// non-pickable and never surfaces it as a chip: the client seeds it
+			// non-pickable. To keep it from surfacing as a read-only chip in the
+			// workbench chat input, its key is also listed in the client-side
+			// `WELL_KNOWN_PICKER_PROPERTIES` (see `agentHostChatInputPicker.ts`),
+			// which the generic chip lane filters out. The client seeds it
 			// (from `git.branchPrefix`), the user never edits it, and the agent
 			// only *consumes* it for worktree isolation (see
 			// `_resolveSessionWorkingDirectory`).
@@ -2157,6 +2236,40 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (isWorkspaceless) {
 				await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 			}
+		});
+	}
+
+	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources (SDK session/connection, cached entry,
+	 * active clients, MCP subscriptions) but preserves all durable data — the
+	 * SDK session log, session database, and worktree stay on disk. The session
+	 * transparently resumes on the next access via {@link _resumeSession}.
+	 *
+	 * No-ops for sessions that have nothing durable to resume from (provisional
+	 * sessions) or that aren't currently held in memory, and for sessions with a
+	 * running turn — disconnecting mid-turn would strand the SDK session.
+	 */
+	async releaseSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			// Provisional sessions were never persisted, so releasing them would
+			// lose state with no way to resume. Leave them in memory.
+			if (this._provisionalSessions.has(sessionId)) {
+				return;
+			}
+			const entry = this._sessions.get(sessionId);
+			if (!entry) {
+				return;
+			}
+			// Defensive active-turn guard: the orchestrator already skips
+			// eviction while a turn is active, but a turn could have started
+			// between that check and this sequenced callback.
+			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
+				return;
+			}
+			this._logService.info(`[Copilot:${sessionId}] Releasing idle session from memory (durable state preserved)`);
+			await this._releaseSessionResources(sessionId);
 		});
 	}
 
@@ -2915,6 +3028,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
+		await this._releaseSessionResources(sessionId);
+		// `_releaseSessionResources` tears down everything in memory but leaves
+		// the worktree intact (it is reused by non-destructive release). The
+		// destructive dispose path additionally reaps the created worktree; this
+		// is a no-op for provisional sessions, which never created one.
+		await this._removeCreatedWorktree(sessionId);
+	}
+
+	/**
+	 * Tears down a session's in-memory resources without deleting any durable
+	 * data: the SDK session is disconnected, peer chats and MCP subscriptions
+	 * are disposed, the `_sessions` entry is dropped, and active clients are
+	 * released. The on-disk SDK session log, session database, and worktree are
+	 * left untouched, so the session can be resumed later via
+	 * {@link _resumeSession}. Shared by the non-destructive {@link releaseSession}
+	 * path and the destructive {@link _destroyAndDisposeSession} path (the
+	 * latter reaps the worktree afterwards).
+	 */
+	private async _releaseSessionResources(sessionId: string): Promise<void> {
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
@@ -2946,7 +3078,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._mcpNotificationSubs.deleteAndDispose(sessionId);
 		this._activeClients.get(sessionUri)?.dispose();
 		this._activeClients.delete(sessionUri);
-		await this._removeCreatedWorktree(sessionId);
 	}
 
 	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {

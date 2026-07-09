@@ -12,7 +12,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../plat
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGptFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -283,7 +283,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	if (model.family.includes('grok-code')) {
+	if (isXAiFamily(model)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -366,7 +366,8 @@ export class AgentIntent extends EditCodeIntent {
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@ILogService private readonly _logService: ILogService,
 		@IToolsService private readonly _toolsService: IToolsService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
 		this._sessionListeners.add(chatSessionService.onDidDisposeChatSession(sessionId => {
@@ -465,23 +466,37 @@ export class AgentIntent extends EditCodeIntent {
 		try {
 			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
 		} finally {
-			// Fire one final bg todo review pass once the agent loop has ended for
-			// this turn. The per-round passes never see the very last round, so any
-			// task that just completed otherwise stays stuck as 'in-progress'.
-			// Await completion so this final pass runs before we return, while the
-			// request's tool invocation token is (hopefully) still valid.
-
-			if (request.subAgentInvocationId === undefined && request.subAgentName === undefined) {
-				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				if (todoProcessor) {
-					await raceTimeout(
-						todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
-						5000,
-						() => todoProcessor.cancel()
-					);
-				}
-			}
+			await this._runFinalBackgroundTodoPass(conversation, request);
 		}
+	}
+
+	/**
+	 * Fire one final bg todo review pass once the agent loop has ended for this
+	 * turn. The per-round passes never see the very last round, so any task that
+	 * just completed otherwise stays stuck as 'in-progress'. Awaits completion so
+	 * this final pass runs before we return, while the request's tool invocation
+	 * token is (hopefully) still valid.
+	 */
+	private async _runFinalBackgroundTodoPass(conversation: Conversation, request: vscode.ChatRequest): Promise<void> {
+		if (request.subAgentInvocationId !== undefined || request.subAgentName !== undefined) {
+			return;
+		}
+		const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+		if (!todoProcessor) {
+			return;
+		}
+		// Only run the final review pass when the background todo agent is still
+		// enabled for the current model. If the user switched to a BYOK (non-CAPI)
+		// model mid-session, the existing processor must not fire against it.
+		const endpoint = await this.endpointProvider.getChatEndpoint(request).catch(() => undefined);
+		if (!endpoint || !isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this._authenticationService, request)) {
+			return;
+		}
+		await raceTimeout(
+			todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
+			5000,
+			() => todoProcessor.cancel()
+		);
 	}
 
 	private async handleSummarizeCommand(

@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+.chat-open-session-result {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+}
 
-export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
-
-export interface IAgentHostEnablementService {
-	readonly _serviceBrand: undefined;
-	readonly enabled: boolean;
+.chat-open-session-result .monaco-button.chat-open-session-button {
+	width: fit-content;
+	max-width: 100%;
+	padding: 2px 10px;
 }

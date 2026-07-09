@@ -188,6 +188,22 @@ export class McpCustomizationController extends Disposable {
 		return this._options.resolveChildId(serverName);
 	}
 
+	/** Returns the live server name associated with a customization id. */
+	serverNameForCustomizationId(id: string): string | undefined {
+		for (const entry of this._live.get().values()) {
+			const entryId = entry.topLevelId ?? this._options.resolveChildId(entry.serverName);
+			if (entryId === id) {
+				return entry.serverName;
+			}
+		}
+		return undefined;
+	}
+
+	/** Returns the last live state recorded for the MCP server named `serverName`. */
+	stateForServer(serverName: string): McpServerState | undefined {
+		return this._live.get().get(serverName)?.state;
+	}
+
 	/**
 	 * Returns the `mcp://` AHP channel URI currently advertised for the
 	 * MCP server named `serverName`, or `undefined` when the server is
@@ -381,6 +397,27 @@ export function findMcpChildId(customizations: readonly Customization[], serverN
 		for (const child of children) {
 			if (child.type === CustomizationType.McpServer && child.name === serverName) {
 				return child.id;
+			}
+		}
+	}
+	return undefined;
+}
+
+export function findMcpServerName(customizations: readonly Customization[], id: string): string | undefined {
+	for (const top of customizations) {
+		if (top.type === CustomizationType.McpServer) {
+			if (top.id === id) {
+				return top.name;
+			}
+			continue;
+		}
+		const children = top.children;
+		if (!children) {
+			continue;
+		}
+		for (const child of children) {
+			if (child.type === CustomizationType.McpServer && child.id === id) {
+				return child.name;
 			}
 		}
 	}

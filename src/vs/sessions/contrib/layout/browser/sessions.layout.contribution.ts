@@ -51,12 +51,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('sessions.layout.autoCollapseSessionsSidebar', "Controls whether the sessions sidebar is automatically collapsed in a narrow Agents window while both the editor and the side panel are open, and shown again once either of them closes."),
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
+			experiment: { mode: 'auto' }
 		},
 		[DOCK_DETAIL_PANEL_SETTING]: {
 			type: 'boolean',
 			markdownDescription: localize('sessions.layout.singlePaneDetailPanel', "Controls whether the Agents window docks the detail panel inside the editor so a single editor tab bar spans across the editor and the detail panel. Requires a window reload to take effect."),
 			default: false,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' }
 		},
 	},
 });

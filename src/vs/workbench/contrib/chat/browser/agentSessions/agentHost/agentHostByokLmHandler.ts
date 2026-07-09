@@ -113,6 +113,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					vendor: metadata.vendor,
 					id: metadata.id,
 					name: metadata.name,
+					modelIdentifier: identifier,
 					maxContextWindowTokens: metadata.maxInputTokens + metadata.maxOutputTokens,
 					supportsVision: !!metadata.capabilities?.vision,
 				});
