@@ -1250,18 +1250,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// (which would leave `onDidChange` silent and hang the await).
 		const pinRef = this._config.connection.getSubscription(StateComponents.Session, resolvedSession, 'AgentHostSessionHandler');
 		try {
-			await new Promise<void>(resolve => {
-				const store = new DisposableStore();
-				const settle = () => {
-					store.dispose();
-					resolve();
-				};
-				store.add(pinRef.object.onDidChange(settle));
-				store.add(token.onCancellationRequested(settle));
-				if (pinRef.object.value !== undefined || token.isCancellationRequested) {
-					settle();
-				}
-			});
+			// Settle on snapshot, error, or cancellation. Listening for the
+			// error transition is essential: a failed subscribe flips the
+			// subscription via `setError`, which fires `onDidError` but NOT
+			// `onDidChange`, so an `onDidChange`-only wait would hang for the
+			// full turn timeout (issue #5242).
+			await this._whenSubscriptionHydrated(pinRef.object, token);
 			const value = pinRef.object.value;
 			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
 			return value instanceof Error ? undefined : value;
@@ -3537,19 +3531,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subscribe to the new session's state
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {
-			// Wait for the subscription to hydrate. Attach the listener
-			// before re-checking the value to close a race where another
-			// consumer (e.g. the chat-input picker) acquires the same
-			// subscription concurrently and triggers `handleSnapshot`
-			// between our `_getSessionState` check and the listener
-			// attachment.
-			await new Promise<void>(resolve => {
-				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
-				if (this._getSessionState(session.toString())) {
-					d.dispose();
-					resolve();
-				}
-			});
+			// Wait for the subscription to hydrate. `_whenSubscriptionHydrated`
+			// settles on snapshot, error, or cancellation and attaches its
+			// listeners before re-checking the value, closing the race where a
+			// concurrent consumer (e.g. the chat-input picker) hydrates the
+			// subscription between our check and the listener attachment. It
+			// also settles on `onDidError` — a failed subscribe flips the
+			// subscription via `setError`, which fires `onDidError` but NOT
+			// `onDidChange`, so an `onDidChange`-only wait would hang for the
+			// full turn timeout (issue #5242).
+			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
 		}
 
 		const rawState = this._requireRawSessionState(session.toString());
