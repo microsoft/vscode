@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /** @jsxRuntime automatic */
-/** @jsxImportSource ../../../../../prompt/jsx-runtime/ */
+/** @jsxImportSource ../../../../../prompt/jsx-runtime */
 
 import * as assert from 'assert';
 import dedent from 'ts-dedent';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { PromptSnapshotNode } from '../../../../../prompt/src/components/components';
 import { VirtualPrompt } from '../../../../../prompt/src/components/virtualPrompt';
-import { initializeTokenizers } from '../../../../../prompt/src/tokenization';
+import { ensureTokenizersLoaded } from '../../../../../prompt/src/tokenization';
 import { CompletionRequestDocument } from '../../../prompt/completionsPromptFactory/componentsCompletionsPromptFactory';
 import { SimilarFiles } from '../../../prompt/components/similarFiles';
 import { CodeSnippetWithId, TraitWithId } from '../../../prompt/contextProviders/contextItemSchemas';
@@ -27,7 +27,7 @@ suite('Similar Files', function () {
 	setup(async function () {
 		accessor = createLibTestingContext().createTestingAccessor();
 		NeighborSource.reset();
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('Empty render without similar file', async function () {

@@ -5,7 +5,8 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { type CustomizationRef } from './state/protocol/state.js';
+import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
+import { customizationId } from './state/sessionState.js';
 
 /**
  * Well-known root-config keys used by the platform to configure agent-host
@@ -19,12 +20,40 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/** When true, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override. */
-	DisableCustomTerminalTool = 'disableCustomTerminalTool',
+	/**
+	 * When true (the default), the Claude provider routes all Anthropic
+	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
+	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
+	 * the user's own credentials (BYO Anthropic — Phase 19).
+	 */
+	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	/**
+	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
+	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
+	 * Cloud). When set, the agent host computes its GitHub protected resources and
+	 * REST/GraphQL endpoints from this base instead of github.com. Normally pushed
+	 * by the local VS Code client from the workbench `github-enterprise.uri`
+	 * setting; remote operators set it directly in the remote
+	 * `agent-host-config.json`.
+	 */
+	GithubEnterpriseUri = 'githubEnterpriseUri',
+}
+
+/**
+ * Persisted on-disk shape for a host-configured plugin. Kept stable across
+ * the customization protocol refactor so existing `agent-host-config.json`
+ * files keep working; entries are mapped to the new
+ * {@link Customization} shape at read time by
+ * {@link getAgentHostConfiguredCustomizations}.
+ */
+interface IPersistedCustomizationConfigEntry {
+	uri: string;
+	displayName: string;
+	description?: string;
 }
 
 export const agentHostCustomizationConfigSchema = createSchema({
-	[AgentHostConfigKey.Customizations]: schemaProperty<CustomizationRef[]>({
+	[AgentHostConfigKey.Customizations]: schemaProperty<IPersistedCustomizationConfigEntry[]>({
 		type: 'array',
 		title: localize('agentHost.config.customizations.title', "Plugins"),
 		description: localize('agentHost.config.customizations.description', "Plugins configured on this agent host and available to remote sessions."),
@@ -54,21 +83,46 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.DisableCustomTerminalTool]: schemaProperty<boolean>({
+	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.disableCustomTerminalTool.title', "Use SDK Terminal Tool"),
-		description: localize('agentHost.config.disableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use the SDK's default terminal behavior instead of Agent Host's terminal tool override."),
-		default: false,
+		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
+		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
+		default: true,
+	}),
+	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
+		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
 });
 
 export const defaultAgentHostCustomizationConfigValues = {
-	[AgentHostConfigKey.Customizations]: [] as CustomizationRef[],
+	[AgentHostConfigKey.Customizations]: [] as IPersistedCustomizationConfigEntry[],
 };
 
-export function getAgentHostConfiguredCustomizations(values: Record<string, unknown> | undefined): readonly CustomizationRef[] {
+/**
+ * Reads the persisted (legacy-shaped) plugin entries from the agent-host
+ * root config and lifts them into the new {@link Customization} container
+ * shape used by the rest of the platform.
+ */
+export function getAgentHostConfiguredCustomizations(values: Record<string, unknown> | undefined): readonly Customization[] {
 	const raw = values?.[AgentHostConfigKey.Customizations];
-	return agentHostCustomizationConfigSchema.validate(AgentHostConfigKey.Customizations, raw)
+	const entries = agentHostCustomizationConfigSchema.validate(AgentHostConfigKey.Customizations, raw)
 		? raw
 		: defaultAgentHostCustomizationConfigValues[AgentHostConfigKey.Customizations];
+	return entries.map(toContainerCustomization);
+}
+
+/**
+ * Lifts a persisted plugin config entry into the new
+ * {@link Customization} container shape.
+ */
+export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): PluginCustomization {
+	return {
+		type: CustomizationType.Plugin,
+		id: customizationId(entry.uri),
+		uri: entry.uri,
+		name: entry.displayName,
+		enabled: true,
+	};
 }

@@ -11,9 +11,8 @@ import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycl
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
-import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences } from '../../image/common/imageTelemetry';
+import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { createCapiClientFetchedValue } from '../../networking/common/capiClientFetchedValue';
 import { isAbortError } from '../../networking/common/fetcherService';
@@ -104,12 +103,26 @@ class AutoModeTokenBank extends Disposable {
 	}
 }
 
+export interface AutoModeRoutingDecision {
+	resolvedModel: string;
+	resolvedModelName: string;
+	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	confidence: number;
+}
+
 export const IAutomodeService = createServiceIdentifier<IAutomodeService>('IAutomodeService');
 
 export interface IAutomodeService {
 	readonly _serviceBrand: undefined;
 
 	resolveAutoModeEndpoint(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
+
+	/**
+	 * Returns the routing decision from the last call to {@link resolveAutoModeEndpoint},
+	 * or `undefined` if the router was not used (e.g. skipped, fallback, or non-auto model).
+	 * Cleared after reading.
+	 */
+	consumeLastRoutingDecision(): AutoModeRoutingDecision | undefined;
 
 	/**
 	 * Marks the router cache for this conversation as needing re-evaluation.
@@ -124,6 +137,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _autoModelCache: Map<string, AutoModelCacheEntry> = new Map();
 	private _reserveTokens: DisposableMap<ChatLocation, AutoModeTokenBank> = new DisposableMap();
 	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
+	private _lastRoutingDecision: AutoModeRoutingDecision | undefined;
 
 	constructor(
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -131,7 +145,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
@@ -161,6 +174,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		super.dispose();
 	}
 
+	consumeLastRoutingDecision(): AutoModeRoutingDecision | undefined {
+		const decision = this._lastRoutingDecision;
+		this._lastRoutingDecision = undefined;
+		return decision;
+	}
+
 	/**
 	 * Resolve an auto mode endpoint
 	 * Optionally uses a router model to select the best endpoint based on the prompt.
@@ -179,6 +198,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			throw new Error('No auto mode endpoints provided.');
 		}
 
+		// Clear any previous routing decision upfront so stale data cannot
+		// leak to a consumer if this call takes a non-router path.
+		this._lastRoutingDecision = undefined;
+
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
 		const entry = this._autoModelCache.get(conversationId);
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
@@ -191,12 +214,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (entry?.needsReEval) {
 			entry.needsReEval = false;
 		}
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
+		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
 
 		const routerResult = skipRouter
 			? { lastRoutedPrompt: chatRequest?.prompt?.trim() ?? entry?.lastRoutedPrompt }
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints);
-		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
-		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints, imageTelemetryEventMeasurements);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
@@ -213,6 +236,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
 						"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
 						"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+						"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+						"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+						"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+						"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
 						"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
 						"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
 						"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
@@ -235,6 +262,15 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		selectedModel = this._applyVisionFallback(chatRequest, selectedModel, token.available_models, knownEndpoints);
 
+		// Store routing decision for the UI to consume (update resolved model to the final one after all overrides)
+		if (routerResult.routingDecision) {
+			this._lastRoutingDecision = {
+				...routerResult.routingDecision,
+				resolvedModel: selectedModel.model,
+				resolvedModelName: selectedModel.name,
+			};
+		}
+
 		// Emit the final model selection alongside the router's recommendation
 		// so analysts can detect overrides without fragile telemetry joins
 		if (!skipRouter && routerResult.candidateModel) {
@@ -249,6 +285,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
 					"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
 					"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+					"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+					"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+					"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+					"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
 					"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
 					"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
 					"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
@@ -306,7 +346,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		entry: AutoModelCacheEntry | undefined,
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
-	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string; candidateModel?: string }> {
+		imageTelemetryEventMeasurements: Partial<ImageTelemetryMeasurements>,
+	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string; candidateModel?: string; routingDecision?: AutoModeRoutingDecision }> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
 
@@ -331,7 +372,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				previous_model: entry?.endpoint?.model,
 				turn_number: (entry?.turnCount ?? 0) + 1,
 			};
-			const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
+			const routingMethod = 'hydra';
 
 			// Filter available_models to only those the client can actually serve.
 			// The AutoModels API and Models API are separate CAPI calls that can be
@@ -352,7 +393,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				this._logService.info(`[AutomodeService] Filtered ${droppedModels.length} unresolvable model(s) before routing: [${droppedModels.join(', ')}]`);
 			}
 
-			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, routableModels, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest));
+			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, routableModels, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest), imageTelemetryEventMeasurements);
 
 			if (result.fallback) {
 				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
@@ -363,22 +404,40 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList' };
 			}
 
-			// Trust the router's ranked candidate list directly.
+			// Prefer chosen_model — it is the router's authoritative pick after any
+			// server-side re-ranking (e.g. Cost Sorting experiments). candidate_models
+			// is the ordered fallback list per the auto-intent-service contract
+			// (docs/integrators_onboarding.md: "Use chosen_model for the upcoming chat
+			// call, and use candidate_models as the ordered fallback list").
 			// Same-provider preference is intentionally NOT applied here — the router
 			// already accounts for available models and re-runs after /compact, so
 			// overriding its pick with same-provider negates cost-saving decisions.
 			// Same-provider is still used in _selectDefaultModel (the non-router fallback).
-			const selectedModel = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
+			const routerModel = result.chosen_model ?? result.candidate_models[0];
+			let selectedModel = result.chosen_model ? knownEndpoints.find(e => e.model === result.chosen_model) : undefined;
+			if (!selectedModel) {
+				selectedModel = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
+			}
 
 			if (!selectedModel) {
-				this._logService.warn(`[AutomodeService] None of the router's candidate_models matched knownEndpoints: [${result.candidate_models.join(', ')}]`);
+				this._logService.warn(`[AutomodeService] Router pick not in knownEndpoints: chosen_model=${result.chosen_model ?? 'n/a'}, candidate_models=[${result.candidate_models.join(', ')}]`);
 				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint' };
 			}
 
 			if (result.sticky_override) {
-				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${result.candidate_models[0]}, actual_model=${selectedModel.model}`);
+				this._logService.trace(`[AutomodeService] Sticky routing override: confidence=${(result.confidence * 100).toFixed(1)}%, label=${result.predicted_label}, router_model=${routerModel}, actual_model=${selectedModel.model}`);
 			}
-			return { selectedModel, lastRoutedPrompt: prompt, candidateModel: result.candidate_models[0] };
+			return {
+				selectedModel,
+				lastRoutedPrompt: prompt,
+				candidateModel: routerModel,
+				routingDecision: {
+					resolvedModel: selectedModel.model,
+					resolvedModelName: selectedModel.name,
+					predictedLabel: result.predicted_label,
+					confidence: result.confidence,
+				},
+			};
 		} catch (e) {
 			const isTimeout = isAbortError(e);
 			let fallbackReason: string;
@@ -395,7 +454,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
-		const selectedModel = (currentModelProvider && this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints))
+		const selectedModel = (currentModelProvider ? this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints) : undefined)
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
 		if (selectedModel) {
 			return selectedModel;
@@ -431,7 +490,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	private _isRouterEnabled(chatRequest: ChatRequest | undefined): boolean {
 		const isPanelChat = !chatRequest?.location || chatRequest?.location === ChatLocation.Panel;
-		return isPanelChat && this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.UseAutoModeRouting, this._expService);
+		return isPanelChat;
 	}
 
 	/**

@@ -21,7 +21,11 @@
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "restrictedConfigurations": [
+        "microsoft-sovereign-cloud.environment",
+        "microsoft-sovereign-cloud.customEnvironment"
+      ]
     }
   },
   "extensionKind": [
@@ -133,7 +137,7 @@
     "watch": "gulp watch-extension:microsoft-authentication"
   },
   "devDependencies": {
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",

@@ -269,13 +269,18 @@ class SlashCommandCompletions extends Disposable {
 
 				return {
 					suggestions: userInvocableCommands.map((c, i): CompletionItem => {
-						const label = `/${c.name}`;
+						const colonLabel = `/${c.name}`;
+						const hasSubcommand = c.name.includes(':');
+						const displayLabel = hasSubcommand ? `/${c.name.replace(/:/g, ' ')}` : colonLabel;
 						const description = c.description;
 						return {
-							label: { label, description },
-							insertText: `${label} `,
+							label: { label: displayLabel, description },
+							insertText: `${displayLabel} `,
 							documentation: c.description,
 							range,
+							// Allow matching by either the space form (what the user sees) or the
+							// colon form (so legacy `/chronicle:tips` typing still filters).
+							filterText: hasSubcommand ? `${colonLabel} ${displayLabel}` : undefined,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
@@ -988,7 +993,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				// User has typed #session: — fetch all sessions and show them inline
 				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
 
-				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
 					if (token.isCancellationRequested) {
 						return;

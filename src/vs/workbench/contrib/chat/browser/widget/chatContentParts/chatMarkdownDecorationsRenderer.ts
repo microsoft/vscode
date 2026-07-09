@@ -245,7 +245,7 @@ export class ChatMarkdownDecorationsRenderer {
 			return;
 		}
 
-		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined, undefined));
 		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
 	}
 

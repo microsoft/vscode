@@ -21,6 +21,7 @@ import { DocumentId } from './dataTypes/documentId';
 import { Edits } from './dataTypes/edit';
 import { SerializedEdit } from './dataTypes/editUtils';
 import { LanguageId } from './dataTypes/languageId';
+import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
@@ -49,6 +50,14 @@ export type StreamedEdit = {
 	 * in either the original location or the jump target location.
 	 */
 	readonly originalWindow?: OffsetRange;
+	/**
+	 * Zero-based index of the model-emitted patch this edit originated from, for the
+	 * diff-patch response format. A single model patch can expand into several edits
+	 * (per-patch diff splitting or progressive ghost-text reveal); all edits produced
+	 * from the same patch share the same `patchIndex`. `undefined` for response formats
+	 * that have no explicit patch structure (e.g. edit-window, INSERT).
+	 */
+	readonly patchIndex?: number;
 };
 
 export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;
@@ -412,7 +421,9 @@ export interface IStatelessNextEditTelemetry {
 
 	/* diff history info */
 	readonly nDiffsInPrompt: number | undefined;
-	readonly diffTokensInPrompt: number | undefined;
+
+	/* prompt section token counts (approximate char/4 counts; see PromptSectionTokenCounts) */
+	readonly promptSectionTokens: PromptSectionTokenCounts | undefined;
 
 	/* neighbor (similar files) snippets info */
 	readonly nNeighborSnippetsComputed: number | undefined;
@@ -511,7 +522,7 @@ export class StatelessNextEditTelemetryBuilder {
 			cursorJumpPrompt: this._cursorJumpPrompt ? JSON.stringify(this._cursorJumpPrompt.map(({ role, content }) => ({ role, content }))) : undefined,
 			cursorJumpResponse: this._cursorJumpResponse,
 			nDiffsInPrompt: this._nDiffsInPrompt,
-			diffTokensInPrompt: this._diffTokensInPrompt,
+			promptSectionTokens: this._promptSectionTokens,
 			nNeighborSnippetsComputed: this._nNeighborSnippetsComputed,
 			nNeighborSnippetsInPrompt: this._nNeighborSnippetsInPrompt,
 			neighborSnippetIndicesInPrompt: this._neighborSnippetIndicesInPrompt,
@@ -706,9 +717,9 @@ export class StatelessNextEditTelemetryBuilder {
 		return this;
 	}
 
-	private _diffTokensInPrompt: number | undefined;
-	public setDiffTokensInPrompt(n: number): this {
-		this._diffTokensInPrompt = n;
+	private _promptSectionTokens: PromptSectionTokenCounts | undefined;
+	public setPromptSectionTokens(counts: PromptSectionTokenCounts): this {
+		this._promptSectionTokens = counts;
 		return this;
 	}
 

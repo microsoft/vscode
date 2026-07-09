@@ -62,6 +62,18 @@ export class MultiDiffEditorViewModel extends Disposable {
 		});
 	}
 
+	public collapse(item: DocumentDiffItemViewModel): void {
+		transaction(tx => {
+			item.collapsed.set(true, tx);
+		});
+	}
+
+	public expand(item: DocumentDiffItemViewModel): void {
+		transaction(tx => {
+			item.collapsed.set(false, tx);
+		});
+	}
+
 	public get contextKeys(): Record<string, ContextKeyValue> | undefined {
 		return this.model.contextKeys;
 	}

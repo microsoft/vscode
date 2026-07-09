@@ -26,7 +26,7 @@ src/vs/sessions/contrib/remoteAgentHost/browser/remoteAgentHost.contribution.ts
 | `icon` | `Codicon.remote` |
 | `sessionTypes` | Dynamically populated from `rootState.agents`; copilot agents use the platform `COPILOT_CLI_SESSION_TYPE` (`copilotcli`) as the logical session type id, other agents use `remoteAgentHostSessionTypeId(sanitizedAuthority, agent.provider)` (format: `'remote-${sanitizedAuthority}-${agent.provider}'`), label is the agent's `displayName` |
 
-The per-connection identifier built by `common/remoteAgentHostSessionType.ts` is used as the resource URI scheme registered via `registerChatSessionContentProvider` and the `targetChatSessionType` published by `AgentHostLanguageModelProvider`. For copilot agents, `ISession.sessionType` uses the platform `COPILOT_CLI_SESSION_TYPE` so that remote copilot sessions align with local CLI and cloud copilot sessions. A dedicated remote agent host model picker filters by `session.resource.scheme` to find models for the active connection.
+The per-connection identifier built by `vs/platform/agentHost/common/agentHostSessionType` is used as the resource URI scheme registered via `registerChatSessionContentProvider` and the `targetChatSessionType` published by `AgentHostLanguageModelProvider`. For copilot agents, `ISession.sessionType` uses the platform `COPILOT_CLI_SESSION_TYPE` so that remote copilot sessions align with local CLI and cloud copilot sessions. The sessions-core model picker reads models via `ISessionsProvider.getModels`, which for the agent host filters registered language models by the session's resource scheme to find models for the active connection, and presentation options via `ISessionsProvider.getModelPickerOptions` (grouped models, featured shown, no "Manage Models" action).
 
 Agents are discovered dynamically from each host's `rootState`; there is no hard-coded allowlist of supported agent providers. A single `RemoteAgentHostSessionsProvider` per host fans out into one `ISessionType` per advertised agent, and fires `onDidChangeSessionTypes` when the host's agent list changes. Each incoming session's type is derived from its backend URI scheme, so sessions for any agent the host exposes route through the same provider.
 
@@ -44,9 +44,9 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 
 ### How each ID is used
 
-- **`ISession.sessionType`** — The logical session type visible to the sessions framework. Controls session-type pickers, context keys (`activeSessionType`), and behavioral gating (e.g. `isActiveSessionBackgroundProvider`). Copilot agents share `copilotcli` so they behave consistently with local copilot sessions.
+- **`ISession.sessionType`** — The logical session type visible to the sessions framework. Controls session-type pickers, context keys (`sessionType`), and behavioral gating (e.g. `isActiveSessionBackgroundProvider`). Copilot agents share `copilotcli` so they behave consistently with local copilot sessions.
 
-- **`resource.scheme`** — The URI scheme of `ISession.resource` (e.g. `remote-myhost__3000-copilot:///abc123`). Routes `registerChatSessionContentProvider` calls to the correct `AgentHostSessionHandler` for each host. The remote agent host model picker filters available models by `session.resource.scheme` (not `session.sessionType`).
+- **`resource.scheme`** — The URI scheme of `ISession.resource` (e.g. `remote-myhost__3000-copilot:///abc123`). Routes `registerChatSessionContentProvider` calls to the correct `AgentHostSessionHandler` for each host. The provider's `getModels` filters available models by `session.resource.scheme` (not `session.sessionType`).
 
 - **LM vendor** — The `targetChatSessionType` published by `AgentHostLanguageModelProvider` and used as the vendor when registering language models. Same value as the resource scheme, ensuring each host's models are isolated.
 
@@ -71,11 +71,13 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 
 ## Connection Management
 
-- `setConnection(connection, defaultDirectory?)` — Wires a live agent host connection; dynamically discovers session types from the host's root state agents
+- `setConnection(connection, defaultDirectory?)` — Wires a live agent host connection directly; dynamically discovers session types from the host's root state agents
 - `clearConnection()` — Clears the connection when the host disconnects
 - Handles session notifications (`notify/sessionAdded`, `notify/sessionRemoved`) and state changes
 - Fires `onDidChangeSessionTypes` when the host's agent list changes
+- Remote-host management options do not expose an IPC output channel; remote diagnostics use the host's forwarded logs when available.
 - SSH connection progress notifications are closed when the connect promise settles; keyboard-interactive prompt cancellation rejects the connect promise as cancellation and does not show an error notification.
+- SSH config host connections use resolved `IdentityFile` and `IdentityAgent` values from `ssh -G`; encrypted private keys are prompted for a passphrase through the same quick-input bridge as keyboard-interactive auth.
 - Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt.
 - A manual SSH reconnect from the host picker bypasses that paused auto-reconnect state and starts a fresh reconnect attempt for stored SSH hosts; host-picker disconnect/cancel for SSH uses the SSH service instead of removing the stored host.
 

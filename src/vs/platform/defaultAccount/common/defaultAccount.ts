@@ -16,6 +16,17 @@ export const GitHubPaths = {
 	copilotUpgrade: 'github-copilot/upgrade?utm_source=vscode',
 } as const;
 
+/**
+ * Outcome of the last `/copilot_internal/managed_settings` fetch.
+ * - A numeric HTTP status code indicates the server responded with that code.
+ * - `'ok'`: response parsed and adapted successfully (including an empty `{}` body).
+ * - `'no-url'`: no `managedSettingsUrl` configured in product.json.
+ * - `'no-response'`: network error, all sessions rejected, or active rate-limit backoff.
+ * - `'parse-error'`: response received but JSON parsing failed.
+ * - `null`: never fetched.
+ */
+export type ManagedSettingsFetchStatus = number | 'ok' | 'no-url' | 'no-response' | 'parse-error' | null;
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -23,6 +34,11 @@ export interface IDefaultAccountProvider {
 	readonly onDidChangePolicyData: Event<IPolicyData | null>;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null;
 	readonly onDidChangeCopilotTokenInfo: Event<ICopilotTokenInfo | null>;
+	readonly managedSettingsFetchStatus: ManagedSettingsFetchStatus;
+	/** Timestamp (ms) of the last managed-settings fetch, or `null` if never fetched. */
+	readonly managedSettingsFetchedAt: number | null;
+	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
+	readonly managedSettingsRawResponse: unknown;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -49,6 +65,11 @@ export interface IDefaultAccountService {
 	readonly currentDefaultAccount: IDefaultAccount | null;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null;
 	readonly onDidChangeCopilotTokenInfo: Event<ICopilotTokenInfo | null>;
+	readonly managedSettingsFetchStatus: ManagedSettingsFetchStatus;
+	/** Timestamp (ms) of the last managed-settings fetch, or `null` if never fetched. */
+	readonly managedSettingsFetchedAt: number | null;
+	/** The raw JSON response from the managed-settings endpoint, for diagnostics. */
+	readonly managedSettingsRawResponse: unknown;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;

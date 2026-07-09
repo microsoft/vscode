@@ -52,11 +52,11 @@ export function resolveAzureEntraScopes(configuration: AzureBYOKModelProviderCon
  * Applies Azure endpoint metadata that is inferred from the resolved request URL.
  */
 export function applyAzureSupportedEndpoints(modelInfo: IChatModelInformation, url: string): void {
-	if (url.includes('/responses')) {
+	const supportedEndpoints = azureSupportedEndpointsForUrl(url);
+	if (supportedEndpoints) {
 		modelInfo.supported_endpoints = Array.from(new Set([
 			...(modelInfo.supported_endpoints ?? []),
-			ModelSupportedEndpoint.ChatCompletions,
-			ModelSupportedEndpoint.Responses
+			...supportedEndpoints
 		]));
 	}
 }
@@ -74,6 +74,7 @@ export function resolveAzureModelCapabilities(model: OpenAICompatibleLanguageMod
 	return {
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxOutputTokens,
+		contextWindow: modelConfiguration?.contextWindow,
 		toolCalling: !!model.capabilities?.toolCalling,
 		vision: !!model.capabilities?.imageInput,
 		name: model.name,
@@ -114,6 +115,29 @@ export function resolveAzureUrl(modelId: string, url: string): string {
 	} else {
 		throw new Error(`Unrecognized Azure deployment URL: ${url}`);
 	}
+}
+
+/**
+ * Determines the `supported_endpoints` for a resolved Azure BYOK URL. When the URL targets the
+ * Responses API, both Chat Completions and Responses are advertised so a Responses-shaped body
+ * (`input`) is sent; otherwise `undefined` preserves the default Chat Completions behavior. This
+ * keeps the Entra auth path consistent with the API-key path (issue #318114).
+ */
+export function azureSupportedEndpointsForUrl(url: string): ModelSupportedEndpoint[] | undefined {
+	let pathname: string;
+	try {
+		pathname = new URL(url).pathname;
+	} catch {
+		// Tolerate malformed URLs by preserving the default Chat Completions behavior.
+		return undefined;
+	}
+	// Match the final path segment so a deployment named "responses" (e.g.
+	// `/openai/deployments/responses/chat/completions`) is not misclassified. Compare
+	// case-insensitively to tolerate APIM vanity routes that may use different casing.
+	if (pathname.replace(/\/$/, '').toLowerCase().endsWith('/responses')) {
+		return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
+	}
+	return undefined;
 }
 
 export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {

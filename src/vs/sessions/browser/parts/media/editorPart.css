@@ -21,7 +21,7 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nosidebar.nochatbar .monaco-grid-view .part.editor:not(.modal-editor-part) {
+.agent-sessions-workbench.nosidebar.nosessionspart .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin-left: 10px;
 }
 

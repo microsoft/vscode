@@ -143,7 +143,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			}
 
 			// 2. Get a subscription for the terminal URI (auto-subscribes)
-			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
+			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri, 'AgentHostPty');
 			const subscription = this._subscriptionRef.object;
 
 			// 3. Wait for hydration via onDidChange, then replay snapshot
@@ -400,7 +400,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 		try {
 			// Re-subscribe to the terminal state
-			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
+			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri, 'AgentHostPty');
 			const subscription = this._subscriptionRef.object;
 
 			// Wait for hydration with a timeout — the terminal may no longer

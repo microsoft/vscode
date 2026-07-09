@@ -183,14 +183,22 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 	static readonly Kind = 'prompt';
 	readonly kind = ChatRequestSlashPromptPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string) { }
+	readonly displayText?: string;
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, displayText?: string) {
+		// Only set the own property when provided so the canonical
+		// form (no `displayText` field) stays compatible with snapshots
+		// and existing serialization.
+		if (displayText !== undefined) {
+			this.displayText = displayText;
+		}
+	}
 
 	get text(): string {
-		return `${chatSubcommandLeader}${this.name}`;
+		return this.displayText ?? `${chatSubcommandLeader}${this.name}`;
 	}
 
 	get promptText(): string {
-		return `${chatSubcommandLeader}${this.name}`;
+		return this.displayText ?? `${chatSubcommandLeader}${this.name}`;
 	}
 }
 
@@ -280,7 +288,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				return new ChatRequestSlashPromptPart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestSlashPromptPart).name
+					(part as ChatRequestSlashPromptPart).name,
+					(part as ChatRequestSlashPromptPart).displayText
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				return new ChatRequestDynamicVariablePart(

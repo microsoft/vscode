@@ -54,11 +54,15 @@ export const GenAiAttr = {
 	REQUEST_PRESENCE_PENALTY: 'gen_ai.request.presence_penalty',
 	REQUEST_SEED: 'gen_ai.request.seed',
 	REQUEST_STOP_SEQUENCES: 'gen_ai.request.stop_sequences',
+	/** Whether the request used streaming mode (recommended on streaming chat spans). */
+	REQUEST_STREAM: 'gen_ai.request.stream',
 
 	// Response
 	RESPONSE_MODEL: 'gen_ai.response.model',
 	RESPONSE_ID: 'gen_ai.response.id',
 	RESPONSE_FINISH_REASONS: 'gen_ai.response.finish_reasons',
+	/** Time to first streaming chunk, in seconds (recommended on streaming chat spans). */
+	RESPONSE_TIME_TO_FIRST_CHUNK: 'gen_ai.response.time_to_first_chunk',
 
 	// Usage
 	USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',
@@ -201,6 +205,9 @@ export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
 
+	/** Cloud agent backend version classifier: `v1` (Jobs API) | `v2` (Task API). Used to compare the rollout backend versions. */
+	CLOUD_BACKEND_VERSION: 'github.copilot.cloud.backend_version',
+
 	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',
 	/** Git HEAD branch. Dual of `copilot_chat.repo.head_branch_name`. */
@@ -252,6 +259,8 @@ export const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'local_shell',
 	'runInTerminal',
 	'run_in_terminal',
+	// Claude
+	'Bash',
 ]);
 
 /**
@@ -279,4 +288,10 @@ export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'replace_string_in_file',
 	'multi_replace_string_in_file',
 	'edit_notebook_file',
+	// Claude (capitalized)
+	'Read',
+	'Edit',
+	'MultiEdit',
+	'Write',
+	'NotebookEdit',
 ]);

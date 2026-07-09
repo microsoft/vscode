@@ -6,10 +6,9 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 
@@ -23,11 +22,10 @@ import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceSe
  * Without this contribution, that signal was never consumed and plugins
  * were never auto-updated (see microsoft/vscode#308563).
  *
- * When the signal becomes `true` and `extensions.autoUpdate === true`, we
- * silently update all installed plugins. Other auto-update modes
- * (`'onlyEnabledExtensions'`, `'onlySelectedExtensions'`) gate updates on a
- * per-extension opt-in that has no plugin equivalent, so they are treated
- * the same as `false` for plugins.
+ * When the signal becomes `true` and `extensions.autoUpdate` is `on`, we
+ * silently update all installed plugins. When auto-update is `off`, plugins
+ * are not auto-updated. (`getAutoUpdateValue()` normalizes the setting to
+ * `'on' | 'off'`, migrating any legacy stored values such as `false`.)
  *
  * The flag is cleared after every attempt — including failures — so the
  * next periodic check's `false → true` transition can always re-trigger the
@@ -43,7 +41,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -61,8 +59,8 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const autoUpdate = this._configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		if (autoUpdate !== true) {
+		const autoUpdate = this._extensionsWorkbenchService.getAutoUpdateValue();
+		if (autoUpdate === 'off') {
 			return;
 		}
 

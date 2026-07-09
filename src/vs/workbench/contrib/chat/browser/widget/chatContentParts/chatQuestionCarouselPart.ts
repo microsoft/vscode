@@ -36,7 +36,7 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { RunInTerminalTool } from '../../../../terminal/terminalContribChatExports.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -105,6 +105,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super();
 
@@ -207,9 +208,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Dismiss the carousel when the user types directly in the terminal,
 			// since they are answering the prompt themselves.
-			const execution = RunInTerminalTool.getExecution(carousel.terminalId);
-			if (execution) {
-				interactiveStore.add(execution.instance.onDidInputData(() => {
+			const terminalInstance = this._terminalChatService.getTerminalInstanceByExecutionId(carousel.terminalId);
+			if (terminalInstance) {
+				interactiveStore.add(terminalInstance.onDidInputData(() => {
 					if (!this._isSkipped) {
 						if (carousel instanceof ChatQuestionCarouselData) {
 							carousel.dismissedByTerminalInput = true;

@@ -275,6 +275,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
+	private centerAdjacentToolBarElement: HTMLElement | undefined;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -494,7 +495,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Center-Adjacent Toolbar (e.g., update indicator)
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
-			this.centerAdjacentToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerAdjacentToolBarElement, MenuId.TitleBarAdjacentCenter, {
+			this.centerAdjacentToolBarElement = centerAdjacentToolBarElement;
+			const centerAdjacentToolBar = this.centerAdjacentToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerAdjacentToolBarElement, MenuId.TitleBarAdjacentCenter, {
 				contextMenu: MenuId.TitleBarContext,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				toolbarOptions: {
@@ -503,6 +505,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
 				hoverDelegate: this.hoverDelegate
 			}));
+
+			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateCenterAdjacentToolBarOverflow()));
 		}
 
 		// Create Toolbar Actions
@@ -698,6 +703,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 					actionGroup => actionGroup === TitleBarLeadingActionsGroup
 				);
 				actions.primary.push(...leading.primary);
+				actions.primary.push(new Separator());
 			}
 
 			// --- Editor Actions
@@ -710,10 +716,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);
-
-					if (editorActions.actions.primary.length > 0) {
-						actions.primary.push(new Separator());
-					}
+					actions.primary.push(new Separator());
 
 					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
 				}
@@ -906,6 +909,32 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.updateLayout(new Dimension(width, height));
 
 		super.layoutContents(width, height);
+
+		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
+		this.updateCenterAdjacentToolBarOverflow();
+	}
+
+	/**
+	 * Hides the optional center-adjacent toolbar (e.g. the update indicator) when showing it would push the title bar
+	 * content—most notably the trailing window controls—off-screen as the window is collapsed horizontally (#303222).
+	 * Overflow is measured against actual rendered widths so the toolbar stays visible whenever it fits.
+	 */
+	private updateCenterAdjacentToolBarOverflow(): void {
+		const element = this.centerAdjacentToolBarElement;
+		if (!element) {
+			return;
+		}
+
+		// Skip measuring (and its forced reflow) when the toolbar is empty, which is the common case.
+		if (element.classList.contains('has-no-actions')) {
+			element.classList.remove('overflowing');
+			return;
+		}
+
+		// Measure from the visible state, then hide again if the title bar content overflows its width.
+		element.classList.remove('overflowing');
+		const overflows = this.rootContainer.scrollWidth > this.rootContainer.clientWidth;
+		element.classList.toggle('overflowing', overflows);
 	}
 
 	private updateLayout(dimension: Dimension): void {

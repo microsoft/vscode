@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
+import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
@@ -29,6 +31,7 @@ const stubChat = {
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
+	interactivity: constObservable(ChatInteractivity.Full),
 	description: constObservable(undefined),
 	lastTurnEnd: constObservable(undefined),
 };
@@ -46,6 +49,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		mode: constObservable(undefined),
 		isArchived: constObservable(false),
 		isRead: constObservable(true),
+		interactivity: constObservable(ChatInteractivity.Full),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 	};
@@ -75,7 +79,7 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable(sessionChats),
 		mainChat: constObservable(sessionChats[0]),
-		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },
+		capabilities: constObservable({ supportsMultipleChats: chats !== undefined && chats.length > 1 }),
 	};
 }
 
@@ -84,8 +88,23 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
+	readonly onWillSendRequest = Event.None;
+	readonly onDidSendRequest = Event.None;
+	readonly onDidArchiveSession = Event.None;
+	readonly onDidUnarchiveSession = Event.None;
+	readonly onDidDeleteSession = Event.None;
+	readonly onDidDeleteChat = Event.None;
+	readonly onDidRenameChat = Event.None;
+	readonly onDidRenameSession = Event.None;
+	readonly onDidReplaceSession = Event.None;
+	readonly onDidDiscardNewSession = Event.None;
+	readonly onDidToggleSessionStickiness = Event.None;
+
+	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -101,12 +120,23 @@ class MockSessionStore implements ISessionsManagementService {
 			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
 			const active: IActiveSession = {
 				...session,
+				isCreated: constObservable(true),
+				sticky: constObservable(false),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
+				openChats: session.chats,
+				closedChats: constObservable([]),
+				lastClosedChat: undefined,
+				visibleChatTabs: session.chats,
+				shouldShowChatTabs: constObservable(false),
 			};
 			this.activeSession.set(active, undefined);
 		} else {
 			this.activeSession.set(undefined, undefined);
 		}
+	}
+
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		this.setActiveSession(to);
 	}
 
 	setActiveChat(chat: IChat): void {
@@ -122,12 +152,25 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
 
+	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
+
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
 	}
 
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
+		for (const session of this._sessions.values()) {
+			const chat = session.chats.get().find(c => c.resource.toString() === resource.toString());
+			if (chat) {
+				return { session, chat };
+			}
+		}
+		return undefined;
+	}
+
 	getAllSessionTypes(): ISessionType[] { return []; }
 	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
+	getQuickChatSessionTypes(): IProviderSessionType[] { return []; }
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
@@ -140,11 +183,12 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 
-	openNewSessionView(): void {
+	openNewSession(): ISession | undefined {
 		this._openedNewSession = true;
 		this._openedResource = undefined;
 		this._openedChatResource = undefined;
 		this.setActiveSession(undefined);
+		return undefined;
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
@@ -156,19 +200,31 @@ class MockSessionStore implements ISessionsManagementService {
 			this.setActiveSession(session, chat);
 		}
 	}
-	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
+	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
+	discardNewSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
+	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
+	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
+	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
+	closeAllSessions(): void { throw new Error('not implemented'); }
+	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	deleteSessions(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
+	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
 }
 
 suite('SessionsNavigation', () => {
@@ -184,8 +240,14 @@ suite('SessionsNavigation', () => {
 
 		contextKeyService = disposables.add(new MockContextKeyService());
 
+		const storageService = disposables.add(new InMemoryStorageService());
+		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+
 		nav = disposables.add(new SessionsNavigation(
 			store,
+			store.activeSession,
+			store,
+			recency,
 			contextKeyService,
 			new NullLogService(),
 		));
@@ -250,7 +312,7 @@ suite('SessionsNavigation', () => {
 		assert.strictEqual(canGoForward(), false);
 	});
 
-	test('navigating to a new session after goBack clears forward history', async () => {
+	test('opening a new session after goBack keeps older entries reachable (MRU, no truncation)', async () => {
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
 		const s3 = stubSession('s3');
@@ -258,24 +320,29 @@ suite('SessionsNavigation', () => {
 		store.addSession(s2);
 		store.addSession(s3);
 
-		store.setActiveSession(s1);
-		store.setActiveSession(s2);
+		store.setActiveSession(s1); // recency=[s1]
+		store.setActiveSession(s2); // recency=[s2, s1], cursor=s2
 
-		await nav.goBack();
-		// Now navigate to s3 instead of going forward
+		await nav.goBack(); // cursor=s1
+		// Now open s3 explicitly: s3 is promoted to the front -> recency=[s3, s2, s1]
 		store.setActiveSession(s3);
 
 		assert.strictEqual(canGoBack(), true);
 		assert.strictEqual(canGoForward(), false);
 
-		// Going back should go to s1 (s2 is no longer in forward history)
+		// Unlike browser-style truncation, s2 is NOT discarded; going back from
+		// s3 lands on the next most-recent entry, s2.
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedResource?.toString(), s2.resource.toString());
+
+		// And s1 remains reachable one step further back.
 		await nav.goBack();
 		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
 	});
 
-	test('reopening an earlier session removes it from history and appends at end (no duplicates)', async () => {
-		// Regression: A→B→C, back→back→fwd→fwd, open A again
-		// should produce history [B,C,A] not [A,B,C,A]
+	test('reopening an earlier session moves it to the front of recency (no duplicates)', async () => {
+		// A→B→C, back→back→fwd→fwd, open A again
+		// should move A to the front: recency=[A,C,B] (no duplicate A)
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
 		const s3 = stubSession('s3');
@@ -283,16 +350,16 @@ suite('SessionsNavigation', () => {
 		store.addSession(s2);
 		store.addSession(s3);
 
-		store.setActiveSession(s1); // history=[s1], idx=0
-		store.setActiveSession(s2); // history=[s1,s2], idx=1
-		store.setActiveSession(s3); // history=[s1,s2,s3], idx=2
+		store.setActiveSession(s1); // recency=[s1]
+		store.setActiveSession(s2); // recency=[s2,s1]
+		store.setActiveSession(s3); // recency=[s3,s2,s1]
 
-		await nav.goBack();  // idx=1
-		await nav.goBack();  // idx=0
-		await nav.goForward(); // idx=1
-		await nav.goForward(); // idx=2
+		await nav.goBack();  // cursor=s2
+		await nav.goBack();  // cursor=s1
+		await nav.goForward(); // cursor=s2
+		await nav.goForward(); // cursor=s3
 
-		// Now open s1 again — should deduplicate: history=[s2,s3,s1]
+		// Now open s1 again — moves to front: recency=[s1,s3,s2]
 		store.setActiveSession(s1);
 
 		// Back once: s3

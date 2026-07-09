@@ -8,7 +8,7 @@ The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench ta
 
 - **Fixed layout** — Part positions are not configurable via settings
 - **Simplified chrome** — No activity bar, no status bar, no banner
-- **Chat-first UX** — Chat bar is a primary part alongside sidebar and auxiliary bar
+- **Sessions-first UX** — The Sessions Part is the primary content surface, hosting a grid of one or more session views (each rendering the active chat of its session) alongside the sidebar and auxiliary bar
 - **Modal editor** — Editors appear as modal overlays rather than in the main grid
 - **Session-aware titlebar** — Titlebar shows the active session, session picker, and signed-in account widget
 - **Provider model** — Session backends (local CLI, cloud, remote agent host) register as pluggable providers
@@ -20,12 +20,15 @@ The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench ta
 | Document | Description |
 |----------|-------------|
 | [LAYOUT.md](LAYOUT.md) | Workbench layout specification — grid structure, parts, titlebar, per-session layout state |
+| [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) | Per-session layout state — how the auxiliary bar, panel, and editor working sets are captured/restored on session switch |
 | [LAYERS.md](LAYERS.md) | Import layering rules — what each layer can and cannot import, ESLint enforcement |
 | [SESSIONS.md](SESSIONS.md) | Sessions architecture — layers, provider model, core interfaces, data flow, metadata contract |
 | [MOBILE.md](MOBILE.md) | Mobile layout specification |
 | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) | AI customization design document |
 | [copilot-customizations-spec.md](copilot-customizations-spec.md) | Copilot customizations specification |
 | [contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) | Copilot chat sessions provider details |
+| [contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) | Local in-process VS Code chat sessions provider details |
+| [contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) | Agent host provider details (shared base + local agent host) |
 | [contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) | Remote agent host provider details |
 
 ## Adding New Functionality

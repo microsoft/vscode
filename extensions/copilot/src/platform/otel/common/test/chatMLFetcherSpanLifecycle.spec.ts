@@ -48,6 +48,8 @@ describe('chatMLFetcher Span Lifecycle', () => {
 			[GenAiAttr.RESPONSE_ID]: 'chatcmpl-xyz',
 			[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 			[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: 450,
+			[GenAiAttr.REQUEST_STREAM]: true,
+			[GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: 0.45,
 			[CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: 3_500_000_000,
 		});
 		span.setStatus(SpanStatusCode.OK);
@@ -55,6 +57,8 @@ describe('chatMLFetcher Span Lifecycle', () => {
 
 		expect(s.attributes[GenAiAttr.USAGE_INPUT_TOKENS]).toBe(1500);
 		expect(s.attributes[GenAiAttr.RESPONSE_MODEL]).toBe('gpt-4o-2024-08-06');
+		expect(s.attributes[GenAiAttr.REQUEST_STREAM]).toBe(true);
+		expect(s.attributes[GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]).toBe(0.45);
 		expect(s.attributes[CopilotChatAttr.COPILOT_USAGE_NANO_AIU]).toBe(3_500_000_000);
 		expect(s.statusCode).toBe(SpanStatusCode.OK);
 		expect(s.ended).toBe(true);

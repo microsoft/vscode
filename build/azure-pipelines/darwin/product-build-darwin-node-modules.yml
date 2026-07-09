@@ -28,11 +28,20 @@ jobs:
         inputs:
           azureSubscription: vscode
           KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
+          SecretsFilter: "macos-developer-certificate,macos-developer-certificate-key"
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
+
+      - template: ../common/apply-sdk-canary.yml@self
 
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
@@ -78,7 +87,7 @@ jobs:
           npm_config_arch: $(VSCODE_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
           # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
           # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
           # flipped the default to support legacy linux distros which shouldn't happen

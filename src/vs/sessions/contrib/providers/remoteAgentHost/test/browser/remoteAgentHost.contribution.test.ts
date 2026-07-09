@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { shouldPauseSSHReconnectAfterFailure, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
+import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey, SSHReconnectState } from '../../browser/remoteAgentHost.contribution.js';
 
 suite('SSHReconnectState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,6 +112,115 @@ suite('shouldPauseSSHReconnectAfterFailure', () => {
 		}, {
 			cancellation: true,
 			regularError: false,
+		});
+	});
+});
+
+suite('disconnectSSHEntry', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function makeSSHConfigConnection(overrides: Partial<IRemoteAgentHostSSHConnection> = {}): IRemoteAgentHostSSHConnection {
+		return {
+			type: RemoteAgentHostEntryType.SSH,
+			address: 'localhost:4321',
+			sshConfigHost: 'myserver',
+			hostName: 'myserver.example.com',
+			...overrides,
+		};
+	}
+
+	test('removes the entry from configured storage BEFORE tearing down the SSH tunnel', async () => {
+		// Regression guard for the X-button picker fix. `_sshService.disconnect`
+		// fires `onDidChangeConnections` synchronously, which the contribution
+		// translates into `_reconcile` → `_reconnectSSHEntries`. If the entry
+		// is still in configured storage at that point, the auto-reconnect
+		// path immediately reconnects the host we just told it to disconnect
+		// (and on the next window reload, the persisted entry reconnects too).
+		const calls: string[] = [];
+		const connection = makeSSHConfigConnection();
+
+		// Block removeRemoteAgentHost so we can prove disconnect waits for it.
+		const removed = new DeferredPromise<void>();
+
+		const remoteAgentHostService = {
+			removeRemoteAgentHost: async (address: string) => {
+				calls.push(`remove:${address}`);
+				await removed.p;
+			},
+		};
+		const sshService = {
+			disconnect: async (key: string) => {
+				calls.push(`ssh:${key}`);
+			},
+		};
+
+		const pending = disconnectSSHEntry(connection, remoteAgentHostService, sshService);
+
+		// Give microtasks a chance to drain. ssh disconnect must NOT have run yet
+		// because removeRemoteAgentHost is still pending.
+		await timeout(0);
+		assert.deepStrictEqual(calls, ['remove:localhost:4321']);
+
+		removed.complete();
+		await pending;
+
+		assert.deepStrictEqual(calls, ['remove:localhost:4321', 'ssh:ssh:myserver']);
+	});
+
+	test('uses sshConfigHost-based key when sshConfigHost is set', async () => {
+		const calls: string[] = [];
+		await disconnectSSHEntry(
+			makeSSHConfigConnection({ sshConfigHost: 'myserver' }),
+			{ removeRemoteAgentHost: async () => { /* noop */ } },
+			{ disconnect: async (key: string) => { calls.push(key); } },
+		);
+		assert.deepStrictEqual(calls, ['ssh:myserver']);
+	});
+
+	test('uses user@host:port key when sshConfigHost is not set', async () => {
+		const calls: string[] = [];
+		await disconnectSSHEntry(
+			{
+				type: RemoteAgentHostEntryType.SSH,
+				address: 'localhost:4321',
+				hostName: 'myserver.example.com',
+				user: 'me',
+				port: 2222,
+			},
+			{ removeRemoteAgentHost: async () => { /* noop */ } },
+			{ disconnect: async (key: string) => { calls.push(key); } },
+		);
+		assert.deepStrictEqual(calls, ['me@myserver.example.com:2222']);
+	});
+});
+
+suite('sshConnectionKey', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches the keys the SSH service stores connections under', () => {
+		assert.deepStrictEqual({
+			configHost: sshConnectionKey({
+				type: RemoteAgentHostEntryType.SSH,
+				address: 'localhost:4321',
+				sshConfigHost: 'myserver',
+				hostName: 'ignored',
+			}),
+			userHostPort: sshConnectionKey({
+				type: RemoteAgentHostEntryType.SSH,
+				address: 'localhost:4321',
+				hostName: 'myserver.example.com',
+				user: 'me',
+				port: 2222,
+			}),
+			hostOnly: sshConnectionKey({
+				type: RemoteAgentHostEntryType.SSH,
+				address: 'localhost:4321',
+				hostName: 'myserver.example.com',
+			}),
+		}, {
+			configHost: 'ssh:myserver',
+			userHostPort: 'me@myserver.example.com:2222',
+			hostOnly: 'myserver.example.com@myserver.example.com:22',
 		});
 	});
 });

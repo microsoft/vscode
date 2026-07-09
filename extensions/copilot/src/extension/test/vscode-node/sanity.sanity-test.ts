@@ -21,6 +21,28 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { TestChatRequest } from '../node/testHelpers';
 
 /**
+ * Render a short, log-friendly description of what came back from a chat
+ * request. Used in assertion messages so that flaky failures in CI carry
+ * enough context to tell an empty model response apart from a real
+ * regression (e.g. error details from upstream, or a stream that only
+ * produced non-markdown parts).
+ */
+function describeOutcome(stream: SpyChatResponseStream, result?: vscode.ChatResult): string {
+	const parts = stream.items.map(p => p.constructor.name);
+	let summary = `items=${stream.items.length} [${parts.join(', ')}] currentProgress=${JSON.stringify(stream.currentProgress)}`;
+	const responseId = result?.metadata?.responseId;
+	if (responseId) {
+		// The responseId is the most useful breadcrumb for correlating a
+		// failed sanity run with server-side logs.
+		summary += ` responseId=${responseId}`;
+	}
+	if (result?.errorDetails) {
+		summary += ` errorDetails=${JSON.stringify(result.errorDetails)}`;
+	}
+	return summary;
+}
+
+/**
  * Running these locally? You may have to run `npm run setup` again
  */
 
@@ -77,16 +99,16 @@ suite('Copilot Chat Sanity Test', function () {
 			let stream = new SpyChatResponseStream();
 			let interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Write me a for loop in javascript'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
 
-			await interactiveSession.getResult();
+			const result1 = await interactiveSession.getResult();
 
-			assert.ok(stream.currentProgress, 'Expected progress after first request');
+			assert.ok(stream.currentProgress, `Expected progress after first request. ${describeOutcome(stream, result1)}`);
 			const oldText = stream.currentProgress;
 
 			stream = new SpyChatResponseStream();
 			interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('Can you make it in typescript instead'), stream, fakeToken, { agentName: '', agentId: '', intentId: '' }, () => false, undefined);
 			const result2 = await interactiveSession.getResult();
 
-			assert.ok(stream.currentProgress, 'Expected progress after second request');
+			assert.ok(stream.currentProgress, `Expected progress after second request. ${describeOutcome(stream, result2)}`);
 			assert.notStrictEqual(stream.currentProgress, oldText, 'Expected different progress text after second request');
 
 			const conversation = conversationStore.getConversation(result2.metadata.responseId);
@@ -122,14 +144,10 @@ suite('Copilot Chat Sanity Test', function () {
 
 				const onWillInvokeTool = Event.toPromise(toolsService.onWillInvokeTool);
 				const getResultPromise = interactiveSession.getResult();
-				const dumpStream = () => {
-					const parts = stream.items.map(p => p.constructor.name);
-					return `items=${stream.items.length} [${parts.join(', ')}] currentProgress=${JSON.stringify(stream.currentProgress)}`;
-				};
 				try {
 					await Promise.race([
 						onWillInvokeTool,
-						timeout(20_000).then(() => Promise.reject(new Error('timed out waiting for tool call. ' + dumpStream())))
+						timeout(20_000).then(() => Promise.reject(new Error('timed out waiting for tool call. ' + describeOutcome(stream))))
 					]);
 					await getResultPromise;
 					return stream;
@@ -147,20 +165,21 @@ suite('Copilot Chat Sanity Test', function () {
 							? ` error=${settled.error.stack ?? settled.error.message}`
 							: ` error=${String(settled.error)}`
 						: '';
-					throw new Error(`${cause.message} | follow-up: kind=${settled.kind}${followUpError} ${dumpStream()}`, { cause });
+					const resolvedResult = settled.kind === 'resolved' ? settled.value : undefined;
+					throw new Error(`${cause.message} | follow-up: kind=${settled.kind}${followUpError} ${describeOutcome(stream, resolvedResult)}`, { cause });
 				}
 			};
 
 			const stream = await runAgentRequest();
 
-			assert.ok(stream.currentProgress, 'Expected output');
+			assert.ok(stream.currentProgress, `Expected output. ${describeOutcome(stream)}`);
 			const oldText = stream.currentProgress;
 
 			const stream2 = new SpyChatResponseStream();
 			const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('And what is 1+1'), stream2, fakeToken, { agentName: '', agentId: '', intentId: Intent.Agent }, () => false, undefined);
 			const result2 = await interactiveSession.getResult();
 
-			assert.ok(stream2.currentProgress, 'Expected progress after second request');
+			assert.ok(stream2.currentProgress, `Expected progress after second request. ${describeOutcome(stream2, result2)}`);
 			assert.notStrictEqual(stream2.currentProgress, oldText, 'Expected different progress text after second request');
 
 			const conversation = conversationStore.getConversation(result2.metadata.responseId);
@@ -178,8 +197,8 @@ suite('Copilot Chat Sanity Test', function () {
 			const interactiveSession = instaService.createInstance(ChatParticipantRequestHandler, [], new TestChatRequest('What is a fibonacci sequence?'), progressReport, fakeToken, { agentName: '', agentId: '', intentId: 'explain' }, () => false, undefined);
 
 			// Ask a `/explain` question
-			await interactiveSession.getResult();
-			assert.ok(progressReport.currentProgress);
+			const result = await interactiveSession.getResult();
+			assert.ok(progressReport.currentProgress, `Expected progress from /explain. ${describeOutcome(progressReport, result)}`);
 		});
 	});
 

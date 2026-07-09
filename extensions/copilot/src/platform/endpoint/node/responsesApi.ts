@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, modelSupportCacheBreakPoints } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -123,6 +123,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
 		: undefined;
 	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
+	const promptCacheBreakpointsEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, expService);
 
 	const body: IEndpointBody = {
 		model,
@@ -130,6 +131,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 			toolsMap,
 			shouldLoadToolFromToolSearch,
 			modeChanged,
+			supportsCacheBreakpoints: promptCacheBreakpointsEnabled && modelSupportCacheBreakPoints(endpoint),
 		}),
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
@@ -155,14 +157,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
-	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
-	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
-	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
+	const summary: string | undefined = undefined;
 	if (effort || summary) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
@@ -301,10 +300,11 @@ interface RawMessagesToResponseAPIOptions {
 	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
 	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
 	readonly modeChanged?: boolean;
+	readonly supportsCacheBreakpoints?: boolean;
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
-	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false, supportsCacheBreakpoints = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
 
@@ -375,6 +375,7 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
+		const inputStartIndex = input.length;
 		switch (message.role) {
 			case Raw.ChatRole.Assistant:
 				if (message.content.length) {
@@ -446,21 +447,38 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 								detail: c.imageUrl.detail || 'auto',
 								image_url: c.imageUrl.url,
 							}));
+						const asFiles = message.content
+							.filter((c): c is RawDocumentContentPart => c.type === Raw.ChatCompletionContentPartKind.Document)
+							.map(rawDocumentToResponsesInputFile)
+							.filter(isDefined);
 
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+						}
+						if (asFiles.length) {
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
+		}
+
+		if (supportsCacheBreakpoints && input.length > inputStartIndex && hasCacheBreakpoint(message)) {
+			// Attach the prompt-cache marker to the last item this message produced, scanning back past
+			// reasoning/compaction items that cannot carry it.
+			for (let inputIndex = input.length - 1; inputIndex >= inputStartIndex; inputIndex--) {
+				if (tryApplyPromptCacheBreakpoint(input[inputIndex])) {
+					break;
+				}
+			}
 		}
 	}
 
@@ -520,12 +538,28 @@ function getLatestCompactionMessageIndex(messages: readonly Raw.ChatMessage[]): 
 	return undefined;
 }
 
+type RawDocumentContentPart = Extract<Raw.ChatCompletionContentPart, { type: Raw.ChatCompletionContentPartKind.Document }>;
+
+function rawDocumentToResponsesInputFile(part: RawDocumentContentPart): OpenAI.Responses.ResponseInputFile | undefined {
+	if (part.documentData.mediaType !== 'application/pdf') {
+		return undefined;
+	}
+
+	return {
+		type: 'input_file',
+		filename: 'document.pdf',
+		file_data: `data:${part.documentData.mediaType};base64,${part.documentData.data}`,
+	};
+}
+
 function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseInputContent | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			return { type: 'input_text', text: part.text };
 		case Raw.ChatCompletionContentPartKind.Image:
 			return { type: 'input_image', detail: part.imageUrl.detail || 'auto', image_url: part.imageUrl.url };
+		case Raw.ChatCompletionContentPartKind.Document:
+			return rawDocumentToResponsesInputFile(part);
 		case Raw.ChatCompletionContentPartKind.Opaque: {
 			const maybeCast = part.value as OpenAI.Responses.ResponseInputContent;
 			if (maybeCast.type === 'input_text' || maybeCast.type === 'input_image' || maybeCast.type === 'input_file') {
@@ -544,11 +578,77 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
+interface ResponsesPromptCacheBreakpoint {
+	readonly mode: 'explicit';
+}
+
+const promptCacheBreakpoint: ResponsesPromptCacheBreakpoint = { mode: 'explicit' };
+
+/**
+ * Whether a raw message carries one or more prompt-cache breakpoints. The Responses content
+ * converters drop `CacheBreakpoint` parts, so we detect them at the message level and later attach
+ * `prompt_cache_breakpoint` to the appropriate Responses input item/content block.
+ */
+function hasCacheBreakpoint(message: Raw.ChatMessage): boolean {
+	return message.content.some(part => part.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint);
+}
+
+/**
+ * Attaches a prompt-cache marker (`prompt_cache_breakpoint: { mode: 'explicit' }`) to a single
+ * Responses API input item.
+ *
+ * Items that carry a non-empty `content` array (user/system/assistant messages) receive the marker
+ * on their last content block. Items without a content array (`function_call`,
+ * `function_call_output`, `tool_search_*`) receive the marker at the item level. Returns whether a
+ * marker was applied.
+ */
+function tryApplyPromptCacheBreakpoint(item: OpenAI.Responses.ResponseInputItem): boolean {
+	const content = (item as { content?: unknown }).content;
+	if (Array.isArray(content)) {
+		const lastContentBlock = content.at(-1) as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint } | undefined;
+		if (!lastContentBlock) {
+			return false;
+		}
+
+		lastContentBlock.prompt_cache_breakpoint = promptCacheBreakpoint;
+		return true;
+	}
+
+	const itemType = (item as { type?: string }).type;
+	if (
+		itemType === 'function_call'
+		|| itemType === 'function_call_output'
+		|| itemType === 'tool_search_call'
+		|| itemType === 'tool_search_output'
+	) {
+		(item as { prompt_cache_breakpoint?: ResponsesPromptCacheBreakpoint }).prompt_cache_breakpoint = promptCacheBreakpoint;
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * The Responses API rejects the entire request with
+ * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
+ * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
+ * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
+ * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
+ * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
+ * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
+ * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
+ */
+function isResponsesReasoningId(id: string | undefined): boolean {
+	return typeof id === 'string' && id.startsWith('rs');
+}
+
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const thinkingData = rawPartAsThinkingData(part);
-			if (thinkingData) {
+			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
+			// block with no encrypted payload) would otherwise 400 the whole request.
+			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
 				return {
 					type: 'reasoning',
 					id: thinkingData.id,
@@ -1074,7 +1174,16 @@ export class OpenAIResponsesProcessor {
 
 		switch (chunk.type) {
 			case 'error':
-				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				// Surface the error as a progress delta, but also produce a terminal
+				// completion so the request resolves to a meaningful server error
+				// instead of collapsing into the generic "Response contained no
+				// choices" fallback when the stream ends without a terminal event.
+				onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
+				return this.buildTerminalCompletion(
+					{ output: [] } as unknown as CapiResponseTerminalEvent['response'],
+					FinishedCompletionReason.ServerError,
+					{ error: mapResponsesApiError({ code: chunk.code, message: chunk.message } as OpenAI.Responses.ResponseError) }
+				);
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
 				// When text arrives from a new output item, emit a paragraph

@@ -31,7 +31,7 @@ export class MockChatModeService implements IChatModeService {
 			findModeByName(name: string): IChatMode | undefined {
 				return modes.builtin.find(mode => mode.name.get() === name) ?? modes.custom.find(mode => mode.name.get() === name);
 			},
-			waitForRefresh(): Promise<void> {
+			waitForPendingUpdates(): Promise<void> {
 				return Promise.resolve();
 			},
 		};

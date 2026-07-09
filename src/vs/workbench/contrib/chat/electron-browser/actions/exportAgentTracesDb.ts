@@ -22,9 +22,16 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
  * gated on `chat.agentHost.otel.dbSpanExporter.enabled` so it does not appear
  * when DB mode is off — in that case there is nothing to export.
  *
- * The action copies the live DB file directly. SQLite handles concurrent reads
- * cleanly when the writer is in WAL mode (see `OTelSqliteStore`), so the file
- * remains a valid SQLite database even if the agent host is mid-write.
+ * The store runs in WAL mode (see `OTelSqliteStore`) and lives in a separate
+ * utility process, so we can't safely call `wal_checkpoint` from here. To
+ * avoid missing data that still sits in the `-wal` sidecar we also copy
+ * `<src>-wal` and `<src>-shm` next to the destination when they exist. The
+ * resulting trio is a valid WAL-mode SQLite database that any SQLite reader
+ * can open and checkpoint on demand.
+ *
+ * When invoked programmatically with a `savePath` (URI or filesystem path)
+ * pointing to a destination directory, the DB is copied to
+ * `<savePath>/agent-host-traces.db` and no save dialog is shown.
  */
 export function registerExportAgentTracesDbAction() {
 	registerAction2(class ExportAgentTracesDbAction extends Action2 {
@@ -38,7 +45,7 @@ export function registerExportAgentTracesDbAction() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
+		async run(accessor: ServicesAccessor, savePath?: URI | string): Promise<void> {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const notificationService = accessor.get(INotificationService);
@@ -53,17 +60,33 @@ export function registerExportAgentTracesDbAction() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), 'agent-host-traces.db');
-			const target = await fileDialogService.showSaveDialog({
-				defaultUri,
-				filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }],
-			});
+			let target: URI | undefined;
+			if (savePath) {
+				const saveUri = typeof savePath === 'string' ? URI.file(savePath) : savePath;
+				target = joinPath(saveUri, 'agent-host-traces.db');
+			} else {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), 'agent-host-traces.db');
+				target = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }],
+				});
+			}
 			if (!target) {
 				return;
 			}
 
 			try {
 				await fileService.copy(sourceUri, target, true);
+
+				// Also copy the WAL and SHM sidecars when present so the export
+				// includes data that hasn't been checkpointed into the main .db.
+				for (const suffix of ['-wal', '-shm']) {
+					const sidecarSrc = sourceUri.with({ path: sourceUri.path + suffix });
+					if (await fileService.exists(sidecarSrc)) {
+						const sidecarDest = target.with({ path: target.path + suffix });
+						await fileService.copy(sidecarSrc, sidecarDest, true);
+					}
+				}
 			} catch (error) {
 				notificationService.notify({
 					severity: Severity.Error,

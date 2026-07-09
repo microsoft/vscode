@@ -7,7 +7,7 @@
 /* eslint-disable no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
-import type { IBrowserViewTheme } from '../common/browserView.js';
+import type { IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
 
 /**
  * Preload script for pages loaded in Integrated Browser
@@ -124,6 +124,11 @@ function init() {
 		() => ipcRenderer.send('vscode:browserView:elementPickStopped')
 	);
 
+	const areaPicker = new AreaPicker(
+		rect => ipcRenderer.send('vscode:browserView:areaPicked', rect),
+		() => ipcRenderer.send('vscode:browserView:areaPickStopped')
+	);
+
 	const trackedElementsById = new Map<string, WeakRef<Element>>();
 	const finalizationRegistry = new FinalizationRegistry<string>(id => {
 		trackedElementsById.delete(id);
@@ -158,12 +163,19 @@ function init() {
 	// Invoked over IPC to support frames (executeJavaScriptInIsolatedWorld doesn't exist on WebFrameMain).
 	ipcRenderer.on('vscode:browserView:setTheme', (_event: unknown, theme: IBrowserViewTheme) => {
 		elementPicker.setTheme(theme);
+		areaPicker.setTheme(theme);
 	});
 	ipcRenderer.on('vscode:browserView:startElementPicker', (_event: unknown) => {
 		elementPicker.start();
 	});
 	ipcRenderer.on('vscode:browserView:stopElementPicker', (_event: unknown) => {
 		elementPicker.stop();
+	});
+	ipcRenderer.on('vscode:browserView:startAreaPicker', (_event: unknown) => {
+		areaPicker.start();
+	});
+	ipcRenderer.on('vscode:browserView:stopAreaPicker', (_event: unknown) => {
+		areaPicker.stop();
 	});
 	ipcRenderer.on('vscode:browserView:highlightElement', (_event: unknown, { elementId }: { elementId: string }) => {
 		const element = getElement(elementId);
@@ -600,7 +612,7 @@ class ElementPicker {
 	 * Samples `elementFromPoint` at the 4 corners, 4 edge midpoints, and
 	 * center, then returns their deepest common ancestor.
 	 */
-	private _pickRegionAncestor(rect: { x: number; y: number; width: number; height: number }): Element | undefined {
+	private _pickRegionAncestor(rect: IBrowserViewRect): Element | undefined {
 		const { x, y, width, height } = rect;
 		const x2 = x + width;
 		const y2 = y + height;
@@ -759,6 +771,233 @@ class ElementPicker {
 		host.style.setProperty('--vscode-button-background', theme?.buttonBackground ?? null);
 		host.style.setProperty('--vscode-button-foreground', theme?.buttonForeground ?? null);
 		host.style.setProperty('--pick-font', theme?.font ?? null);
+	}
+}
+
+/**
+ * Drag-to-select rectangle picker used by the "Add Area Screenshot to Chat"
+ * flow. Mounts a transparent shadow overlay that captures pointer
+ * events, draws a dotted rubber-band rectangle while dragging, and on pointer
+ * up reports the selected region in **viewport coordinates**. ESC or a
+ * zero-area drag cancels the pick.
+ */
+class AreaPicker {
+	private static readonly _MIN_AREA_PX = 4;
+	private static readonly _CURSOR_CROSSHAIR = '/* VS Code injected style */ * { cursor: crosshair !important; }';
+
+	private _selectionActive = false;
+
+	private readonly _shadowHost: HTMLDivElement;
+	private readonly _dragbox: HTMLDivElement;
+
+	private _dragStart: { x: number; y: number } | undefined;
+	private _cursorStylesheet: HTMLStyleElement | undefined;
+
+	constructor(
+		private readonly _onPicked: (rect: IBrowserViewRect) => void,
+		private readonly _onStopped: () => void
+	) {
+		const shadowHost = document.createElement('div');
+		shadowHost.setAttribute('data-vscode-area-pick-host', '');
+		shadowHost.style.cssText = 'position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647; pointer-events: none;';
+		const root = shadowHost.attachShadow({ mode: 'closed' });
+		root.appendChild(AreaPicker._buildStyle());
+		this._shadowHost = shadowHost;
+
+		// A fixed full-viewport layer below the dragbox so the page underneath
+		// doesn't receive hover/click events while we're picking. The layer is
+		// transparent — the actual page is still visible.
+		const overlay = document.createElement('div');
+		overlay.className = 'overlay';
+		root.appendChild(overlay);
+
+		const dragbox = document.createElement('div');
+		dragbox.className = 'dragbox';
+		dragbox.style.display = 'none';
+		root.appendChild(dragbox);
+		this._dragbox = dragbox;
+	}
+
+	start(): void {
+		if (this._selectionActive) {
+			return;
+		}
+		this._dragStart = undefined;
+
+		document.documentElement.appendChild(this._shadowHost);
+		this._selectionActive = true;
+
+		// Force a crosshair cursor across the whole page while picking.
+		const cursorStyle = document.createElement('style');
+		cursorStyle.setAttribute('data-vscode-area-pick-cursor', '');
+		cursorStyle.textContent = AreaPicker._CURSOR_CROSSHAIR;
+		document.head.appendChild(cursorStyle);
+		this._cursorStylesheet = cursorStyle;
+
+		window.addEventListener('pointermove', this._onPointerMove, true);
+		window.addEventListener('pointerdown', this._onPointerDown, true);
+		window.addEventListener('pointerup', this._onPointerUp, true);
+		window.addEventListener('click', this._onClick, true);
+		window.addEventListener('contextmenu', this._onClick, true);
+		window.addEventListener('keydown', this._onKeyDown, true);
+	}
+
+	stop(): void {
+		if (!this._selectionActive) {
+			return;
+		}
+		this._teardown();
+		this._onStopped();
+	}
+
+	/**
+	 * Synchronous teardown of the overlay, cursor style, and event listeners.
+	 * Used by both {@link stop} (which then fires `_onStopped`) and `_onPointerUp`
+	 * (which fires `_onPicked` or `_onStopped` after teardown completes, so the
+	 * IPC consumer can capture the page without our overlay in the frame).
+	 */
+	private _teardown(): void {
+		this._selectionActive = false;
+		this._shadowHost.remove();
+
+		this._cursorStylesheet?.remove();
+		this._cursorStylesheet = undefined;
+
+		window.removeEventListener('pointermove', this._onPointerMove, true);
+		window.removeEventListener('pointerdown', this._onPointerDown, true);
+		window.removeEventListener('pointerup', this._onPointerUp, true);
+		window.removeEventListener('click', this._onClick, true);
+		window.removeEventListener('contextmenu', this._onClick, true);
+		window.removeEventListener('keydown', this._onKeyDown, true);
+
+		this._dragbox.style.display = 'none';
+		this._dragbox.style.left = '0px';
+		this._dragbox.style.top = '0px';
+		this._dragbox.style.width = '0px';
+		this._dragbox.style.height = '0px';
+		this._dragStart = undefined;
+	}
+
+	setTheme(theme: IBrowserViewTheme): void {
+		this._shadowHost.style.setProperty('--vscode-focusBorder', theme?.focusBorder ?? null);
+	}
+
+	private _onPointerDown = (e: PointerEvent): void => {
+		if (!this._selectionActive || e.button !== 0) {
+			return;
+		}
+		this._dragStart = { x: e.clientX, y: e.clientY };
+		this._dragbox.style.display = 'block';
+		this._dragbox.style.left = `${e.clientX}px`;
+		this._dragbox.style.top = `${e.clientY}px`;
+		this._dragbox.style.width = '0px';
+		this._dragbox.style.height = '0px';
+		e.preventDefault();
+		e.stopPropagation();
+	};
+
+	private _onPointerMove = (e: PointerEvent): void => {
+		if (!this._selectionActive || !this._dragStart) {
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+		const left = Math.min(this._dragStart.x, e.clientX);
+		const top = Math.min(this._dragStart.y, e.clientY);
+		const width = Math.abs(e.clientX - this._dragStart.x);
+		const height = Math.abs(e.clientY - this._dragStart.y);
+		this._dragbox.style.left = `${left}px`;
+		this._dragbox.style.top = `${top}px`;
+		this._dragbox.style.width = `${width}px`;
+		this._dragbox.style.height = `${height}px`;
+	};
+
+	private _onPointerUp = (e: PointerEvent): void => {
+		if (!this._selectionActive || !this._dragStart) {
+			return;
+		}
+		const start = this._dragStart;
+
+		const left = Math.min(start.x, e.clientX);
+		const top = Math.min(start.y, e.clientY);
+		const width = Math.abs(e.clientX - start.x);
+		const height = Math.abs(e.clientY - start.y);
+
+		// Tear down the overlay before committing so the IPC consumer can
+		// immediately start a screenshot without our dragbox being in the way.
+		this._teardown();
+
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (width < AreaPicker._MIN_AREA_PX || height < AreaPicker._MIN_AREA_PX) {
+			this._onStopped();
+			return;
+		}
+
+		// Keep rectangle in viewport (client) coordinates to match other screenshot
+		// capture call sites that pass viewport-space bounds as pageRect. The
+		// main-process clip math (`pageRect * visualViewportScale * zoomFactor`)
+		// measures from the visual viewport origin, so subtract the visual
+		// viewport's offset (non-zero only when pinch-panned) to convert layout-
+		// viewport client coords into the same coord space that Add Element to
+		// Chat's CDP box-model bounds use.
+		const vv = window.visualViewport;
+		const offsetLeft = vv?.offsetLeft ?? 0;
+		const offsetTop = vv?.offsetTop ?? 0;
+		const rect = { x: left - offsetLeft, y: top - offsetTop, width, height };
+
+		// The synchronous DOM teardown above is the prerequisite — the next compositor
+		// frame won't contain the overlay. Waiting for that frame to actually land
+		// before reading the GPU surface is the consumer's responsibility (see
+		// `awaitNextPaint` in `BrowserView.captureScreenshot`).
+		this._onPicked(rect);
+	};
+
+	private _onClick = (e: Event): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		e.preventDefault();
+		e.stopPropagation();
+	};
+
+	private _onKeyDown = (e: KeyboardEvent): void => {
+		if (!this._selectionActive) {
+			return;
+		}
+		if (e.key === 'Escape') {
+			this.stop();
+			e.preventDefault();
+			e.stopPropagation();
+		}
+	};
+
+	private static _buildStyle(): HTMLStyleElement {
+		const style = document.createElement('style');
+		style.textContent = `
+			:host {
+				all: initial;
+				pointer-events: none !important;
+			}
+			.overlay {
+				position: fixed; inset: 0;
+				background: transparent;
+				z-index: 1;
+				/* Capture hit-testing so pointer events don't reach the underlying
+				 * page during a pick — otherwise hover/:hover styles would
+				 * fire on elements beneath the cursor while we're dragging. */
+				pointer-events: auto;
+			}
+			.dragbox {
+				position: fixed; box-sizing: border-box;
+				border: 1px dashed var(--vscode-focusBorder, #0078d4);
+				background: color-mix(in srgb, var(--vscode-focusBorder, #0078d4) 12%, transparent);
+				z-index: 2;
+				pointer-events: auto;
+			}
+		`;
+		return style;
 	}
 }
 

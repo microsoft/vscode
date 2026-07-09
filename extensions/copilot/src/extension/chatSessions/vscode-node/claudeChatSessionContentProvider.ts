@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { CLAUDE_SDK_EXTENSION_ID, IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -88,6 +89,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -120,6 +122,27 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const slashResult = await this.slashCommandService.tryHandleCommand(request, stream, token);
 			if (slashResult.handled) {
 				return slashResult.result ?? {};
+			}
+
+			if (!this._sdkLoader.isAvailable) {
+				stream.markdown(vscode.l10n.t("Installing the Claude Agent SDK..."));
+				const installed = await this._sdkLoader.install(token);
+				if (!installed) {
+					if (token.isCancellationRequested) {
+						return {};
+					}
+					stream.button({
+						command: 'workbench.extensions.installExtension',
+						title: vscode.l10n.t("Install Claude Agent SDK"),
+						arguments: [CLAUDE_SDK_EXTENSION_ID],
+					});
+					return {
+						errorDetails: {
+							message: vscode.l10n.t("Failed to install {0}", CLAUDE_SDK_EXTENSION_ID)
+						}
+					};
+				}
+				stream.markdown(vscode.l10n.t("Done") + '\n\n');
 			}
 
 			const effectiveSessionId = ClaudeSessionUri.getSessionId(chatSessionContext.chatSessionItem.resource);
@@ -300,6 +323,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
 		@IAuthenticationService _authenticationService: IAuthenticationService,
 		@IExperimentationService experimentationService: IExperimentationService,
+		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
 	) {
 		super();
 		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
@@ -316,10 +340,12 @@ export class ClaudeChatSessionItemController extends Disposable {
 			Event.any(
 				Event.filter(_configurationService.onDidChangeConfiguration,
 					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
-				_authenticationService.onDidAuthenticationChange,
+				_authenticationService.onDidCopilotTokenChange,
 			),
 			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
-				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
+				// True is a fallback because the input group state currently doesn't support updating the values after initialization
+				// This is a temporary workaround until the input group state can be updated dynamically.
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
@@ -426,6 +452,17 @@ export class ClaudeChatSessionItemController extends Disposable {
 			this._showBadge = this._computeShowBadge();
 			void this._refreshItems(CancellationToken.None);
 		}));
+
+		// When the Claude SDK extension is installed at runtime, refresh the sessions list once
+		if (!this._sdkLoader.isAvailable) {
+			const listener = vscode.extensions.onDidChange(() => {
+				if (this._sdkLoader.isAvailable) {
+					listener.dispose();
+					void this._refreshItems(CancellationToken.None);
+				}
+			});
+			this._register(listener);
+		}
 
 		this._setupInputState();
 	}

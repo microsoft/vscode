@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 					type: 'question',
 				});
 				if (result.confirmed) {
-					plugin.remove();
+					plugin.remove?.();
 				}
 			}
 			return;
@@ -424,7 +424,7 @@ registerAction2(class extends Action2 {
 
 const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
 const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
-const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', false);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', true);
 const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
 registerAction2(class extends Action2 {
 	constructor() {
@@ -548,7 +548,7 @@ registerAction2(class extends Action2 {
 			type: 'question',
 		});
 		if (result.confirmed) {
-			plugin.remove();
+			plugin.remove?.();
 		}
 	}
 });
@@ -729,7 +729,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
 		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
 		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
-		void this.updateChatCustomizationExtensionContext();
+		this.updateChatCustomizationExtensionContext();
 		this.registerActions();
 	}
 
@@ -740,7 +740,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
 			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
 		} catch {
-			this.chatCustomizationExtensionNotInstalledContext.set(false);
+			this.chatCustomizationExtensionNotInstalledContext.set(true);
 		}
 	}
 

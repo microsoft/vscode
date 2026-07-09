@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -19,7 +19,7 @@ import { IChatRendererContent, IChatWorkingProgress, IChatWorkingProgressState, 
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -75,6 +75,9 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		if (useShimmer) {
+			this.applyPartialShimmer(result.element);
+		}
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
@@ -83,6 +86,52 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			this.domNode.classList.add('shimmer-progress');
 		}
 		this.renderedMessage.value = result;
+	}
+
+	private applyPartialShimmer(element: HTMLElement): void {
+		if (!this.toolInvocation || !isAskQuestionsToolInvocation(this.toolInvocation)) {
+			return;
+		}
+
+		const firstChild = element.firstElementChild;
+		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
+		const message = messageElement.textContent;
+		const suffixOffset = message?.indexOf(' (') ?? -1;
+		if (suffixOffset <= 0) {
+			return;
+		}
+
+		element.classList.add('chat-progress-partial-shimmer');
+		this.wrapLeadingText(messageElement, suffixOffset);
+	}
+
+	private wrapLeadingText(element: HTMLElement, length: number): void {
+		let remaining = length;
+		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		while (remaining > 0) {
+			const node = walker.nextNode();
+			if (!node) {
+				return;
+			}
+
+			const text = node.nodeValue ?? '';
+			if (!text) {
+				continue;
+			}
+
+			const shimmerText = text.slice(0, remaining);
+			const suffixText = text.slice(remaining);
+			const span = element.ownerDocument.createElement('span');
+			span.classList.add('chat-progress-shimmer-text');
+			span.textContent = shimmerText;
+			node.parentNode?.insertBefore(span, node);
+			if (suffixText) {
+				node.nodeValue = suffixText;
+			} else {
+				node.parentNode?.removeChild(node);
+			}
+			remaining -= shimmerText.length;
+		}
 	}
 
 	updateMessage(content: IMarkdownString): void {

@@ -93,7 +93,6 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly entitlement = ChatEntitlement.Free;
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
-	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
 	readonly hasByokModels = false;
 	readonly organisations: string[] | undefined = undefined;
@@ -109,6 +108,8 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
@@ -129,6 +130,9 @@ class MockDefaultAccountService implements IDefaultAccountService {
 	readonly currentDefaultAccount: IDefaultAccount | null = MOCK_ACCOUNT;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null = null;
 	readonly onDidChangeCopilotTokenInfo = Event.None;
+	readonly managedSettingsFetchStatus: null = null;
+	readonly managedSettingsFetchedAt: null = null;
+	readonly managedSettingsRawResponse: unknown = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> { return MOCK_ACCOUNT; }
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider { return MOCK_ACCOUNT.authenticationProvider; }

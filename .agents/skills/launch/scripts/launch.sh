@@ -120,6 +120,79 @@ if [[ "$FULL" != "1" && "$CLONE_EXTENSIONS" == "1" ]]; then
 	rsync -a "$SOURCE_UDD/extensions/" "$EXT_DIR/"
 fi
 
+# Force the simple (quick-input) file dialog so automation can drive
+# "Open Folder" / workspace pickers. The native OS file dialog cannot be
+# controlled by @playwright/cli over CDP (and is completely unreachable
+# over SSH on headless macOS). The setting overlay is per-launch and
+# always applied because every launched instance under this skill is
+# a throwaway used for automation.
+SETTINGS_FILE="$DEST_UDD/User/settings.json"
+mkdir -p "$(dirname "$SETTINGS_FILE")"
+# Data-preserving text-based merge: insert/update `files.simpleDialog.enable`
+# without reparsing the whole file. Avoids dropping user comments and
+# string values containing `//` (e.g. URLs). Fails loudly if the file
+# exists but has no recognizable JSON object shape — never silently
+# overwrites with `{}`.
+if ! node - "$SETTINGS_FILE" <<'NODE'
+const fs = require('fs');
+const f = process.argv[2];
+const KEY = 'files.simpleDialog.enable';
+
+let text;
+try { text = fs.readFileSync(f, 'utf8'); }
+catch (e) {
+	if (e.code === 'ENOENT') text = '';
+	else { console.error('[launch.sh] cannot read ' + f + ': ' + e.message); process.exit(1); }
+}
+
+// Empty file → write a fresh object.
+if (text.trim() === '') {
+	fs.writeFileSync(f, '{\n  "' + KEY + '": true\n}\n');
+	process.exit(0);
+}
+
+// Key already present (with any value) → update its value to `true`
+// via a targeted regex on the value slot only.
+const keyValueRe = new RegExp('("' + KEY.replace(/\./g, '\\.') + '"\\s*:\\s*)(true|false|null|"[^"\\n]*"|-?\\d+(?:\\.\\d+)?)', 'g');
+if (keyValueRe.test(text)) {
+	const updated = text.replace(keyValueRe, '$1true');
+	fs.writeFileSync(f, updated);
+	process.exit(0);
+}
+
+// Otherwise: find the LAST `}` and insert the new key before it.
+// We deliberately don't parse JSONC — this preserves comments and
+// any other content the source profile had.
+const lastBrace = text.lastIndexOf('}');
+if (lastBrace === -1) {
+	console.error('[launch.sh] settings.json has no closing brace — refusing to clobber it: ' + f);
+	process.exit(1);
+}
+
+// Decide whether to add a leading comma. If the only thing between the
+// first `{` and the last `}` is whitespace and comments, the object is
+// empty for our purposes and no comma is needed.
+const firstBrace = text.indexOf('{');
+if (firstBrace === -1 || firstBrace >= lastBrace) {
+	console.error('[launch.sh] settings.json has no opening brace — refusing to clobber it: ' + f);
+	process.exit(1);
+}
+const between = text.slice(firstBrace + 1, lastBrace)
+	.replace(/\/\*[\s\S]*?\*\//g, '')
+	.replace(/\/\/[^\n]*/g, '')
+	.trim();
+const insertion = between.length === 0
+	? '\n  "' + KEY + '": true\n'
+	: ',\n  "' + KEY + '": true\n';
+
+fs.writeFileSync(f, text.slice(0, lastBrace) + insertion + text.slice(lastBrace));
+NODE
+then
+	echo "[launch.sh] failed to ensure files.simpleDialog.enable=true in $SETTINGS_FILE — automation may need to fall back to per-key input" >&2
+	exit 1
+fi
+echo "[launch.sh] ensured files.simpleDialog.enable=true in $SETTINGS_FILE" >&2
+
 # Strip ELECTRON_RUN_AS_NODE, commonly inherited from VS Code's integrated
 # terminal / agent runtimes; it breaks ./scripts/code.sh.
 unset ELECTRON_RUN_AS_NODE
@@ -150,8 +223,48 @@ LOG_FILE="$RUN_DIR/code.log"
 echo "[launch.sh] launching: $CODE_SH ${ARGS[*]}" >&2
 echo "[launch.sh] logs: $LOG_FILE" >&2
 
-nohup "$CODE_SH" "${ARGS[@]}" >"$LOG_FILE" 2>&1 &
+# Run pre-launch (electron download, compile-if-missing, built-in extensions) in the
+# foreground so any errors surface synchronously. Then skip code.sh's own pre-launch.
+echo "[launch.sh] running pre-launch (ensures electron + compiled output + built-ins)..." >&2
+if ! ( cd "$REPO" && node build/lib/preLaunch.ts ) >>"$LOG_FILE" 2>&1; then
+	echo "[launch.sh] pre-launch FAILED. Log tail:" >&2
+	tail -n 80 "$LOG_FILE" >&2
+	exit 1
+fi
+
+# Launch code.sh in the background. Detaching with `nohup ... & disown` is
+# sufficient: by the time we return below, CDP is up and Electron is fully
+# forked into its own process tree, so it's robust to its launching shell
+# going away. (Earlier failures came from returning while Electron was still
+# mid-bootstrap, not from process-group concerns.)
+nohup env VSCODE_SKIP_PRELAUNCH=1 "$CODE_SH" "${ARGS[@]}" \
+	</dev/null >>"$LOG_FILE" 2>&1 &
 PID=$!
+disown $PID 2>/dev/null || true
+
+# Block until the renderer's CDP endpoint is responding so the caller can attach
+# immediately. If code.sh dies or we time out, dump the log so the failure is
+# visible.
+echo "[launch.sh] waiting for CDP on port $CDP_PORT (timeout 90s)..." >&2
+READY=0
+for i in $(seq 1 90); do
+	if ! kill -0 "$PID" 2>/dev/null; then
+		echo "[launch.sh] code.sh (PID $PID) exited before CDP came up. Log tail:" >&2
+		tail -n 80 "$LOG_FILE" >&2
+		exit 1
+	fi
+	if curl -sf -o /dev/null --max-time 1 "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then
+		READY=1
+		echo "[launch.sh] CDP ready after ${i}s" >&2
+		break
+	fi
+	sleep 1
+done
+if [[ "$READY" != "1" ]]; then
+	echo "[launch.sh] timed out waiting for CDP on port $CDP_PORT. Log tail:" >&2
+	tail -n 80 "$LOG_FILE" >&2
+	exit 1
+fi
 
 node -e '
 	console.log(JSON.stringify({

@@ -29,24 +29,66 @@
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
-	width: fit-content;
-	flex-grow: 0;
+	width: auto;
+	flex: 1 1 0;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center {
-	flex: 1;
+	flex: 0 1 auto;
 	max-width: none;
+	/* Grid with symmetric 1fr side tracks keeps the command center (auto track)
+	 * window-centered. When the right actions container widens on hover (e.g.
+	 * "Open in VS Code" label animating in), the left 1fr track grows to mirror
+	 * it so the center track does not shift. */
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	column-gap: 4px;
+	min-width: 0;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-nav-container {
+	grid-column: 1;
+	justify-self: end;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .window-title {
+	grid-column: 2;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container {
+	grid-column: 3;
+	justify-self: start;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
+	/* Match the VS Code window command center font size. */
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
-.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
-	width: fit-content;
-	flex-grow: 0;
+	width: auto;
+	flex: 1 1 0;
 	justify-content: flex-end;
+}
+
+/* Center navigation / actions toolbars that flank the command center box. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container {
+	display: none;
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions) {
+	display: flex;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 /* Session Title Actions Container (before right toolbar) */
@@ -78,7 +120,7 @@
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Secondary sidebar toggle uses icon variants for toggle state — no background needed */
@@ -126,6 +168,11 @@
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
+}
+
+/* Spacing between the left toolbar's actions. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 /* Remove the titlebar shadow in agent sessions */

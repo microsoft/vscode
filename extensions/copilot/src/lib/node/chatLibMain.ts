@@ -48,6 +48,7 @@ import { ICompletionsTextDocumentManagerService, TextDocumentChangeEvent, TextDo
 import { Event } from '../../extension/completions-core/vscode-node/lib/src/util/event';
 import { ICompletionsPromiseQueueService, PromiseQueue } from '../../extension/completions-core/vscode-node/lib/src/util/promiseQueue';
 import { ICompletionsRuntimeModeService, RuntimeMode } from '../../extension/completions-core/vscode-node/lib/src/util/runtimeMode';
+import { setExternalTokenizerProvider, TokenizerName, type ExternalTokenizerProvider, type Tokenizer } from '../../extension/completions-core/vscode-node/prompt/src/tokenization';
 import { DocumentContext, WorkspaceFolder } from '../../extension/completions-core/vscode-node/types/src';
 import { DebugRecorder } from '../../extension/inlineEdits/node/debugRecorder';
 import { INextEditProvider, NESInlineCompletionContext, NextEditProvider } from '../../extension/inlineEdits/node/nextEditProvider';
@@ -127,6 +128,8 @@ import { IInstantiationService } from '../../util/vs/platform/instantiation/comm
 export {
 	IAuthenticationService, ICAPIClientService, IEndpointProvider, IExperimentationService, IIgnoreService, ILanguageContextProviderService
 };
+export { TokenizerName };
+export type { ExternalTokenizerProvider, Tokenizer };
 
 /**
  * Log levels (taken from vscode.d.ts)
@@ -182,12 +185,38 @@ export interface INESProviderOptions {
 	readonly telemetrySender: ITelemetrySender;
 	readonly logTarget?: ILogTarget;
 	/**
+	 * Identifies the host editor (e.g. `{ name: 'vscode', version: '1.99.0' }`).
+	 * Together with {@link editorPluginInfo} this sets the `Editor-Version` and
+	 * `Editor-Plugin-Version` headers on outgoing requests (including the model
+	 * list fetch) so the backend can identify the caller.
+	 */
+	readonly editorInfo: IEditorInfo;
+	/**
+	 * Identifies the plugin/integration embedding the provider (e.g.
+	 * `{ name: 'copilot-chat', version: '0.1.0' }`). See {@link editorInfo}.
+	 */
+	readonly editorPluginInfo: IEditorPluginInfo;
+	/**
 	 * If true, the provider will wait for treatment variables to be set.
 	 * INESProvider.updateTreatmentVariables() must be called to unblock.
 	 */
 	readonly waitForTreatmentVariables?: boolean;
 	readonly undesiredModelsManager?: IUndesiredModelsManager;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	/**
+	 * Diagnostics provider used to enrich the NES prompt with the active file's
+	 * lint/error context. When omitted, falls back to an in-memory
+	 * {@link TestLanguageDiagnosticsService} that returns empty diagnostics
+	 */
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
+	/**
+	 * Tokenizer provider backing prompt rendering and token budgeting. When
+	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
+	 * loads its own BPE dictionaries. Embedders that already have the
+	 * cl100k/o200k dictionaries in memory can supply a provider here to avoid
+	 * loading a second copy (~100 MB per encoder).
+	 */
+	readonly tokenizerProvider?: ITokenizerProvider;
 }
 
 export interface INESResult {
@@ -197,6 +226,13 @@ export interface INESResult {
 			readonly start: number;
 			readonly endExclusive: number;
 		};
+		/**
+		 * URI of the document the edit should be applied to. When omitted, the
+		 * edit targets the document that was passed to {@link INESProvider.getNextEdit}.
+		 * For cross-file suggestions this points at a different document, and the
+		 * {@link range} offsets are resolved against that target document.
+		 */
+		readonly targetDocumentUri?: string;
 	};
 }
 
@@ -326,6 +362,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 				result: internalResult.result?.edit ? {
 					newText: internalResult.result.edit.newText,
 					range: internalResult.result.edit.replaceRange,
+					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,
@@ -361,7 +398,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 }
 
 function setupServices(options: INESProviderOptions) {
-	const { fetcher, copilotTokenManager, telemetrySender, logTarget } = options;
+	const { fetcher, copilotTokenManager, telemetrySender, logTarget, editorInfo, editorPluginInfo } = options;
 	const builder = new InstantiationServiceBuilder();
 	builder.define(IConfigurationService, new SyncDescriptor(OverridableConfigurationService, [options.configOverrides ?? new Map()]));
 	builder.define(IExperimentationService, new SyncDescriptor(SimpleExperimentationService, [options.waitForTreatmentVariables]));
@@ -371,13 +408,20 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[logTarget || new ConsoleLog(undefined, InternalLogLevel.Trace)]]));
 	builder.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
 	builder.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IIgnoreService, new SyncDescriptor(NullIgnoreService));
 	builder.define(ISnippyService, new SyncDescriptor(NullSnippyService));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
 	builder.define(ICAPIClientService, new SyncDescriptor(CAPIClientImpl));
 	builder.define(ICopilotTokenStore, new SyncDescriptor(CopilotTokenStore));
-	builder.define(IEnvService, new SyncDescriptor(NullEnvService));
+	builder.define(IEnvService, new class extends NullEnvService {
+		override getEditorInfo(): NameAndVersion {
+			return new NameAndVersion(editorInfo.name, editorInfo.version);
+		}
+		override getEditorPluginInfo(): NameAndVersion {
+			return new NameAndVersion(editorPluginInfo.name, editorPluginInfo.version);
+		}
+	});
 	builder.define(IFetcherService, new SyncDescriptor(SingleFetcherService, [fetcher]));
 	builder.define(ITelemetryService, new SyncDescriptor(SimpleTelemetryService, [telemetrySender]));
 	builder.define(IAuthenticationService, new SyncDescriptor(StaticGitHubAuthenticationService, [createStaticGitHubTokenProvider()]));
@@ -389,7 +433,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
-	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
+	builder.define(ITokenizerProvider, options.tokenizerProvider ?? new SyncDescriptor(TokenizerProvider, [false]));
 	builder.define(IConversationOptions, {
 		_serviceBrand: undefined,
 		maxResponseTokens: undefined,
@@ -743,6 +787,16 @@ export interface IInlineCompletionsProviderOptions {
 	readonly capiClientService?: ICAPIClientService;
 	readonly citationHandler?: IInlineCompletionsCitationHandler;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
+	/**
+	 * Tokenizer backing prompt token counting/truncation in the completions
+	 * (ghost text) path. When omitted, this module lazily loads its own
+	 * cl100k/o200k BPE dictionaries. Embedders that already hold those
+	 * dictionaries can supply a provider here to avoid loading a second copy
+	 * (~100 MB per encoder). Installed synchronously when the provider is
+	 * created, so it must be passed at construction time.
+	 */
+	readonly tokenizerProvider?: ExternalTokenizerProvider;
 }
 
 export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>, 'promptOnly'> & {
@@ -758,6 +812,11 @@ export interface IInlineCompletionsProvider {
 }
 
 export function createInlineCompletionsProvider(options: IInlineCompletionsProviderOptions): IInlineCompletionsProvider {
+	if (options.tokenizerProvider) {
+		// Install before building the provider (which constructs GhostText and
+		// tokenizes), so the host's tokenizer is in effect for the first prompt.
+		setExternalTokenizerProvider(options.tokenizerProvider);
+	}
 	const svc = setupCompletionServices(options);
 	return svc.createInstance(InlineCompletionsProvider);
 }
@@ -997,7 +1056,7 @@ function setupCompletionServices(options: IInlineCompletionsProviderOptions): II
 		}
 	});
 	builder.define(ILanguageContextProviderService, options.languageContextProvider ?? new NullLanguageContextProviderService());
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
 
 	return builder.seal();

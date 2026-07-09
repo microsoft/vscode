@@ -21,6 +21,7 @@ export interface ICommandLineRewriterOptions {
 	isBackground?: boolean;
 	requestUnsandboxedExecution?: boolean;
 	sandboxPrecheckInputs?: ITerminalSandboxPrecheckInputs;
+	requestAllowNetwork?: boolean;
 }
 
 export interface ICommandLineRewriterResult {
@@ -30,6 +31,7 @@ export interface ICommandLineRewriterResult {
 	forDisplay?: string;
 	isSandboxWrapped?: boolean;
 	requiresUnsandboxConfirmation?: boolean;
+	requiresAllowNetworkConfirmation?: boolean;
 	blockedDomains?: string[];
 	deniedDomains?: string[];
 }

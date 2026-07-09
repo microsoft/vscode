@@ -11,11 +11,12 @@
 // for both the main workbench and the sessions workbench.
 
 import { localize } from '../../nls.js';
-import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
+import { Color } from '../../base/common/color.js';
+import { darken, lighten, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
-import { editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
-import { buttonBackground, buttonBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
+import { buttonBackground, buttonSecondaryBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // ============================================================================
@@ -59,8 +60,20 @@ export const agentsGradientTintColor = registerColor(
 );
 
 // ============================================================================
-// Agent feedback input widget
+// Agent feedback editor widgets
 // ============================================================================
+
+export const agentFeedbackEditorWidgetBackground = registerColor(
+	'agentFeedbackEditorWidget.background',
+	{ dark: lighten(editorWidgetBackground, 0.08), light: darken(editorWidgetBackground, 0.04), hcDark: Color.black, hcLight: Color.white },
+	localize('agentFeedbackEditorWidget.background', 'Background color of the agent feedback widget shown in the editor.')
+);
+
+export const agentFeedbackEditorWidgetBorder = registerColor(
+	'agentFeedbackEditorWidget.border',
+	{ dark: transparent(foreground, 0.35), light: transparent(foreground, 0.35), hcDark: contrastBorder, hcLight: contrastBorder },
+	localize('agentFeedbackEditorWidget.border', 'Border color of the agent feedback widget shown in the editor.')
+);
 
 export const agentFeedbackInputWidgetBorder = registerColor(
 	'agentFeedbackInputWidget.border',
@@ -126,7 +139,7 @@ export const agentsNewSessionButtonForeground = registerColor(
 );
 
 export const agentsNewSessionButtonBorder = registerColor(
-	'agentsNewSessionButton.border', buttonBorder,
+	'agentsNewSessionButton.border', buttonSecondaryBorder,
 	localize('agentsNewSessionButton.border', 'Border color of the New Session button in the agent sessions sidebar.')
 );
 
@@ -161,4 +174,24 @@ export const agentsUnreadBadgeBackground = registerColor(
 export const agentsUnreadBadgeForeground = registerColor(
 	'agentsUnreadBadge.foreground', ACTIVITY_BAR_BADGE_FOREGROUND,
 	localize('agentsUnreadBadge.foreground', 'Foreground color of the unread sessions count badge on the sidebar toggle.')
+);
+
+export const activeSessionViewBackground = registerColor(
+	'activeSessionView.background', agentsPanelBackground,
+	localize('activeSessionView.background', 'Background color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewBackground = registerColor(
+	'inactiveSessionView.background', agentsBackground,
+	localize('inactiveSessionView.background', 'Background color of an inactive session view in the agent sessions window.')
+);
+
+export const activeSessionViewForeground = registerColor(
+	'activeSessionView.foreground', agentsPanelForeground,
+	localize('activeSessionView.foreground', 'Foreground color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewForeground = registerColor(
+	'inactiveSessionView.foreground', agentsPanelForeground,
+	localize('inactiveSessionView.foreground', 'Foreground color of an inactive session view in the agent sessions window.')
 );

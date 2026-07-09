@@ -16,6 +16,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -24,7 +25,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -53,10 +54,69 @@ export interface IPermissionPickerDelegate {
 	readonly isApplicable?: IObservable<boolean>;
 
 	/**
+	 * The ordered set of permission levels the picker should offer. When
+	 * omitted, the picker offers the default Copilot set
+	 * (`Default` / `Bypass` / `Autopilot`). Agent-host sessions override this
+	 * to offer `Default` / `Bypass`.
+	 */
+	readonly availableLevels?: readonly ChatPermissionLevel[];
+
+	/**
+	 * The setting id the elevated-level warning dialog links to as "make this
+	 * the default". Defaults to `chat.permissions.default`; agent-host sessions
+	 * pass `chat.defaultConfiguration`.
+	 */
+	readonly defaultSettingKey?: string;
+
+	/**
 	 * Called after the user selects a level (and any required confirmation
 	 * dialog has been accepted).
 	 */
 	setPermissionLevel(level: ChatPermissionLevel): void;
+
+	/**
+	 * Optional hover content for delegates that need provider-specific copy.
+	 */
+	getPermissionLevelHover?(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined;
+}
+
+export interface IPermissionLevelMeta {
+	readonly label: string;
+	readonly detail: string;
+	readonly icon: ThemeIcon;
+	readonly hover?: string;
+}
+
+/** Default level set offered when a delegate does not specify {@link IPermissionPickerDelegate.availableLevels}. */
+export const DEFAULT_PERMISSION_LEVELS: readonly ChatPermissionLevel[] = [
+	ChatPermissionLevel.Default,
+	ChatPermissionLevel.AutoApprove,
+	ChatPermissionLevel.Autopilot,
+];
+
+export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
+	switch (level) {
+		case ChatPermissionLevel.AutoApprove:
+			return {
+				label: localize('permissions.autoApprove', "Bypass Approvals"),
+				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				icon: Codicon.warning,
+			};
+		case ChatPermissionLevel.Autopilot:
+			return {
+				label: localize('permissions.autopilot', "Autopilot (Preview)"),
+				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				icon: Codicon.rocket,
+				hover: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
+			};
+		case ChatPermissionLevel.Default:
+		default:
+			return {
+				label: localize('permissions.default', "Default Approvals"),
+				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				icon: Codicon.shield,
+			};
+	}
 }
 
 interface IPermissionItem {
@@ -80,6 +140,7 @@ export class PermissionPicker extends Disposable {
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -105,6 +166,12 @@ export class PermissionPicker extends Disposable {
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel(trigger);
+		if (this._delegate.getPermissionLevelHover) {
+			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
+				const meta = getPermissionLevelMeta(this._currentLevel);
+				return { content: this._getPermissionLevelHover(this._currentLevel, meta) ?? '' };
+			}));
+		}
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -136,7 +203,15 @@ export class PermissionPicker extends Disposable {
 		const isApplicable = this._delegate.isApplicable;
 		if (isApplicable) {
 			this._renderDisposables.add(autorun(reader => {
-				slot.style.display = isApplicable.read(reader) ? '' : 'none';
+				const visible = isApplicable.read(reader);
+				slot.style.display = visible ? '' : 'none';
+				// Also collapse the wrapping `.action-item` that
+				// `MenuWorkbenchToolBar` created for this picker — hiding only
+				// the inner slot leaves the wrapper occupying its `min-width`
+				// floor and produces a visible empty gap in the chip row when
+				// the picker isn't applicable to the active session (e.g.
+				// Claude agent host has no `autoApprove` in its schema).
+				container.style.display = visible ? '' : 'none';
 			}));
 		}
 
@@ -149,52 +224,31 @@ export class PermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
-		const items: IActionListItem<IPermissionItem>[] = [
-			{
+		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
+		const items: IActionListItem<IPermissionItem>[] = levels.map(level => {
+			const meta = getPermissionLevelMeta(level);
+			// Default is never policy-restricted; elevated levels are disabled
+			// when enterprise policy turns off global auto-approval.
+			const disabled = level !== ChatPermissionLevel.Default && policyRestricted;
+			const hover = this._delegate.getPermissionLevelHover
+				? (disabled ? localize('permissions.policyDescription', "Disabled by enterprise policy") : this._getPermissionLevelHover(level, meta))
+				: meta.hover;
+			return {
 				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.shield },
+				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
 				item: {
-					level: ChatPermissionLevel.Default,
-					label: localize('permissions.default', "Default Approvals"),
-					icon: Codicon.shield,
-					checked: this._currentLevel === ChatPermissionLevel.Default,
+					level,
+					label: meta.label,
+					icon: meta.icon,
+					checked: this._currentLevel === level,
 				},
-				label: localize('permissions.default', "Default Approvals"),
-				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
-				disabled: false,
-			},
-			{
-				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.warning },
-				item: {
-					level: ChatPermissionLevel.AutoApprove,
-					label: localize('permissions.autoApprove', "Bypass Approvals"),
-					icon: Codicon.warning,
-					checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
-				},
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
-				disabled: policyRestricted,
-			},
-		];
-
-		if (isAutopilotEnabled) {
-			items.push({
-				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
-				item: {
-					level: ChatPermissionLevel.Autopilot,
-					label: localize('permissions.autopilot', "Autopilot (Preview)"),
-					icon: Codicon.rocket,
-					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
-				},
-				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
-				disabled: policyRestricted,
-			});
-		}
+				label: meta.label,
+				detail: meta.detail,
+				...(hover ? { hover: { content: hover } } : {}),
+				disabled,
+			} satisfies IActionListItem<IPermissionItem>;
+		});
 
 		items.push({
 			kind: ActionListItemKind.Separator,
@@ -221,7 +275,7 @@ export class PermissionPicker extends Disposable {
 				if (item.level) {
 					await this._selectLevel(item.level);
 				} else {
-					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
 			onHide: () => { triggerElement.focus(); },
@@ -244,7 +298,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
-		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService)) {
+		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, { defaultSettingKey: this._delegate.defaultSettingKey })) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
 				name: 'NewChatPermissionPicker',
@@ -278,31 +332,23 @@ export class PermissionPicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		let icon: ThemeIcon;
-		let label: string;
-		switch (this._currentLevel) {
-			case ChatPermissionLevel.Autopilot:
-				icon = Codicon.rocket;
-				label = localize('permissions.autopilot.label', "Autopilot (Preview)");
-				break;
-			case ChatPermissionLevel.AutoApprove:
-				icon = Codicon.warning;
-				label = localize('permissions.autoApprove.label', "Bypass Approvals");
-				break;
-			default:
-				icon = Codicon.shield;
-				label = localize('permissions.default.label', "Default Approvals");
-				break;
-		}
+		const meta = getPermissionLevelMeta(this._currentLevel);
 
-		dom.append(trigger, renderIcon(icon));
+		dom.append(trigger, renderIcon(meta.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = label;
+		labelSpan.textContent = meta.label;
 
-		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
+		const hover = this._getPermissionLevelHover(this._currentLevel, meta);
+		trigger.ariaLabel = hover
+			? localize('permissionPicker.triggerAriaLabelWithDescription', "Pick Permission Level, {0}, {1}", meta.label, hover)
+			: localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", meta.label);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel, meta: IPermissionLevelMeta): string | undefined {
+		return this._delegate.getPermissionLevelHover?.(level, meta) ?? meta.hover;
 	}
 }
 
@@ -318,14 +364,14 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
 
 	constructor(
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		this.currentPermissionLevel = derived(this, reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			if (!session) {
 				return undefined;
 			}
@@ -338,7 +384,7 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}

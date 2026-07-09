@@ -10,7 +10,7 @@ import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platf
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { applyAzureSupportedEndpoints, applyConfiguredAzureSupportedEndpoints, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureModelCapabilities, resolveAzureUrl } from '../azureProvider';
+import { applyAzureSupportedEndpoints, applyConfiguredAzureSupportedEndpoints, azureSupportedEndpointsForUrl, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureModelCapabilities, resolveAzureUrl } from '../azureProvider';
 
 describe('AzureBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
@@ -62,6 +62,12 @@ describe('AzureBYOKModelProvider', () => {
 			const url = 'https://my-endpoint.models.ai.azure.com/v1';
 			const result = resolveAzureUrl('gpt-4', url);
 			expect(result).toBe('https://my-endpoint.models.ai.azure.com/v1/chat/completions');
+		});
+
+		it('should preserve an explicit APIM /responses URL behind a vanity domain', () => {
+			const url = 'https://my-apim.azure-api.net/openai/responses?api-version=2025-04-01-preview';
+			const result = resolveAzureUrl('gpt-4', url);
+			expect(result).toBe(url);
 		});
 
 		it('should throw error for unrecognized Azure URL', () => {
@@ -258,6 +264,26 @@ describe('AzureBYOKModelProvider', () => {
 			applyConfiguredAzureSupportedEndpoints(modelInfo, undefined);
 
 			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions]);
+		});
+	});
+
+	describe('azureSupportedEndpointsForUrl', () => {
+		it('marks Responses (and Chat Completions) for /responses URLs and leaves Chat Completions URLs unmarked', () => {
+			expect({
+				responses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview'),
+				apimResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/responses'),
+				mixedCaseResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/Responses'),
+				chatCompletions: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview'),
+				deploymentNamedResponses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/responses/chat/completions?api-version=2025-01-01-preview'),
+				malformed: azureSupportedEndpointsForUrl('not a url'),
+			}).toEqual({
+				responses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
+				apimResponses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
+				mixedCaseResponses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
+				chatCompletions: undefined,
+				deploymentNamedResponses: undefined,
+				malformed: undefined,
+			});
 		});
 	});
 

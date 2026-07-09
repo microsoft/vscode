@@ -8,8 +8,8 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { ModelSelection } from '../channels-root/state.js';
-import type { Turn, SessionActiveClient, MessageAttachment, AgentSelection } from './state.js';
+import type { SessionActiveClient } from './state.js';
+import type { MessageAttachment } from '../channels-chat/state.js';
 
 // ─── createSession ───────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ import type { Turn, SessionActiveClient, MessageAttachment, AgentSelection } fro
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 2, "method": "createSession",
- *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot", "model": "gpt-4o" } }
+ *   "params": { "channel": "ahp-session:/<uuid>", "provider": "copilot" } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 2, "result": null }
@@ -63,14 +63,6 @@ export interface CreateSessionParams extends BaseParams {
 	channel: URI;
 	/** Agent provider ID */
 	provider?: string;
-	/** Model selection (ID and optional model-specific configuration) */
-	model?: ModelSelection;
-	/**
-	 * Initial custom agent selection for the new session.
-	 *
-	 * Omit to start the session with no custom agent selected (provider default).
-	 */
-	agent?: AgentSelection;
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/**
@@ -84,14 +76,27 @@ export interface CreateSessionParams extends BaseParams {
 	 */
 	config?: Record<string, unknown>;
 	/**
-	 * Eagerly claim the active client role for the new session.
+	 * Eagerly claim an active client role for the new session.
 	 *
-	 * When provided, the server initializes the session with this client as the
-	 * active client, equivalent to dispatching a `session/activeClientChanged`
+	 * When provided, the server initializes the session with this client as an
+	 * active client, equivalent to dispatching a `session/activeClientSet`
 	 * action immediately after creation. The `clientId` MUST match the
 	 * `clientId` the creating client supplied in `initialize`.
 	 */
 	activeClient?: SessionActiveClient;
+	/**
+	 * Opt-in progress token. When set, the client is offering to receive
+	 * `progress` notifications (see `ProgressParams`) for any long-running work
+	 * the server does to bring this session up — most notably the lazy,
+	 * first-use download of the provider's native SDK. The server echoes this
+	 * exact token on every `progress` frame so the client can correlate it to
+	 * this `createSession` call (and the UI awaiting it).
+	 *
+	 * The token MUST be unique across the client's active requests. The server
+	 * MAY ignore it (e.g. when nothing long-running is needed), in which case no
+	 * `progress` notifications are emitted.
+	 */
+	progressToken?: string;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -112,8 +117,16 @@ export interface DisposeSessionParams extends BaseParams { }
 // ─── fetchTurns ──────────────────────────────────────────────────────────────
 
 /**
- * Fetches historical turns for a session. Used for lazy loading of conversation
- * history.
+ * Requests that the host load older historical turns into a chat state.
+ *
+ * The command result does not carry turns. Instead, before responding, the host
+ * MUST dispatch `chat/turnsLoaded` to insert any loaded turns into the chat
+ * channel's `turns` state, ahead of the already-loaded window, and update or
+ * clear `turnsNextCursor`.
+ *
+ * Before applying any operation that references a turn outside the currently
+ * loaded window, the host MUST eagerly load enough older turns into state for
+ * that operation to reduce against valid state.
  *
  * @category Commands
  * @method fetchTurns
@@ -122,39 +135,31 @@ export interface DisposeSessionParams extends BaseParams { }
  * @version 1
  * @example
  * ```jsonc
- * // Client → Server (fetch the 20 most recent turns)
+ * // Client → Server (load the next page indicated by ChatState.turnsNextCursor)
  * { "jsonrpc": "2.0", "id": 8, "method": "fetchTurns",
- *   "params": { "channel": "ahp-session:/<uuid>", "limit": 20 } }
+ *   "params": { "channel": "ahp-chat:/<uuid>", "cursor": "opaque-cursor" } }
  *
- * // Server → Client
- * { "jsonrpc": "2.0", "id": 8, "result": {
- *   "turns": [ { "id": "t1", ... }, { "id": "t2", ... } ],
- *   "hasMore": true
- * }}
- *
- * // Client → Server (fetch 20 turns before t1)
- * { "jsonrpc": "2.0", "id": 9, "method": "fetchTurns",
- *   "params": { "channel": "ahp-session:/<uuid>", "before": "t1", "limit": 20 } }
+ * // Server updates chat state, then responds
+ * { "jsonrpc": "2.0", "id": 8, "result": {} }
  * ```
  */
 export interface FetchTurnsParams extends BaseParams {
-	/** Session URI */
+	/** Chat URI */
 	channel: URI;
-	/** Turn ID to fetch before (exclusive). Omit to fetch from the most recent turn. */
-	before?: string;
-	/** Maximum number of turns to return. Server MAY impose its own upper bound. */
-	limit?: number;
+	/**
+	 * Opaque cursor from `ChatState.turnsNextCursor`.
+	 *
+	 * The host MUST reject unrecognised cursors with `InvalidParams`. Omit only
+	 * when asking the host to opportunistically load its next older page for the
+	 * chat, if any.
+	 */
+	cursor?: string;
 }
 
 /**
  * Result of the `fetchTurns` command.
  */
-export interface FetchTurnsResult {
-	/** The requested turns, ordered oldest-first */
-	turns: Turn[];
-	/** Whether more turns exist before the returned range */
-	hasMore: boolean;
-}
+export interface FetchTurnsResult { }
 
 // ─── completions ─────────────────────────────────────────────────────────────
 
@@ -165,7 +170,7 @@ export interface FetchTurnsResult {
  */
 export const enum CompletionItemKind {
 	/**
-	 * Completions for the text of a {@link UserMessage} the user is composing.
+	 * Completions for the text of a {@link Message} the user is composing.
 	 * Each returned item carries an attachment that gets associated with the
 	 * message when accepted.
 	 */
@@ -191,7 +196,7 @@ export const enum CompletionItemKind {
  * // User has typed "look at @foo" and the cursor is just after "@foo".
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 12, "method": "completions",
- *   "params": { "kind": "userMessage", "channel": "ahp-session:/<uuid>",
+ *   "params": { "kind": "userMessage", "channel": "ahp-chat:/<uuid>",
  *               "text": "look at @foo", "offset": 12 } }
  *
  * // Server → Client
@@ -215,7 +220,7 @@ export const enum CompletionItemKind {
 export interface CompletionsParams extends BaseParams {
 	/** What kind of completion is being requested. */
 	kind: CompletionItemKind;
-	/** The session URI the completion is being requested for. */
+	/** The chat URI the completion is being requested for. */
 	channel: URI;
 	/**
 	 * The complete text of the input being completed (e.g. the full user
@@ -235,7 +240,7 @@ export interface CompletionsParams extends BaseParams {
  * When the user accepts an item, the client SHOULD:
  * 1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`
  *    (or insert `insertText` at the cursor when the range is omitted).
- * 2. Associate the item's `attachment` with the resulting {@link UserMessage}.
+ * 2. Associate the item's `attachment` with the resulting {@link Message}.
  *
  * @category Commands
  */
@@ -255,7 +260,7 @@ export interface CompletionItem {
 	 *
 	 * Note: this range refers to positions in the *current* input. The
 	 * attachment's own `rangeStart`/`rangeEnd` (when present) refer to
-	 * positions in the final {@link UserMessage.text} after the item is
+	 * positions in the final {@link Message.text} after the item is
 	 * accepted.
 	 */
 	rangeStart?: number;

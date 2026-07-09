@@ -6,27 +6,31 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import type { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
 class TestAgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
-	insideWorkTree = true;
 	repositoryRoot: URI | undefined;
 	worktreeRoots: URI[] = [];
 
-	async isInsideWorkTree(): Promise<boolean> { return this.insideWorkTree; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
 	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
 	async addWorktree(): Promise<void> { }
+	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async hasUncommittedChanges(): Promise<boolean> { return false; }
+	async commitAll(): Promise<void> { }
+	async restore(): Promise<void> { }
+	async hasUpstream(): Promise<boolean> { return false; }
+	async pull(): Promise<void> { }
+	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -35,6 +39,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async updateRef(): Promise<void> { }
 	async deleteRefs(): Promise<void> { }
 	async revParse(): Promise<undefined> { return undefined; }
+	async resolveBranchBaselineCommit(): Promise<string | undefined> { return undefined; }
+	async overlayPathIntoTree(): Promise<string | undefined> { return undefined; }
+	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
@@ -48,6 +55,7 @@ suite('Copilot Git Project', () => {
 	});
 
 	test('resolves a repository project from a worktree working directory', async () => {
+		gitService.repositoryRoot = URI.file('/workspace/worktree-checkout');
 		gitService.worktreeRoots = [URI.file('/workspace/source-repo')];
 
 		const project = await resolveGitProject(URI.file('/workspace/worktree-checkout'), gitService);
@@ -76,14 +84,10 @@ suite('Copilot Git Project', () => {
 	});
 
 	test('returns undefined outside a git working tree', async () => {
-		gitService.insideWorkTree = false;
-
 		assert.strictEqual(await resolveGitProject(URI.file('/workspace/plain-folder'), gitService), undefined);
 	});
 
 	test('falls back to repository context when no git project is available', async () => {
-		gitService.insideWorkTree = false;
-
 		const project = await projectFromCopilotContext({ repository: 'microsoft/vscode' }, gitService);
 
 		assert.deepStrictEqual({

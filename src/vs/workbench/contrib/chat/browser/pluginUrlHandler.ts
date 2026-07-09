@@ -13,6 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -21,7 +22,7 @@ import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 
 /**
@@ -46,6 +47,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHostService private readonly _hostService: IHostService,
 		@ILogService private readonly _logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -110,7 +112,10 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return this._handleInstallTargetedPlugin(source, ref.displayLabel, pluginName);
 		}
 
-		await this._pluginInstallService.installPluginFromSource(source);
+		const result = await this._pluginInstallService.installPluginFromSource(source);
+		if (!result.success && result.message) {
+			this._notificationService.notify({ severity: Severity.Error, message: result.message });
+		}
 		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 		return true;
 	}
@@ -121,7 +126,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 	 * then opens the plugin details in a modal editor.
 	 */
 	private async _handleInstallTargetedPlugin(source: string, displayLabel: string, pluginName: string): Promise<boolean> {
-		const result = await this._pluginInstallService.installPluginFromValidatedSource(source, { plugin: pluginName });
+		const result = await this._pluginInstallService.installPluginFromSource(source, { plugin: pluginName });
 
 		if (!result.success) {
 			if (result.message) {
@@ -184,12 +189,12 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return true;
 		}
 
-		const existing = this._configurationService.getValue<string[]>(ChatConfiguration.PluginMarketplaces) ?? [];
-		const existingRefs = parseMarketplaceReferences(existing);
+		const { userValues, effectiveValues } = readConfiguredMarketplaces(this._configurationService);
+		const existingRefs = parseMarketplaceReferences(effectiveValues);
 		if (!existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
 			await this._configurationService.updateValue(
 				ChatConfiguration.PluginMarketplaces,
-				[...existing, refValue],
+				[...userValues, refValue],
 				ConfigurationTarget.USER,
 			);
 		}

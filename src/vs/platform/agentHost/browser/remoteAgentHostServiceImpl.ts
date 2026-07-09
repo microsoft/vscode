@@ -173,6 +173,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return entry?.connected ? entry.client : undefined;
 	}
 
+	getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+		for (const [address, entry] of this._entries) {
+			if (entry.connected && agentHostAuthority(address) === authority) {
+				return entry.client;
+			}
+		}
+		return undefined;
+	}
+
 	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		// Check dynamically registered entries first (e.g. tunnel connections
@@ -284,7 +293,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
-	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status = RemoteAgentHostConnectionStatus.connected): Promise<IRemoteAgentHostConnectionInfo> {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			throw new Error('Remote agent host connections are not enabled.');
 		}
@@ -311,7 +320,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Create a connection entry wrapping the pre-connected client
 		const protocolClient = connection as RemoteAgentHostProtocolClient;
 		store.add(protocolClient);
-		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: true, status: RemoteAgentHostConnectionStatus.connected };
+		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: RemoteAgentHostConnectionStatus.isConnected(status), status };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
 		this._registeredEntries.set(address, entry);
@@ -340,7 +349,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			name: entry.name,
 			clientId: protocolClient.clientId,
 			defaultDirectory: protocolClient.defaultDirectory,
-			status: RemoteAgentHostConnectionStatus.connected,
+			status,
 		};
 	}
 

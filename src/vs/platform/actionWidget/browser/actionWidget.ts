@@ -6,6 +6,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import './actionWidget.css';
@@ -39,6 +40,19 @@ export interface IActionWidgetService {
 
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void;
 
+	/**
+	 * Replaces the items of the currently shown widget in place, without closing
+	 * or repositioning it. Preserves the current filter. When `focusItemId` is
+	 * provided, focuses that item; otherwise preserves the focused item.
+	 */
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void;
+
+	/**
+	 * Focuses the item with the given id in the currently shown widget, without
+	 * rebuilding the list.
+	 */
+	focusItemById(itemId: string): void;
+
 	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;
@@ -52,6 +66,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	private readonly _list = this._register(new MutableDisposable<ActionList<unknown>>());
+	private readonly _closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private _widgetElement: HTMLElement | undefined;
+	private _closingList: ActionList<unknown> | undefined;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -83,6 +100,14 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		this._list.value?.acceptSelected(preview);
 	}
 
+	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string): void {
+		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId);
+	}
+
+	focusItemById(itemId: string): void {
+		this._list.value?.focusItemById(itemId);
+	}
+
 	focusPrevious() {
 		this._list?.value?.focusPrevious();
 	}
@@ -108,11 +133,33 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	hide(didCancel?: boolean) {
-		this._list.value?.hide(didCancel);
-		this._list.clear();
+		const list = this._list.value;
+		const widget = this._widgetElement;
+		if (!list || this._closingList === list) {
+			return;
+		}
+
+		const closeAnimation = list.closeAnimation;
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !this._hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
+			this._closingList = list;
+			list.hide(didCancel);
+			return;
+		}
+
+		this._closingList = list;
+		widget.classList.add(closeAnimation.className);
+		list.hide(didCancel, false);
+		this._closeAnimation.value = disposableTimeout(() => {
+			if (this._list.value === list) {
+				this._contextViewService.hideContextView(didCancel);
+			}
+		}, closeAnimation.duration);
 	}
 
 	clear() {
+		this._closeAnimation.clear();
+		this._closingList = undefined;
+		this._widgetElement = undefined;
 		this._list.clear();
 	}
 
@@ -120,9 +167,13 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
 		element.appendChild(widget);
+		this._widgetElement = widget;
 
 		this._list.value = list;
 		if (this._list.value) {
+			if (this._list.value.headerContainer) {
+				widget.appendChild(this._list.value.headerContainer);
+			}
 			if (this._list.value.filterContainer) {
 				widget.appendChild(this._list.value.filterContainer);
 			}
@@ -134,6 +185,13 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			throw new Error('List has no value');
 		}
 		const renderDisposables = new DisposableStore();
+
+		// Clicking the header banner must not move focus out of the list, which
+		// would blur the widget and dismiss it.
+		const headerContainer = this._list.value.headerContainer;
+		if (headerContainer) {
+			renderDisposables.add(dom.addDisposableGenericMouseDownListener(headerContainer, e => e.preventDefault()));
+		}
 
 		// Invisible div to block mouse interaction in the rest of the UI
 		const menuBlock = document.createElement('div');
@@ -199,7 +257,26 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		return actionBar;
 	}
 
+	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
+		if (!classNames?.length) {
+			return true;
+		}
+		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
+			if (classNames.every(className => candidate.classList.contains(className))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private _onWidgetClosed(didCancel?: boolean): void {
+		if (this._closingList === this._list.value) {
+			this.clear();
+			return;
+		}
+		this._closeAnimation.clear();
+		this._closingList = undefined;
+		this._widgetElement = undefined;
 		this._list.value?.hide(didCancel);
 	}
 }

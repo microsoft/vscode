@@ -5,6 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions, IEditorWillOpenEvent, EditorInputWithOptions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IAuxiliaryEditorPart, IEditorPart, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -259,6 +260,23 @@ export interface IEditorGroupViewOptions {
 	 * after creation or not.
 	 */
 	readonly preserveFocus?: boolean;
+
+	/**
+	 * Optional menu ids used by the group header and tab bar. When unset the
+	 * workbench uses the shared defaults and renders no full-width header.
+	 */
+	readonly menuIds?: IEditorGroupMenuIds;
+}
+
+export interface IEditorGroupMenuIds {
+	/** Menu whose actions render as the leading (left) header toolbar. */
+	readonly headerPrimary?: MenuId;
+	/** Menu whose actions render as the trailing (right) header toolbar. */
+	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
+	readonly editorActions?: MenuId;
+	/** Menu shown when right-clicking the empty tab-bar area. */
+	readonly tabsBarContext?: MenuId;
 }
 
 /**
