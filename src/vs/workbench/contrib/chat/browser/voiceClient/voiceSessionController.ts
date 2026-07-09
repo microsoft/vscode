@@ -2567,10 +2567,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * confirmation as audio.
 	 */
 	private _reconcileConfirmationIndicators(waitingSessionIds: Set<string>): void {
-		const focusedId = this._getFocusedSessionId();
-		// Show the indicator for every unfocused waiting session.
+		// Suppress the indicator for the session the user is actively viewing.
+		// Use the embedder-aware active id (falls back to focus in the main
+		// window) so the agents window suppresses the shown session rather than
+		// the raw chat-widget focus, which can point at a different session.
+		const activeId = this._getActiveSessionId();
+		// Show the indicator for every non-active waiting session.
 		for (const sessionId of waitingSessionIds) {
-			if (sessionId === focusedId) {
+			if (sessionId === activeId) {
 				continue;
 			}
 			if (!this._confirmationPendingSessions.has(sessionId)) {
@@ -2578,9 +2582,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._markPendingResponse(sessionId, true);
 			}
 		}
-		// Clear it for sessions that are now focused or no longer waiting.
+		// Clear it for sessions that are now active or no longer waiting.
 		for (const sessionId of [...this._confirmationPendingSessions]) {
-			if (waitingSessionIds.has(sessionId) && sessionId !== focusedId) {
+			if (waitingSessionIds.has(sessionId) && sessionId !== activeId) {
 				continue;
 			}
 			this._clearConfirmationIndicator(sessionId);
