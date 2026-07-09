@@ -25,12 +25,7 @@ interface IResourceCacheEntry {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: IAuthorizationTokenResponse;
-	/**
-	 * Fallback identity (the IdP login account) for sessions built from this cached token. A resource
-	 * token usually has no `id_token` of its own, so the session adopts this IdP identity — keeping it
-	 * aligned with what account enumeration reports. Sourced from the IdP session, a *different* token
-	 * response than {@link IResourceCacheEntry.token}.
-	 */
+	/** Fallback identity (the IdP login account) for sessions built from this token, used when the resource token has no id_token of its own. */
 	readonly account: vscode.AuthenticationSessionAccountInformation;
 	readonly created_at: number;
 }
@@ -114,12 +109,8 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 		override async getSessions(scopes: readonly string[] | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 			const resource = options.resource;
 			const audience = options.audience;
-			// Account-enumeration call (e.g. IAuthenticationService.getAccounts → getSessions with no
-			// scopes/resource/audience). Without a resource we can't mint a resource-scoped token, but the
-			// stable account for XAA IS the IdP identity. Delegate to the base provider, whose no-scope
-			// path returns the tracked IdP session(s) so getAccounts() reflects the signed-in user instead
-			// of being structurally empty. The base no-scope path only reads its token store, so — as the
-			// getSessions contract requires — this does not prompt.
+			// Account-enumeration call (getAccounts): no resource to mint against, so surface the IdP
+			// session(s) from the base store. Read-only, so it honors the no-prompt getSessions contract.
 			if (!scopes && !resource && !audience) {
 				return super.getSessions(scopes, options);
 			}
@@ -285,10 +276,7 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 				resource,
 				scopes,
 				token: resourceToken,
-				// Fallback identity for sessions built from this token: used when the resource token has no
-				// id_token of its own (the usual case), so the session adopts the IdP login identity and
-				// stays aligned with account enumeration. Sourced from the IdP session — a different token
-				// response than `resourceToken`.
+				// Fallback identity, used when the resource token carries no id_token of its own (the usual case).
 				account: idpSession.account,
 				created_at: Date.now(),
 			};
@@ -378,14 +366,9 @@ export function XaaifyAuthProvider<TBase extends Ctor<DynamicAuthProvider>>(Base
 }
 
 /**
- * Builds a {@link vscode.AuthenticationSession} from a token response. Identity is taken from the
- * session's OWN `id_token` when present — that is the identity assertion returned with the very tokens
- * we're handing back. `fallbackAccount` (the IdP login identity, from a *different* token response) is
- * used only when this token carries no `id_token` of its own, which is the usual case for resource-scoped
- * tokens and keeps such sessions aligned with account enumeration (`getAccounts`). We never derive identity
- * from the `access_token`: unlike the base DynamicAuthProvider, an XAA access token is a bearer credential
- * for the resource server, opaque to us by design, so mining it for identity yields the wrong account.
- * Exported for testing.
+ * Builds a session from a token response. Identity precedence: the token's own `id_token`, then
+ * `fallbackAccount` (the IdP login identity), then a generic default. Never the `access_token`, which
+ * for XAA is an opaque resource credential. Exported for testing.
  */
 export function toSession(token: IAuthorizationTokenResponse, scopes: readonly string[], fallbackAccount?: vscode.AuthenticationSessionAccountInformation): vscode.AuthenticationSession {
 	let account: vscode.AuthenticationSessionAccountInformation | undefined;
