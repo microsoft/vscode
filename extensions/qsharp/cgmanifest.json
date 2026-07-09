@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "qsharp-community/qsharp-tmLanguage",
+					"repositoryUrl": "https://github.com/qsharp-community/qsharp-tmLanguage",
+					"commitHash": "7e89b554ee70a0ada07561b78470def6720ff5c3"
+				}
+			},
+			"license": "MIT",
+			"version": "0.2.0",
+			"description": "The file syntaxes/qsharp.tmLanguage.json was derived from https://github.com/qsharp-community/qsharp-tmLanguage"
+		}
+	],
+	"version": 1
+}
