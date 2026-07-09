@@ -86,7 +86,7 @@ export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
 
-/** Controls whether empty default groups (Pinned, Chats) are shown in the sessions list. */
+/** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
@@ -2041,15 +2041,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
-		// Keep the "Pinned" and "Chats" default sections visible even when empty so
-		// they stay discoverable, unless the user opts out via the setting.
+		// Keep the "Chats" default section visible even when empty so it stays
+		// discoverable, unless the user opts out via the setting. The "Pinned"
+		// section is only shown when it actually has pinned sessions.
 		const showEmptyDefaultGroups = this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING);
-
-		// Keep the "Pinned" section always visible (even with no pinned sessions)
-		// so it is discoverable, mirroring the always-visible "Chats" section.
-		if (showEmptyDefaultGroups && !sections.some(s => s.id === 'pinned')) {
-			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: [] });
-		}
 
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
@@ -2135,12 +2130,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				&& this.workspaceGroupCapped;
 			let sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
 
-			// The always-visible "Chats" and "Pinned" sections show a muted
-			// placeholder row when they have no sessions yet.
+			// The always-visible "Chats" section shows a muted placeholder row
+			// when it has no sessions yet.
 			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
-			} else if (section.id === 'pinned' && section.sessions.length === 0) {
-				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noPinnedSessions', "No pinned sessions") } }];
 			}
 
 			// Default collapse state for older time sections
@@ -2155,9 +2148,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
-			// The always-visible "Pinned" and "Chats" sections start collapsed on
-			// first open; the user's later choice is persisted and honored via
-			// getSavedCollapseState.
+			// The "Pinned" and "Chats" sections start collapsed on first open; the
+			// user's later choice is persisted and honored via getSavedCollapseState.
 			if (section.id === 'pinned' || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
