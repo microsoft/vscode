@@ -502,6 +502,12 @@ export interface IActionListHeaderLink {
 	readonly uri: URI;
 }
 
+export interface IActionListCloseAnimation {
+	readonly className: string;
+	readonly duration: number;
+	readonly requiredAncestorClasses?: readonly string[];
+}
+
 /**
  * Options for configuring the action list.
  */
@@ -621,6 +627,12 @@ export interface IActionListOptions {
 	 * Optional CSS class name added to the action list container, for scoped styling.
 	 */
 	readonly className?: string;
+
+	/**
+	 * Optional CSS class and duration used to animate the containing action widget
+	 * before the context view is hidden.
+	 */
+	readonly closeAnimation?: IActionListCloseAnimation;
 }
 
 /**
@@ -1153,6 +1165,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	get filterInput(): HTMLInputElement | undefined {
 		return this._filterInput;
+	}
+
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._options?.closeAnimation;
 	}
 
 	private focusCondition(element: IActionListItem<unknown>): boolean {
@@ -2012,6 +2028,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterInput;
 	}
 
+	get closeAnimation(): IActionListCloseAnimation | undefined {
+		return this._widget.closeAnimation;
+	}
+
 	/**
 	 * Returns the resolved anchor position after the first layout.
 	 * Used by the context view delegate to lock the dropdown direction.
@@ -2060,9 +2080,11 @@ export class ActionList<T> extends Disposable {
 		this._widget.focus();
 	}
 
-	hide(didCancel?: boolean): void {
+	hide(didCancel?: boolean, hideContextView = true): void {
 		this._widget.hide(didCancel);
-		this._contextViewService.hideContextView();
+		if (hideContextView) {
+			this._contextViewService.hideContextView();
+		}
 	}
 
 	clearFilter(): boolean {

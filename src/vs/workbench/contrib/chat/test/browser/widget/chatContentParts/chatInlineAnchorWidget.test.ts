@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { renderFileWidgets } from '../../../../browser/widget/chatContentParts/chatInlineAnchorWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -58,6 +60,22 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
 		assert.ok(widget, 'Widget should be rendered for empty link text');
+	});
+
+	test('uses a custom resource opener when provided', async () => {
+		const resource = URI.file('/workspace/package.json');
+		const element = createTestElement('', resource.toString());
+		const opened = new DeferredPromise<URI>();
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables, {
+			openResource: async resource => {
+				opened.complete(resource);
+				return true;
+			},
+		});
+
+		element.querySelector<HTMLElement>('.chat-inline-anchor-widget')?.click();
+
+		assert.strictEqual((await opened.p).toString(), resource.toString());
 	});
 
 	test('renders widget for empty vscode-agent-host link in chat query title', () => {

@@ -211,3 +211,17 @@
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
 	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
 }
+
+/*
+ * When the bottom panel is hidden, the grid keeps a collapsed (zero-height) panel
+ * node whose reveal sash sits at the very bottom of the content region. Sashes are
+ * centered on their boundary, so the sash's lower half overflows the content region
+ * and is clipped where the region meets the status bar — leaving only the top half
+ * of the highlight visible. The reveal sash carries the `.maximum` state class; nudge
+ * its highlight up by half the sash size so the full line renders inside the content
+ * region. Scoped to `.nopanel` so a panel resized to its minimum (still visible, its
+ * sash fully on-screen) keeps its highlight centered on the real boundary.
+ */
+.monaco-workbench.floating-panels.nopanel .monaco-sash.horizontal.maximum:not(.part .monaco-sash)::before {
+	top: calc(50% - (var(--vscode-sash-hover-size) / 2) - (var(--vscode-sash-size) / 2));
+}

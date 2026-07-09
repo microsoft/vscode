@@ -27,6 +27,8 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
+import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
@@ -127,12 +129,50 @@ const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
 );
 
-const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
+// Title-bar (tab-row) gate that does NOT require the editor content area to be
+// visible, so session-level title actions (e.g. Create Pull Request) stay available
+// when the editor area is closed but the docked tab bar is still shown.
+const singlePaneChangesEditorTitle = ContextKeyExpr.and(
 	singlePaneChangesEditorActive,
 	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext,
+	IsTopRightEditorGroupContext
+);
+
+const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
+	singlePaneChangesEditorTitle,
 	MainEditorAreaVisibleContext
 );
+
+/**
+ * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
+ * in the single-pane title bar (right side — the session actions area). The custom action
+ * view item is registered for {@link Menus.TitleBarSessionMenu} via IActionViewItemService
+ * in changesView.ts. The bar hides itself when its underlying menu has no actions.
+ */
+class ChangesHeaderActionsAction extends Action2 {
+	constructor() {
+		super({
+			id: CHANGES_HEADER_ACTIONS_ID,
+			title: localize2('changesView.headerActions', "Changes Actions"),
+			f1: false,
+			menu: {
+				id: Menus.TitleBarSessionMenu,
+				group: 'navigation',
+				order: 5,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+					SessionHasChangesContext
+				)
+			},
+		});
+	}
+	override async run(): Promise<void> { }
+}
+
+registerAction2(ChangesHeaderActionsAction);
+
 
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
@@ -144,11 +184,13 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_changesView',
-				order: 10,
+				// Always in the overflow ("…") of the right header, whether the editor
+				// area is visible or collapsed (as long as the changes list is shown).
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary',
+				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitleVisible,
+					singlePaneChangesEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
 			}
@@ -173,11 +215,13 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '1_changesView',
-				order: 10,
+				// Always in the overflow ("…") of the right header, whether the editor
+				// area is visible or collapsed (as long as the changes list is shown).
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary',
+				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitleVisible,
+					singlePaneChangesEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
 			}
@@ -202,9 +246,9 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: 'navigation',
-				order: 100,
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: '1_diff',
+				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
@@ -232,9 +276,9 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: 'navigation',
-				order: 100,
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: '1_diff',
+				order: 10,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,
 					IsAuxiliaryWindowContext.toNegated(),
@@ -266,9 +310,9 @@ class ToggleSessionChangesInlineViewAction extends Action2 {
 			f1: false,
 			toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: 'navigation',
-				order: 99,
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: '1_diff',
+				order: 20,
 				when: ContextKeyExpr.and(
 					singlePaneChangesEditorActive,
 					IsAuxiliaryWindowContext.toNegated(),

@@ -2323,7 +2323,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const primaryContainer = append(container, $('.editor-group-header-primary'));
 			const secondaryContainer = append(container, $('.editor-group-header-secondary'));
 
-			const toolbarOptions = { menuOptions: { shouldForwardArgs: true } };
+			// Render every group inline with separators between groups, so header menus
+			// can arrange actions into separated segments. The sentinel `secondary` group
+			// is the exception: its items fall into the toolbar's overflow ("…") menu.
+			const toolbarOptions = {
+				menuOptions: { shouldForwardArgs: true },
+				toolbarOptions: { primaryGroup: (group: string) => group !== 'secondary', useSeparatorsInPrimaryActions: true }
+			};
 			if (headerPrimaryMenuId) {
 				store.add(headerActions.instantiationService.createInstance(MenuWorkbenchToolBar, primaryContainer, headerPrimaryMenuId, toolbarOptions));
 			}

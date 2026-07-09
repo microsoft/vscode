@@ -2056,6 +2056,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return sess ? await sess.getSessionCustomizations() : [];
 	}
 
+	async startMcpServer(session: URI, id: string): Promise<void> {
+		const sess = this._findAnySession(AgentSession.id(session));
+		await sess?.startMcpServer(id);
+	}
+
+	async stopMcpServer(session: URI, id: string): Promise<void> {
+		const sess = this._findAnySession(AgentSession.id(session));
+		await sess?.stopMcpServer(id);
+	}
+
 	// #endregion
 
 	override dispose(): void {

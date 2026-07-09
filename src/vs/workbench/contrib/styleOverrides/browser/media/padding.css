@@ -141,7 +141,7 @@
 .style-override.monaco-workbench .part.basepanel.top .composite.title,
 .style-override.monaco-workbench .part.basepanel.left .composite.title,
 .style-override.monaco-workbench .part.basepanel.right .composite.title {
-	padding-right: 2px;
+	padding-right: 4px;
 	overflow: visible;
 }
 
@@ -180,5 +180,17 @@
 
 .style-override.monaco-workbench .extensions-viewlet > .header {
 	padding: 4px 8px;
+}
+
+.style-override.monaco-workbench .extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper {
+	margin-right: 6px;
+}
+
+.style-override.monaco-workbench .monaco-count-badge {
+	padding: 4px 6px;
+	min-width: 19px;
+	min-height: 19px;
+.style-override.monaco-workbench .interactive-session .interactive-input-part {
+	padding-bottom: 0;
 }
 

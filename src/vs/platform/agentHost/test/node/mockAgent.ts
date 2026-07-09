@@ -120,6 +120,12 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
+	/**
+	 * When set, {@link sendMessage} rejects with this error after recording the
+	 * call — used to simulate a failed first-turn materialization (e.g. worktree
+	 * or branch setup throwing).
+	 */
+	sendMessageError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
@@ -141,6 +147,9 @@ export class MockAgent implements IAgent {
 		this._onDidSendMessage.fire(call);
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
+		}
+		if (this.sendMessageError) {
+			throw this.sendMessageError;
 		}
 	}
 

@@ -31,6 +31,7 @@ export interface IAnimatedCounterWidgetOptions {
 export class AnimatedCounterWidget extends Disposable {
 	private _element: HTMLElement;
 	private _count: number | undefined;
+	private _hasRendered = false;
 	private readonly _animationOptions: KeyframeAnimationOptions;
 	private readonly _updateThrottler = this._register(new Throttler());
 
@@ -72,17 +73,21 @@ export class AnimatedCounterWidget extends Disposable {
 		if (count === undefined) {
 			outgoingElement.textContent = '';
 			this._count = undefined;
+			this._hasRendered = false;
 			return;
 		}
 
 		// Create incoming element
 		const incomingElementText = `${this._options.prefix ?? ''}${count}`;
 
-		// Skip the animation when it is disabled (duration of 0) or when
-		// the user prefers reduced motion, just update the text content.
-		if (this._options.duration === 0 || this._accessibilityService.isMotionReduced()) {
+		// Skip the animation when it is disabled (duration of 0), when the user
+		// prefers reduced motion, or on the first render (there is no previous
+		// value to animate from, so animating would look out of place). Just
+		// update the text content.
+		if (this._options.duration === 0 || !this._hasRendered || this._accessibilityService.isMotionReduced()) {
 			outgoingElement.textContent = incomingElementText;
 			this._count = count;
+			this._hasRendered = true;
 			return;
 		}
 

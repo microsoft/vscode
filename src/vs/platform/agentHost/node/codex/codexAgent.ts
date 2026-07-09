@@ -32,7 +32,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged, inventoryToSdkServers, translateCodexMcpStartupState, type ICodexMcpServerEntry } from './codexMcpServers.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
-import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
+import { McpServerStatus, type AhpMcpUiHostCapabilities, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -2511,6 +2511,35 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async startMcpServer(sessionUri: URI, id: string): Promise<void> {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		const serverName = session ? this._resolveMcpServerName(session, id) : undefined;
+		if (!session || !serverName) {
+			this._logService.warn(`[Codex] Cannot start unknown MCP server customization ${id}`);
+			return;
+		}
+		const conn = await this._ensureConnection();
+		await conn.client.request<'config/mcpServer/reload'>('config/mcpServer/reload', undefined);
+		await this._refreshMcpInventory(conn.client);
+	}
+
+	async stopMcpServer(sessionUri: URI, id: string): Promise<void> {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		const serverName = session ? this._resolveMcpServerName(session, id) : undefined;
+		if (!session || !serverName) {
+			this._logService.warn(`[Codex] Cannot stop unknown MCP server customization ${id}`);
+			return;
+		}
+		// TODO: Wire this when Codex exposes a typed MCP server stop request.
+	}
+
+	private _resolveMcpServerName(session: ICodexSession, id: string): string | undefined {
+		const controller = this._getOrCreateMcpController(session);
+		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
+		return controller.serverNameForCustomizationId(id);
+	}
+
 	/**
 	 * Lazily create the per-session {@link McpCustomizationController}. Not
 	 * registered on the agent (sessions come and go) — disposed explicitly
@@ -2590,6 +2619,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				toolsChanged.push(name);
 			}
 		}
+		for (const [name, entry] of this._mcpInventory) {
+			if (!next.has(name) && entry.state.kind !== McpServerStatus.Ready) {
+				next.set(name, entry);
+			}
+		}
 		this._mcpInventory.clear();
 		for (const [name, entry] of next) {
 			this._mcpInventory.set(name, entry);
@@ -2614,17 +2648,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			void this._refreshMcpInventory(client);
 			return;
 		}
-		if (status === 'cancelled') {
-			this._mcpInventory.delete(name);
-		} else {
-			const prev = this._mcpInventory.get(name);
-			this._mcpInventory.set(name, {
-				state: translateCodexMcpStartupState(status, error),
-				tools: prev?.tools ?? [],
-				resources: prev?.resources ?? [],
-				resourceTemplates: prev?.resourceTemplates ?? [],
-			});
-		}
+		const prev = this._mcpInventory.get(name);
+		this._mcpInventory.set(name, {
+			state: translateCodexMcpStartupState(status, error),
+			tools: prev?.tools ?? [],
+			resources: prev?.resources ?? [],
+			resourceTemplates: prev?.resourceTemplates ?? [],
+		});
 		this._applyMcpInventoryToSessions();
 	}
 

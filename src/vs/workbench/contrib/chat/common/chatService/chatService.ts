@@ -1123,6 +1123,8 @@ export interface IChatModifiedFilesConfirmationData {
 	readonly options: readonly string[];
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
+		/** The pending file operation represented by this entry. */
+		readonly editKind?: ChatExternalEditKind;
 		readonly originalUri?: UriComponents;
 		/**
 		 * Optional URI to read the modified (after) content from for the diff

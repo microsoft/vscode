@@ -1251,8 +1251,9 @@ interface INewSessionConstructionContext {
 	/**
 	 * Optional initial config values to seed into the new session before its
 	 * first {@link NewSession.resolveConfig} round-trip. Used to forward
-	 * `chat.permissions.default` into the agent host's `autoApprove` slot so
-	 * the picker reflects the user's preference immediately.
+	 * `chat.permissions.default` into the agent host's `autoApprove` slot and
+	 * `git.branchPrefix` into the `worktreeBranchPrefix` slot so the values are
+	 * present from the very first `resolveConfig`/`createSession`.
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
 	/**
@@ -2254,7 +2255,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			resourceScheme,
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
-			initialConfigValues: this._initialNewSessionConfig(),
+			initialConfigValues: this._initialNewSessionConfig(workspace),
 			instantiationService: this._instantiationService,
 			onSessionState: (id, state) => state === undefined
 				? this._handleNewSessionStateGone(id)
@@ -2375,8 +2376,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
 	 * is clamped to `default` so the agent host never starts in an elevated
 	 * permission level the user is not allowed to pick.
+	 *
+	 * The user's `git.branchPrefix` setting (resource-scoped to the workspace's
+	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
+	 * host can prepend it to the branch it creates for an isolated worktree.
 	 */
-	protected _initialNewSessionConfig(): Record<string, unknown> | undefined {
+	protected _initialNewSessionConfig(workspace?: ISessionWorkspace): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
@@ -2412,6 +2417,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const configuredMode = configuredDefaults?.mode;
 		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
 			remembered[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		// Worktree branch prefix, forwarded from `git.branchPrefix`. Seeded
+		// here (rather than remembered) since it is derived from a setting, not
+		// a user pick; an empty value is omitted so the default branch naming
+		// is preserved.
+		const resource = workspace?.folders[0]?.root;
+		const branchPrefix = this._baseConfigurationService.getValue<string>('git.branchPrefix', { resource });
+		if (typeof branchPrefix === 'string' && branchPrefix.length > 0) {
+			remembered[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
 		}
 
 		return Object.keys(remembered).length > 0 ? remembered : undefined;
@@ -2817,6 +2832,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						type: ActionType.SessionCustomizationToggled,
 						id: c.id,
 						enabled,
+					});
+				},
+				start: async () => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionMcpServerStartRequested,
+						id: c.id,
+					});
+				},
+				stop: async () => {
+					const connection = this.connection;
+					if (!connection) {
+						return;
+					}
+					connection.dispatch(sessionUri.toString(), {
+						type: ActionType.SessionMcpServerStopRequested,
+						id: c.id,
 					});
 				},
 			}));

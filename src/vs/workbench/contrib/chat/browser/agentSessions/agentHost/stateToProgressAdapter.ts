@@ -856,7 +856,7 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 }
 function getTerminalOutput(tc: ToolCallState) {
 	// TODO: Revisit whether SDK shell tool output should continue coming from
-	// ToolResultContentType.Text, or from shell_exit.outputPreview when available.
+	// ToolResultContentType.Text, or from terminalComplete.preview when available.
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(isToolResultTextContent)?.text : undefined;
 	if (!text) {
 		return undefined;
@@ -873,17 +873,17 @@ function isToolResultTextContent(content: ToolResultContent): content is Extract
 }
 
 function getTerminalCommandState(tc: ToolCallState, fallbackSuccess?: boolean): IChatTerminalToolInvocationData['terminalCommandState'] | undefined {
-	const shellExit = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
-		? tc.content?.find(isToolResultShellExitContent)
+	const terminalComplete = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running
+		? tc.content?.find(isToolResultTerminalCompleteContent)
 		: undefined;
-	if (shellExit) {
-		return { exitCode: shellExit.exitCode };
+	if (terminalComplete?.exitCode !== undefined) {
+		return { exitCode: terminalComplete.exitCode };
 	}
 	return fallbackSuccess === undefined ? undefined : { exitCode: fallbackSuccess ? 0 : 1 };
 }
 
-function isToolResultShellExitContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.ShellExit }> {
-	return content.type === ToolResultContentType.ShellExit;
+function isToolResultTerminalCompleteContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.TerminalComplete }> {
+	return content.type === ToolResultContentType.TerminalComplete;
 }
 
 function getTerminalLanguage(tc: ToolCallState) {
@@ -1651,6 +1651,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 					const originalContent = edit.beforeContentUri ? wrap(edit.beforeContentUri) : undefined;
 					return {
 						uri: resource,
+						editKind: edit.kind as ChatExternalEditKind,
 						originalUri: originalResource,
 						modifiedContentUri: modifiedContent,
 						originalContentUri: originalContent,

@@ -3412,6 +3412,11 @@
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
           },
+          "github.copilot.chat.preferLongContext.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.preferLongContext.enabled%"
+          },
           "github.copilot.enable": {
             "type": "object",
             "scope": "window",

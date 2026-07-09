@@ -25,7 +25,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -197,6 +197,16 @@ export interface IToolInvocation {
 	selectedCustomButton?: string;
 	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
 	preToolUseResult?: IExternalPreToolUseHookResult;
+	/**
+	 * A confirmation reason resolved out-of-band by the caller (e.g. the agent
+	 * host, which decides auto-approval server-side). When set, the invocation
+	 * is treated as already auto-approved and transitions straight to executing
+	 * without ever entering the `WaitingForConfirmation` state. This avoids a
+	 * transient "needs input" flicker in surfaces (like the sessions list) that
+	 * observe pending confirmations, for tool calls that will be auto-approved
+	 * anyway.
+	 */
+	preApproved?: ConfirmedReason;
 	/**
 	 * Optional W3C trace context `traceparent` value identifying the parent distributed
 	 * tracing span for this tool invocation. Forwarded to MCP tool implementations as

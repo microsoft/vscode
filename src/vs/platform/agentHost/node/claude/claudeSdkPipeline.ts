@@ -115,6 +115,27 @@ export class ClaudeSdkPipeline extends Disposable {
 		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
+	async startMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const lifecycle = query;
+		if (lifecycle.toggleMcpServer && lifecycle.reconnectMcpServer) {
+			await lifecycle.toggleMcpServer(serverName, true);
+			await lifecycle.reconnectMcpServer(serverName);
+			return true;
+		}
+		return false;
+	}
+
+	async stopMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const lifecycle = query;
+		if (!lifecycle.toggleMcpServer) {
+			return false;
+		}
+		await lifecycle.toggleMcpServer(serverName, false);
+		return true;
+	}
+
 	/**
 	 * Bind the SDK Query if needed, recovering a dead one first. Mirrors the
 	 * gate in {@link send}: if the pipeline is marked for rebind (after an

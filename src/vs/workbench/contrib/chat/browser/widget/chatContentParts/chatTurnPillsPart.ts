@@ -3,34 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { localize } from '../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { FileKind } from '../../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../browser/labels.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
+import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
+import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
- * Renders the turn's status pills (changes + preview) inside a completed chat
- * response, mirroring the floating pills shown above the input while the turn
- * streams. Fed by the per-request diffs from {@link IChatResponseFileChangesService}
- * (agent host sessions), so it reflects the same authoritative per-turn changes as
- * the "Changed N files" summary. The part self-hides when the turn produced no
- * changes.
+ * Renders a single agent turn's changes as a checkpoint-style summary: a
+ * `N files changed +ins -del` header with a "View All File Changes" action, an
+ * optional inline resource-label action for the first previewable file the turn
+ * produced, and a disclosure that expands to the list of changed files. Preview
+ * candidates prefer the turn's file-edit stream so files outside the workspace
+ * can appear.
  */
 export class ChatTurnPillsContentPart extends Disposable implements IChatContentPart {
 
@@ -42,11 +52,13 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
 		@IChatResponseFileChangesService chatResponseFileChangesService: IChatResponseFileChangesService,
-		@ICommandService commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService,
-		@ILogService logService: ILogService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@ILogService private readonly _logService: ILogService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -68,40 +80,166 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return { files: diffs.length, insertions, deletions };
 		});
 
+		const previewDiffs = chatResponseFileChangesService.getFileEditsForRequest?.(_content.sessionResource, _content.requestId) ?? this._diffs;
 		const previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => {
 			const created: IPreviewFile[] = [];
 			const edited: IPreviewFile[] = [];
-			for (const diff of this._diffs.read(reader)) {
-				const kind = previewKind(diff.modifiedURI);
-				if (!kind) {
-					continue;
+			const seen = new Set<string>();
+			const addDiffs = (diffs: readonly IEditSessionEntryDiff[]) => {
+				for (const diff of diffs) {
+					const kind = previewKind(diff.modifiedURI);
+					if (!kind) {
+						continue;
+					}
+					const key = getComparisonKey(diff.modifiedURI);
+					if (seen.has(key)) {
+						continue;
+					}
+					seen.add(key);
+					// The agent host provider maps a created file's `originalURI` to its
+					// `modifiedURI` (there is no before-content), so equal URIs mark a
+					// creation. Created files are listed first so the primary preview is
+					// the first created file, else the first edited one.
+					const isCreated = isEqual(diff.originalURI, diff.modifiedURI);
+					(isCreated ? created : edited).push({ uri: diff.modifiedURI, kind, created: isCreated });
 				}
-				// The agent host provider maps a created file's `originalURI` to its
-				// `modifiedURI` (there is no before-content), so equal URIs mark a
-				// creation. Created files are listed first so the primary preview is
-				// the first created file, else the first edited one.
-				const isCreated = isEqual(diff.originalURI, diff.modifiedURI);
-				(isCreated ? created : edited).push({ uri: diff.modifiedURI, kind, created: isCreated });
-			}
+			};
+			addDiffs(previewDiffs.read(reader));
+			addDiffs(this._diffs.read(reader));
 			return [...created, ...edited];
 		});
 
 		const pillsConfig = observeTurnStatusPillsConfig(configurationService);
-		const model: IChatTurnPillsModel = {
-			stats,
-			previewFiles,
-			changesEnabled: derived(reader => pillsConfig.read(reader).changes),
-			previewEnabled: derived(reader => pillsConfig.read(reader).preview),
-			openChanges: () => this._openChanges(),
-			openPreviewFile: file => openChatPreviewFile(file, commandService, openerService, logService),
-		};
+		const changesEnabled = derived(this, reader => pillsConfig.read(reader).changes);
+		const previewEnabled = derived(this, reader => pillsConfig.read(reader).preview);
+		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
+		const showPreview = derived(this, reader => previewEnabled.read(reader) && previewFiles.read(reader).length > 0);
 
-		const widget = this._register(this._instantiationService.createInstance(ChatTurnPillsWidget, model));
-		this.domNode.appendChild(widget.element);
+		// Reuse the checkpoint summary's structure and classes so the two look
+		// identical. `show-file-icons` (added by the themable tree scope below)
+		// lets the preview action's resource label render the file's themed icon.
+		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
+		this._register(createFileIconThemableTreeContainerScope(root, themeService));
+
+		const details = root.appendChild(document.createElement('details'));
+		details.classList.add('checkpoint-file-changes-disclosure');
+		const header = details.appendChild(document.createElement('summary'));
+		header.classList.add('checkpoint-file-changes-summary-header');
+
+		const resourceLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+
+		this._register(this._renderChangesHeader(header, stats, showChanges));
+		this._register(this._renderPreviewAction(header, previewFiles, showPreview, resourceLabels));
+		this._register(this._renderChevron(header, details, showChanges));
+
+		// Only feed diffs into the list when the changes summary is shown, so the
+		// disclosure stays empty when just the preview action is enabled. Each
+		// previewable row gets a "Preview" action that opens the file's preview.
+		const listDiffs = derived(this, reader => showChanges.read(reader) ? this._diffs.read(reader) : []);
+		this._register(renderChangesSummaryFileList(details, listDiffs, this._instantiationService, this._editorService, configurationService, {
+			getRowActions: diff => this._getRowActions(diff),
+		}));
 
 		this._register(autorun(reader => {
-			this.domNode.style.display = widget.isVisible.read(reader) ? '' : 'none';
+			this.domNode.style.display = (showChanges.read(reader) || showPreview.read(reader)) ? '' : 'none';
 		}));
+	}
+
+	private _renderChangesHeader(header: HTMLElement, stats: IObservable<IDiffStats>, showChanges: IObservable<boolean>): IDisposable {
+		const filesLabel = header.appendChild($('span.chat-file-changes-label'));
+		const counts = header.appendChild($('span.chat-file-changes-counts', { 'aria-hidden': 'true' }));
+		const addedLabel = counts.appendChild($('span.insertions'));
+		const removedLabel = counts.appendChild($('span.deletions'));
+		const viewAll = this._renderViewAllFileChangesButton(header);
+
+		return combinedDisposable(viewAll, autorun(reader => {
+			const { files, insertions, deletions } = stats.read(reader);
+			const fileCountLabel = files === 1
+				? localize('chat.turnChanges.oneFile', '1 file changed')
+				: localize('chat.turnChanges.manyFiles', '{0} files changed', files);
+			filesLabel.textContent = fileCountLabel;
+			addedLabel.textContent = `+${insertions}`;
+			removedLabel.textContent = `-${deletions}`;
+			header.setAttribute('aria-label', localize(
+				'chat.turnChanges.accessibleSummary',
+				'{0}, {1} lines added, {2} lines deleted',
+				fileCountLabel,
+				insertions,
+				deletions
+			));
+
+			const show = showChanges.read(reader);
+			filesLabel.classList.toggle('hidden', !show);
+			counts.classList.toggle('hidden', !show);
+			viewAll.element.classList.toggle('hidden', !show);
+		}));
+	}
+
+	private _renderViewAllFileChangesButton(header: HTMLElement): { readonly element: HTMLElement } & IDisposable {
+		const button = header.appendChild(document.createElement('button'));
+		button.classList.add('chat-view-changes-icon');
+		button.type = 'button';
+		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
+		button.setAttribute('aria-label', localize('chat.viewTurnFileChangesSummary', 'View All File Changes'));
+		const hoverDisposable = this._hoverService.setupDelayedHover(button, () => ({
+			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+		}));
+
+		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
+			this._openChanges();
+			dom.EventHelper.stop(e, true);
+		});
+
+		return { element: button, dispose: () => combinedDisposable(hoverDisposable, clickDisposable).dispose() };
+	}
+
+	private _renderPreviewAction(header: HTMLElement, previewFiles: IObservable<readonly IPreviewFile[]>, showPreview: IObservable<boolean>, resourceLabels: ResourceLabels): IDisposable {
+		const container = header.appendChild($('.chat-turn-preview'));
+		container.appendChild($('span.chat-turn-preview-separator', { 'aria-hidden': 'true' }));
+
+		const button = container.appendChild(document.createElement('button'));
+		button.classList.add('chat-turn-preview-action');
+		button.type = 'button';
+		const label = this._register(resourceLabels.create(button));
+
+		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
+			this._openPrimaryPreview(previewFiles.get());
+			dom.EventHelper.stop(e, true);
+		});
+
+		return combinedDisposable(clickDisposable, autorun(reader => {
+			const files = previewFiles.read(reader);
+			const primaryFile = files.at(0);
+			if (primaryFile) {
+				label.setResource(
+					{ resource: primaryFile.uri, name: basename(primaryFile.uri) },
+					{ fileKind: FileKind.FILE },
+				);
+				const tooltip = localize('chat.turnPreview.tooltip', 'Open Preview: {0}', basename(primaryFile.uri));
+				button.setAttribute('aria-label', tooltip);
+				button.title = tooltip;
+			}
+			container.classList.toggle('hidden', !showPreview.read(reader));
+		}));
+	}
+
+	private _renderChevron(header: HTMLElement, details: HTMLDetailsElement, showChanges: IObservable<boolean>): IDisposable {
+		const chevron = header.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+
+		const setExpansionState = () => {
+			header.setAttribute('aria-expanded', String(details.open));
+			chevron.classList.toggle('codicon-chevron-right', !details.open);
+			chevron.classList.toggle('codicon-chevron-down', details.open);
+		};
+		setExpansionState();
+
+		return combinedDisposable(
+			dom.addDisposableListener(details, 'toggle', setExpansionState),
+			autorun(reader => {
+				chevron.classList.toggle('hidden', !showChanges.read(reader));
+			}),
+		);
 	}
 
 	private _openChanges(): void {
@@ -118,6 +256,30 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			false,
 		);
 		this._editorService.openEditor(input);
+	}
+
+	private _openPrimaryPreview(files: readonly IPreviewFile[]): void {
+		const primaryFile = files.at(0);
+		if (primaryFile) {
+			openChatPreviewFile(primaryFile, this._commandService, this._openerService, this._logService);
+		}
+	}
+
+	/**
+	 * Row actions for the changed-files list: markdown files get a labelless-
+	 * icon-free "Preview" action that opens the file as a markdown preview.
+	 */
+	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
+		const kind = previewKind(diff.modifiedURI);
+		if (!kind) {
+			return [];
+		}
+		const file: IPreviewFile = { uri: diff.modifiedURI, kind, created: isEqual(diff.originalURI, diff.modifiedURI) };
+		return [toAction({
+			id: 'chat.turnChanges.previewFile',
+			label: localize('chat.turnChanges.preview', "Preview"),
+			run: () => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+		})];
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

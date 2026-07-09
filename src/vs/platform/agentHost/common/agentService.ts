@@ -6,7 +6,6 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
@@ -40,14 +39,6 @@ export const enum AgentHostIpcChannels {
 	 * Pairs with `AgentHostIpcChannelTransport` on the renderer side.
 	 */
 	RemoteProxy = 'agentHostProxy',
-}
-
-/** Configuration key that controls whether the local agent host process is spawned. */
-export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
-
-/** Whether the local/process-backed agent host is enabled in this runtime. */
-export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
 }
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
@@ -830,6 +821,20 @@ export interface IAgentCreateSessionConfig {
 		readonly turnIdMapping?: ReadonlyMap<string, string>;
 	};
 	/**
+	 * Import an existing (e.g. local) conversation into a brand-new session as
+	 * real, editable turns. The provider translates {@link turns} into a
+	 * Copilot event log seeded on disk and resumes the session so the turns are
+	 * reconstituted as genuine backend events (editable / forkable / truncatable).
+	 *
+	 * The service layer assigns fresh UUID turn ids before handing the turns to
+	 * the provider so the seeded event ids and the seeded protocol turns stay
+	 * aligned. Mutually exclusive with {@link fork}.
+	 */
+	readonly importConversation?: {
+		readonly turns: readonly Turn[];
+		readonly model?: ModelSelection;
+	};
+	/**
 	 * MCP-style opt-in progress token from the client's `createSession`. When
 	 * set, the service reports any long-running session bring-up work — chiefly
 	 * the lazy first-use SDK download — as `progress` notifications carrying
@@ -1575,6 +1580,12 @@ export interface IAgent {
 	 * @param id The opaque session-unique customization id.
 	 */
 	setCustomizationEnabled(id: string, enabled: boolean): void;
+
+	/** Request a session MCP server start/restart by customization id. */
+	startMcpServer?(session: URI, id: string): Promise<void>;
+
+	/** Request a session MCP server stop by customization id. */
+	stopMcpServer?(session: URI, id: string): Promise<void>;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;

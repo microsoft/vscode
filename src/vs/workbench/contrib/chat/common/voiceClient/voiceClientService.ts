@@ -67,8 +67,8 @@ export interface IVoiceTurnConfig {
 	readonly silence_ms: number;
 	/** Phrases matched at the end of the transcript; the server normalizes and strips them. */
 	readonly stop_phrases: readonly string[];
-	/** Tri-state: ``true``/``false`` force ASR gating on/off; ``null`` lets the server derive it. */
-	readonly vad_gate_asr: boolean | null;
+	/** Whether the backend gates ASR on its voice-activity detector. Always ``true``: only forward audio to speech recognition when the VAD hears speech. */
+	readonly vad_gate_asr: boolean;
 }
 
 /** Why the backend ended the turn on its own. */
@@ -159,6 +159,13 @@ export interface IVoiceClientService {
 	sendPttStart(turnId: string): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
+	/**
+	 * Barge-in: stream raw mic audio while the assistant speaks (hands-free) so
+	 * the backend can detect the user talking over it. Not a turn; not transcribed.
+	 */
+	sendBargeInStart(): void;
+	sendBargeInAudioChunk(audio: string): void;
+	sendBargeInStop(): void;
 	/**
 	 * Send a per-press post-mortem diagnostic payload for tail-loss
 	 * investigation. Fired ~500ms after `pttUp` by the mic service.

@@ -16,12 +16,21 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 	public static readonly viewType = 'vscode.markdown.editor';
 
+	/**
+	 * Memento key under which the last chosen edit/read-only mode is remembered.
+	 * The value is a single global default shared by every Markdown editor, so
+	 * flipping the lock in one editor becomes the initial mode for the next.
+	 */
+	static readonly #readonlyStateKey = 'markdown.editor.readonly';
+
 	readonly #mediaRoot: vscode.Uri;
 	readonly #extensionUri: vscode.Uri;
+	readonly #globalState: vscode.Memento;
 
-	constructor(extensionUri: vscode.Uri) {
+	constructor(extensionUri: vscode.Uri, globalState: vscode.Memento) {
 		super();
 		this.#extensionUri = extensionUri;
+		this.#globalState = globalState;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 	}
 
@@ -43,7 +52,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
 				case 'ready': {
-					webview.postMessage({ type: 'init', content: document.getText(), readonly: false });
+					webview.postMessage({ type: 'init', content: document.getText(), readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, false) });
+					break;
+				}
+				case 'setReadonly': {
+					// Remember the edit/read-only choice as the global default for the
+					// next Markdown editor.
+					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
 					break;
 				}
 				case 'edit': {
@@ -146,7 +161,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				body: comment.body,
 				author: comment.author,
 			}));
-			webview.postMessage({ type: 'comments', comments });
+			webview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
 		};
 
 		const onChange = commentsProvider.onDidChange(postComments);
