@@ -5,7 +5,7 @@
 
 import './media/emptyFileEditor.css';
 import { $, append, Dimension } from '../../../../base/browser/dom.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { Action } from '../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -73,7 +73,7 @@ export class EmptyFileEditor extends EditorPane {
 		actionViewItem.render(actions);
 	}
 
-	private createSearchAction(): IAction {
+	private createSearchAction(): Action {
 		return new Action(QUICK_OPEN_COMMAND_ID, localize('emptyFileEditor.search', "Search Files"), undefined, true, () => this.commandService.executeCommand(QUICK_OPEN_COMMAND_ID, ''));
 	}
 
