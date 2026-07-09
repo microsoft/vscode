@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isLocalhostAuthority, isURLDomainTrusted, normalizeURL } from '../../common/trustedDomains.js';
+import { isAllInterfacesAuthority, isLocalhostAuthority, isURLDomainTrusted, normalizeURL } from '../../common/trustedDomains.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -18,6 +18,8 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://localhost:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://127.0.0.1:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://subdomain.localhost'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://[::1]'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::1]:3000'), []), true);
 		});
 
 		test('wildcard (*) matches everything', () => {
@@ -116,11 +118,50 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isLocalhostAuthority('SUB.LOCALHOST'), true);
 		});
 
+		test('recognizes IPv6 localhost [::1] and [0:0:0:0:0:0:0:1]', () => {
+			assert.strictEqual(isLocalhostAuthority('[::1]'), true);
+			assert.strictEqual(isLocalhostAuthority('[::1]:3000'), true);
+			assert.strictEqual(isLocalhostAuthority('[::1]:8080'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]:3000'), true);
+			assert.strictEqual(isLocalhostAuthority('[0:0:0:0:0:0:0:1]:8080'), true);
+		});
+
 		test('does not match non-localhost authorities', () => {
 			assert.strictEqual(isLocalhostAuthority('example.com'), false);
 			assert.strictEqual(isLocalhostAuthority('notlocalhost.com'), false);
 			assert.strictEqual(isLocalhostAuthority('127.0.0.2'), false);
 			assert.strictEqual(isLocalhostAuthority('192.168.1.1'), false);
+			assert.strictEqual(isLocalhostAuthority('[::]'), false);
+			assert.strictEqual(isLocalhostAuthority('[::2]'), false);
+			assert.strictEqual(isLocalhostAuthority('[::1'), false);
+		});
+	});
+
+	suite('isAllInterfacesAuthority', () => {
+
+		test('recognizes 0.0.0.0', () => {
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0'), true);
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0:3000'), true);
+			assert.strictEqual(isAllInterfacesAuthority('0.0.0.0:8080'), true);
+		});
+
+		test('recognizes IPv6 all-interfaces [::]', () => {
+			assert.strictEqual(isAllInterfacesAuthority('[::]'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[::]:3000'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[::]:8080'), true);
+		});
+
+		test('recognizes full-form IPv6 all-interfaces [0:0:0:0:0:0:0:0]', () => {
+			assert.strictEqual(isAllInterfacesAuthority('[0:0:0:0:0:0:0:0]'), true);
+			assert.strictEqual(isAllInterfacesAuthority('[0:0:0:0:0:0:0:0]:3000'), true);
+		});
+
+		test('does not match localhost or other non-all-interfaces authorities', () => {
+			assert.strictEqual(isAllInterfacesAuthority('localhost'), false);
+			assert.strictEqual(isAllInterfacesAuthority('127.0.0.1'), false);
+			assert.strictEqual(isAllInterfacesAuthority('[::1]'), false);
+			assert.strictEqual(isAllInterfacesAuthority('example.com'), false);
 		});
 	});
 });

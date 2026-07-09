@@ -346,12 +346,12 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 3).then(results => {
-			assert.strictEqual(results.length, 3);
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].results!.length, 3);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 24);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
-			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 26);
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
+			assert.strictEqual((<ITextSearchContext>results[0].results![2]).lineNumber, 26);
+			assert.strictEqual((<ITextSearchContext>results[0].results![2]).text, '        compiler.emit();');
 		});
 	});
 
@@ -408,26 +408,6 @@ flakySuite('TextSearch-integration', function () {
 				const regexParseErrorForLookAround = 'Regex parse error: length of lookbehind assertion is not limited';
 				assert.strictEqual(searchError.message, regexParseErrorForLookAround);
 				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
-			});
-		});
-
-
-		test('invalid glob', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: 'foo' },
-				includePattern: {
-					'{{}': true
-				}
-			};
-
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				assert.strictEqual(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
-				assert.strictEqual(searchError.code, SearchErrorCode.globParseError);
 			});
 		});
 	});

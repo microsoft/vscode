@@ -53,7 +53,7 @@
 	display: block;
 	font-weight: normal;
 	margin-left: 10px;
-	opacity: 0.6;
+	color: var(--vscode-panelTitle-inactiveForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	text-transform: none;

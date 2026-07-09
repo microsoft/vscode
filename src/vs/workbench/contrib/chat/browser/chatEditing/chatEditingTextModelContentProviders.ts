@@ -8,7 +8,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionResource: UriComponents };
 
@@ -47,15 +47,41 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 }
 
-type ChatEditingSnapshotTextModelContentQueryData = { session: UriComponents; requestId: string | undefined; undoStop: string | undefined; scheme: string | undefined };
+type ChatEditingSnapshotTextModelContentQueryData = { session: UriComponents; requestId: string | undefined; undoStop: string | undefined; scheme: string; authority: string };
 
 export class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
-	public static getSnapshotFileURI(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined, path: string, scheme?: string): URI {
+	public static getSnapshotFileURI(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined, path: string, scheme: string, authority: string): URI {
 		return URI.from({
 			scheme: Schemas.chatEditingSnapshotScheme,
 			path,
-			query: JSON.stringify({ session: chatSessionResource, requestId: requestId ?? '', undoStop: undoStop ?? '', scheme } satisfies ChatEditingSnapshotTextModelContentQueryData),
+			query: JSON.stringify({ session: chatSessionResource, requestId: requestId ?? '', undoStop: undoStop ?? '', scheme, authority } satisfies ChatEditingSnapshotTextModelContentQueryData),
 		});
+	}
+
+	/**
+	 * Recovers the URI of the real file that a snapshot URI (as produced by
+	 * {@link getSnapshotFileURI}) was taken from, so callers can open the file
+	 * itself instead of a read-only snapshot. Returns the resource unchanged if
+	 * it is not a snapshot URI, or `undefined` if the origin cannot be recovered
+	 * (e.g. snapshot URIs persisted before the origin was recorded).
+	 */
+	public static getOriginalFileURI(resource: URI): URI | undefined {
+		if (resource.scheme !== Schemas.chatEditingSnapshotScheme) {
+			return resource;
+		}
+
+		let data: Partial<ChatEditingSnapshotTextModelContentQueryData>;
+		try {
+			data = JSON.parse(resource.query);
+		} catch {
+			return undefined;
+		}
+
+		if (typeof data.scheme !== 'string' || !data.scheme || typeof data.authority !== 'string') {
+			return undefined;
+		}
+
+		return resource.with({ scheme: data.scheme, authority: data.authority, query: '', fragment: '' });
 	}
 
 	constructor(

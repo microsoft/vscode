@@ -179,8 +179,8 @@ export const schema: IJSONSchema = {
 			properties: {
 				'vscode': {
 					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^1.105.0 indicates compatibility with a minimum VS Code version of 1.105.0.'),
+					default: '^1.105.0',
 				}
 			}
 		},
@@ -266,7 +266,7 @@ export const schema: IJSONSchema = {
 				defaultSnippets: [
 					{
 						label: 'onWebviewPanel',
-						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emitted when a webview is loaded of a certain viewType'),
 						body: 'onWebviewPanel:viewType'
 					},
 					{
@@ -395,6 +395,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onChatContextProvider',
+						body: 'onChatContextProvider:${1:contextProviderId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatContextProvider', 'An activation event emitted when the specified chat context provider is invoked.'),
+					},
+					{
 						label: 'onLanguageModelChatProvider',
 						body: 'onLanguageModelChatProvider:${1:vendor}',
 						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
@@ -416,7 +421,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onMcpCollection',
-						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenever a tool from the MCP server is requested.'),
 						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
@@ -470,6 +475,15 @@ export const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionAffinity: {
+			description: nls.localize('vscode.extension.extensionAffinity', 'Extensions that this extension should be colocated with in the same extension host process if possible. The identifier of an extension is always ${publisher}.${name}. For example: vscode.git.'),
 			type: 'array',
 			uniqueItems: true,
 			items: {
@@ -629,7 +643,7 @@ export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
-	deps?: IExtensionPoint<any>[];
+	deps?: IExtensionPoint<unknown>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
 	canHandleResolver?: boolean;
@@ -660,7 +674,7 @@ export class ExtensionsRegistryImpl {
 		return result;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
+	public getExtensionPoints(): ExtensionPoint<unknown>[] {
 		return Array.from(this._extensionPoints.values());
 	}
 }

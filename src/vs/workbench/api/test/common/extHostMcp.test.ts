@@ -88,9 +88,9 @@ async function createTestAuthMetadata(options: {
 
 	const authMetadata = await createAuthMetadata(
 		TEST_MCP_URL,
-		originalResponse,
+		originalResponse.headers,
 		{
-			launchHeaders: new Map(),
+			sameOriginHeaders: {},
 			fetch: mockFetch,
 			log: mockLogger
 		}
@@ -137,7 +137,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, true);
 				assert.deepStrictEqual(authMetadata.scopes, ['read', 'write', 'admin']);
@@ -155,7 +155,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, false);
 				assert.deepStrictEqual(authMetadata.scopes, ['read', 'write']);
@@ -173,7 +173,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, false);
 			});
@@ -190,7 +190,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, true);
 				assert.deepStrictEqual(authMetadata.scopes, ['read']);
@@ -208,7 +208,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, true);
 				assert.strictEqual(authMetadata.scopes, undefined);
@@ -224,7 +224,7 @@ suite('ExtHostMcp', () => {
 					headers: {}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, false);
 			});
@@ -241,7 +241,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				authMetadata.update(response);
+				authMetadata.update(response.headers);
 
 				assert.deepStrictEqual(authMetadata.scopes, ['first']);
 			});
@@ -258,7 +258,7 @@ suite('ExtHostMcp', () => {
 					}
 				});
 
-				const result = authMetadata.update(response);
+				const result = authMetadata.update(response.headers);
 
 				assert.strictEqual(result, false);
 				assert.strictEqual(authMetadata.scopes, undefined);
@@ -317,9 +317,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map([['X-Custom', 'value']]),
+					sameOriginHeaders: { 'X-Custom': 'value' },
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -347,9 +347,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -403,9 +403,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -450,9 +450,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -497,9 +497,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -545,16 +545,16 @@ suite('ExtHostMcp', () => {
 				headers: {}
 			});
 
-			const launchHeaders = new Map<string, string>([
-				['Authorization', 'Bearer existing-token'],
-				['X-Custom-Header', 'custom-value']
-			]);
+			const launchHeaders = {
+				'Authorization': 'Bearer existing-token',
+				'X-Custom-Header': 'custom-value'
+			};
 
 			await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders,
+					sameOriginHeaders: launchHeaders,
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -605,9 +605,9 @@ suite('ExtHostMcp', () => {
 
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -659,9 +659,9 @@ suite('ExtHostMcp', () => {
 			// Should not throw - should handle gracefully
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -698,9 +698,9 @@ suite('ExtHostMcp', () => {
 			// Should fall back to default metadata, not throw
 			const authMetadata = await createAuthMetadata(
 				TEST_MCP_URL,
-				originalResponse,
+				originalResponse.headers,
 				{
-					launchHeaders: new Map(),
+					sameOriginHeaders: {},
 					fetch: mockFetch,
 					log: mockLogger
 				}
@@ -725,7 +725,7 @@ suite('ExtHostMcp', () => {
 			});
 
 			// update() should still process the WWW-Authenticate header regardless of status
-			const result = authMetadata.update(response);
+			const result = authMetadata.update(response.headers);
 
 			// The behavior depends on implementation - either it updates or ignores non-401
 			// This test documents the actual behavior

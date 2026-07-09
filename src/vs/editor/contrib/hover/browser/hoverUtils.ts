@@ -6,12 +6,16 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 
+const enum PADDING {
+	VALUE = 3
+}
+
 export function isMousePositionWithinElement(element: HTMLElement, posx: number, posy: number): boolean {
 	const elementRect = dom.getDomNodePagePosition(element);
-	if (posx < elementRect.left
-		|| posx > elementRect.left + elementRect.width
-		|| posy < elementRect.top
-		|| posy > elementRect.top + elementRect.height) {
+	if (posx < elementRect.left + PADDING.VALUE
+		|| posx > elementRect.left + elementRect.width - PADDING.VALUE
+		|| posy < elementRect.top + PADDING.VALUE
+		|| posy > elementRect.top + elementRect.height - PADDING.VALUE) {
 		return false;
 	}
 	return true;
@@ -37,9 +41,19 @@ export function shouldShowHover(
 	if (hoverEnabled === 'off') {
 		return false;
 	}
+	return isTriggerModifierPressed(multiCursorModifier, mouseEvent.event);
+}
+
+/**
+ * Returns true if the trigger modifier (inverse of multi-cursor modifier) is pressed.
+ * This works with both mouse and keyboard events by relying only on the modifier flags.
+ */
+export function isTriggerModifierPressed(
+	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
+	event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }
+): boolean {
 	if (multiCursorModifier === 'altKey') {
-		return mouseEvent.event.ctrlKey || mouseEvent.event.metaKey;
-	} else {
-		return mouseEvent.event.altKey;
+		return event.ctrlKey || event.metaKey;
 	}
+	return event.altKey; // multiCursorModifier is ctrlKey or metaKey
 }

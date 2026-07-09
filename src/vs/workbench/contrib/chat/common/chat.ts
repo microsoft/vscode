@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceSet } from '../../../../base/common/map.js';
-import { chatEditingSessionIsReady } from './chatEditingService.js';
-import { IChatModel } from './chatModel.js';
-import { isLegacyChatTerminalToolInvocationData, type IChatSessionStats, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from './chatService.js';
+import { chatEditingSessionIsReady } from './editing/chatEditingService.js';
+import { IChatModel } from './model/chatModel.js';
+import { isLegacyChatTerminalToolInvocationData, type IChatSessionStats, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from './chatService/chatService.js';
 import { ChatModeKind } from './constants.js';
 
 export function checkModeOption(mode: ChatModeKind, option: boolean | ((mode: ChatModeKind) => boolean) | undefined): boolean | undefined {
@@ -44,7 +44,14 @@ export async function awaitStatsForSession(model: IChatModel): Promise<IChatSess
 	}
 
 	await chatEditingSessionIsReady(model.editingSession);
+	if (!model.editingSession) {
+		return undefined;
+	}
+
 	await Promise.all(model.editingSession.entries.get().map(entry => entry.getDiffInfo?.()));
+	if (!model.editingSession) {
+		return undefined;
+	}
 
 	const diffs = model.editingSession.entries.get();
 	const reduceResult = diffs.reduce((acc, diff) => {

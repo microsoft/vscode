@@ -22,6 +22,8 @@ import * as types from './extHostTypes.js';
 import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import type { IExtensionPromptFileResult } from '../../contrib/chat/common/promptSyntax/chatPromptFilesContribution.js';
 
 //#region --- NEW world
 
@@ -550,10 +552,28 @@ const newCommands: ApiCommand[] = [
 				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
-				blockOnResponse: v.blockOnResponse
+				resolveOnResponse: v.resolveOnResponse
 			};
 		})],
 		ApiCommandResult.Void
+	),
+	// --- extension prompt files
+	new ApiCommand(
+		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
+		[],
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType; extensionId: string }[]>(
+			'A promise that resolves to an array of objects containing uri, type, and extensionId.',
+			(value) => {
+				if (!value) {
+					return [];
+				}
+				return value.map(item => ({
+					uri: URI.revive(item.uri),
+					type: item.type,
+					extensionId: item.extensionId
+				}));
+			}
+		)
 	)
 ];
 
@@ -564,7 +584,7 @@ type InlineChatEditorApiArg = {
 	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
-	blockOnResponse?: boolean;
+	resolveOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
@@ -574,7 +594,7 @@ type InlineChatRunOptions = {
 	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
-	blockOnResponse?: boolean;
+	resolveOnResponse?: boolean;
 };
 
 //#endregion

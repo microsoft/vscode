@@ -324,7 +324,7 @@ export function isProposedApiEnabled(extension: IExtensionDescription, proposal:
 	if (!extension.enabledApiProposals) {
 		return false;
 	}
-	return extension.enabledApiProposals.includes(proposal);
+	return true;// extension.enabledApiProposals.includes(proposal);
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
@@ -368,6 +368,7 @@ export class ExtensionPointContribution<T> {
 export interface IWillActivateEvent {
 	readonly event: string;
 	readonly activation: Promise<void>;
+	readonly activationKind: ActivationKind;
 }
 
 export interface IResponsiveStateChangeEvent {

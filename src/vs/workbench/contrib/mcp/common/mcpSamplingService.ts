@@ -15,9 +15,9 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
 import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
@@ -79,8 +79,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		const model = await this._modelSequencer.queue(() => this._getMatchingModel(opts));
-		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, undefined, messages, {}, token);
 
 		let responseText = '';
 
@@ -125,8 +124,14 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 
 	private async _getMatchingModel(opts: ISamplingOptions): Promise<string> {
 		const model = await this._getMatchingModelInner(opts.server, opts.isDuringToolCall, opts.params.modelPreferences);
+		const globalAutoApprove = this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove);
 
 		if (model === ModelMatch.UnsureAllowedDuringChat) {
+			// In YOLO mode, auto-approve MCP sampling requests without prompting
+			if (globalAutoApprove) {
+				this._sessionSets.allowedDuringChat.set(opts.server.definition.id, true);
+				return this._getMatchingModel(opts);
+			}
 			const retry = await this._showContextual(
 				opts.isDuringToolCall,
 				localize('mcp.sampling.allowDuringChat.title', 'Allow MCP tools from "{0}" to make LLM requests?', opts.server.definition.label),
@@ -138,6 +143,11 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			}
 			throw McpError.notAllowed();
 		} else if (model === ModelMatch.UnsureAllowedOutsideChat) {
+			// In YOLO mode, auto-approve MCP sampling requests without prompting
+			if (globalAutoApprove) {
+				this._sessionSets.allowedOutsideChat.set(opts.server.definition.id, true);
+				return this._getMatchingModel(opts);
+			}
 			const retry = await this._showContextual(
 				opts.isDuringToolCall,
 				localize('mcp.sampling.allowOutsideChat.title', 'Allow MCP server "{0}" to make LLM requests?', opts.server.definition.label),
@@ -231,11 +241,8 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			return config.allowedOutsideChat === undefined ? ModelMatch.UnsureAllowedOutsideChat : ModelMatch.NotAllowed;
 		}
 
-		// 2. Get the configured models, or the default model(s)
-		const foundModelIdsDeep = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._languageModelsService.getLanguageModelIds().filter(m => this._languageModelsService.lookupLanguageModel(m)?.isDefault);
-
-		const foundModelIds = foundModelIdsDeep.flat().sort((a, b) => b.length - a.length); // Sort by length to prefer most specific
-
+		// 2. Get the configured models, or the default free model(s)
+		const foundModelIds = config.allowedModels?.filter(m => !!this._languageModelsService.lookupLanguageModel(m)) || this._getDefaultModels();
 		if (!foundModelIds.length) {
 			return ModelMatch.NoMatchingModel;
 		}
@@ -249,6 +256,20 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		return foundModelIds[0]; // Return the first matching model
+	}
+
+	private _getDefaultModels() {
+		const candidates = this._languageModelsService.getLanguageModelIds().map(m => {
+			const model = this._languageModelsService.lookupLanguageModel(m);
+			return model && !model.multiplierNumeric && !model.targetChatSessionType ? { model, id: m } : undefined;
+		}).filter(isDefined);
+
+		const someDefault = candidates.findIndex(c => Object.values(c.model.isDefaultForLocation).some(Boolean));
+		if (someDefault !== -1) {
+			[candidates[0], candidates[someDefault]] = [candidates[someDefault], candidates[0]];
+		}
+
+		return candidates.map(c => c.id);
 	}
 
 	private _configKey(server: IMcpServer) {

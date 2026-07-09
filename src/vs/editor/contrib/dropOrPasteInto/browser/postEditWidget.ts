@@ -88,8 +88,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	}
 
 	private _updateButtonTitle() {
-		const binding = this._keybindingService.lookupKeybinding(this.showCommand.id)?.getLabel();
-		this.button.element.title = this.showCommand.label + (binding ? ` (${binding})` : '');
+		this.button.element.title = this._keybindingService.appendKeybinding(this.showCommand.label, this.showCommand.id);
 	}
 
 	private create(): void {

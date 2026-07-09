@@ -1,0 +1,9 @@
+diff --git a/02-basicWithEol b/02-basicWithEol-remove-last-line
+index 807b9ea8f..0b12d9ab8 100644
+--- a/02-basicWithEol
++++ b/02-basicWithEol-remove-last-line
+@@ -12,4 +12,3 @@ export function f(args_: string[], flags: any, child: any) {
+ 	}
+ 	child.unref();
+ 	return Promise.resolve();
+-}

@@ -107,6 +107,7 @@ class ViewWelcomeController {
 	private _enabled: boolean = false;
 	private element: HTMLElement | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private _wide: boolean = false;
 
 	private readonly disposables = new DisposableStore();
 	private readonly enabledDisposables = this.disposables.add(new DisposableStore());
@@ -131,7 +132,8 @@ class ViewWelcomeController {
 
 		this.element!.style.height = `${height}px`;
 		this.element!.style.width = `${width}px`;
-		this.element!.classList.toggle('wide', width > 640);
+		this._wide = width > 640;
+		this.element!.classList.toggle('wide', this._wide);
 		this.scrollableElement!.scanDomNode();
 	}
 
@@ -159,7 +161,10 @@ class ViewWelcomeController {
 
 		this.container.classList.add('welcome');
 		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
-		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		this.element = $('.welcome-view-content', { tabIndex: 0, role: 'region', 'aria-label': nls.localize('welcomeViewAriaLabel', "Welcome") });
+		if (this._wide) {
+			this.element.classList.add('wide');
+		}
 		this.scrollableElement = new DomScrollableElement(this.element, { alwaysConsumeMouseWheel: true, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Visible, });
 		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
 
@@ -342,6 +347,16 @@ export abstract class ViewPane extends Pane implements IView {
 
 	readonly menuActions: ViewMenuActions;
 
+	/**
+	 * Additional menu groups (beyond `navigation`) whose actions should be
+	 * rendered as primary (inline) actions in the title action bar. Separators
+	 * are rendered between groups in the primary actions. Subclasses can
+	 * override this to customize grouping in the title action bar.
+	 */
+	protected get primaryActionGroups(): string[] | undefined {
+		return undefined;
+	}
+
 	private progressBar?: ProgressBar;
 	private progressIndicator?: IProgressIndicator;
 
@@ -388,7 +403,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
 		const childInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
+		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }, { primaryActionGroups: this.primaryActionGroups }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 	}
 

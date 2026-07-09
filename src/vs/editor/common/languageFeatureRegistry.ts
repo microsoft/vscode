@@ -6,7 +6,7 @@
 import { Emitter } from '../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ITextModel, shouldSynchronizeModel } from './model.js';
-import { LanguageFilter, LanguageSelector, score } from './languageSelector.js';
+import { LanguageFilter, LanguageSelector, score, selectLanguageIds } from './languageSelector.js';
 import { URI } from '../../base/common/uri.js';
 
 interface Entry<T> {
@@ -113,6 +113,14 @@ export class LanguageFeatureRegistry<T> {
 
 	allNoModel(): T[] {
 		return this._entries.map(entry => entry.provider);
+	}
+
+	get registeredLanguageIds(): ReadonlySet<string> {
+		const result = new Set<string>();
+		for (const entry of this._entries) {
+			selectLanguageIds(entry.selector, result);
+		}
+		return result;
 	}
 
 	ordered(model: ITextModel, recursive = false): T[] {
@@ -226,4 +234,3 @@ function isBuiltinSelector(selector: LanguageSelector): boolean {
 
 	return Boolean((selector as LanguageFilter).isBuiltin);
 }
-

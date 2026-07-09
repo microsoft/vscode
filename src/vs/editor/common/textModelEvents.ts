@@ -162,11 +162,11 @@ export interface IFontTokenOption {
 	/**
 	 * Font size of the token.
 	 */
-	readonly fontSize?: string;
+	readonly fontSizeMultiplier?: number;
 	/**
 	 * Line height of the token.
 	 */
-	readonly lineHeight?: number;
+	readonly lineHeightMultiplier?: number;
 }
 
 /**
@@ -189,8 +189,8 @@ export function serializeFontTokenOptions(): (options: IFontTokenOption) => IFon
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ?? '',
-			fontSize: annotation.fontSize ?? '',
-			lineHeight: annotation.lineHeight ?? 0
+			fontSizeMultiplier: annotation.fontSizeMultiplier ?? 0,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ?? 0
 		};
 	};
 }
@@ -202,8 +202,8 @@ export function deserializeFontTokenOptions(): (options: IFontTokenOption) => IF
 	return (annotation: IFontTokenOption) => {
 		return {
 			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
-			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
-			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
+			fontSizeMultiplier: annotation.fontSizeMultiplier ? Number(annotation.fontSizeMultiplier) : undefined,
+			lineHeightMultiplier: annotation.lineHeightMultiplier ? Number(annotation.lineHeightMultiplier) : undefined
 		};
 	};
 }
@@ -308,22 +308,17 @@ export class LineInjectedText {
 export class ModelRawLineChanged {
 	public readonly changeType = RawContentChangedType.LineChanged;
 	/**
-	 * The line that has changed.
+	 * The line number that has changed (before the change was applied).
 	 */
 	public readonly lineNumber: number;
 	/**
-	 * The new value of the line.
+	 * The new line number the old one is mapped to (after the change was applied).
 	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	public readonly lineNumberPostEdit: number;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, lineNumberPostEdit: number) {
 		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
+		this.lineNumberPostEdit = lineNumberPostEdit;
 	}
 }
 
@@ -348,13 +343,13 @@ export class ModelLineHeightChanged {
 	/**
 	 * The line height on the line.
 	 */
-	public readonly lineHeight: number | null;
+	public readonly lineHeightMultiplier: number | null;
 
-	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeight: number | null) {
+	constructor(ownerId: number, decorationId: string, lineNumber: number, lineHeightMultiplier: number | null) {
 		this.ownerId = ownerId;
 		this.decorationId = decorationId;
 		this.lineNumber = lineNumber;
-		this.lineHeight = lineHeight;
+		this.lineHeightMultiplier = lineHeightMultiplier;
 	}
 }
 
@@ -392,10 +387,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The last unmodified line in the updated buffer after the deletion is made.
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 
@@ -410,23 +410,30 @@ export class ModelRawLinesInserted {
 	 */
 	public readonly fromLineNumber: number;
 	/**
+	 * The actual start line number in the updated buffer where the newly inserted content can be found.
+	 */
+	public readonly fromLineNumberPostEdit: number;
+	/**
+	 * The count of inserted lines.
+	*/
+	public readonly count: number;
+	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly toLineNumber: number;
+	public get toLineNumber(): number {
+		return this.fromLineNumber + this.count - 1;
+	}
 	/**
-	 * The text that was inserted
+	 * The actual end line number of the insertion in the updated buffer.
 	 */
-	public readonly detail: string[];
-	/**
-	 * The injected texts for every inserted line.
-	 */
-	public readonly injectedTexts: (LineInjectedText[] | null)[];
+	public get toLineNumberPostEdit(): number {
+		return this.fromLineNumberPostEdit + this.count - 1;
+	}
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
+	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number) {
 		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-		this.detail = detail;
+		this.fromLineNumberPostEdit = fromLineNumberPostEdit;
+		this.count = count;
 	}
 }
 

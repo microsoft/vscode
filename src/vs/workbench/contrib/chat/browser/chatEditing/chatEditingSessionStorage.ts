@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
-import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
+import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/editing/chatEditingService.js';
 import { getKeyForChatSessionResource, IChatEditingTimelineState } from './chatEditingOperations.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
@@ -85,7 +85,8 @@ export class ChatEditingSessionStorage {
 					modeId: entry.telemetryInfo.modeId,
 					applyCodeBlockSuggestionId: entry.telemetryInfo.applyCodeBlockSuggestionId,
 					feature: entry.telemetryInfo.feature,
-				}
+				},
+				isDeleted: entry.isDeleted,
 			} satisfies ISnapshotEntry;
 		};
 		try {
@@ -178,7 +179,8 @@ export class ChatEditingSessionStorage {
 				currentHash: await addFileContent(entry.current),
 				state: entry.state,
 				snapshotUri: entry.snapshotUri.toString(),
-				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, modelId: entry.telemetryInfo.modelId, modeId: entry.telemetryInfo.modeId }
+				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, modelId: entry.telemetryInfo.modelId, modeId: entry.telemetryInfo.modeId },
+				isDeleted: entry.isDeleted,
 			};
 		};
 
@@ -255,6 +257,8 @@ interface ISnapshotEntryDTO {
 	readonly state: ModifiedFileEntryState;
 	readonly snapshotUri: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;
+	/** True if this entry represents a deleted file */
+	readonly isDeleted?: boolean;
 }
 
 interface IModifiedEntryTelemetryInfoDTO {

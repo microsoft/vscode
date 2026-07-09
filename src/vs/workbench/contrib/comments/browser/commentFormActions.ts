@@ -60,8 +60,9 @@ export class CommentFormActions implements IDisposable {
 					secondary: !isPrimary,
 					title,
 					addPrimaryActionToDropdown: false,
+					small: true,
 					...defaultButtonStyles
-				}) : new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
+				}) : new Button(this.container, { secondary: !isPrimary, title, small: true, ...defaultButtonStyles });
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);

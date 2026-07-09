@@ -2,7 +2,7 @@
   "name": "ini",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "private": true,
   "publisher": "vscode",
   "license": "MIT",

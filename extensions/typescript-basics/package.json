@@ -2,7 +2,7 @@
   "name": "typescript",
   "description": "%description%",
   "displayName": "%displayName%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
@@ -27,6 +27,7 @@
           ".cts",
           ".mts"
         ],
+        "firstLine": "^#!.*\\b(deno|bun|ts-node)\\b",
         "configuration": "./language-configuration.json"
       },
       {

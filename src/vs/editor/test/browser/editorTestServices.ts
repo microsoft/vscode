@@ -19,7 +19,8 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 	}
 
 	getActiveCodeEditor(): ICodeEditor | null {
-		return null;
+		const editors = this.listCodeEditors();
+		return editors.length > 0 ? editors[editors.length - 1] : null;
 	}
 	public lastInput?: IResourceEditorInput;
 	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {

@@ -104,8 +104,8 @@ export class InlineSuggestionsView extends Disposable {
 					s.inlineSuggestion.action?.kind === 'edit' ? s.inlineSuggestion.action.alternativeAction : undefined,
 				);
 			}),
-			this._gutterIndicatorState.map((s, reader) => s?.tabAction.read(reader) ?? InlineEditTabAction.Inactive),
-			this._gutterIndicatorState.map((s, reader) => s?.gutterIndicatorOffset.read(reader) ?? 0),
+			this._gutterIndicatorState.map((s, reader) => s?.tabAction?.read(reader) ?? InlineEditTabAction.Inactive),
+			this._gutterIndicatorState.map((s, reader) => s?.gutterIndicatorOffset?.read(reader) ?? 0),
 			this._inlineEditWidget.map((w, reader) => w?.view.inlineEditsIsHovered.read(reader) ?? false),
 			this._focusIsInMenu,
 		));
@@ -146,6 +146,7 @@ export class InlineSuggestionsView extends Disposable {
 			}),
 			{
 				useSyntaxHighlighting: this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.syntaxHighlightingEnabled),
+				highlightShortSuggestions: true,
 			},
 		);
 	}

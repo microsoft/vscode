@@ -4,3 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -45,7 +45,7 @@ export class Editors {
 		await this.waitForActiveEditor(fileName, retryCount);
 	}
 
-	async waitForActiveTab(fileName: string, isDirty: boolean = false, retryCount?: number): Promise<void> {
+	private async waitForActiveTab(fileName: string, isDirty: boolean = false, retryCount?: number): Promise<void> {
 		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`, undefined, retryCount);
 	}
 

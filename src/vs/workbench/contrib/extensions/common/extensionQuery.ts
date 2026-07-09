@@ -22,13 +22,13 @@ export class Query {
 			commands.push('featured');
 		}
 
-		commands.push(...['mcp', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
+		commands.push(...['mcp', 'agentPlugins', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort']);
 		const isCategoriesEnabled = galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Category);
 		if (isCategoriesEnabled) {
 			commands.push('category');
 		}
 
-		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated', 'restartRequired']);
 		const sortCommands = [];
 		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
 			sortCommands.push('installs');

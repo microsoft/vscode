@@ -88,6 +88,11 @@ export class Workbench extends Layout {
 
 	private registerErrorHandler(logService: ILogService): void {
 
+		// Increase stack trace limit for better errors stacks
+		if (!isFirefox) {
+			Error.stackTraceLimit = 100;
+		}
+
 		// Listen on unhandled rejection events
 		// Note: intentionally not registered as disposable to handle
 		//       errors that can occur during shutdown phase.

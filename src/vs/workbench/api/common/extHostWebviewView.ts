@@ -13,8 +13,6 @@ import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol.js';
 import * as extHostTypes from './extHostTypes.js';
 
-/* eslint-disable local/code-no-native-private */
-
 class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 	readonly #handle: extHostProtocol.WebviewHandle;

@@ -16,7 +16,7 @@ import { isGroupEditorMoveEvent } from '../../common/editor/editorGroupModel.js'
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput.js';
 import { AbstractTextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
-import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
 import { InteractiveEditorInput } from '../../contrib/interactive/browser/interactiveEditorInput.js';
 import { MergeEditorInput } from '../../contrib/mergeEditor/browser/mergeEditorInput.js';
@@ -603,6 +603,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				}
 			case GroupModelChangeKind.EDITOR_TRANSIENT:
 				// Currently not exposed in the API
+				break;
+			case GroupModelChangeKind.EDITORS_SELECTION:
+				// Multi-select state of editors is workbench-internal and not exposed in the tabs API.
+				// Treat as no-op so we do not rebuild the entire model (which would invalidate
+				// any `vscode.Tab` references the extension is currently holding).
 				break;
 			case GroupModelChangeKind.EDITOR_MOVE:
 				if (isGroupEditorMoveEvent(event) && event.editor && event.editorIndex !== undefined && event.oldEditorIndex !== undefined) {

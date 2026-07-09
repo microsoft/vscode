@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert as alertFn } from '../../../../base/browser/ui/aria/aria.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -18,7 +19,7 @@ import { OverviewRulerLane } from '../../../common/model.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from './findModel.js';
 import { FindOptionsWidget } from './findOptionsWidget.js';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from './findState.js';
-import { FindWidget, IFindController } from './findWidget.js';
+import { FindWidget, IFindController, NLS_NO_RESULTS } from './findWidget.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -34,6 +35,8 @@ import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -129,7 +132,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._notificationService = notificationService;
 		this._hoverService = hoverService;
 
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 		this._state = this._register(new FindReplaceState());
 		this.loadQueryState();
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
@@ -218,6 +221,22 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public isFindInputFocused(): boolean {
 		return !!CONTEXT_FIND_INPUT_FOCUSED.getValue(this._contextKeyService);
+	}
+
+	/**
+	 * Returns whether the Replace input was the last focused input in the find widget.
+	 * Returns false by default; overridden in FindController.
+	 */
+	public wasReplaceInputLastFocused(): boolean {
+		return false;
+	}
+
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * Implemented by FindController; base implementation does nothing.
+	 */
+	public focusLastElement(): void {
+		// Base implementation - overridden in FindController
 	}
 
 	public getState(): FindReplaceState {
@@ -456,6 +475,8 @@ export class FindController extends CommonFindController implements IFindControl
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
@@ -513,8 +534,24 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory, this._configurationService, this._accessibilityService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
+	}
+
+	/**
+	 * Returns whether the Replace input was the last focused input in the find widget.
+	 */
+	public override wasReplaceInputLastFocused(): boolean {
+		return this._widget?.lastFocusedInputWasReplace ?? false;
+	}
+
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * This is more precise than just focusing the Find or Replace input,
+	 * as it can restore focus to checkboxes, buttons, etc.
+	 */
+	public override focusLastElement(): void {
+		this._widget?.focusLastElement();
 	}
 
 	saveViewState(): any {
@@ -689,11 +726,28 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 	if (!controller) {
 		return;
 	}
+	const shouldCloseOnResult = editor.getOption(EditorOption.find).closeOnResult;
+	const wasFindWidgetVisible = controller.getState().isRevealed;
 
 	const runMatch = (): boolean => {
+		const previousSelection = controller.editor.getSelection();
 		const result = next ? controller.moveToNextMatch() : controller.moveToPrevMatch();
+
+		let landedOnMatch = false;
 		if (result) {
+			const currentSelection = controller.editor.getSelection();
+			if (!previousSelection && currentSelection) {
+				landedOnMatch = true;
+			} else if (previousSelection && currentSelection && !previousSelection.equalsSelection(currentSelection)) {
+				landedOnMatch = true;
+			}
+		}
+
+		if (landedOnMatch) {
 			controller.editor.pushUndoStop();
+			if (shouldCloseOnResult && wasFindWidgetVisible && controller.isFindInputFocused()) {
+				controller.closeFindWidget();
+			}
 			return true;
 		}
 		return false;
@@ -710,7 +764,13 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 			updateSearchScope: false,
 			loop: editor.getOption(EditorOption.find).loop
 		});
-		runMatch();
+		if (!runMatch()) {
+			// Re-announce "no results" for screen readers on explicit navigation (#301126)
+			const state = controller.getState();
+			if (wasFindWidgetVisible && state.matchesCount === 0 && state.searchString) {
+				alertFn(nls.localize('ariaSearchNoResult', "{0} found for '{1}'", NLS_NO_RESULTS, state.searchString));
+			}
+		}
 	}
 }
 
@@ -1107,7 +1167,7 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.replace(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED, EditorContextKeys.isComposing.negate()),
 		primary: KeyCode.Enter
 	}
 }));

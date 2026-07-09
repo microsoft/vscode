@@ -13,6 +13,7 @@ import { CommandDetectionCapability } from '../../../../../../platform/terminal/
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { DecorationAddon } from '../../../browser/xterm/decorationAddon.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 suite('DecorationAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +51,8 @@ suite('DecorationAddon', () => {
 		xterm = store.add(new TestTerminal({
 			allowProposedApi: true,
 			cols: 80,
-			rows: 30
+			rows: 30,
+			logger: TestXtermLogger
 		}));
 		const capabilities = store.add(new TerminalCapabilityStore());
 		capabilities.add(TerminalCapability.CommandDetection, store.add(instantiationService.createInstance(CommandDetectionCapability, xterm)));

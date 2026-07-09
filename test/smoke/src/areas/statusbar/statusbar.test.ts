@@ -15,6 +15,7 @@ export function setup(logger: Logger) {
 
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
+
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
@@ -29,6 +30,7 @@ export function setup(logger: Logger) {
 
 		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
 			const app = this.app as Application;
+
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -56,6 +58,7 @@ export function setup(logger: Logger) {
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
+
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 

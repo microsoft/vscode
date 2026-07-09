@@ -72,6 +72,7 @@ interface ICommentThreadTemplateData {
 	};
 	actionBar: ActionBar;
 	disposables: IDisposable[];
+	elementDisposables: DisposableStore;
 }
 
 class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
@@ -230,7 +231,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
 
 		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
-		return { threadMetadata, repliesMetadata, actionBar, disposables };
+		return { threadMetadata, repliesMetadata, actionBar, disposables, elementDisposables: new DisposableStore() };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -309,15 +310,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (typeof originalComment.comment.body === 'string') {
 			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
-			const disposables = new DisposableStore();
-			templateData.disposables.push(disposables);
 			const renderedComment = this.getRenderedComment(originalComment.comment.body);
-			templateData.disposables.push(renderedComment);
+			templateData.elementDisposables.add(renderedComment);
 			for (let i = renderedComment.element.children.length - 1; i >= 1; i--) {
 				renderedComment.element.removeChild(renderedComment.element.children[i]);
 			}
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -352,8 +351,13 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return (state !== undefined) ? getCommentThreadStateIconColor(state, theme) : undefined;
 	}
 
+	disposeElement(_node: ITreeNode<CommentNode>, _index: number, templateData: ICommentThreadTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
 		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.elementDisposables.dispose();
 		templateData.actionBar.dispose();
 	}
 }

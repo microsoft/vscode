@@ -35,14 +35,10 @@
 			"name": "Server Unit Tests",
 			"type": "node",
 			"request": "launch",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"program": "${workspaceRoot}/server/test/index.js",
 			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"999999",
-				"--colors"
-			],
-			"cwd": "${workspaceRoot}",
+			"args": [],
+			"cwd": "${workspaceRoot}/server",
 			"runtimeExecutable": null,
 			"runtimeArgs": [],
 			"env": {},

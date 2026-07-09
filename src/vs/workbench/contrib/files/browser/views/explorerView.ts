@@ -55,6 +55,7 @@ import { EditorOpenSource } from '../../../../../platform/editor/common/editor.j
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -213,7 +214,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -448,7 +450,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
+		const isCompressionEnabled = () => {
+			const configValue = this.configurationService.getValue<boolean>('explorer.compactFolders');
+			// Disable compact folders when screen reader is optimized for better accessibility
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				return false;
+			}
+			return configValue;
+		};
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
@@ -511,6 +520,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
+		// Update compression when screen reader mode changes
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() });
+		}));
+
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -547,7 +561,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
-			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
+			if (e.scrollTopChanged && editable && this.tryGetRelativeTop(editable.stat) === null) {
 				await editable.data.onFinish('', false);
 			}
 		}));
@@ -695,6 +709,34 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	// General methods
+
+	/**
+	 * Safely queries the file explorer tree for the relative top of an element.
+	 *
+	 * `hasNode()` and `getRelativeTop()` consult different internal maps in the
+	 * compressible async data tree. During an async refresh (e.g. when the
+	 * underlying file system provider changes, or file nesting settings update)
+	 * there is a microtask gap where one map has been updated but the other has
+	 * not. In that window `getRelativeTop()` can throw
+	 * `TreeError [FileExplorer] Tree element not found` (issue #188365) even
+	 * though the caller reasonably believed the element was still present.
+	 *
+	 * Treat such a failure as "not currently visible" so that callers fall back
+	 * to their not-visible branch (e.g. finishing editable state, or calling
+	 * `reveal()`), which is safe when the element is still in the data source
+	 * even if the view has not caught up yet.
+	 */
+	private tryGetRelativeTop(element: ExplorerItem): number | null {
+		if (!this.tree) {
+			return null;
+		}
+
+		try {
+			return this.tree.getRelativeTop(element);
+		} catch {
+			return null;
+		}
+	}
 
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
