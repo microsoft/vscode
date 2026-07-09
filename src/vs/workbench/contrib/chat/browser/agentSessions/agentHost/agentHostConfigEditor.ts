@@ -338,11 +338,11 @@ export abstract class AbstractAgentHostConfigFileSystemProvider<TContext, TTarge
 		try {
 			const text = VSBuffer.wrap(content).toString();
 			const errors: ParseError[] = [];
-			const parsed_json = parse(text, errors);
+			const parsedJson = parse(text, errors);
 			if (errors.length > 0) {
 				throw createFileSystemProviderError(this._locale.parseError, FileSystemProviderErrorCode.Unavailable);
 			}
-			if (parsed_json === null || typeof parsed_json !== 'object' || Array.isArray(parsed_json)) {
+			if (parsedJson === null || typeof parsedJson !== 'object' || Array.isArray(parsedJson)) {
 				throw createFileSystemProviderError(this._locale.notObject, FileSystemProviderErrorCode.Unavailable);
 			}
 
@@ -352,7 +352,7 @@ export abstract class AbstractAgentHostConfigFileSystemProvider<TContext, TTarge
 				return;
 			}
 
-			await this._replaceConfig(target, ctx, parsed_json as Record<string, unknown>);
+			await this._replaceConfig(target, ctx, parsedJson as Record<string, unknown>);
 
 			this._onDidChangeFile.fire([{ type: FileChangeType.UPDATED, resource }]);
 		} finally {
