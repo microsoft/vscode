@@ -13,48 +13,74 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common
 import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>) {
-	let lastNotification: IChatInputNotification | undefined;
-	let deleted = false;
-	let dismissed = false;
+	const notifications = new Map<string, IChatInputNotification>();
+	const dismissed = new Set<string>();
 
 	const onDidChange = disposables.add(new Emitter<void>());
 	const onDidDismiss = disposables.add(new Emitter<string>());
+
+	// Mirrors ChatInputNotificationWidget#_matchesSession: a notification with a
+	// `sessionTypes` allow-list only renders in a matching chat session.
+	const matchesSession = (notification: IChatInputNotification, sessionType: string | undefined): boolean => {
+		if (!notification.sessionTypes || notification.sessionTypes.length === 0) {
+			return true;
+		}
+		return !!sessionType && notification.sessionTypes.includes(sessionType);
+	};
 
 	const service: IChatInputNotificationService = {
 		_serviceBrand: undefined,
 		onDidChange: onDidChange.event,
 		onDidDismiss: onDidDismiss.event,
 		setNotification(notification: IChatInputNotification) {
-			lastNotification = notification;
-			deleted = false;
-			dismissed = false;
+			notifications.set(notification.id, notification);
+			dismissed.delete(notification.id);
 			onDidChange.fire();
 		},
 		deleteNotification(id: string) {
-			if (lastNotification?.id === id && !deleted) {
-				deleted = true;
-				dismissed = false;
+			if (notifications.delete(id)) {
+				dismissed.delete(id);
 				onDidChange.fire();
 			}
 		},
 		dismissNotification(id: string) {
-			if (!lastNotification || lastNotification.id !== id || deleted || dismissed) {
+			if (!notifications.has(id) || dismissed.has(id)) {
 				return;
 			}
-			dismissed = true;
+			dismissed.add(id);
 			onDidDismiss.fire(id);
 			onDidChange.fire();
 		},
-		getActiveNotification() { return deleted || dismissed ? undefined : lastNotification; },
+		getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+			let active: IChatInputNotification | undefined;
+			for (const notification of notifications.values()) {
+				if (dismissed.has(notification.id) || (filter && !filter(notification))) {
+					continue;
+				}
+				active = notification; // Map preserves insertion order: last match wins.
+			}
+			return active;
+		},
 		handleMessageSent() { },
 	};
 
 	return {
 		service,
 		onDidDismiss,
-		getNotification(): IChatInputNotification | undefined { return deleted || dismissed ? undefined : lastNotification; },
+		/** The active notification, ignoring session scoping. */
+		getNotification(): IChatInputNotification | undefined {
+			return service.getActiveNotification();
+		},
+		/** The active notification a chat input of the given session type would render. */
+		getNotificationForSession(sessionType: string | undefined): IChatInputNotification | undefined {
+			return service.getActiveNotification(n => matchesSession(n, sessionType));
+		},
+		/** All notifications that are currently set and not dismissed. */
+		getAllNotifications(): IChatInputNotification[] {
+			return [...notifications.values()].filter(n => !dismissed.has(n.id));
+		},
 		dismiss(id?: string) {
-			const notificationId = id ?? lastNotification?.id;
+			const notificationId = id ?? [...notifications.keys()].reverse().find(k => !dismissed.has(k));
 			if (notificationId) {
 				service.dismissNotification(notificationId);
 			}
@@ -233,5 +259,89 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.ok(notification);
 		// Should show the first promo, not the second
 		assert.ok(notification.message.toString().includes('First promo'));
+	});
+
+	test('shows a scoped promo per harness', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'local:gpt-5.5', metadata: { name: 'GPT-5.5', id: 'gpt-5.5', promo: { id: 'promo-local', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Local promo' } } },
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo' } } },
+			{ identifier: 'codex:o4', metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: { id: 'promo-codex', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Codex promo' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const contribution = disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+		assert.ok(contribution);
+
+		// One notification per harness.
+		assert.strictEqual(notifService.getAllNotifications().length, 3);
+
+		// Each session only sees the promo for the model that belongs to it, and
+		// the "Use <model>" action switches to that harness's model.
+		const local = notifService.getNotificationForSession('local');
+		assert.ok(local, 'Expected a local promo');
+		assert.ok(local.message.toString().includes('Local promo'));
+		assert.deepStrictEqual(local.actions[0].commandArgs, [{ modelIdentifier: 'local:gpt-5.5', notificationId: local.id }]);
+
+		const copilot = notifService.getNotificationForSession('copilotcli');
+		assert.ok(copilot, 'Expected a Copilot promo');
+		assert.ok(copilot.message.toString().includes('Copilot promo'));
+		assert.deepStrictEqual(copilot.actions[0].commandArgs, [{ modelIdentifier: 'copilot:claude', notificationId: copilot.id }]);
+
+		const codex = notifService.getNotificationForSession('openai-codex');
+		assert.ok(codex, 'Expected a Codex promo');
+		assert.ok(codex.message.toString().includes('Codex promo'));
+		assert.deepStrictEqual(codex.actions[0].commandArgs, [{ modelIdentifier: 'codex:o4', notificationId: codex.id }]);
+	});
+
+	test('does not leak a harness promo into a different session type', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: { id: 'promo-copilot', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Copilot promo' } } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const contribution = disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+		assert.ok(contribution);
+
+		assert.ok(notifService.getNotificationForSession('copilotcli'), 'Promo should show in its own harness');
+		assert.strictEqual(notifService.getNotificationForSession('local'), undefined, 'Promo should not leak into the local harness');
+		assert.strictEqual(notifService.getNotificationForSession('openai-codex'), undefined, 'Promo should not leak into another harness');
+	});
+
+	test('dismissing a promo in one harness hides the same promo in the others', () => {
+		const notifService = createMockNotificationService(disposables);
+		const sharedPromo = { id: 'promo-shared', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Shared promo' };
+		const { service: lmService } = createMockLanguageModelsService([
+			{ identifier: 'copilot:claude', metadata: { name: 'Claude', id: 'claude', targetChatSessionType: 'copilotcli', promo: sharedPromo } },
+			{ identifier: 'codex:o4', metadata: { name: 'o4', id: 'o4', targetChatSessionType: 'openai-codex', promo: sharedPromo } },
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const contribution = disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+		assert.ok(contribution);
+		assert.strictEqual(notifService.getAllNotifications().length, 2);
+
+		// Dismiss the Copilot notification.
+		const copilot = notifService.getNotificationForSession('copilotcli');
+		assert.ok(copilot);
+		notifService.dismiss(copilot.id);
+
+		// Both notifications carry the same promo id, so dismissing one removes both.
+		assert.strictEqual(notifService.getAllNotifications().length, 0);
+		const stored = JSON.parse(storageService.get('chat.dismissedPromoIds', StorageScope.APPLICATION) ?? '[]');
+		assert.deepStrictEqual(stored, ['promo-shared']);
 	});
 });
