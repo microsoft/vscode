@@ -679,6 +679,43 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 			assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
+
+			// Regression guard (SDK >= 1.0.6 permission/tool-start reorder): for a
+			// tool that surfaced a confirmation prompt, the host must emit an
+			// identical AHP sequence regardless of the SDK's event-order race —
+			// `toolCallStart` first, then the confirmation `toolCallReady`, with
+			// NO not-needed ready in between. Before the fix, when
+			// `tool.execution_start` arrived before the confirmation fired, the
+			// host emitted a spurious not-needed ready ahead of the confirmation
+			// (briefly flipping the tool to "running"); when the confirmation
+			// arrived first it was dropped entirely and the tool hung. Assert the
+			// normalized order per tool call.
+			const readies = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
+				.map(n => {
+					const envelope = getActionEnvelope(n);
+					const action = envelope.action as { toolCallId: string; confirmed?: string };
+					return { toolCallId: action.toolCallId, confirmed: action.confirmed, serverSeq: envelope.serverSeq };
+				});
+			const startSeqByToolCall = new Map<string, number>();
+			for (const n of toolStarts) {
+				const envelope = getActionEnvelope(n);
+				const toolCallId = (envelope.action as { toolCallId: string }).toolCallId;
+				if (!startSeqByToolCall.has(toolCallId)) {
+					startSeqByToolCall.set(toolCallId, envelope.serverSeq);
+				}
+			}
+			for (const ready of readies) {
+				if (ready.confirmed !== undefined) {
+					continue; // only confirmation-requiring readies matter here
+				}
+				const startSeq = startSeqByToolCall.get(ready.toolCallId);
+				assert.ok(startSeq !== undefined && startSeq < ready.serverSeq,
+					`toolCallStart (seq ${startSeq}) must precede the confirmation toolCallReady (seq ${ready.serverSeq}) for ${ready.toolCallId}`);
+				const notNeededBefore = readies.some(r =>
+					r.toolCallId === ready.toolCallId && r.confirmed !== undefined && r.serverSeq < ready.serverSeq);
+				assert.ok(!notNeededBefore,
+					`no not-needed toolCallReady may precede the confirmation toolCallReady for ${ready.toolCallId}`);
+			}
 		});
 
 		(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {

@@ -199,6 +199,8 @@ export interface ITestLayoutHarness {
 	editorGroupsHaveContent: boolean;
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
+	/** Records the name of every `saveWorkingSet` call made by the controller. */
+	saveWorkingSetCalls: string[];
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
 	 * tests to simulate external visibility changes (e.g. the single-pane detail
@@ -282,6 +284,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		activeEditorInput: undefined,
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
+		saveWorkingSetCalls: [],
 		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, configService),
 		contextKeyService,
 	};
@@ -501,7 +504,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			};
 		}
 		override get groups() { return [{ isEmpty: !harness.editorGroupsHaveContent }] as unknown as IEditorGroupsService['groups']; }
-		override saveWorkingSet(name: string): IEditorWorkingSet { return { id: name, name }; }
+		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
 			harness.onApplyWorkingSet?.();

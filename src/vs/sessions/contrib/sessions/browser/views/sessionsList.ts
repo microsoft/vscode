@@ -279,7 +279,7 @@ interface ISessionItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
-	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
@@ -319,7 +319,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarActions: boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -373,11 +373,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
-		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
-			menuOptions: { shouldForwardArgs: true },
-			actionRunner,
-		}));
+		// When toolbar actions are disabled (e.g. the blocked-sessions dropdown) the row
+		// renders no inline action toolbar at all.
+		let titleToolbar: MenuWorkbenchToolBar | undefined;
+		if (this.options.toolbarActions) {
+			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
+			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
+				menuOptions: { shouldForwardArgs: true },
+				actionRunner,
+			}));
+		}
 
 		return { container, statusIcon, title, titleContainer, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
@@ -411,7 +416,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 
 		// Toolbar context
-		template.titleToolbar.context = element;
+		if (template.titleToolbar) {
+			template.titleToolbar.context = element;
+		}
 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
@@ -1624,7 +1631,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarActions: true },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -3237,6 +3244,12 @@ export interface ISessionsFlatListOptions {
 	 * blocked-sessions dropdown passes a larger value.
 	 */
 	readonly approvalRowMaxLines?: number;
+	/**
+	 * Whether each session row renders its inline action toolbar (pin, mark as done,
+	 * etc.). Defaults to `true`; set to `false` for surfaces where those actions
+	 * don't apply (e.g. the blocked-sessions dropdown), which renders no toolbar.
+	 */
+	readonly toolbarActions?: boolean;
 }
 
 /**
@@ -3293,6 +3306,7 @@ export class SessionsFlatList extends Disposable {
 				showHover: this.options.showSessionHover ?? true,
 				isInChatsSection: s => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
+				toolbarActions: this.options.toolbarActions ?? true,
 			},
 			approvalModel,
 			instantiationService,

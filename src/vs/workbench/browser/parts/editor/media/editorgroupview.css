@@ -227,17 +227,15 @@
 	overflow: hidden;
 }
 
-/* Menu-driven header content: leading (primary) + trailing (secondary) toolbars,
- * wrapping when narrow (the trailing toolbar moves to a top row). */
+/* Menu-driven header content: leading (primary) + trailing (secondary) toolbars on a
+ * single row (each toolbar overflows into its own "…" menu when space is tight). */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-toolbars {
 	display: flex;
-	flex-wrap: wrap-reverse;
 	align-items: center;
 	align-content: center;
 	box-sizing: border-box;
 	width: 100%;
 	column-gap: var(--vscode-spacing-size80, 8px);
-	row-gap: var(--vscode-spacing-size40, 4px);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header .editor-group-header-toolbars:has(> .editor-group-header-primary:not(.has-no-actions), > .editor-group-header-secondary:not(.has-no-actions)) {

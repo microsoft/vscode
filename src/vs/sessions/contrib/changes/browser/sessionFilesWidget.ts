@@ -110,7 +110,7 @@ class SessionFileListRenderer implements IListRenderer<ISessionFile, ISessionFil
  */
 export class SessionFilesWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 32; // 5px section margin + 6px header margin + 28px header
+	static readonly HEADER_HEIGHT = 34; // 6px header margin-top + 8px header padding + 20px header min-height
 	static readonly MIN_BODY_HEIGHT = 3 * SessionFileListDelegate.ITEM_HEIGHT + 2;
 	static readonly PREFERRED_BODY_HEIGHT = 4 * SessionFileListDelegate.ITEM_HEIGHT;
 	static readonly MAX_BODY_HEIGHT = 240;

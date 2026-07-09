@@ -214,8 +214,8 @@ export class ChatView extends AbstractChatView {
 		// Monitor this chat's running subagents in the ephemeral chip.
 		this._runningSubagents.setChat(resource);
 
-		// Reflect this chat's session status in the floating pills.
-		this._chatPills.setChat(resource);
+		// Reflect this chat's last-turn changes and status in the floating pills.
+		this._chatPills.setChat(chat);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
 		// mutating actions (Start Over / Restore Checkpoint) via the widget. Any

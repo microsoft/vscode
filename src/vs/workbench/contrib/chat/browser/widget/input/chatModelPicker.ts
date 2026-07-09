@@ -38,12 +38,14 @@ import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageM
 import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { getModelProviderIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION, CHAT_INPUT_PICKER_DROPDOWN_CLASS, CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS, CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES } from './chatInputPickerActionItem.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -1324,6 +1326,10 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
+		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.hide(true);
+			return;
+		}
 
 		const previousModel = this._selectedModel;
 
@@ -1436,6 +1442,12 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
+			className: CHAT_INPUT_PICKER_DROPDOWN_CLASS,
+			closeAnimation: {
+				className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
+				duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
+				requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
+			},
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -1519,6 +1531,11 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
+		const modelIcon = this._selectedModel ? getModelProviderIcon(this._selectedModel, this._delegate.useGenericModelIcon?.()) : undefined;
+		const compact = this._compact?.get() ?? false;
+		if (modelIcon && !noModelsAvailable) {
+			nameChildren.push(renderIcon(modelIcon));
+		}
 		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
@@ -1529,7 +1546,9 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		if (!compact || !modelIcon || noModelsAvailable) {
+			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
@@ -1539,7 +1558,7 @@ export class ModelPickerWidget extends Disposable {
 		const effortConfig = this._getConfigProperty('navigation');
 		const tokensConfig = this._getConfigProperty('tokens');
 		if (this._configButton) {
-			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
+			if (!compact && this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
 				const labelParts: string[] = [];
 				const ariaParts: string[] = [];
 				if (effortConfig) {
@@ -1568,11 +1587,13 @@ export class ModelPickerWidget extends Disposable {
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.
-		this._domNode.ariaLabel = restrictedMode
+		const ariaLabel = restrictedMode
 			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
 				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
+		this._domNode.ariaLabel = ariaLabel;
+		this._nameButton.ariaLabel = ariaLabel;
 	}
 
 	/**
@@ -1769,6 +1790,12 @@ export class ModelPickerWidget extends Disposable {
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
+				className: CHAT_INPUT_PICKER_DROPDOWN_CLASS,
+				closeAnimation: {
+					className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
+					duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,
+					requiredAncestorClasses: CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES,
+				},
 			}
 		);
 

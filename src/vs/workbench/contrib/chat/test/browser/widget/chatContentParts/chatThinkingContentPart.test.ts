@@ -15,7 +15,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
-import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
@@ -1558,6 +1558,50 @@ suite('ChatThinkingContentPart', () => {
 				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
 			}, {
 				editPillParent: true,
+				thinkingWrapperRemoved: true,
+			});
+		});
+
+		test('finalizeTitleIfDefault should promote an external edit beside a hidden tool invocation', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const hiddenToolInvocationPart = $('div.chat-tool-invocation-part');
+			hiddenToolInvocationPart.style.display = 'none';
+			originalParent.append(hiddenToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited package.json';
+			const externalEdit: IChatExternalEdit = {
+				kind: 'externalEdit',
+				uri: URI.file('/workspace/package.json'),
+				editKind: 'edit',
+			};
+			part.appendItem(() => ({ domNode: editPill }), 'external-edit', externalEdit, originalParent);
+
+			const thinkingWrapper = editPill.parentElement;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParent: editPill.parentElement === originalParent,
+				hiddenToolChildCount: hiddenToolInvocationPart.childElementCount,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+			}, {
+				editPillParent: true,
+				hiddenToolChildCount: 0,
 				thinkingWrapperRemoved: true,
 			});
 		});

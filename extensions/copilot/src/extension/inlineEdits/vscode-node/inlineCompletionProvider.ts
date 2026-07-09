@@ -427,6 +427,12 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				return emptyList;
 			}
 
+			// Signed line distance from the request cursor to the suggested edit's range start.
+			// Only meaningful when both share the active document's coordinate space.
+			if (range && targetDocument === document) {
+				telemetryBuilder.setSuggestionLineDistanceToCursor(range.start.line - position.line);
+			}
+
 			if (!targetDocument) {
 				logger.trace('no next edit suggestion');
 			} else if (hasNotebookCellMarker(document, result.edit.newText)) {
