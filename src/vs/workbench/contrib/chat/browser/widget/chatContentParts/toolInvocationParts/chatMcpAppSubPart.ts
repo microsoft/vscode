@@ -16,7 +16,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatErrorLevel, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatMcpAppData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatErrorWidget } from '../chatErrorContentPart.js';
@@ -27,19 +27,17 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 /**
  * Data needed to render an MCP App, available before tool completion.
+ *
+ * Composed of the underlying MCP App backend descriptor (a discriminated
+ * union — see {@link ChatMcpAppData}) plus rendering context (`input`,
+ * `sessionResource`).
  */
-export interface IMcpAppRenderData {
-	/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
-	readonly resourceUri: string;
-	/** Reference to the server definition for reconnection */
-	readonly serverDefinitionId: string;
-	/** Reference to the collection containing the server */
-	readonly collectionId: string;
+export type IMcpAppRenderData = ChatMcpAppData & {
 	/** The tool input arguments as a JSON string */
 	readonly input: string;
 	/** The session resource URI for the chat session */
 	readonly sessionResource: URI;
-}
+};
 
 const maxWebviewHeightPct = 0.75;
 

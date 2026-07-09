@@ -7,6 +7,9 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IRelayMessage } from './relayTransport.js';
+
+export type { IRelayMessage } from './relayTransport.js';
 
 export const ISSHRemoteAgentHostService = createDecorator<ISSHRemoteAgentHostService>('sshRemoteAgentHostService');
 
@@ -196,16 +199,6 @@ export interface ISSHKeyboardInteractiveRequest {
 }
 
 /**
- * A message relayed from a remote agent host through the SSH tunnel.
- * The shared process acts as a WebSocket proxy, forwarding JSON messages
- * bidirectionally between the SSH channel and the renderer via IPC.
- */
-export interface ISSHRelayMessage {
-	readonly connectionId: string;
-	readonly data: string;
-}
-
-/**
  * Main-process service that performs the actual SSH work.
  * The renderer calls this over IPC and handles registration
  * with {@link IRemoteAgentHostService} locally.
@@ -225,7 +218,7 @@ export interface ISSHRemoteAgentHostMainService {
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
 
 	/** Fires when a message is received from a remote agent host via the SSH relay. */
-	readonly onDidRelayMessage: Event<ISSHRelayMessage>;
+	readonly onDidRelayMessage: Event<IRelayMessage>;
 
 	/** Fires when a relay connection to a remote agent host closes. */
 	readonly onDidRelayClose: Event<string /* connectionId */>;

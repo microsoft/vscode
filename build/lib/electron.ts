@@ -5,10 +5,12 @@
 
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 import vfs from 'vinyl-fs';
 import { filter, jsonEditor } from './gulp/facade.ts';
 import * as util from './util.ts';
 import { getVersion } from './getVersion.ts';
+import { downloadFeedPackage } from './azureFeed.ts';
 import electron from '@vscode/gulp-electron';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
@@ -100,12 +102,45 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
-const { msBuildId } = util.getElectronVersion();
-const electronVersion = '42.2.0';
+const { electronVersion, msBuildId } = util.getElectronVersion();
+
+// In product builds, `@vscode/gulp-electron` is given an asset resolver (via the
+// `repo` option) that fetches the prebuilt Electron archives on demand from the
+// Azure Artifacts feed named by `product.electronArtifactFeed` using the `az`
+// CLI, instead of downloading them from electron's official GitHub releases
+// (which OSS builds use when no feed is configured). Each universal package
+// contains exactly one file, which is streamed back as a `Response` and
+// validated against the feed's `SHASUMS256.txt`.
+const electronFeed: string | undefined = product.electronArtifactFeed;
+
+// Maps the artifact file name `@vscode/gulp-electron` requests to the matching
+// universal package name in the feed, or `undefined` when it is not mirrored.
+function feedPackageName(fileName: string): string | undefined {
+	if (fileName === 'SHASUMS256.txt') {
+		return 'shasums256';
+	}
+	if (fileName.endsWith('-symbols.zip')) {
+		return undefined;
+	}
+	return fileName.replace(/\.zip$/, '');
+}
+
+const electronAssetResolver = electronFeed
+	? async ({ fileName }: { url: string; fileName: string }): Promise<Response> => {
+		const name = feedPackageName(fileName);
+		if (!name) {
+			return new Response(null, { status: 404 });
+		}
+		const version = `${electronVersion}-${msBuildId}`;
+		const filePath = await downloadFeedPackage(root, 'electron-feed', { feed: electronFeed, name, version });
+		const size = (await fs.promises.stat(filePath)).size;
+		const body = Readable.toWeb(fs.createReadStream(filePath)) as ReadableStream<Uint8Array>;
+		return new Response(body, { status: 200, headers: { 'Content-Length': String(size) } });
+	}
+	: undefined;
 
 export const config = {
 	version: electronVersion,
-	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
@@ -203,7 +238,7 @@ export const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],
-	repo: product.electronRepository || undefined,
+	repo: electronAssetResolver,
 	validateChecksum: true,
 	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
 	createVersionedResources: useVersionedUpdate,

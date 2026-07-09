@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
 
 /**
@@ -22,33 +24,36 @@ import { AgentHostModePicker } from '../agentHostModePicker.js';
 export class MobileAgentHostModePicker extends AgentHostModePicker {
 
 	constructor(
+		session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, telemetryService);
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
-			return;
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+		if (!anchor) {
+			return false;
 		}
 		// Guard applies to both the phone sheet and the desktop popover —
 		// either path can dispatch through `setSessionConfigValue`.
 		if (this._isCurrentlyResolvingConfig()) {
-			return;
+			return false;
 		}
 		if (this._phonePresenter.enabled.get()) {
 			// The presenter's agent-host branch reads mode + model
 			// directly from the active session's provider, so we don't
 			// need to pass chat-input delegates here.
-			const trigger = this._triggerElement;
-			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
-				.finally(() => trigger.focus());
-			return;
+			this._phonePresenter.showCombinedModeAndModelSheet(anchor, undefined, undefined)
+				.finally(() => {
+					anchor.focus();
+					onHide?.();
+				});
+			return true;
 		}
-		super._showPicker();
+		return super._showPicker(anchor, onHide);
 	}
 }

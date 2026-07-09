@@ -6,18 +6,21 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { SessionIsolationPickerVisibleContext } from '../../../../common/contextkeys.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -47,14 +50,25 @@ export class IsolationPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
+	/**
+	 * Tracks whether the isolation picker is currently visible — i.e. the
+	 * isolation option is enabled and the workspace has a usable git
+	 * repository. Consumed by the new-session-view onboarding tour to skip the
+	 * isolation step when the picker is unavailable.
+	 */
+	private readonly _visibleKey: IContextKey<boolean>;
+
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._visibleKey = SessionIsolationPickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._visibleKey.reset()));
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -68,7 +82,7 @@ export class IsolationPicker extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			const isLoading = session?.loading.read(reader);
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
@@ -88,7 +102,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _getSessionIsolationMode(): IsolationMode {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		return providerSession?.isolationMode.get() ?? 'worktree';
@@ -100,6 +114,9 @@ export class IsolationPicker extends Disposable {
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 		this._slotElement = slot;
+		// Onboarding spotlight target — id is referenced by the "new session" tour
+		// in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
@@ -182,7 +199,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _setModeOnSession(mode: IsolationMode): void {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		providerSession?.setIsolationMode(mode);
@@ -190,6 +207,7 @@ export class IsolationPicker extends Disposable {
 
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
+			this._visibleKey.set(false);
 			return;
 		}
 
@@ -222,5 +240,6 @@ export class IsolationPicker extends Disposable {
 		this._slotElement?.classList.toggle('disabled', isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
 		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
+		this._visibleKey.set(this._hasGitRepo && this._isolationOptionEnabled);
 	}
 }

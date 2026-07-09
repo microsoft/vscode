@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
+import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
+import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
 import { ROOT_STATE_URI } from './state/sessionState.js';
 
 /**
@@ -76,7 +78,7 @@ export async function createRemoteWatchHandle(
 		createResourceWatch(params: CreateResourceWatchParams): Promise<{ channel: string }>;
 		subscribe(channel: URI): Promise<unknown>;
 		unsubscribe(channel: URI): void;
-		onDidAction: Event<{ channel: string; action: { type: string; changes?: { items: readonly { uri: string; type: string }[] } } }>;
+		onDidAction: Event<ActionEnvelope>;
 	},
 	params: CreateResourceWatchParams,
 ): Promise<IRemoteWatchHandle> {
@@ -85,7 +87,7 @@ export async function createRemoteWatchHandle(
 	await primitives.subscribe(channelUri);
 	const onDidChangeEmitter = new Emitter<readonly IFileChange[]>();
 	const listener = primitives.onDidAction(envelope => {
-		if (envelope.channel !== channel || envelope.action.type !== 'resourceWatch/changed') {
+		if (envelope.channel !== channel || envelope.action.type !== ActionType.ResourceWatchChanged) {
 			return;
 		}
 		const items = envelope.action.changes?.items ?? [];
@@ -136,6 +138,24 @@ export function agentHostRemotePath(uri: URI): string {
 
 // ---- Abstract base ----------------------------------------------------------
 
+interface IAuthorityEntry {
+	/**
+	 * All currently-registered connections for this authority, oldest
+	 * first. The active connection is the last entry (most recent
+	 * registration wins). Older registrations are kept so that if a
+	 * caller registers `A`, then `B`, then disposes `B`, we transparently
+	 * fall back to `A` instead of entering a grace window.
+	 *
+	 * Empty while the entry is inside the grace window.
+	 */
+	connections: IRemoteFilesystemConnection[];
+	/**
+	 * Pending eviction timer; armed while {@link connections} is empty,
+	 * cleared on re-registration or eviction.
+	 */
+	readonly expiry: MutableDisposable<IDisposable>;
+}
+
 /**
  * {@link IFileSystemProvider} that proxies filesystem operations
  * through a {@link IRemoteFilesystemConnection}.
@@ -146,12 +166,13 @@ export function agentHostRemotePath(uri: URI): string {
  *
  * Individual connections are identified by the URI's authority component.
  */
-export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider {
+export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability {
 
 	readonly capabilities =
 		FileSystemProviderCapabilities.PathCaseSensitive |
 		FileSystemProviderCapabilities.FileReadWrite |
-		FileSystemProviderCapabilities.FileFolderCopy;
+		FileSystemProviderCapabilities.FileFolderCopy |
+		FileSystemProviderCapabilities.FileRealpath;
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
@@ -161,19 +182,107 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	private readonly _onDidWatchError = this._register(new Emitter<string>());
 	readonly onDidWatchError = this._onDidWatchError.event;
 
-	private readonly _authorityToConnection = new Map<string, IRemoteFilesystemConnection>();
+	/**
+	 * Per-authority registration slot. We keep the slot alive for a brief
+	 * grace period after the last registration is disposed, so an
+	 * operation issued during a reconnection window can wait for the
+	 * replacement registration instead of failing immediately.
+	 */
+	private readonly _authorities = new Map<string, IAuthorityEntry>();
+
+	/**
+	 * Fires the authority whose active connection has changed: added,
+	 * replaced, fallen back to an older registration, entered the grace
+	 * window (no active connection), or evicted. Long-lived consumers
+	 * (e.g. {@link watch}) subscribe here so they continue to receive
+	 * notifications across full entry eviction + later re-creation —
+	 * something a per-entry emitter cannot offer.
+	 */
+	private readonly _onDidChangeConnection = this._register(new Emitter<string>());
+
+	/**
+	 * Grace period during which {@link _getConnection} will await a new
+	 * registration after the previous one is disposed. Covers the window
+	 * where a transport is briefly torn down and re-registered (e.g. an
+	 * agent-host client reconnect that races a plugin sync). 5s matches
+	 * the typical reconnect timeout. Consumers should still implement
+	 * logical retries for longer reconnection latencies, but this is a
+	 * low level, best-effort mechanism.
+	 *
+	 * Tests can override this via the constructor parameter.
+	 */
+	private static readonly _DEFAULT_CONNECTION_GRACE_MS = 5000;
+
+	constructor(
+		private readonly _connectionGraceMs: number = AHPFileSystemProvider._DEFAULT_CONNECTION_GRACE_MS,
+	) {
+		super();
+	}
 
 	/**
 	 * Register a mapping from a URI authority to a connection.
-	 * Returns a disposable that unregisters the mapping.
+	 * Returns a disposable that unregisters the mapping. Multiple
+	 * concurrent registrations for the same authority are supported;
+	 * the most recent registration wins, and disposing it falls back to
+	 * the previous one (if any). After the *last* registration is
+	 * disposed the entry is held open for {@link _connectionGraceMs} so
+	 * that a reconnect can replace it without orphaning in-flight
+	 * operations.
 	 */
 	registerAuthority(authority: string, connection: IRemoteFilesystemConnection): IDisposable {
-		this._authorityToConnection.set(authority, connection);
+		let entry = this._authorities.get(authority);
+		if (!entry) {
+			entry = {
+				connections: [connection],
+				expiry: new MutableDisposable<IDisposable>(),
+			};
+			this._authorities.set(authority, entry);
+		} else {
+			entry.expiry.clear();
+			entry.connections.push(connection);
+		}
+		const adopted = entry;
+		this._onDidChangeConnection.fire(authority);
+
 		return toDisposable(() => {
-			if (this._authorityToConnection.get(authority) === connection) {
-				this._authorityToConnection.delete(authority);
+			const idx = adopted.connections.indexOf(connection);
+			if (idx === -1) {
+				return;
+			}
+			const wasActive = idx === adopted.connections.length - 1;
+			adopted.connections.splice(idx, 1);
+			if (adopted.connections.length === 0) {
+				adopted.expiry.value = disposableTimeout(
+					() => this._expireAuthority(authority, adopted),
+					this._connectionGraceMs,
+					this._store,
+				);
+			}
+
+			if (wasActive) {
+				this._onDidChangeConnection.fire(authority); // Falling back to an older connection — surface the change.
 			}
 		});
+	}
+
+	private _expireAuthority(authority: string, entry: IAuthorityEntry): void {
+		// A re-registration may have landed between scheduling and
+		// firing — bail in that case.
+		if (this._authorities.get(authority) !== entry || entry.connections.length > 0) {
+			return;
+		}
+		this._authorities.delete(authority);
+		entry.expiry.dispose();
+		this._onDidChangeConnection.fire(authority);
+	}
+
+	override dispose(): void {
+		for (const entry of this._authorities.values()) {
+			entry.expiry.dispose();
+			entry.connections.length = 0;
+		}
+		this._authorities.clear();
+		super.dispose();
 	}
 
 	/** Decode a provider URI back to the original URI for the remote endpoint. */
@@ -183,16 +292,19 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	protected abstract _encodeUri(resource: URI, authority: string): URI;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		const connection = this._authorityToConnection.get(resource.authority);
-		if (!connection?.watchResource) {
-			return Disposable.None;
-		}
-		// `IFileSystemProvider.watch` is synchronous but the underlying
-		// AHP `createResourceWatch` + `subscribe` round-trip is not.
-		// Hand back a `MutableDisposable` that holds the handle once it
-		// arrives; if the caller disposes before then, the
-		// MutableDisposable will dispose the handle as soon as it's set.
-		const handleHolder = new MutableDisposable<IDisposable>();
+		// `IFileSystemProvider.watch` is synchronous, but acquiring a
+		// connection may have to wait for a (re)registration and the
+		// underlying AHP `createResourceWatch` + `subscribe` round-trip
+		// is itself async. Additionally, watchers are long-lived: every
+		// time the active connection for `authority` changes (reconnect,
+		// fallback to an older registration, eviction followed by a fresh
+		// registration, ...) we tear down any existing remote handle and
+		// re-attach against the new connection. The class-level
+		// {@link _onDidChangeConnection} event keeps us informed across
+		// the full entry-eviction cycle.
+		const store = new DisposableStore();
+		const handleHolder = store.add(new MutableDisposable<IDisposable>());
+		const authority = resource.authority;
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
 			uri: this._decodeUri(resource).toString(),
@@ -202,15 +314,48 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				? { includes: { items: opts.includes.map(p => typeof p === 'string' ? p : p.pattern) } }
 				: {}),
 		};
-		let disposed = false;
-		connection.watchResource(params).then(
-			handle => {
-				if (disposed) {
+
+		// Track which connection the current handle was created against
+		// so we ignore spurious change events that don't represent a
+		// real swap (e.g. a stale registration disposal).
+		let attached: IRemoteFilesystemConnection | undefined;
+		let attaching = false;
+		let pendingReattach = false;
+
+		const reattach = async (): Promise<void> => {
+			if (store.isDisposed) {
+				return;
+			}
+			if (attaching) {
+				pendingReattach = true;
+				return;
+			}
+			const entry = this._authorities.get(authority);
+			const next = entry?.connections.at(-1);
+			if (next === attached) {
+				return;
+			}
+			handleHolder.clear();
+			attached = undefined;
+			const watchResource = next?.watchResource;
+			if (!next || !watchResource) {
+				return;
+			}
+			attaching = true;
+			const target = next;
+			try {
+				const handle = await watchResource.call(target, params);
+				if (store.isDisposed) {
 					handle.dispose();
 					return;
 				}
-				// Forward change events through the provider's shared
-				// emitter (uncorrelated watchers all merge here).
+				const current = this._authorities.get(authority);
+				if (!current || current.connections.at(-1) !== target) {
+					// Active connection changed underneath us — toss this
+					// handle and let the pending reattach pick the new one.
+					handle.dispose();
+					return;
+				}
 				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
 					resource: this._encodeUri(c.resource, resource.authority),
 					type: c.type,
@@ -219,15 +364,26 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					sub.dispose();
 					handle.dispose();
 				});
-			},
-			err => {
+				attached = target;
+			} catch (err) {
 				this._onDidWatchError.fire(err instanceof Error ? err.message : String(err));
-			},
-		);
-		return toDisposable(() => {
-			disposed = true;
-			handleHolder.dispose();
-		});
+			} finally {
+				attaching = false;
+				if (pendingReattach) {
+					pendingReattach = false;
+					void reattach();
+				}
+			}
+		};
+
+		store.add(this._onDidChangeConnection.event(a => {
+			if (a === authority) {
+				void reattach();
+			}
+		}));
+		void reattach();
+
+		return store;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
@@ -245,9 +401,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		try {
-			const resolved = await connection.resourceResolve({ channel: ROOT_STATE_URI, uri: decoded.toString() });
+			const resolved = await this._resolve(connection, decoded);
+
 			return {
 				type: resolved.type === 'directory' ? FileType.Directory
 					: resolved.type === 'symlink' ? FileType.SymbolicLink
@@ -255,8 +412,30 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				mtime: resolved.mtime ? Date.parse(resolved.mtime) : 0,
 				ctime: resolved.ctime ? Date.parse(resolved.ctime) : 0,
 				size: resolved.size ?? 0,
-				permissions: FilePermission.Readonly,
 			};
+		} catch (err) {
+			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
+		}
+	}
+
+	async realpath(resource: URI): Promise<string> {
+		const path = resource.path;
+		// Synthetic roots and virtual content schemes have no distinct
+		// canonical path — return the input path unchanged.
+		if (path === '/' || path === '') {
+			return path;
+		}
+		const decoded = this._decodeUri(resource);
+		if (decoded.scheme === 'session-db' || decoded.scheme === 'git-blob' || decoded.path === '/' || decoded.path === '') {
+			return path;
+		}
+		const connection = await this._getConnection(resource.authority);
+		try {
+			const resolved = await this._resolve(connection, decoded);
+			// `resolved.uri` is the remote canonical (realpath) URI. Re-encode
+			// it back into provider space; the file service applies the
+			// returned path onto the original provider URI.
+			return this._encodeUri(URI.parse(resolved.uri), resource.authority).path;
 		} catch (err) {
 			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
 		}
@@ -268,7 +447,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			const result = await connection.resourceRead(originalUri);
@@ -282,7 +461,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			await connection.resourceWrite({
@@ -297,7 +476,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async mkdir(resource: URI): Promise<void> {
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			await connection.resourceMkdir({ channel: ROOT_STATE_URI, uri: originalUri.toString() });
@@ -307,7 +486,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			await connection.resourceDelete({ channel: ROOT_STATE_URI, uri: originalUri.toString(), recursive: opts.recursive });
@@ -317,7 +496,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
-		const connection = this._getConnection(from.authority);
+		const connection = await this._getConnection(from.authority);
 		try {
 			const originalFrom = this._decodeUri(from);
 			const originalTo = this._decodeUri(to);
@@ -328,7 +507,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
-		const connection = this._getConnection(from.authority);
+		const connection = await this._getConnection(from.authority);
 		try {
 			const originalFrom = this._decodeUri(from);
 			const originalTo = this._decodeUri(to);
@@ -347,7 +526,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * is missing, or the connection doesn't implement `resourceRequest`.
 	 */
 	async requestResourceAccess(resource: URI, opts: { readonly read?: boolean; readonly write?: boolean }): Promise<void> {
-		const connection = this._getConnection(resource.authority);
+		const connection = await this._getConnection(resource.authority);
 		if (!connection.resourceRequest) {
 			throw createFileSystemProviderError(
 				`Connection for ${resource.authority} does not support resourceRequest`,
@@ -369,12 +548,49 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 
 	// ---- Internals ----------------------------------------------------------
 
-	private _getConnection(authority: string): IRemoteFilesystemConnection {
-		const connection = this._authorityToConnection.get(authority);
-		if (!connection) {
-			throw createFileSystemProviderError(`No connection for authority: ${authority}`, FileSystemProviderErrorCode.Unavailable);
+	private _getConnection(authority: string): Promise<IRemoteFilesystemConnection> {
+		const entry = this._authorities.get(authority);
+		if (!entry) {
+			return Promise.reject(createFileSystemProviderError(
+				`No connection for authority: ${authority}`,
+				FileSystemProviderErrorCode.Unavailable,
+			));
 		}
-		return connection;
+
+		const active = entry.connections.at(-1);
+		if (active) {
+			return Promise.resolve(active);
+		}
+		// Entry is inside its grace window after the last registration
+		// was disposed. Wait until either a new registration arrives
+		// (resolve) or the grace timer expires and evicts the entry
+		// (reject).
+		return new Promise((resolve, reject) => {
+			const settle = (): void => {
+				const current = this._authorities.get(authority);
+				if (!current) {
+					sub.dispose();
+					reject(createFileSystemProviderError(
+						`No connection for authority: ${authority}`,
+						FileSystemProviderErrorCode.Unavailable,
+					));
+					return;
+				}
+				const c = current.connections.at(-1);
+				if (c) {
+					sub.dispose();
+					resolve(c);
+				}
+			};
+			const sub = this._onDidChangeConnection.event(a => {
+				if (a === authority) {
+					settle();
+				}
+			});
+			// Re-check after subscribing in case the state changed between
+			// our initial check and the listener registration.
+			settle();
+		});
 	}
 
 	/**
@@ -394,8 +610,16 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		);
 	}
 
+	/**
+	 * Resolve a decoded resource over {@link connection}. Shared by
+	 * {@link stat} and {@link realpath}.
+	 */
+	private _resolve(connection: IRemoteFilesystemConnection, decoded: URI): Promise<ResourceResolveResult> {
+		return connection.resourceResolve({ channel: ROOT_STATE_URI, uri: decoded.toString() });
+	}
+
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly DirectoryEntry[]> {
-		const connection = this._getConnection(authority);
+		const connection = await this._getConnection(authority);
 		try {
 			const originalUri = this._decodeUri(resource);
 			const result = await connection.resourceList(originalUri);

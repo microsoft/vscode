@@ -10,9 +10,7 @@ import { GithubRepoId } from '../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
 import { AuthOptions, IOctoKitService, JobInfo, RemoteAgentJobResponse } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
-import { IOTelService } from '../../../platform/otel/common/otelService';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { ICloudBackendInstrumentation } from './cloudBackendTelemetry';
 import {
 	CloudDelegationResult,
 	CloudSessionContent,
@@ -27,6 +25,18 @@ import { body_suffix, formatBodyPlaceholder, JOBS_API_VERSION, SessionIdForPr } 
 const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.t('Sign in to GitHub to access Copilot cloud sessions.') } };
 
 /**
+ * Error thrown for invalid Jobs API (v1) create responses. Carries the HTTP `status` (when known)
+ * so cloud backend telemetry can classify v1 create failures by status (the guardrail error
+ * dimension), mirroring {@link TaskApiError} on the v2 backend.
+ */
+export class JobsApiError extends Error {
+	constructor(message: string, readonly status: number | undefined) {
+		super(message);
+		this.name = 'JobsApiError';
+	}
+}
+
+/**
  * Cloud agent backend backed by the legacy Jobs API. This is the default and is
  * behaviorally identical to the inline code that previously lived in
  * `CopilotCloudSessionsProvider`.
@@ -38,8 +48,7 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 	constructor(
 		private readonly _octoKitService: IOctoKitService,
 		private readonly _logService: ILogService,
-		private readonly _telemetryService: ITelemetryService,
-		private readonly _otelService: IOTelService,
+		private readonly _instrumentation: ICloudBackendInstrumentation,
 	) { }
 
 	parseSessionId(resource: vscode.Uri): CloudSessionIdentity | undefined {
@@ -78,6 +87,7 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 				return { globalId, pr };
 			} catch (e) {
 				this._logService.warn(`Failed to fetch PR for global ID ${globalId}: ${e instanceof Error ? e.message : String(e)}`);
+				this._instrumentation.operationFailed('fetchSessionList', e);
 				return { globalId, pr: null as PullRequestSearchItem | null };
 			}
 		});
@@ -106,11 +116,18 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 		const agent = targetAgent && targetAgent.length > 0 ? targetAgent : 'copilot';
 		// Trailing space preserved for byte-identical bodies vs the pre-seam inline implementation.
 		const body = `@${agent} ${prompt} `;
-		const commentResult = await this._octoKitService.addPullRequestComment(prGlobalId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
-		if (!commentResult) {
-			return undefined;
+		try {
+			const commentResult = await this._octoKitService.addPullRequestComment(prGlobalId, body, CLOUD_SESSIONS_AUTH_OPTIONS);
+			if (!commentResult) {
+				this._instrumentation.followUp('failure');
+				return undefined;
+			}
+			this._instrumentation.followUp('success');
+			return { url: commentResult.url };
+		} catch (e) {
+			this._instrumentation.followUp('failure', e);
+			throw e;
 		}
-		return { url: commentResult.url };
 	}
 
 	async createSession(params: CreateCloudSessionParams, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<CloudDelegationResult> {
@@ -130,38 +147,24 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 			},
 		};
 
-		/* __GDPR__
-			"copilotcloud.chat.remoteAgentJobInvoke" : {
-				"owner": "joshspicer",
-				"comment": "Event sent when a remote agent job invocation starts.",
-				"hasHeadRef": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether a head ref was provided for delegation." }
-			}
-		*/
-		this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.remoteAgentJobInvoke', {
-			hasHeadRef: String(!!params.headRef),
-		});
+		this._instrumentation.legacyJobInvoke(!!params.headRef);
 
 		stream?.progress(vscode.l10n.t('Delegating to cloud agent'));
 		this._logService.debug(`[postCopilotAgentJob] Invoking cloud agent job with payload: ${JSON.stringify(payload)}`);
-		const response = await this._octoKitService.postCopilotAgentJob(params.owner, params.repo, JOBS_API_VERSION, payload, CLOUD_SESSIONS_AUTH_OPTIONS);
-		this._logService.debug(`[postCopilotAgentJob] Received response from cloud agent job invocation: ${JSON.stringify(response)}`);
-		if (!this.validateRemoteAgentJobResponse(response)) {
-			const statusCode = (response as { status?: number } | undefined)?.status;
-			switch (statusCode) {
-				case 401:
-					throw new Error(vscode.l10n.t('Cloud agent is not authorized to run on this repository. This may be because the Copilot coding agent is disabled for your organization, or your active GitHub account does not have push access to the target repository.'));
-				case 403:
-					throw new Error(vscode.l10n.t('Cloud agent is not enabled for this repository. You may need to enable it in [GitHub settings]({0}) or contact your organization administrator.', `https://${params.host}/settings/copilot/coding_agent`));
-				case 404:
-					throw new Error(vscode.l10n.t('The repository `{0}/{1}` was not found or you do not have access to it.', params.owner, params.repo));
-				case 422:
-					throw new Error(vscode.l10n.t('Cloud agent was unable to create a pull request with the specified base branch `{0}`. Please push the branch to the remote and verify repository rules allow this operation. For empty repos, push an initial commit and try again.', params.baseRef));
-				case 500:
-					throw new Error(vscode.l10n.t('Cloud agent service encountered an internal error. Please try again later.'));
-				default:
-					throw new Error(vscode.l10n.t('Received invalid response {0} from cloud agent.', statusCode ? statusCode : ''));
+		const createStart = Date.now();
+		let response: RemoteAgentJobResponse;
+		try {
+			const rawResponse = await this._octoKitService.postCopilotAgentJob(params.owner, params.repo, JOBS_API_VERSION, payload, CLOUD_SESSIONS_AUTH_OPTIONS);
+			this._logService.debug(`[postCopilotAgentJob] Received response from cloud agent job invocation: ${JSON.stringify(rawResponse)}`);
+			if (!this.validateRemoteAgentJobResponse(rawResponse)) {
+				throw this.invalidRemoteAgentJobError(rawResponse, params);
 			}
+			response = rawResponse;
+		} catch (e) {
+			this._instrumentation.sessionCreated('failure', Date.now() - createStart, e);
+			throw e;
 		}
+		this._instrumentation.sessionCreated('success', Date.now() - createStart);
 
 		stream.progress(vscode.l10n.t('Creating pull request'));
 		const jobInfo = await this.waitForJobWithPullRequest(params.owner, params.repo, response.job_id, token);
@@ -175,6 +178,24 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 			throw new Error(vscode.l10n.t('Invalid pull request number received from cloud agent'));
 		}
 		return { kind: 'pullRequest', prNumber: number, sessionId: response.session_id };
+	}
+
+	private invalidRemoteAgentJobError(response: unknown, params: CreateCloudSessionParams): Error {
+		const statusCode = (response as { status?: number } | undefined)?.status;
+		switch (statusCode) {
+			case 401:
+				return new JobsApiError(vscode.l10n.t('Cloud agent is not authorized to run on this repository. This may be because the Copilot coding agent is disabled for your organization, or your active GitHub account does not have push access to the target repository.'), statusCode);
+			case 403:
+				return new JobsApiError(vscode.l10n.t('Cloud agent is not enabled for this repository. You may need to enable it in [GitHub settings]({0}) or contact your organization administrator.', `https://${params.host}/settings/copilot/coding_agent`), statusCode);
+			case 404:
+				return new JobsApiError(vscode.l10n.t('The repository `{0}/{1}` was not found or you do not have access to it.', params.owner, params.repo), statusCode);
+			case 422:
+				return new JobsApiError(vscode.l10n.t('Cloud agent was unable to create a pull request with the specified base branch `{0}`. Please push the branch to the remote and verify repository rules allow this operation. For empty repos, push an initial commit and try again.', params.baseRef), statusCode);
+			case 500:
+				return new JobsApiError(vscode.l10n.t('Cloud agent service encountered an internal error. Please try again later.'), statusCode);
+			default:
+				return new JobsApiError(vscode.l10n.t('Received invalid response {0} from cloud agent.', statusCode ? statusCode : ''), statusCode);
+		}
 	}
 
 	async waitForSessionReady(sessionId: string, token?: vscode.CancellationToken): Promise<SessionInfo | undefined> {
@@ -253,14 +274,8 @@ export class JobsApiBackend implements PrCloudAgentBackend {
 		while (Date.now() - startTime < maxWaitTime && (!token || !token.isCancellationRequested)) {
 			const jobInfo = await this._octoKitService.getJobByJobId(owner, repo, jobId, 'vscode-copilot-chat', CLOUD_SESSIONS_AUTH_OPTIONS);
 			if (jobInfo && jobInfo.pull_request && jobInfo.pull_request.number) {
-				/* __GDPR__
-					"copilotcloud.chat.remoteAgentJobPullRequestReady" : {
-						"owner": "joshspicer",
-						"comment": "Event sent when a remote agent job first returns pull request information."
-					}
-				*/
-				this._telemetryService.sendMSFTTelemetryEvent('copilotcloud.chat.remoteAgentJobPullRequestReady');
-				GenAiMetrics.incrementCloudPrReadyCount(this._otelService);
+				this._instrumentation.legacyJobPullRequestReady();
+				this._instrumentation.sessionActivated(Date.now() - startTime);
 				this._logService.trace(`Job ${jobId} now has pull request #${jobInfo.pull_request.number}`);
 				return jobInfo;
 			}

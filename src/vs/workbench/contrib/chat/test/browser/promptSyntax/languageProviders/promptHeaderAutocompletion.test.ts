@@ -68,6 +68,7 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 
 		const customAgent: ICustomAgent = {
+			id: 'agent1',
 			name: 'agent1',
 			description: 'Agent file 1.',
 			agentInstructions: {

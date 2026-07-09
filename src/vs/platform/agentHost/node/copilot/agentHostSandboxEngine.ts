@@ -8,6 +8,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { createHash } from 'crypto';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -48,7 +49,11 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
 		const appRoot = dirname(FileAccess.asFileUri('').path);
 		const runAsNode = !!process.versions['electron'];
-		return { appRoot, execPath: process.execPath, runAsNode };
+		// In a packaged build the native binaries (ripgrep-universal, mxc-sdk) are
+		// unpacked from the archive into `node_modules.asar.unpacked`; in dev they
+		// remain in plain `node_modules`.
+		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
+		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
@@ -61,7 +66,16 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 			return undefined;
 		}
 		const sandboxRoot = URI.joinPath(userHome, this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-		return URI.joinPath(sandboxRoot, `agenthost_${this._sessionId}`);
+		// Keep the per-session leaf short and bounded: the sandbox runtime
+		// creates its network-bridge UNIX sockets (e.g. `claude-socks-<id>.sock`,
+		// ~35 bytes) directly under this directory, and the full socket path must
+		// stay within the AF_UNIX 108-byte limit. The raw session id is a URI
+		// segment (often a UUID), so hash it to a short hex string instead. A
+		// 64-bit SHA-256 prefix (16 hex chars) keeps the leaf short and
+		// collisions infeasible.
+		const digest = createHash('sha256').update(this._sessionId).digest('hex');
+		const sessionLeaf = `agenthost_${digest.substring(0, 16)}`;
+		return URI.joinPath(sandboxRoot, sessionLeaf);
 	}
 
 	async getWorkspaceStorageReadRoot(): Promise<URI | undefined> {

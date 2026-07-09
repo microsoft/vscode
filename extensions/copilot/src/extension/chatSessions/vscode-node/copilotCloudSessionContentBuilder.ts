@@ -170,7 +170,7 @@ export class ChatSessionContentBuilder {
 	 * (request = the turn prompt; response = a markdown summary derived from events scoped
 	 * to that turn). This does NOT call the SSE log parser — events are typed.
 	 *
-	 * `pullArtifact` is shown as a header card only when the task happens to have a PR.
+	 * `pullRequest` is shown as a header card only when the task happens to have a PR.
 	 */
 	public buildTaskHistory(
 		task: AgentTaskGetResponse,

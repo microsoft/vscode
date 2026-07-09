@@ -40,7 +40,10 @@ const config = {
 		color: true,
 		forbidOnly: !!process.env.CI,
 		timeout: 5000,
-		retries: isSanity ? 1 : 0
+		// Sanity tests hit the live model endpoint, so they can fail for
+		// transient upstream reasons (empty response, rate limit, etc.).
+		// Give each test up to three attempts before marking it as failed.
+		retries: isSanity ? 2 : 0
 	}
 };
 

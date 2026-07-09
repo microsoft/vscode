@@ -7,17 +7,25 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
+import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpAppDefaults.js';
+import { customizationId } from '../../../agentHost/common/state/sessionState.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test' };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
 }
 import {
+	IParsedHookCommand,
+	makeMcpServerCustomization,
 	parseComponentPathConfig,
+	parseHooksJson,
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
 	shellQuotePluginRootInCommand,
+	interpolateMcpPluginRoot,
 	convertBareEnvVarsToVsCodeSyntax,
+	toParsedAgent,
+	toParsedSkill,
 } from '../../common/pluginParsers.js';
 
 suite('pluginParsers', () => {
@@ -234,6 +242,29 @@ suite('pluginParsers', () => {
 		});
 	});
 
+	suite('interpolateMcpPluginRoot', () => {
+
+		test('replaces tokens and sets env vars without pairing array entries', () => {
+			const result = interpolateMcpPluginRoot({
+				name: 'test',
+				uri: URI.file('/plugin/.mcp.json'),
+				configuration: {
+					type: McpServerType.LOCAL,
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--data', '${CLAUDE_PLUGIN_ROOT}/data'],
+				},
+				customization: stubMcpCustomization(),
+			}, '/plugin', ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'], ['PLUGIN_ROOT']);
+
+			assert.deepStrictEqual(result.configuration, {
+				type: McpServerType.LOCAL,
+				command: '/plugin/bin/server',
+				args: ['--data', '/plugin/data'],
+				env: { PLUGIN_ROOT: '/plugin' },
+			});
+		});
+	});
+
 	// ---- convertBareEnvVarsToVsCodeSyntax -------------------------------
 
 	suite('convertBareEnvVarsToVsCodeSyntax', () => {
@@ -280,6 +311,170 @@ suite('pluginParsers', () => {
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${lowercase}');
+		});
+	});
+
+	suite('IParsedHookCommand.isEquals', () => {
+
+		test('returns true for structurally equivalent commands', () => {
+			const left: IParsedHookCommand = {
+				command: 'echo hi',
+				windows: 'Write-Host hi',
+				linux: 'echo hi',
+				osx: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+			const right: IParsedHookCommand = {
+				command: 'echo hi',
+				windows: 'Write-Host hi',
+				linux: 'echo hi',
+				osx: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+
+			assert.strictEqual(IParsedHookCommand.isEquals(left, right), true);
+		});
+
+		test('returns false when any field differs', () => {
+			const left: IParsedHookCommand = {
+				command: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+			const right: IParsedHookCommand = {
+				command: 'echo bye',
+				cwd: URI.file('/workspace/other'),
+				env: { A: '2' },
+				timeout: 20,
+				sourceUri: URI.file('/workspace/.github/other-hooks.yml')
+			};
+
+			assert.strictEqual(IParsedHookCommand.isEquals(left, right), false);
+		});
+	});
+
+	suite('toParsedAgent / toParsedSkill', () => {
+
+		test('toParsedAgent pairs the resource with an AgentCustomization', () => {
+			const uri = URI.file('/home/.claude/agents/explore.md');
+			const parsed = toParsedAgent({ uri, name: 'explore', description: 'Explore the codebase' });
+			assert.deepStrictEqual(parsed, {
+				uri,
+				name: 'explore',
+				description: 'Explore the codebase',
+				customization: {
+					type: CustomizationType.Agent,
+					id: customizationId(uri.toString()),
+					uri: uri.toString(),
+					name: 'explore',
+					description: 'Explore the codebase',
+				},
+			});
+		});
+
+		test('toParsedSkill pairs the resource with a SkillCustomization and omits an absent description', () => {
+			const uri = URI.file('/home/.claude/skills/mapper/SKILL.md');
+			const parsed = toParsedSkill({ uri, name: 'mapper' });
+			assert.deepStrictEqual(parsed, {
+				uri,
+				name: 'mapper',
+				customization: {
+					type: CustomizationType.Skill,
+					id: customizationId(uri.toString()),
+					uri: uri.toString(),
+					name: 'mapper',
+				},
+			});
+		});
+	});
+
+	suite('makeMcpServerCustomization', () => {
+
+		test('builds a Starting server with DEFAULT_MCP_APP and a name-disambiguated id', () => {
+			const uri = URI.file('/workspace/.mcp.json');
+			const customization = makeMcpServerCustomization(uri, 'fs server');
+			assert.deepStrictEqual(customization, {
+				type: CustomizationType.McpServer,
+				id: `${customizationId(uri.toString())}#mcp=${encodeURIComponent('fs server')}`,
+				uri: uri.toString(),
+				name: 'fs server',
+				enabled: true,
+				state: { kind: McpServerStatus.Starting },
+				mcpApp: DEFAULT_MCP_APP,
+			});
+		});
+
+		test('two servers declared in the same file get distinct ids', () => {
+			const uri = URI.file('/workspace/.mcp.json');
+			assert.notStrictEqual(makeMcpServerCustomization(uri, 'a').id, makeMcpServerCustomization(uri, 'b').id);
+		});
+	});
+
+	// ---- parseHooksJson -------------------------------------------------
+
+	suite('parseHooksJson', () => {
+
+		const hookUri = URI.file('/workspace/.claude/settings.json');
+		const parse = (json: unknown) => parseHooksJson(hookUri, json, undefined, URI.file('/home'));
+
+		test('returns [] for a non-object, a missing hooks block, or disableAllHooks', () => {
+			assert.deepStrictEqual(parse(undefined), []);
+			assert.deepStrictEqual(parse({ model: 'x' }), []);
+			assert.deepStrictEqual(parse({ disableAllHooks: true, hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'echo' }] }] } }), []);
+		});
+
+		test('canonicalizes event names (camelCase → PascalCase) and ignores unrecognized events', () => {
+			const groups = parse({
+				hooks: {
+					postToolUse: [{ hooks: [{ type: 'command', command: 'echo a' }] }],
+					bogusEvent: [{ hooks: [{ type: 'command', command: 'echo b' }] }],
+				},
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+		});
+
+		test('extracts commands from the nested matcher form and drops empty groups', () => {
+			const groups = parse({
+				hooks: {
+					PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo run' }] }],
+					Stop: [{ matcher: 'X', hooks: [{ type: 'not-a-command' }] }],
+				},
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PreToolUse']);
+			assert.deepStrictEqual(groups[0].commands.map(c => c.command), ['echo run']);
+		});
+
+		test('extracts commands from the flat (non-nested) command form', () => {
+			const groups = parse({
+				hooks: { PostToolUse: [{ type: 'command', command: 'echo flat' }] },
+			});
+			assert.deepStrictEqual(groups.map(g => g.type), ['PostToolUse']);
+			assert.deepStrictEqual(groups[0].commands.map(c => c.command), ['echo flat']);
+		});
+
+		test('all groups from one file share a single file-level customization', () => {
+			const groups = parse({
+				hooks: {
+					PreToolUse: [{ hooks: [{ type: 'command', command: 'a' }] }],
+					PostToolUse: [{ hooks: [{ type: 'command', command: 'b' }] }],
+				},
+			});
+			assert.strictEqual(groups.length, 2);
+			assert.strictEqual(groups[0].customization, groups[1].customization);
+			assert.deepStrictEqual(groups[0].customization, {
+				type: CustomizationType.Hook,
+				id: customizationId(hookUri.toString()),
+				uri: hookUri.toString(),
+				name: 'settings.json',
+			});
 		});
 	});
 });

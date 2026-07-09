@@ -39,6 +39,8 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -59,6 +61,10 @@ const MOCK_PROVIDER_PATH_PREFIXES: Record<string, string> = {
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 	browseActions?: readonly ISessionWorkspaceBrowseAction[];
+	canConnectOnDemand?: boolean;
+	connect?: () => Promise<void>;
+	onDidReportConnectProgress?: Event<{ readonly connectionKey: string; readonly message: string }>;
+	remoteAddress?: string;
 }): ISessionsProvider {
 	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
 	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
@@ -66,6 +72,7 @@ function createMockProvider(id: string, opts?: {
 		id,
 		label: `Provider ${id}`,
 		icon: Codicon.remote,
+		order: 0,
 		sessionTypes: [],
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],
@@ -91,20 +98,32 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
+		createQuickChat: () => { throw new Error('Not implemented'); },
+		deleteNewSession: () => { },
 		getSessionTypes: () => [],
 		renameChat: async () => { },
+		renameSession: async () => { },
+		getModels: () => [],
+		getModelPickerOptions: () => ({ useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }),
+		onDidChangeModels: Event.None,
 		setModel: () => { },
 		archiveSession: async () => { },
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
-		deleteChat: async () => { },
+		deleteSessions: async () => { },
+		deleteChat: async () => true,
 		createNewChat: async () => { throw new Error('Not implemented'); },
+		forkChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {
 		return {
 			...base,
+			canConnectOnDemand: opts.canConnectOnDemand,
+			connect: opts.connect,
 			connectionStatus: opts.connectionStatus,
+			onDidReportConnectProgress: opts.onDidReportConnectProgress,
+			remoteAddress: opts.remoteAddress,
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
@@ -149,6 +168,46 @@ class MockSessionsProvidersService extends Disposable {
 	}
 }
 
+class RecordingNotificationHandle extends NoOpNotification {
+	closed = false;
+	messages: NotificationMessage[] = [];
+
+	constructor(message: NotificationMessage) {
+		super();
+		this.messages.push(message);
+	}
+
+	override updateMessage(message: NotificationMessage): void {
+		this.messages.push(message);
+	}
+
+	override close(): void {
+		this.closed = true;
+	}
+}
+
+class RecordingNotificationService extends TestNotificationService {
+	readonly handles: RecordingNotificationHandle[] = [];
+	readonly errors: Array<string | Error> = [];
+
+	override notify(notification: INotification): INotificationHandle {
+		const handle = new RecordingNotificationHandle(notification.message);
+		this.handles.push(handle);
+		return handle;
+	}
+
+	override error(error: string | Error): INotificationHandle {
+		this.errors.push(error);
+		return super.error(error);
+	}
+}
+
+class DispatchingWorkspacePicker extends WorkspacePicker {
+	dispatchFolder(folderUri: URI, providerId: string): Promise<void> {
+		return this._dispatchPickerItem({ folderUri, providerId });
+	}
+}
+
 // ---- Test helpers -----------------------------------------------------------
 
 function seedStorage(storageService: IStorageService, entries: { uri: URI; providerId: string; checked: boolean }[]): void {
@@ -164,6 +223,8 @@ function createTestPicker(
 	disposables: DisposableStore,
 	providersService: MockSessionsProvidersService,
 	storageService?: IStorageService,
+	notificationService: INotificationService = new TestNotificationService(),
+	pickerCtor: typeof WorkspacePicker = WorkspacePicker,
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -183,13 +244,14 @@ function createTestPicker(
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(INotificationService, notificationService);
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
-	return disposables.add(instantiationService.createInstance(WorkspacePicker));
+	return disposables.add(instantiationService.createInstance(pickerCtor));
 }
 
 // ---- Assertion helpers ------------------------------------------------------
@@ -404,6 +466,44 @@ suite('WorkspacePicker - Connection Status', () => {
 		assertSelectedProvider(picker, 'agenthost-remote-1', 'Selection should be preserved on disconnect');
 	});
 
+	test('failed on-demand recent connect closes progress notification and reports error', async () => {
+		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
+		const progress = new Emitter<{ readonly connectionKey: string; readonly message: string }>();
+		disposables.add(progress);
+		let connectCalls = 0;
+		const remoteProvider = createMockProvider('agenthost-remote-1', {
+			connectionStatus: remoteStatus,
+			canConnectOnDemand: true,
+			remoteAddress: 'wsl:Ubuntu-24.04',
+			onDidReportConnectProgress: progress.event,
+			connect: async () => {
+				connectCalls++;
+				progress.fire({ connectionKey: 'wsl:Ubuntu-24.04', message: 'Opening WSL...' });
+				throw new Error('boom');
+			},
+		});
+		const notifications = new RecordingNotificationService();
+
+		providersService.setProviders([remoteProvider]);
+		const picker = createTestPicker(disposables, providersService, undefined, notifications, DispatchingWorkspacePicker) as DispatchingWorkspacePicker;
+
+		await picker.dispatchFolder(URI.file('/remote/project'), 'agenthost-remote-1');
+
+		assert.deepStrictEqual({
+			connectCalls,
+			progressClosed: notifications.handles[0]?.closed,
+			progressMessages: notifications.handles[0]?.messages,
+			errors: notifications.errors.map(error => String(error)),
+			selectedProvider: picker.selectedResolved?.providerId,
+		}, {
+			connectCalls: 1,
+			progressClosed: true,
+			progressMessages: ['Connecting to Provider agenthost-remote-1...', 'Opening WSL...'],
+			errors: ['Failed to connect to Provider agenthost-remote-1.'],
+			selectedProvider: undefined,
+		});
+	});
+
 	test('reconnect keeps the selection (no extra event fires)', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connected);
 		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
@@ -567,6 +667,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,

@@ -30,6 +30,8 @@ export interface IToolBarResponsiveBehaviorOptions {
 	readonly minItems?: number;
 	readonly actionMinWidth?: number;
 	readonly getActionMinWidth?: (action: IAction) => number | undefined;
+	readonly observedElement?: HTMLElement;
+	readonly getAvailableWidth?: () => number;
 }
 
 export interface IToolBarOptions {
@@ -178,9 +180,9 @@ export class ToolBar extends Disposable {
 			this.element.style.setProperty(ACTION_MIN_WIDTH_VAR, `${this.getConfiguredActionMinWidth()}px`);
 
 			const observer = new ResizeObserver(() => {
-				this.updateActions(this.element.getBoundingClientRect().width);
+				this.updateActions(this.getAvailableWidth());
 			});
-			observer.observe(this.element);
+			observer.observe(this.options.responsiveBehavior?.observedElement ?? this.element);
 			this._store.add(toDisposable(() => observer.disconnect()));
 		}
 	}
@@ -240,7 +242,7 @@ export class ToolBar extends Disposable {
 	 */
 	relayout(): void {
 		if (this.options.responsiveBehavior?.enabled) {
-			const width = this.element.getBoundingClientRect().width;
+			const width = this.getAvailableWidth();
 			this.updateActions(width);
 		}
 	}
@@ -301,7 +303,7 @@ export class ToolBar extends Disposable {
 			}
 
 			// Update toolbar actions to fit with container width
-			this.updateActions(this.element.getBoundingClientRect().width);
+			this.updateActions(this.getAvailableWidth());
 		}
 	}
 
@@ -327,6 +329,13 @@ export class ToolBar extends Disposable {
 
 	private getActionMinWidth(action?: IAction): number {
 		return this.getConfiguredActionMinWidth(action) + ACTION_PADDING;
+	}
+
+	private getAvailableWidth(): number {
+		if (this.options.responsiveBehavior?.getAvailableWidth) {
+			return this.options.responsiveBehavior.getAvailableWidth();
+		}
+		return this.element.getBoundingClientRect().width;
 	}
 
 	private applyResponsiveActionMinWidths(): void {

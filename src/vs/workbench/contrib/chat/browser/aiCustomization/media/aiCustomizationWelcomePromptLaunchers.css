@@ -59,7 +59,7 @@
 	margin: 0;
 	padding: 0 4px;
 	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 
@@ -240,7 +240,7 @@
 	padding: 4px 6px;
 	border-radius: 4px;
 	background: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, var(--vscode-contrastBorder, transparent)));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-action:hover {

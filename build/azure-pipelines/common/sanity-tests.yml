@@ -35,10 +35,18 @@ jobs:
           condition: and(succeededOrFailed(), eq(variables.HAS_SCREENSHOTS, 'true'))
           continueOnError: true
           sbomEnabled: false
+        - output: pipelineArtifact
+          targetPath: $(CRASH_DUMPS_DIR)
+          artifactName: crash-dumps-${{ parameters.name }}-$(System.JobAttempt)
+          displayName: Publish Crash Dumps
+          condition: and(succeededOrFailed(), eq(variables.HAS_CRASH_DUMPS, 'true'))
+          continueOnError: true
+          sbomEnabled: false
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
       SCREENSHOTS_DIR: $(TEST_DIR)/screenshots
+      CRASH_DUMPS_DIR: $(TEST_DIR)/crash-dumps
     steps:
       - checkout: self
         fetchDepth: 1
@@ -54,6 +62,14 @@ jobs:
       - ${{ else }}:
         - bash: mkdir -p "$(SCREENSHOTS_DIR)"
           displayName: Create Screenshots Directory
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(CRASH_DUMPS_DIR)"
+          displayName: Create Crash Dumps Directory
 
       - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
         - script: |
@@ -131,7 +147,7 @@ jobs:
 
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
-        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -140,7 +156,7 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -149,7 +165,7 @@ jobs:
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
-        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -173,6 +189,7 @@ jobs:
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
               --screenshots-dir "/root/screenshots" \
+              --crash-dumps-dir "/root/crash-dumps" \
               --verbose \
               ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
@@ -188,6 +205,10 @@ jobs:
             if %errorlevel%==0 (
               echo ##vso[task.setvariable variable=HAS_SCREENSHOTS]true
             )
+            dir /b "$(CRASH_DUMPS_DIR)" 2>nul | findstr . >nul
+            if %errorlevel%==0 (
+              echo ##vso[task.setvariable variable=HAS_CRASH_DUMPS]true
+            )
             exit /b 0
           displayName: Check Screenshots
           condition: succeededOrFailed()
@@ -196,6 +217,9 @@ jobs:
         - bash: |
             if [ -n "$(ls -A "$(SCREENSHOTS_DIR)" 2>/dev/null)" ]; then
               echo "##vso[task.setvariable variable=HAS_SCREENSHOTS]true"
+            fi
+            if [ -n "$(ls -A "$(CRASH_DUMPS_DIR)" 2>/dev/null)" ]; then
+              echo "##vso[task.setvariable variable=HAS_CRASH_DUMPS]true"
             fi
           displayName: Check Screenshots
           condition: succeededOrFailed()

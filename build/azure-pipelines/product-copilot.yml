@@ -5,6 +5,9 @@ parameters:
   - name: VSCODE_RELEASE
     type: boolean
     default: false
+  - name: VSCODE_UPLOAD_SOURCEMAPS
+    type: boolean
+    default: true
 
 jobs:
   - job: Copilot
@@ -15,16 +18,9 @@ jobs:
         value: true
       - name: Codeql.SkipTaskAutoInjection
         value: true
-    templateContext:
-      outputParentDirectory: $(Build.ArtifactStagingDirectory)
-      outputs:
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/copilot-vsix
-          artifactName: copilot_vsix
-          displayName: Publish Copilot VSIX
-          sbomEnabled: false
     steps:
       - checkout: self
+        path: s
         lfs: true
         fetchDepth: 1
         fetchTags: false
@@ -32,9 +28,6 @@ jobs:
         displayName: Checkout microsoft/vscode
 
       - template: copilot/setup-steps.yml
-      - template: copilot/test-steps.yml
-        parameters:
-          runIntegrationTests: false
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
 
@@ -71,10 +64,7 @@ jobs:
             npm install --location=global jsonc-parser
             export NODE_PATH=$(npm root --location=global)
           fi
-          find . -name "*.json" -type f -print0 | while IFS= read -r -d '' file; do
-            if [[ $file == *"node_modules"* ]]; then
-              continue
-            fi
+          find . -maxdepth 1 -name "*.json" -type f -print0 | while IFS= read -r -d '' file; do
             echo "Minifying $file"
             node -e "console.log(JSON.stringify(require('jsonc-parser').parse(require('fs').readFileSync('$file', 'utf8')), null, 0));" > "$file.min"
             if [ ! -s "$file.min" ]; then
@@ -96,86 +86,99 @@ jobs:
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Package Copilot VSIX
 
-      - task: AzureCLI@2
-        displayName: Upload source maps to CDN
-        inputs:
-          azureSubscription: vscode-cdn
-          scriptType: bash
-          addSpnToEnvironment: true
-          scriptLocation: inlineScript
-          inlineScript: |
-            set -e
+      - template: common/publish-artifact.yml
+        parameters:
+          artifactName: copilot_vsix
+          targetPath: $(Build.ArtifactStagingDirectory)/copilot-vsix
+          displayName: Publish Copilot VSIX
+          sbomEnabled: false
 
-            WORKING_DIR="$(Build.SourcesDirectory)/extensions/copilot"
-            SOURCE_MAP_DIR="$WORKING_DIR/dist-sourcemaps"
-            STORAGE_ACCOUNT="vscodeweb"
+      - template: copilot/test-steps.yml
+        parameters:
+          runIntegrationTests: false
 
-            if [ ! -d "$SOURCE_MAP_DIR" ]; then
-              echo "Source maps directory not found: $SOURCE_MAP_DIR"
-              echo "Skipping upload."
-              exit 0
-            fi
+      # Source map upload is only needed for builds that ship the extension.
+      - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:
+        - task: AzureCLI@2
+          displayName: Upload source maps to CDN
+          inputs:
+            azureSubscription: vscode-cdn
+            scriptType: bash
+            addSpnToEnvironment: true
+            scriptLocation: inlineScript
+            inlineScript: |
+              set -e
 
-            PUBLISHER=$(node -p "require('$WORKING_DIR/package.json').publisher")
-            NAME=$(node -p "require('$WORKING_DIR/package.json').name")
-            VERSION=$(node -p "require('$WORKING_DIR/package.json').version")
-            EXTENSION_ID=$(echo "${PUBLISHER}.${NAME}" | tr '[:upper:]' '[:lower:]')
+              WORKING_DIR="$(Build.SourcesDirectory)/extensions/copilot"
+              SOURCE_MAP_DIR="$WORKING_DIR/dist-sourcemaps"
+              STORAGE_ACCOUNT="vscodeweb"
 
-            echo "Extension: $EXTENSION_ID"
-            echo "Version: $VERSION"
+              if [ ! -d "$SOURCE_MAP_DIR" ]; then
+                echo "Source maps directory not found: $SOURCE_MAP_DIR"
+                echo "Skipping upload."
+                exit 0
+              fi
 
-            MAP_FILES=$(find "$SOURCE_MAP_DIR" -name "*.map" -type f)
-            FILE_COUNT=$(echo "$MAP_FILES" | grep -c . || true)
+              PUBLISHER=$(node -p "require('$WORKING_DIR/package.json').publisher")
+              NAME=$(node -p "require('$WORKING_DIR/package.json').name")
+              VERSION=$(node -p "require('$WORKING_DIR/package.json').version")
+              EXTENSION_ID=$(echo "${PUBLISHER}.${NAME}" | tr '[:upper:]' '[:lower:]')
 
-            if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "No source map files found in $SOURCE_MAP_DIR"
-              exit 0
-            fi
+              echo "Extension: $EXTENSION_ID"
+              echo "Version: $VERSION"
 
-            echo "Found $FILE_COUNT source map files"
+              MAP_FILES=$(find "$SOURCE_MAP_DIR" -name "*.map" -type f)
+              FILE_COUNT=$(echo "$MAP_FILES" | grep -c . || true)
 
-            BLOB_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net"
-            PREFIX="sourcemaps/${EXTENSION_ID}/${VERSION}"
+              if [ "$FILE_COUNT" -eq 0 ]; then
+                echo "No source map files found in $SOURCE_MAP_DIR"
+                exit 0
+              fi
 
-            echo "Uploading to: $BLOB_URL/\$web/$PREFIX/"
+              echo "Found $FILE_COUNT source map files"
 
-            UPLOADED=0
-            for FILE in $MAP_FILES; do
-              FILENAME=$(basename "$FILE")
-              BLOB_NAME="$PREFIX/$FILENAME"
+              BLOB_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net"
+              PREFIX="sourcemaps/${EXTENSION_ID}/${VERSION}"
 
+              echo "Uploading to: $BLOB_URL/\$web/$PREFIX/"
+
+              UPLOADED=0
+              for FILE in $MAP_FILES; do
+                FILENAME=$(basename "$FILE")
+                BLOB_NAME="$PREFIX/$FILENAME"
+
+                az storage blob upload \
+                  --account-name "$STORAGE_ACCOUNT" \
+                  --container-name '$web' \
+                  --name "$BLOB_NAME" \
+                  --file "$FILE" \
+                  --content-type "application/json" \
+                  --content-cache-control "max-age=31536000, public" \
+                  --auth-mode login \
+                  --overwrite \
+                  --only-show-errors
+
+                UPLOADED=$((UPLOADED + 1))
+              done
+
+              echo "Successfully uploaded $UPLOADED source maps"
+
+              # Upload commit-to-version mapping so the deminify service
+              # can resolve the patched extension version from a VS Code commit hash.
+              COMMIT_HASH="$(Build.SourceVersion)"
+              MAPPING_BLOB="sourcemaps/${EXTENSION_ID}/commits/${COMMIT_HASH}.json"
+              echo "{\"version\":\"${VERSION}\",\"extensionId\":\"${EXTENSION_ID}\"}" > /tmp/commit-version.json
+
+              echo "Uploading commit mapping: $COMMIT_HASH -> $VERSION"
               az storage blob upload \
                 --account-name "$STORAGE_ACCOUNT" \
                 --container-name '$web' \
-                --name "$BLOB_NAME" \
-                --file "$FILE" \
+                --name "$MAPPING_BLOB" \
+                --file "/tmp/commit-version.json" \
                 --content-type "application/json" \
-                --content-cache-control "max-age=31536000, public" \
+                --content-cache-control "no-cache, no-store, must-revalidate" \
                 --auth-mode login \
                 --overwrite \
                 --only-show-errors
 
-              UPLOADED=$((UPLOADED + 1))
-            done
-
-            echo "Successfully uploaded $UPLOADED source maps"
-
-            # Upload commit-to-version mapping so the deminify service
-            # can resolve the patched extension version from a VS Code commit hash.
-            COMMIT_HASH="$(Build.SourceVersion)"
-            MAPPING_BLOB="sourcemaps/${EXTENSION_ID}/commits/${COMMIT_HASH}.json"
-            echo "{\"version\":\"${VERSION}\",\"extensionId\":\"${EXTENSION_ID}\"}" > /tmp/commit-version.json
-
-            echo "Uploading commit mapping: $COMMIT_HASH -> $VERSION"
-            az storage blob upload \
-              --account-name "$STORAGE_ACCOUNT" \
-              --container-name '$web' \
-              --name "$MAPPING_BLOB" \
-              --file "/tmp/commit-version.json" \
-              --content-type "application/json" \
-              --content-cache-control "no-cache, no-store, must-revalidate" \
-              --auth-mode login \
-              --overwrite \
-              --only-show-errors
-
-            echo "Commit mapping uploaded: $MAPPING_BLOB"
+              echo "Commit mapping uploaded: $MAPPING_BLOB"

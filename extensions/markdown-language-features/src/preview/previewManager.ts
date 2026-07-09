@@ -269,7 +269,7 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	public async resolveCustomTextEditorSideBySideDiff(
 		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
-		webviewPanels: vscode.CustomEditorDiffWebviewPanels
+		webviewPanels: vscode.CustomEditorSideBySideDiffWebviewPanels
 	): Promise<void> {
 		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
 		const channelName = `md-diff-scroll-${generateUuid()}`;

@@ -6,17 +6,17 @@
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
-import { LoggingAgentConnection } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
 /** Terminal settings whose change should re-resolve the agent host shell. */
 const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
@@ -33,7 +33,11 @@ const AGENT_HOST_SHELL_DEPENDENT_SETTINGS = [
 
 /**
  * Registers local agent host terminal entries with
- * {@link IAgentHostTerminalService} so they appear in the terminal dropdown.
+ * {@link IAgentHostTerminalService} so they appear in the terminal dropdown,
+ * and forwards the terminal-related agent-host root-config keys (the resolved
+ * default shell and the custom-terminal-tool toggle) via the shared
+ * {@link AgentHostRootConfigForwarder} (also used by
+ * `AgentHostCopilotCliSettingsContribution`).
  *
  * Gated on the `chat.agentHost.enabled` setting.
  */
@@ -42,100 +46,101 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 
 	private readonly _localEntry = this._register(new MutableDisposable());
 	private readonly _conditionalListeners = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _forwarder: AgentHostRootConfigForwarder;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
+		const keys: readonly IForwardedRootConfigKey[] = [
+			{
+				key: AgentHostConfigKey.DefaultShell,
+				computeValue: () => this._resolveDefaultShell(),
+				registerTriggers: (store, push) => {
+					store.add(this._configurationService.onDidChangeConfiguration(e => {
+						if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
+							push();
+						}
+					}));
+					store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => push()));
+				},
+			},
+			{
+				key: CopilotCliConfigKey.EnableCustomTerminalTool,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					store.add(this._configurationService.onDidChangeConfiguration(e => {
+						if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {
+							push();
+						}
+					}));
+				},
+			},
+			{
+				// Mirror the connected GitHub Enterprise host to the agent host so its
+				// GitHub resources / CAPI calls target the enterprise instance. Sourced
+				// from the account service — the authoritative "am I signed in to GHE"
+				// state — rather than reading the setting directly. Push `''` (not
+				// `undefined`) for github.com: the push pipeline skips `undefined`,
+				// which would strand a stale host on the agent host.
+				key: AgentHostConfigKey.GithubEnterpriseUri,
+				computeValue: () => {
+					const provider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
+					// `resolveGitHubUrl('')` yields the GitHub Enterprise base (e.g.
+					// `https://acme.ghe.com/`) when signed in via a GHE provider.
+					return provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('').replace(/\/+$/, '') : '';
+				},
+				registerTriggers: (store, push) => {
+					store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => push()));
+				},
+			},
+		];
+		this._forwarder = this._register(new AgentHostRootConfigForwarder(keys, this._agentHostService));
 
 		this._updateEnabled();
 	}
 
 	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (this._agentHostEnablementService.enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
-				store.add(this._agentHostService.onAgentHostStart(() => this._reconcile()));
-				store.add(this._configurationService.onDidChangeConfiguration(e => {
-					if (AGENT_HOST_SHELL_DEPENDENT_SETTINGS.some(s => e.affectsConfiguration(s))) {
-						this._pushDefaultShell();
-					}
-					if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)) {
-						this._pushCustomTerminalToolEnabled();
-					}
-				}));
-				store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._pushDefaultShell()));
-				// Retry the push when the host's root state hydrates or its schema
-				// changes - the initial push from `_reconcile()` may have raced an
-				// undefined `rootState.value`, in which case the schema gate below
-				// in `_pushDefaultShell` returned early.
-				store.add(this._agentHostService.rootState.onDidChange(() => {
-					this._pushDefaultShell();
-					this._pushCustomTerminalToolEnabled();
-				}));
+				// The forwarder registers its own agent-host-start listener to re-push
+				// keys; this one keeps the terminal dropdown entry alive across restarts.
+				store.add(this._agentHostService.onAgentHostStart(() => this._registerLocalEntry()));
 				this._conditionalListeners.value = store;
-				this._reconcile();
+				this._registerLocalEntry();
+				this._forwarder.start();
 			}
 		} else {
 			this._conditionalListeners.value = undefined;
 			this._localEntry.value = undefined;
+			this._forwarder.stop();
 		}
 	}
 
-	private _reconcile(): void {
+	private _registerLocalEntry(): void {
 		if (!this._localEntry.value) {
 			this._localEntry.value = this._agentHostTerminalService.registerEntry({
 				name: localize('agentHostTerminal.local', "Local"),
 				address: '__local__',
-				getConnection: () => this._instantiationService.createInstance(
-					LoggingAgentConnection,
-					this._agentHostService,
-					`agenthost.${this._agentHostService.clientId}`,
-					localize('agentHostTerminal.channelLocal', "Agent Host Terminal (Local)"),
-				),
+				getConnection: () => this._agentHostService,
 			});
 		}
-		this._pushDefaultShell();
-		this._pushCustomTerminalToolEnabled();
 	}
 
 	/**
 	 * Resolve the agent host terminal profile (with `defaultProfile.<os>`
-	 * fallback) and push the shell path into the agent host's root config so
-	 * its host-managed shells inherit the user's preferred terminal binary.
-	 *
-	 * No-ops if the host's root-config schema doesn't advertise
-	 * `AgentHostConfigKey.DefaultShell` - protects older / third-party
-	 * agent hosts from receiving keys they don't understand. The push is
-	 * retried automatically when `rootState` hydrates (see `_updateEnabled`).
-	 *
-	 * Local agent host only. Remote agent hosts (via
-	 * `IRemoteAgentHostService.connections`) are intentionally not fanned out
-	 * to: the resolved path is local-machine-shaped (e.g. a Windows path) and
-	 * not necessarily valid on the remote machine. Remote operators should
-	 * configure the shell server-side via the remote's `agent-host-config.json`.
-	 * See https://github.com/microsoft/vscode/issues/313160 follow-ups.
+	 * fallback) so its host-managed shells inherit the user's preferred terminal
+	 * binary. Returns `undefined` when no usable path can be resolved.
 	 */
-	private async _pushDefaultShell(): Promise<void> {
-		const rootState = this._agentHostService.rootState.value;
-		if (!rootState || rootState instanceof Error) {
-			return;
-		}
-		if (!rootState.config?.schema.properties[AgentHostConfigKey.DefaultShell]) {
-			return;
-		}
-
+	private async _resolveDefaultShell(): Promise<string | undefined> {
 		let profile;
 		try {
 			profile = await this._terminalProfileResolverService.getDefaultProfile({
@@ -144,46 +149,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				allowAgentHostShell: true,
 			});
 		} catch {
-			return;
+			return undefined;
 		}
-
-		if (!profile.path) {
-			return;
-		}
-
-		const currentRootState = this._agentHostService.rootState.value;
-		if (!currentRootState || currentRootState instanceof Error) {
-			return;
-		}
-
-		// Fix #314385
-		if (rootState.config.values[AgentHostConfigKey.DefaultShell] === profile.path) {
-			return;
-		}
-
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostConfigKey.DefaultShell]: profile.path },
-		});
-	}
-
-	private _pushCustomTerminalToolEnabled(): void {
-		const rootState = this._agentHostService.rootState.value;
-		if (!rootState || rootState instanceof Error) {
-			return;
-		}
-		if (!rootState.config?.schema.properties[AgentHostConfigKey.DisableCustomTerminalTool]) {
-			return;
-		}
-
-		const disableCustomTerminalTool = !this._configurationService.getValue<boolean>(AgentHostCustomTerminalToolEnabledSettingId);
-		if (rootState.config.values[AgentHostConfigKey.DisableCustomTerminalTool] === disableCustomTerminalTool) {
-			return;
-		}
-
-		this._agentHostService.dispatch(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AgentHostConfigKey.DisableCustomTerminalTool]: disableCustomTerminalTool },
-		});
+		return profile.path || undefined;
 	}
 }

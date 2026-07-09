@@ -7,18 +7,16 @@ import { execFile } from 'child_process';
 import { getCaseInsensitive } from '../../../base/common/objects.js';
 import { win32 } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
-import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../common/sandboxHelperService.js';
 
 type FindCommand = (command: string) => Promise<string | undefined>;
 type BubblewrapProbe = (command: string) => Promise<{ usable: boolean; error?: string }>;
-type GetLinuxReleaseInfo = () => Promise<{ id: string; version_id?: string } | undefined>;
 
 export class SandboxHelperService implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
 
-	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command), getLinuxReleaseInfo: GetLinuxReleaseInfo = () => getOSReleaseInfo(() => undefined)): Promise<ISandboxDependencyStatus | undefined> {
+	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux, probeBubblewrap: BubblewrapProbe = command => SandboxHelperService._probeBubblewrap(command)): Promise<ISandboxDependencyStatus | undefined> {
 		if (!linux) {
 			return undefined;
 		}
@@ -28,13 +26,11 @@ export class SandboxHelperService implements ISandboxHelperService {
 			findCommand('socat'),
 		]);
 		const bubblewrapProbe = bubblewrapPath ? await probeBubblewrap(bubblewrapPath) : { usable: false };
-		const releaseInfo = bubblewrapPath && !bubblewrapProbe.usable ? await getLinuxReleaseInfo() : undefined;
 
 		return {
 			bubblewrapInstalled: !!bubblewrapPath,
 			bubblewrapUsable: bubblewrapProbe.usable,
 			bubblewrapError: bubblewrapProbe.error,
-			supportsUbuntuAppArmorRemediation: releaseInfo?.id === 'ubuntu' && releaseInfo.version_id === '24.04',
 			socatInstalled: !!socatPath,
 		};
 	}

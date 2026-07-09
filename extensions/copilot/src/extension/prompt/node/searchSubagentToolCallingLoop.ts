@@ -7,10 +7,12 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
+import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -92,27 +94,49 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return context;
 	}
 
-	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'vscode-agentic-search-router-a';
-
 	/**
 	 * Get the endpoint to use for the search subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService);
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
 		if (useAgenticProxy) {
-			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
-			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
+			// Primary gating lives in getAgentTools, which is hidden
+			// when CAPI doesn't advertise the search-agent family. This fallback handles
+			// the secondary cases: races between gating and execution, transient CAPI
+			// errors, and any future caller that invokes the loop without the agent gate
+			try {
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const searchAgentEndpoints = allEndpoints.filter(e => e.family === SEARCH_AGENT_FAMILY);
+				const searchAgentEndpoint = modelName
+					? (searchAgentEndpoints.find(e => e.model === modelName) ?? searchAgentEndpoints[0])
+					: searchAgentEndpoints[0];
+				if (searchAgentEndpoint instanceof ChatEndpoint) {
+					return this.instantiationService.createInstance(SearchAgentChatEndpoint, searchAgentEndpoint.modelMetadata);
+				}
+				this._logService.warn(`Search-agent model not available in CAPI, falling back to main agent endpoint`);
+			} catch (error) {
+				const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+				this._logService.warn(`Failed to get search-agent endpoint from CAPI, falling back to main agent: ${message}`);
+			}
+			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}
 
 		if (modelName) {
 			try {
 				// Try to get the specified model
-				return await this.endpointProvider.getChatEndpoint(modelName);
+				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				if (endpoint.supportsToolCalls) {
+					return endpoint;
+				}
+				// Model does not support tool calls, fallback to main agent endpoint.
+				// The search subagent is a tool-calling loop, and the endpoint would
+				// otherwise strip its search tools from the request body.
+				this._logService.warn(`Model ${modelName} does not support tool calls, falling back to main agent endpoint`);
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
+				// Model not available, fallback to main agent
 				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}

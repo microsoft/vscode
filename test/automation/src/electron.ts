@@ -77,6 +77,10 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		}
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
+		// Exercise the remote server's exit diagnostics (see `installServerProcessExitDiagnostics`
+		// in server-main.ts) so unexpected server exits are explained in the captured logs,
+		// even when running smoke tests locally (where `isCI` is false).
+		env['VSCODE_SERVER_EXIT_DIAGNOSTICS'] = '1';
 		if (options.verbose) {
 			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
 		}

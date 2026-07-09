@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, META_CHECKPOINT_BASE_REF, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
 import { AgentSession } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 
 /**
  * `session_metadata` key under which the working directory used for
@@ -169,6 +169,15 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				return undefined;
 			}
 			return { parent, current };
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	async getBaselineCheckpointRef(sessionUri: URI): Promise<string | undefined> {
+		const ref = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			return await ref.object.getMetadata(META_CHECKPOINT_BASE_REF);
 		} finally {
 			ref.dispose();
 		}

@@ -145,7 +145,11 @@ export class BrowserViewFrameInspector extends Disposable {
 			switch (event.method) {
 				case 'Overlay.inspectNodeRequested': {
 					const params = event.params as { backendNodeId: number };
-					if (params?.backendNodeId) {
+					// Only handle this event when VS Code's own element picker is active.
+					// This event also fires when the user inspects elements via the
+					// DevTools built-in inspect cursor — in that case we must not
+					// silently add the element to Copilot Chat as context.
+					if (params?.backendNodeId && this.isInspecting) {
 						try {
 							// Verify the node belongs to this frame (important when
 							// sharing a session with same-origin siblings).

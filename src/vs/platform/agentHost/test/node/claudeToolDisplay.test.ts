@@ -232,8 +232,8 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 			['TodoWrite', undefined, undefined, 'Updating todo list', 'Updated todo list', '"Update todo list" failed', '{\n  "todos": []\n}'],
 			['WebFetch', undefined, undefined, { markdown: 'Fetching [https://example.com](https://example.com)' }, { markdown: 'Fetched [https://example.com](https://example.com)' }, '"Fetch URL" failed', '{\n  "url": "https://example.com"\n}'],
 			['Task', 'subagent', { toolKind: 'subagent' }, 'find the bug', 'Ran subagent', '"Run subagent task" failed', '{\n  "description": "find the bug",\n  "subagent_type": "Explore"\n}'],
-			['ExitPlanMode', undefined, undefined, 'Ready to code?', 'Used "Ready to code?"', '"Ready to code?" failed', '{\n  "plan": "..."\n}'],
-			['AskUserQuestion', undefined, undefined, 'Ask user a question', 'Used "Ask user a question"', '"Ask user a question" failed', '{\n  "question": "why?"\n}'],
+			['ExitPlanMode', undefined, undefined, 'Ready to code?', 'Ready to code?', '"Ready to code?" failed', '{\n  "plan": "..."\n}'],
+			['AskUserQuestion', undefined, undefined, 'Ask user a question', 'Ask user a question', '"Ask user a question" failed', '{\n  "question": "why?"\n}'],
 		]);
 	});
 

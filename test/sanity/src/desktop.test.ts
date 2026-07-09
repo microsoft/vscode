@@ -266,6 +266,10 @@ export function setup(context: TestContext) {
 			'--extensions-dir', test.extensionsDir,
 			'--user-data-dir', test.userDataDir,
 		];
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
 		args.push(test.workspaceDir);
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);

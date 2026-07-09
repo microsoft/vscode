@@ -14,7 +14,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
@@ -49,7 +49,7 @@ class ToggleDevToolsAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleDevToolsAction.ID,
-			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
+			title: localize2('browser.toggleDevToolsAction', 'Developer Tools'),
 			category: BrowserActionCategory,
 			icon: Codicon.developerTools,
 			f1: true,
@@ -57,8 +57,8 @@ class ToggleDevToolsAction extends Action2 {
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: 'actions',
-				order: 3,
+				group: BrowserActionGroup.Tools,
+				order: 2,
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

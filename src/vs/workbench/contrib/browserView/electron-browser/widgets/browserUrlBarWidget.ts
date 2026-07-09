@@ -6,10 +6,10 @@
 import { localize } from '../../../../../nls.js';
 import { $, addDisposableListener, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -26,6 +26,16 @@ import {
 } from '../browserEditor.js';
 
 /**
+ * Quick-pick item used by the URL picker. The built-in "Go to" fallback entry
+ * leaves {@link apply} unset and is handled inline; host- and
+ * provider-contributed items carry their own {@link apply} callback that runs
+ * against the editor's input.
+ */
+export type IUrlPickerItem = IQuickPickItem & {
+	apply?(input: BrowserEditorInput): void | Promise<void>;
+};
+
+/**
  * The minimal surface {@link BrowserUrlBarWidget} needs from its owning
  * editor: the current browser input (for the canonical URL, navigation, and
  * provider context) and a way to release focus back into the page.
@@ -33,16 +43,21 @@ import {
 export interface IBrowserUrlBarHost {
 	readonly input: BrowserEditorInput | undefined;
 	ensureBrowserFocus(): void;
+	/**
+	 * Resolve the built-in primary picker item(s) for the given (trimmed,
+	 * non-empty) text. The first item is treated as the default action when
+	 * the user commits the text directly (e.g. presses Enter without picking a
+	 * suggestion). Returning multiple items lets the bar offer a choice (e.g.
+	 * Search then Go to for ambiguous input). When omitted or empty, the
+	 * widget falls back to a plain "Go to {text}" entry.
+	 */
+	getPrimaryActions?(text: string): readonly IUrlPickerItem[];
+	/**
+	 * The placeholder shown in the URL display and picker. When omitted the
+	 * widget uses a plain "Enter a URL" placeholder.
+	 */
+	getPlaceholder?(): string;
 }
-
-/**
- * Quick-pick item used by the URL picker. The built-in "Go to" entry leaves
- * {@link apply} unset and is handled inline; provider-contributed items carry
- * their own {@link apply} callback that runs against the editor's input.
- */
-type IUrlPickerItem = IQuickPickItem & {
-	apply?(input: BrowserEditorInput): void | Promise<void>;
-};
 
 /**
  * The URL bar widget: a contenteditable display showing the current URL,
@@ -78,7 +93,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		super();
 
 		this.element = $('.browser-url-container');
-		this._preUrlWidgetsContainer = $('.browser-site-info-slot');
+		this._preUrlWidgetsContainer = $('.browser-pre-url-widgets');
 
 		// The URL display is a contenteditable div so it behaves like an input
 		// (caret, typing, backspace, paste) while still permitting child spans for
@@ -86,7 +101,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._urlDisplay = $('div.browser-url-display');
 		this._urlDisplay.contentEditable = 'plaintext-only';
 		this._urlDisplay.spellcheck = false;
-		this._urlDisplay.setAttribute('data-placeholder', localize('browser.urlPlaceholder', "Enter a URL"));
+		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
@@ -108,6 +123,8 @@ export class BrowserUrlBarWidget extends Disposable {
 		if (!isEditing) {
 			this._renderUrl();
 		}
+		// Keep the placeholder in sync with host state (e.g. search enablement).
+		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
 		const picker = this._picker.value;
 		if (picker) {
 			picker.value = this._canonicalUrl;
@@ -184,23 +201,31 @@ export class BrowserUrlBarWidget extends Disposable {
 		return this._host.input?.url ?? '';
 	}
 
+	/** Placeholder text for the display and picker (host-provided or default). */
+	private get _placeholder(): string {
+		return this._host.getPlaceholder?.() ?? localize('browser.urlPlaceholder', "Enter a URL");
+	}
+
 	private _registerDisplayListeners(): void {
 		// Display interaction state machine:
 		//   - Keyboard focus (Tab) opens the picker immediately.
 		//   - Mouse focus defers the decision to `click` so drag-select can complete.
-		//   - Already-focused clicks open the picker through the same `click` handler
-		//     (carrying the click's caret position into the picker).
+		//   - Already-focused clicks keep editing in the display (no picker auto-open).
 		//   - Typing into the display promotes the edit into the picker via `input`.
 		let pendingMouseFocus = false;
-		this._register(addDisposableListener(this._urlDisplay, EventType.MOUSE_DOWN, () => {
+		this._register(addDisposableListener(this._urlDisplay, EventType.POINTER_DOWN, () => {
 			if (this._urlDisplay.ownerDocument.activeElement !== this._urlDisplay) {
 				pendingMouseFocus = true;
 			}
 		}));
-		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
+		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, (event: FocusEvent) => {
 			if (this._suppressFocusOpen) {
 				this._suppressFocusOpen = false;
 				pendingMouseFocus = false;
+				return;
+			}
+			// Only open the picker if focus is already within the workbench, and not being transferred from a quick input.
+			if (!(event.relatedTarget instanceof Element) || event.relatedTarget.closest('.quick-input-widget')) {
 				return;
 			}
 			if (pendingMouseFocus) {
@@ -210,6 +235,10 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.BLUR, () => {
 			pendingMouseFocus = false;
+			// Snap the display back to the start of the URL so it doesn't stay
+			// scrolled to wherever the caret was (e.g. after arrow-keying to
+			// the end and then clicking away).
+			this._urlDisplay.scrollLeft = 0;
 			// Clear any text selection within the display so it doesn't stay
 			// highlighted after focus moves away (e.g. into the browser).
 			const sel = this._urlDisplay.ownerDocument.getSelection();
@@ -233,13 +262,17 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.CLICK, () => {
+			const isMouseFocusClick = pendingMouseFocus;
 			pendingMouseFocus = false;
+			if (!isMouseFocusClick) {
+				return;
+			}
 			// Preserve drag-selection so users can copy parts of the URL.
 			const selection = this._urlDisplay.ownerDocument.getSelection();
 			if (selection && !selection.isCollapsed && selection.anchorNode && this._urlDisplay.contains(selection.anchorNode)) {
 				return;
 			}
-			// Click without a drag opens the picker with the URL fully
+			// First click after mouse-focus (without a drag) opens the picker with the URL fully
 			// selected (matches browser URL-bar convention: click → ready to
 			// retype the whole thing).
 			const value = this._urlDisplay.textContent ?? '';
@@ -257,7 +290,7 @@ export class BrowserUrlBarWidget extends Disposable {
 					// this value, so we don't want it discarded just because
 					// `model.url` won't catch up until navigation commits.
 					this._suppressBlurRevert = true;
-					this._host.input?.navigate(value);
+					this._navigateText(value);
 					this._host.ensureBrowserFocus();
 				}
 				return;
@@ -381,79 +414,70 @@ export class BrowserUrlBarWidget extends Disposable {
 	}
 
 	/**
-	 * Build the synchronous "Go to <value>" picker item (when there is a
-	 * non-empty value). Provider-contributed suggestions are loaded
+	 * Build the synchronous primary picker item(s) for the current value: the
+	 * host's contextual items (e.g. Search and/or Go to), or a plain
+	 * "Go to <value>" fallback. Provider-contributed suggestions are loaded
 	 * asynchronously by {@link _loadProviderSuggestions} and appended below.
 	 */
 	private _buildSuggestionItems(value: string): (IUrlPickerItem | IQuickPickSeparator)[] {
 		const items: (IUrlPickerItem | IQuickPickSeparator)[] = [];
 		const trimmed = value.trim();
 		if (trimmed) {
-			items.push({
-				id: trimmed,
-				label: localize('browser.goTo', "Go to {0}", trimmed),
-				iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
-			});
+			const primaryItems = this._host.getPrimaryActions?.(trimmed) ?? [];
+			if (primaryItems.length > 0) {
+				items.push(...primaryItems);
+			} else {
+				items.push({
+					id: trimmed,
+					label: localize('browser.goTo', "Go to {0}", trimmed),
+					iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
+				});
+			}
 		}
 		return items;
 	}
 
 	/**
-	 * Run all suggestion providers in parallel against the current text and
-	 * push their results below the synchronous "Go to" item. Returns the full
-	 * item list (synchronous + provider) so the caller can update the picker.
+	 * Navigate from raw text the user committed directly (e.g. Enter on the
+	 * display, or accepting with no suggestion selected). Routes through the
+	 * host's default primary item so search-vs-URL resolution stays in the nav
+	 * bar; falls back to navigating the text as a URL when the host has no
+	 * primary items.
 	 */
-	private async _loadProviderSuggestions(
-		value: string,
-		input: BrowserEditorInput,
-		token: CancellationToken,
-	): Promise<(IUrlPickerItem | IQuickPickSeparator)[]> {
-		const items: (IUrlPickerItem | IQuickPickSeparator)[] = this._buildSuggestionItems(value);
-		if (this._suggestionProviders.length === 0) {
-			return items;
+	private _navigateText(text: string): void {
+		const input = this._host.input;
+		const trimmed = text.trim();
+		if (!trimmed || !input) {
+			return;
 		}
-		const context = { text: value, input };
-		const results = await Promise.all(
-			this._suggestionProviders.map(p =>
-				p.getSuggestions(context, token)
-					.then(r => ({ provider: p, suggestions: r }))
-					.catch(() => ({ provider: p, suggestions: [] as readonly IBrowserUrlSuggestion[] }))
-			)
-		);
-		if (token.isCancellationRequested) {
-			return items;
+		const primaryItems = this._host.getPrimaryActions?.(trimmed);
+		const defaultItem = primaryItems?.[0];
+		if (defaultItem?.apply) {
+			void Promise.resolve(defaultItem.apply(input));
+		} else {
+			input.navigate(trimmed);
 		}
-		for (const { provider, suggestions } of results) {
-			if (suggestions.length === 0) {
-				continue;
-			}
-			if (provider.label) {
-				// `buttons: []` opts the separator into being rendered as
-				// its own row (a separator without buttons is otherwise
-				// collapsed into the first item below it as a header).
-				items.push({ type: 'separator', label: provider.label, description: provider.description, buttons: [] });
-			}
-			for (const s of suggestions) {
-				const item: IUrlPickerItem = {
-					id: s.id,
-					label: s.label,
-					description: s.description,
-					apply: s.apply,
-				};
-				if (s.iconPath) {
-					item.iconPath = s.iconPath;
-				} else if (s.icon) {
-					item.iconClass = ThemeIcon.asClassName(s.icon);
-				}
-				if (s.actions && s.actions.length > 0) {
-					// Per-item buttons. We pass the action objects through directly
-					// so onDidTriggerItemButton hands them back to us as the IBrowserUrlSuggestionAction.
-					item.buttons = s.actions;
-				}
-				items.push(item);
-			}
+	}
+
+	/** Convert a provider suggestion to its picker-item representation. */
+	private _toPickerItem(s: IBrowserUrlSuggestion): IUrlPickerItem {
+		const item: IUrlPickerItem = {
+			id: s.id,
+			label: s.label,
+			description: s.description,
+			apply: s.apply,
+		};
+		if (s.iconPath) {
+			item.iconPath = s.iconPath;
+		} else if (s.icon) {
+			item.iconClass = ThemeIcon.asClassName(s.icon);
 		}
-		return items;
+		if (s.actions && s.actions.length > 0) {
+			// Per-item buttons. We pass the action objects through directly
+			// so onDidTriggerItemButton hands them back to us as the IBrowserUrlSuggestionAction.
+			item.buttons = s.actions;
+		}
+		return item;
 	}
 
 	/**
@@ -475,7 +499,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._urlDisplay.style.visibility = 'hidden';
 
 		const picker = this._quickInputService.createQuickPick<IUrlPickerItem>({ useSeparators: true });
-		picker.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
+		picker.placeholder = this._placeholder;
 		picker.ignoreFocusOut = false;
 		// Preserve the order produced by _buildSuggestionItems (Go to first, then
 		// tabs in known-view order) so the "Go to" entry is always the picker's
@@ -484,6 +508,8 @@ export class BrowserUrlBarWidget extends Disposable {
 		picker.matchOnDescription = true;
 		picker.anchor = this.element;
 		picker.anchorPosition = 'overlay';
+		// Put a cap on the string length used for filtering to avoid performance issues.
+		picker.filterValue = (filter) => filter.substring(0, 1000);
 		if (initial !== undefined) {
 			picker.value = initial.value;
 			picker.valueSelection = initial.selection;
@@ -492,44 +518,129 @@ export class BrowserUrlBarWidget extends Disposable {
 			picker.valueSelection = [0, this._canonicalUrl.length];
 		}
 		const disposables = new DisposableStore();
-		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
-		const applyItems = (value: string) => {
-			// Show the synchronous "Go to" item immediately so the picker is
-			// never blank while providers load.
-			const sync = this._buildSuggestionItems(value);
-			picker.items = sync;
-			const hasGo = sync.some(i => i.type !== 'separator');
-			if (!hasGo) {
-				picker.activeItems = [];
+
+		// Each provider keeps its own cached suggestions + cancellation so a
+		// single provider's onDidChange (or a per-provider re-fetch) updates
+		// just that group, without recomputing the rest. Cancellation tokens
+		// (not just disposal) are needed so an in-flight `.then` for the
+		// previous request doesn't overwrite newer cached results.
+		type ProviderState = {
+			suggestions: readonly IBrowserUrlSuggestion[];
+			cts: MutableDisposable<CancellationTokenSource>;
+		};
+		const providerStates = new Map<IBrowserUrlSuggestionProvider, ProviderState>();
+		// Register the cancellation hook before the per-provider MutableDisposables
+		// so it runs first on picker close. `CancellationTokenSource.dispose()`
+		// only releases internal state — it does NOT cancel — so without this,
+		// in-flight provider requests would keep running after the picker is gone.
+		disposables.add(toDisposable(() => {
+			for (const state of providerStates.values()) {
+				state.cts.value?.cancel();
 			}
-			// Cancel any in-flight provider load and start a new one.
-			// (MutableDisposable.dispose only disposes the prior CTS; it does
-			// not cancel its token, so an in-flight `.then` could otherwise
-			// overwrite newer results with stale ones.)
-			loadCts.value?.cancel();
-			const cts = new CancellationTokenSource();
-			loadCts.value = cts;
-			const inputAtRequest = this._host.input;
-			if (!inputAtRequest) {
+		}));
+		for (const provider of this._suggestionProviders) {
+			providerStates.set(provider, {
+				suggestions: [],
+				cts: disposables.add(new MutableDisposable<CancellationTokenSource>()),
+			});
+		}
+
+		let currentValue = picker.value;
+
+		// Rebuild `picker.items` from the synchronous "Go to" entry plus each
+		// provider's current cached suggestions, in provider sort order.
+		//
+		// `preserveSelection` distinguishes the two re-render triggers:
+		//  - User typing (`false`): reset the active item to the default
+		//    "Go to" entry. Starting/continuing a query should always default
+		//    back to "Go to" rather than sticking on a streamed-in suggestion.
+		//  - Background provider refresh (`true`): keep the user's current
+		//    selection (e.g. an arrow-keyed suggestion) so updating one
+		//    provider's results (a tab opening/closing) doesn't yank focus
+		//    back to "Go to".
+		//
+		// The active item is set explicitly rather than relying on the quick
+		// pick's implicit first-row selection, which can otherwise land on a
+		// suggestion as asynchronous results stream in.
+		const render = (preserveSelection: boolean) => {
+			const previousActiveId = preserveSelection ? picker.activeItems[0]?.id : undefined;
+			const defaultItems = this._buildSuggestionItems(currentValue);
+			const items: (IUrlPickerItem | IQuickPickSeparator)[] = [...defaultItems];
+			for (const provider of this._suggestionProviders) {
+				const state = providerStates.get(provider);
+				if (!state || state.suggestions.length === 0) {
+					continue;
+				}
+				if (provider.label) {
+					// `buttons: []` opts the separator into being rendered as
+					// its own row (a separator without buttons is otherwise
+					// collapsed into the first item below it as a header).
+					items.push({
+						type: 'separator',
+						label: provider.label,
+						description: provider.description,
+						buttons: provider.actions,
+					});
+				}
+				for (const s of state.suggestions) {
+					items.push(this._toPickerItem(s));
+				}
+			}
+			picker.items = items;
+
+			// Only the synchronous items from `_buildSuggestionItems` (e.g. the
+			// "Go to" entry) are eligible for default focus; provider suggestions
+			// are never auto-focused. Restore the prior selection on a background
+			// refresh; otherwise (typing, or the prior item disappeared) fall back
+			// to the first default item, or to nothing when there are none.
+			const defaultActive = defaultItems.find((i): i is IUrlPickerItem => i.type !== 'separator');
+			const restored = previousActiveId !== undefined
+				? items.find((i): i is IUrlPickerItem => i.type !== 'separator' && i.id === previousActiveId)
+				: undefined;
+			const active = restored ?? defaultActive;
+			picker.activeItems = active ? [active] : [];
+		};
+
+		// Re-fetch a single provider against the current value, cancelling
+		// any in-flight request for it. On success, update its cached
+		// suggestions and re-render. Errors are swallowed (leave prior
+		// cached results in place) so one failing provider can't blank the
+		// picker.
+		const refreshProvider = (provider: IBrowserUrlSuggestionProvider) => {
+			const state = providerStates.get(provider);
+			const input = this._host.input;
+			if (!state || !input) {
 				return;
 			}
-			void this._loadProviderSuggestions(value, inputAtRequest, cts.token).then(full => {
-				if (cts.token.isCancellationRequested || this._picker.value !== picker) {
-					return;
-				}
-				picker.items = full;
-				if (!hasGo) {
-					// Empty value: don't auto-activate the first provider entry.
-					picker.activeItems = [];
-				}
-			});
+			state.cts.value?.cancel();
+			const cts = new CancellationTokenSource();
+			state.cts.value = cts;
+			void provider.getSuggestions({ text: currentValue, input }, cts.token).then(
+				results => {
+					if (cts.token.isCancellationRequested || this._picker.value !== picker) {
+						return;
+					}
+					state.suggestions = results;
+					render(true);
+				},
+				() => { /* keep prior cached suggestions on error */ }
+			);
 		};
-		applyItems(picker.value);
 
-		// Re-run providers if any of them reports a state change while the picker is open.
+		const refreshAllProviders = () => {
+			for (const provider of this._suggestionProviders) {
+				refreshProvider(provider);
+			}
+		};
+
+		render(false);
+		refreshAllProviders();
+
+		// Per-provider state change: refresh only that provider so unrelated
+		// groups keep their cached suggestions and selection.
 		for (const provider of this._suggestionProviders) {
 			if (provider.onDidChange) {
-				disposables.add(provider.onDidChange(() => applyItems(picker.value)));
+				disposables.add(provider.onDidChange(() => refreshProvider(provider)));
 			}
 		}
 
@@ -547,7 +658,9 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		disposables.add(picker.onDidChangeValue(value => {
-			applyItems(value);
+			currentValue = value;
+			render(false);
+			refreshAllProviders();
 			// Mirror the picker's typed value into the display continuously,
 			// running URL renderers so decorations stay live. The picker is
 			// the source of truth while it's open.
@@ -601,6 +714,15 @@ export class BrowserUrlBarWidget extends Disposable {
 				void Promise.resolve(action.run(input));
 			}
 		}));
+		// Per-group separator button. Routed the same way as per-item buttons
+		// (the IBrowserUrlSuggestionAction was attached directly to the separator).
+		disposables.add(picker.onDidTriggerSeparatorButton(({ button }) => {
+			const action = button as IBrowserUrlSuggestionAction;
+			const input = this._host.input;
+			if (typeof action.run === 'function' && input) {
+				void Promise.resolve(action.run(input));
+			}
+		}));
 		disposables.add(picker.onDidAccept(() => {
 			actionTaken = true;
 			const active = picker.activeItems[0];
@@ -613,10 +735,7 @@ export class BrowserUrlBarWidget extends Disposable {
 				}
 				return;
 			}
-			const url = (active?.id ?? fallbackUrl).trim();
-			if (url && input) {
-				input.navigate(url);
-			}
+			this._navigateText(active?.id ?? fallbackUrl);
 		}));
 		disposables.add(picker.onDidHide(({ reason }) => {
 			this._urlDisplay.style.visibility = '';
@@ -632,7 +751,6 @@ export class BrowserUrlBarWidget extends Disposable {
 			if (refocusDisplay) {
 				// Preserve the in-progress edit + caret/selection so the
 				// user can continue typing in the display.
-				this._suppressFocusOpen = true;
 				this._urlDisplay.focus();
 				if (selectionAtHide !== undefined) {
 					this._setSelection(selectionAtHide.start, selectionAtHide.end, selectionAtHide.direction);
@@ -646,14 +764,6 @@ export class BrowserUrlBarWidget extends Disposable {
 					// Move focus to the browser content so the user can
 					// interact with the page.
 					this._host.ensureBrowserFocus();
-				} else if (replaced) {
-					// When the replacement picker eventually hides, the
-					// QuickInputController restores focus to the element that
-					// was focused before our picker opened — usually the URL
-					// display. Suppress the next FOCUS-driven picker reopen
-					// so the URL picker doesn't auto-reopen on top of that
-					// restoration.
-					this._suppressFocusOpen = true;
 				}
 			}
 			disposables.dispose();

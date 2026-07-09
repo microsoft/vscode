@@ -51,6 +51,16 @@ invoke_agent copilot (INTERNAL)          ← toolCallingLoop.ts
 └── ...
 ```
 
+#### Inline Chat
+
+```
+invoke_agent Inline Chat (INTERNAL)      ← inlineChatIntent.ts
+├── chat gpt-4o (CLIENT)                 ← chatMLFetcher.ts
+├── execute_tool apply_patch (INTERNAL)  ← toolsService.ts
+├── chat gpt-4o (CLIENT)
+└── ...
+```
+
 #### Copilot CLI in-process (Bridge)
 
 ```
@@ -147,6 +157,7 @@ src/extension/trajectory/vscode-node/
 | `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
+| `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
 | `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
 | `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
 | `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |
@@ -198,10 +209,13 @@ Both export to the same OTLP endpoint. Bridge processor sits on Provider B, forw
 
 `resolveOTelConfig()` implements layered precedence:
 
-1. `COPILOT_OTEL_*` env vars (highest)
-2. `OTEL_EXPORTER_OTLP_*` standard env vars
-3. VS Code settings (`github.copilot.chat.otel.*`)
-4. Defaults (lowest)
+1. Enterprise managed settings (policy) — highest; overrides env vars
+2. `COPILOT_OTEL_*` env vars
+3. `OTEL_EXPORTER_OTLP_*` standard env vars
+4. VS Code settings (`github.copilot.chat.otel.*`)
+5. Defaults (lowest)
+
+The OTLP wire protocol distinguishes `http/json` (default) from `http/protobuf`; `grpc` is selected by the gRPC exporter type.
 
 Kill switch: `telemetry.telemetryLevel === 'off'` → all OTel disabled.
 
@@ -211,6 +225,7 @@ The resolved config records *how* OTel was enabled in `OTelConfig.enabledVia` (u
 
 | `enabledVia` | Trigger |
 |---|---|
+| `policy` | Enterprise managed settings enable OTel (`telemetry.enabled` or a managed endpoint) |
 | `envVar` | `COPILOT_OTEL_ENABLED=true` |
 | `setting` | `github.copilot.chat.otel.enabled` is `true` |
 | `otlpEndpointEnvVar` | `OTEL_EXPORTER_OTLP_ENDPOINT` is set without an explicit enable |

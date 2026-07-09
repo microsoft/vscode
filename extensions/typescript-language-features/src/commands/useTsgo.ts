@@ -7,7 +7,19 @@ import * as vscode from 'vscode';
 import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { Command } from './commandManager';
 
-export const tsNativeExtensionId = 'typescriptteam.native-preview';
+export const tsNativeExtensionOldId = 'typescriptteam.native-preview';
+export const tsNativeExtensionIds = ['typescriptteam.vscode-typescript', tsNativeExtensionOldId] as const;
+
+export function getTsNativeExtension(): vscode.Extension<unknown> | undefined {
+	for (const extensionId of tsNativeExtensionIds) {
+		const extension = vscode.extensions.getExtension(extensionId);
+		if (extension) {
+			return extension;
+		}
+	}
+
+	return undefined;
+}
 
 export class EnableTsgoCommand implements Command {
 	public readonly id = 'typescript.experimental.enableTsgo';
@@ -30,7 +42,7 @@ export class DisableTsgoCommand implements Command {
  * @param enable Whether to enable or disable TypeScript Go
  */
 async function updateTsgoSetting(enable: boolean): Promise<void> {
-	const tsgoExtension = vscode.extensions.getExtension(tsNativeExtensionId);
+	const tsgoExtension = getTsNativeExtension();
 	// Error if the TypeScript Go extension is not installed with a button to open the GitHub repo
 	if (!tsgoExtension) {
 		const selection = await vscode.window.showErrorMessage(

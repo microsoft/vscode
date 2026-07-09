@@ -125,7 +125,12 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
-		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses';
+		// Replaying historical thinking preserves the prompt-cache prefix on the
+		// Messages API, but only adaptive-thinking models accept replayed blocks —
+		// budget-mode models (e.g. Haiku 4.5) 400 on them (#318076).
+		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
+			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
@@ -607,6 +612,11 @@ async function appendHookContext(
 		return;
 	}
 
+	// Skip postToolUse hook if the request was cancelled - the response stream is closed
+	if (props.token.isCancellationRequested) {
+		return;
+	}
+
 	// Execute postToolUse hook after successful tool execution
 	const postHookResult = await chatHookService.executePostToolUseHook(
 		props.toolCall.name,
@@ -741,8 +751,7 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 		@IAuthenticationService private readonly authService?: IAuthenticationService,
 		@ILogService private readonly logService?: ILogService,
 		@IImageService private readonly imageService?: IImageService,
-		@IConfigurationService private readonly configurationService?: IConfigurationService,
-		@IExperimentationService private readonly experimentationService?: IExperimentationService
+		@IConfigurationService private readonly configurationService?: IConfigurationService
 	) {
 		super(props);
 		this.linkedResources = this.props.content.filter((c): c is LanguageModelDataPart => c instanceof LanguageModelDataPart && c.mimeType === McpLinkedResourceToolResult.mimeType);
@@ -790,11 +799,11 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 
 	protected async onImage(part: LanguageModelDataPart, _imageIndex?: number) {
 		if (!this.endpoint?.supportsVision) {
-			return '[Image content is not available because vision is not supported by the current model or is disabled by your organization.]';
+			return '[Image content is not available because vision is not supported by the current model.]';
 		}
 
-		const uploadsEnabled = this.configurationService && this.experimentationService
-			? this.configurationService.getExperimentBasedConfig(ConfigKey.EnableChatImageUpload, this.experimentationService)
+		const uploadsEnabled = this.configurationService
+			? this.configurationService.getConfig(ConfigKey.EnableChatImageUpload)
 			: false;
 
 		// Anthropic (from CAPI) currently does not support image uploads from tool calls.
@@ -887,7 +896,7 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IChatDiskSessionResources private readonly diskSessionResources: IChatDiskSessionResources,
 	) {
-		super(props, endpoint, authService, _logService, imageService, _configurationService, _experimentationService);
+		super(props, endpoint, authService, _logService, imageService, _configurationService);
 	}
 
 	protected override async onTSX(part: JSONTree.PromptElementJSON): Promise<any> {
