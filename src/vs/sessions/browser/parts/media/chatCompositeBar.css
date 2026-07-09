@@ -19,9 +19,12 @@
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats.
-	It lives in the same centered session-view content host as the header. */
+	It lives in the same centered session-view content host as the header.
+	The left padding adds the header's status-icon column (icon + gap) on top of
+	the shared 10px so the first tab aligns under the title/meta main column
+	rather than under the status icon. */
 .chat-composite-bar.session-chat-tabs-bar {
-	padding: 0 10px;
+	padding: 0 10px 0 calc(10px + var(--vscode-codiconFontSize, 16px) + 6px);
 	box-sizing: border-box;
 	container-type: inline-size;
 
