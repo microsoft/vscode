@@ -29,7 +29,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilo
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, AuthenticateParams, IAgentToolPendingConfirmationSignal, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IAgentToolPendingConfirmationSignal, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
@@ -38,7 +38,7 @@ import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAtt
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -1095,6 +1095,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 		this._subscribeForMemoInvalidation();
+		this._subscribeForInstructionsCollectedTelemetry();
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
@@ -3665,6 +3666,93 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSessionCompactionComplete(invalidate));
 		this._register(wrapper.onSessionTruncation(invalidate));
 		this._register(wrapper.onSessionSnapshotRewind(invalidate));
+	}
+
+	/**
+	 * Emits `instructionsCollected` per user message.
+	 * Attempts to match local chat's `ComputeAutomaticInstructions`
+	 * emitter (`src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts`)
+	 */
+	private _subscribeForInstructionsCollectedTelemetry(): void {
+		const wrapper = this._wrapper;
+		const sessionId = this.sessionId;
+
+		this._register(wrapper.onUserMessage(e => {
+			// Skip SDK-injected messages (matches guard on this event above).
+			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+				return;
+			}
+			void (async () => {
+				let sources;
+				try {
+					sources = (await wrapper.session.rpc.instructions.getSources()).sources;
+				} catch (err) {
+					this._logService.trace(`[Copilot:${sessionId}] Failed to fetch instruction sources for telemetry: ${getErrorMessage(err)}`);
+					return;
+				}
+
+				let agentInstructionsCount = 0;
+				let applyingInstructionsCount = 0;
+				let referencedInstructionsCount = 0;
+				let claudeMdCount = 0;
+				for (const s of sources) {
+					// The SDK marks copilot-instructions.md (home/repo) and root-level
+					// AGENTS.md / CLAUDE.md / GEMINI.md as `home`/`repo`/`model`
+					if (s.type === 'home' || s.type === 'repo' || s.type === 'model') {
+						agentInstructionsCount++;
+					}
+
+					if (s.applyTo && s.applyTo.length > 0) {
+						applyingInstructionsCount++;
+					}
+
+					if (s.type === 'child-instructions' || s.type === 'nested-agents') {
+						referencedInstructionsCount++;
+					}
+
+					const lastSep = Math.max(s.sourcePath.lastIndexOf('/'), s.sourcePath.lastIndexOf('\\'));
+					const filename = lastSep >= 0 ? s.sourcePath.slice(lastSep + 1) : s.sourcePath;
+					if (filename === 'CLAUDE.md') {
+						claudeMdCount++;
+					}
+				}
+
+				type AgentHostInstructionsCollectedEvent = {
+					provider: string;
+					agentSessionId: string;
+					isSubagentSession: boolean;
+					totalInstructionsCount: number;
+					agentInstructionsCount: number;
+					applyingInstructionsCount: number;
+					referencedInstructionsCount: number;
+					claudeMdCount: number;
+				};
+				type AgentHostInstructionsCollectedClassification = {
+					provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that emitted this event (e.g. copilotcli). Absent on local rows; use presence to distinguish AH from local.' };
+					agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier. Absent on local rows.' };
+					isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the emission was from a subagent session.' };
+					totalInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of instruction sources loaded by the Agent Host session.' };
+					agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of top-level agent instruction files (copilot-instructions.md, AGENTS.md, CLAUDE.md, GEMINI.md) among the loaded sources.' };
+					applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of loaded instruction sources that carry an applyTo glob pattern. Semantic shift from the local field, which counts sources whose applyTo matched the current request context.' };
+					referencedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of loaded instruction sources discovered transitively (child-instructions via subdirectory walk, or nested AGENTS.md). Semantic shift from the local field, which counts sources added via explicit <file> references in other instruction files.' };
+					claudeMdCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of CLAUDE.md files among the loaded sources.' };
+					owner: 'amunger';
+					comment: 'Agent Host emission of instructionsCollected. Carries the subset of the local shape that can be honestly (or close-analogously) computed from the SDK\'s InstructionSource list; other fields are intentionally omitted (see source comment).';
+				};
+				this._telemetryService.publicLog2<AgentHostInstructionsCollectedEvent, AgentHostInstructionsCollectedClassification>('instructionsCollected', {
+					provider: this.sessionUri.scheme,
+					agentSessionId: AgentSession.id(this.sessionUri),
+					isSubagentSession: isSubagentSession(this.sessionUri),
+					totalInstructionsCount: sources.length,
+					agentInstructionsCount,
+					applyingInstructionsCount,
+					referencedInstructionsCount,
+					claudeMdCount,
+				});
+			})().catch(err => {
+				this._logService.trace(`[Copilot:${sessionId}] instructionsCollected telemetry failed: ${getErrorMessage(err)}`);
+			});
+		}));
 	}
 
 	private _subscribeForLogging(): void {
