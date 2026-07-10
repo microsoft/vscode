@@ -46,7 +46,7 @@ A created session opens the side pane to **Editor only** (Changes editor, detail
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) gives it a comfortable width of **60% of the full window width**
-(`Workbench.INITIAL_EDITOR_WIDTH_RATIO`) **the first time it is opened**, so the editor content is readable
+(`SIDE_PANE_WIDTH_RATIO` in `parts/editorPartSizing.ts`) **the first time it is opened**, so the editor content is readable
 beside the detail — never the collapsed detail-only width. After that, side-pane sizes are **workbench-level,
 not per session**: the editor grid node width is owned by the workbench grid and persisted globally
 (`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including

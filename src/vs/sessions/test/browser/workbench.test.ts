@@ -189,7 +189,7 @@ suite('Sessions - Workbench', () => {
 			editorVisible: true,
 			appliedSplit: true,
 			visibilityChanges: [true],
-			resizes: [{ width: 600, height: 800 }],
+			resizes: [{ width: 500, height: 800 }],
 		});
 	});
 
@@ -388,6 +388,52 @@ suite('Sessions - Workbench', () => {
 
 		const sizes = JSON.parse(stored['workbench.sessions.partSizes']);
 		assert.deepStrictEqual({ editor: sizes.editor, sessions: sizes.sessions, auxiliaryBar: sizes.auxiliaryBar }, { editor: 864, sessions: 618, auxiliaryBar: 300 });
+	});
+
+	test('_savePartSizes preserves the last valid editor width when the editor is hidden with the detail visible (single-pane)', () => {
+		// Regression: with the editor hidden and only the detail showing, the editor
+		// grid node is the detail-only node, so the pure editor-content width measures
+		// as ~0 (below the minimum). That sub-minimum value must NOT be persisted (it
+		// would rebuild the side pane at its 300px minimum on reload); the last valid
+		// global width is kept instead.
+		const stored: Record<string, string> = {};
+		const editorView = {}, sessionsView = {}, sideBarView = {}, auxView = {}, panelView = {};
+		const viewSizes = new Map<object, IViewSize>([
+			[editorView, { width: 300, height: 700 }],
+			[sessionsView, { width: 1182, height: 700 }],
+			[sideBarView, { width: 300, height: 700 }],
+			[panelView, { width: 1000, height: 200 }],
+		]);
+		const host = {
+			editorPartView: editorView,
+			sessionsPartView: sessionsView,
+			sideBarPartView: sideBarView,
+			auxiliaryBarPartView: auxView,
+			panelPartView: panelView,
+			partVisibility: { sidebar: true, auxiliaryBar: true, editor: false, panel: false, sessions: true },
+			_savedPartSizes: { editor: 520 },
+			_dockedAuxiliaryBarWidth: 300,
+			_memento: new DockedEditorSizeMemento(),
+			logService: undefined,
+			workbenchGrid: {
+				getViewSize: (view: object) => {
+					const size = viewSizes.get(view);
+					if (!size) { throw new Error('View not found'); }
+					return size;
+				},
+				getViewCachedVisibleSize: (view: object) => {
+					if (view === auxView) { throw new Error('View not found'); }
+					return viewSizes.get(view)?.width;
+				},
+			},
+			storageService: { store: (key: string, value: string) => { stored[key] = value; } },
+		};
+		Object.setPrototypeOf(host, SinglePaneWorkbench.prototype);
+
+		savePartSizes.call(host as unknown as ISavePartSizesTestHarness);
+
+		const sizes = JSON.parse(stored['workbench.sessions.partSizes']);
+		assert.strictEqual(sizes.editor, 520);
 	});
 
 

@@ -17,6 +17,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layo
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
+import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './editorPartSizing.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
@@ -67,10 +68,10 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 
 	// Double-clicking the chat↔side-pane sash resets the side pane to this width
 	// (the grid's sash-reset reads `preferredWidth`). Use 60% of the window so it
-	// matches the side pane's reveal split (`INITIAL_EDITOR_WIDTH_RATIO`). Scoped to
-	// single-pane: the classic layout keeps the standard distribute-on-reset.
+	// matches the side pane's reveal split. Scoped to single-pane: the classic
+	// layout keeps the standard distribute-on-reset.
 	get preferredWidth(): number | undefined {
-		return Math.max(300, Math.floor(this.layoutService.mainContainerDimension.width * 0.6));
+		return Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.layoutService.mainContainerDimension.width * SIDE_PANE_WIDTH_RATIO));
 	}
 
 	constructor(

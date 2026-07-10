@@ -7,6 +7,7 @@ import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browse
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
+import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './parts/editorPartSizing.js';
 import { ISideBarResizeContext, Workbench } from './workbench.js';
 
 interface IDockedSideBarResizeContext extends ISideBarResizeContext {
@@ -218,7 +219,7 @@ export class SinglePaneWorkbench extends Workbench {
 		// that closed the pane — restores it instead of resetting to the default split.
 		if (hidden) {
 			const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
-			if (contentWidth !== undefined && contentWidth >= Workbench.MINIMUM_EDITOR_WIDTH) {
+			if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
 				this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
 			}
 		}
@@ -228,7 +229,7 @@ export class SinglePaneWorkbench extends Workbench {
 		// when there is no known good width (a genuine first open).
 		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
 		const savedEditorWidth = this._savedPartSizes.editor;
-		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= Workbench.MINIMUM_EDITOR_WIDTH;
+		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
 		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
 		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
 		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
@@ -261,12 +262,23 @@ export class SinglePaneWorkbench extends Workbench {
 
 		if (shouldApplyEvenSplit) {
 			this._hasAppliedInitialEditorSplit = true;
-			this._applyEditorSplitSize();
+			this._applyEditorSplitSize(this.workbenchGrid.width);
 		}
 
 		this._layoutDockedAuxBar();
 		this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
 		this._notifyContainerDidLayout();
+	}
+
+	protected override _applyEditorSplitSize(_mainAreaWidth: number): void {
+		// The single-pane side pane opens to a fixed fraction of the full window width
+		// (not an even split of the main area), so it always reveals at a comfortable size.
+		const targetEditorWidth = Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.workbenchGrid.width * SIDE_PANE_WIDTH_RATIO));
+		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		this.workbenchGrid.resizeView(this.editorPartView, {
+			width: targetEditorWidth,
+			height: currentEditorSize.height
+		});
 	}
 
 	protected override _onWillHideAuxiliaryBar(hidden: boolean): void {
