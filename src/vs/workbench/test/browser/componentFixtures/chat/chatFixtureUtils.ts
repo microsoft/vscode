@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -33,11 +35,16 @@ import { INotebookDocumentService } from '../../../../services/notebook/common/n
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
+import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -188,6 +195,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getOptionGroupsForSessionType() { return []; }
 		override supportsDelegationForSessionType() { return false; }
 		override getSessionOption() { return undefined; }
+		override getCapabilitiesForSessionType() { return undefined; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};
@@ -213,6 +221,15 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
+	// Needed whenever chat markdown contains a code block; returns no custom renderer so
+	// code blocks fall back to the normal editor-backed CodeBlockPart.
+	reg.defineInstance(IChatOutputRendererService, new class extends mock<IChatOutputRendererService>() {
+		override hasCodeBlockRenderer() { return false; }
+	}());
+	// Chat code blocks generate a suggestion id for edit telemetry when the response completes.
+	reg.defineInstance(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
+		override createSuggestionId() { return EditSuggestionId.newId(); }
+	}());
 	reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
 	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
@@ -221,9 +238,30 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return undefined; }
+		override announceRendered() { }
 	}());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
-	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
+	// generic config chips lane, which opens a session subscription. Return an
+	// inert, never-hydrating subscription (value `undefined`) so no config chips
+	// render and nothing crashes.
+	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
+			return {
+				object: {
+					value: undefined,
+					verifiedValue: undefined,
+					onDidChange: Event.None,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				},
+				dispose: () => { },
+			};
+		}
+		override getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
+			return undefined;
+		}
+	}());
 	reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 		override readonly onDidChange = Event.None;
 		override get() { return undefined; }

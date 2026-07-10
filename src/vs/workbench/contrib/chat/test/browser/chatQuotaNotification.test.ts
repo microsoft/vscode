@@ -133,6 +133,7 @@ function createMockNotificationService() {
 			return !filter || filter(lastNotification) ? lastNotification : undefined;
 		},
 		handleMessageSent() { },
+		announceRendered() { },
 	};
 
 	return {

@@ -32,6 +32,6 @@ export interface IChatExplicitContextProvider {
 }
 
 export interface IChatResourceContextProvider {
-	provideChatContext(resource: URI, withValue: boolean, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	provideChatContext(resource: URI, withValue: boolean, viewType: string | undefined, token: CancellationToken): Promise<IChatContextItem | undefined>;
 	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }

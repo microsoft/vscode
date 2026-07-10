@@ -29,14 +29,34 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	border-right: none !important;
+	background-clip: padding-box;
+	border-right: var(--vscode-spacing-size40) solid transparent !important;
 	border-radius: var(--vscode-cornerRadius-small);
+	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
+	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	font-size: 12px !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
-	margin-right: 4px !important;
 	--tab-border-top-color: transparent !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	padding: 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 10px 0 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.close-action-off:not(.dirty):not(.sticky-compact) {
+	padding: 0 8px 0 4px !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
+	width: auto !important;
+	min-width: 0 !important;
+	flex: 0 0 auto !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -219,4 +239,8 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
 	padding: 4px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
+	vertical-align: sub;
 }

@@ -69,6 +69,20 @@
 		}
 	}
 
+	.monaco-list-row .session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected) {
 		.session-title-toolbar {

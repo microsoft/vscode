@@ -115,6 +115,27 @@ export class ClaudeSdkPipeline extends Disposable {
 		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
+	async startMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const lifecycle = query;
+		if (lifecycle.toggleMcpServer && lifecycle.reconnectMcpServer) {
+			await lifecycle.toggleMcpServer(serverName, true);
+			await lifecycle.reconnectMcpServer(serverName);
+			return true;
+		}
+		return false;
+	}
+
+	async stopMcpServer(serverName: string): Promise<boolean> {
+		const query = await this._ensureQueryBound();
+		const lifecycle = query;
+		if (!lifecycle.toggleMcpServer) {
+			return false;
+		}
+		await lifecycle.toggleMcpServer(serverName, false);
+		return true;
+	}
+
 	/**
 	 * Bind the SDK Query if needed, recovering a dead one first. Mirrors the
 	 * gate in {@link send}: if the pipeline is marked for rebind (after an
@@ -243,6 +264,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	get isResumed(): boolean { return this._isResumed; }
 
 	get isAborted(): boolean { return this._abortController.signal.aborted; }
+
+	/**
+	 * Whether a turn is currently in flight or queued. False between turns (the
+	 * warm query parks with a drained queue). Used by non-destructive idle
+	 * release to avoid tearing the pipeline down mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
 
 	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.

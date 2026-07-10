@@ -54,6 +54,8 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
@@ -633,6 +635,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);
@@ -763,6 +766,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);
@@ -822,6 +826,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);

@@ -169,7 +169,7 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		DOM.clearNode(this.folderChip);
-		const isWorktree = this.state.isolationMode !== 'workspace';
+		const isWorktree = this.state.isolationMode === 'worktree';
 		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
 		const modeLabel = isWorktree
 			? localize('automation.form.isolation.worktree', "Worktree")
@@ -194,7 +194,7 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		if (!this.folderChip || this.actionWidgetService.isVisible) {
 			return;
 		}
-		const currentMode = this.state.isolationMode ?? 'worktree';
+		const currentMode = this.state.isolationMode ?? 'workspace';
 		const items: IActionListItem<{ readonly mode: string; readonly checked?: boolean }>[] = [
 			{
 				kind: ActionListItemKind.Action,
@@ -242,7 +242,17 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			this.renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
 			return;
 		}
-		const repo = await this.gitService.openRepository(folder);
+		let repo;
+		try {
+			repo = await this.gitService.openRepository(folder);
+		} catch {
+			if (myRequestId !== this.branchRequestId) {
+				return;
+			}
+			this.state.branch = undefined;
+			this.renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
+			return;
+		}
 		if (myRequestId !== this.branchRequestId) {
 			return;
 		}
@@ -323,7 +333,8 @@ function createSessionTypeBinder(
 		if (available.length === 0) {
 			return undefined;
 		}
-		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background) ?? available[0];
+		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background)
+			?? available[0];
 	};
 
 	const validateOrDefault = (folder: URI | undefined): void => {
@@ -371,9 +382,8 @@ function createSessionTypeBinder(
 				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
 			}
 		},
-		// Only show Local and Background (Copilot CLI). Scoped to what the folder offers.
 		isSessionTypeVisible: (type: AgentSessionTarget) => {
-			if (type !== AgentSessionProviders.Local && type !== AgentSessionProviders.Background) {
+			if (type !== AgentSessionProviders.Background) {
 				return false;
 			}
 			if (!state.folderUri) {
@@ -522,12 +532,19 @@ export function renderForm(
 		supportsChangingModes: true,
 		hideCustomChatModes: true,
 		suppressModePreferredModel: true,
+		suppressModelPersistence: true,
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			telemetrySource: 'automations.dialog',
 		},
 		widgetViewKindTag: 'automations-dialog',
 		inputEditorMinLines: 3,
+		// The dialog renders the composer flush with its form column (the
+		// `.interactive-input-part` margin is zeroed in CSS), so there is no
+		// outer horizontal gutter. Without this, ChatInputPart would still
+		// reserve the default 24px margin and lay the editor out too narrow,
+		// leaving its scrollbar floating ~24px in from the right wall.
+		inputPartHorizontalPadding: 0,
 		sessionTypePickerDelegate: sessionTypeBinder,
 		workspacePickerInput: workspacePicker,
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
@@ -636,7 +653,11 @@ export function renderForm(
 	}));
 
 	chatInput.layout(580);
-	queueMicrotask(() => chatInput.layout(580));
+	queueMicrotask(() => {
+		if (!disposables.isDisposed) {
+			chatInput.layout(580);
+		}
+	});
 
 	const resizeObserver = disposables.add(new DOM.DisposableResizeObserver('automationDialog.promptHost', entries => {
 		for (const entry of entries) {

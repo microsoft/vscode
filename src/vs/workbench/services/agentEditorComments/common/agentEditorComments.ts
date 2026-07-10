@@ -25,8 +25,11 @@ export interface IAgentEditorComment {
  */
 export interface IAgentEditorCommentsProvider {
 	readonly onDidChangeComments: Event<void>;
+	/** Whether new comments can be added for the resource (i.e. it is in scope for a session). */
+	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	deleteComment(resource: URI, id: string): void;
 }
 
 /**
@@ -42,8 +45,11 @@ export interface IAgentEditorCommentsBridge {
 	/** Fired when comments change, or when a provider is registered/unregistered. */
 	readonly onDidChangeComments: Event<void>;
 
+	/** Whether new comments can be added for the resource. `false` when no provider is registered. */
+	acceptsComments(resource: URI): boolean;
 	getComments(resource: URI): readonly IAgentEditorComment[];
 	addComment(resource: URI, range: IRange, body: string): void;
+	deleteComment(resource: URI, id: string): void;
 
 	/** Install the provider that backs this bridge. Only one provider is active at a time. */
 	registerProvider(provider: IAgentEditorCommentsProvider): IDisposable;
@@ -72,12 +78,20 @@ export class AgentEditorCommentsBridge extends Disposable implements IAgentEdito
 		});
 	}
 
+	acceptsComments(resource: URI): boolean {
+		return this._provider?.acceptsComments(resource) ?? false;
+	}
+
 	getComments(resource: URI): readonly IAgentEditorComment[] {
 		return this._provider?.getComments(resource) ?? [];
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {
 		this._provider?.addComment(resource, range, body);
+	}
+
+	deleteComment(resource: URI, id: string): void {
+		this._provider?.deleteComment(resource, id);
 	}
 }
 

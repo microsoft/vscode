@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
@@ -90,7 +91,22 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('preserves SDK shell_exit content on replayed tool completion', async () => {
+	test('derives shell tool intention from the description argument on replay', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'bash', arguments: { command: 'ls', description: 'List files in the repo root' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-1', success: true, result: { content: 'a\nb\n' } } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+	});
+
+	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
@@ -116,11 +132,11 @@ suite('mapSessionEvents — history replay', () => {
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.deepStrictEqual(part.toolCall.content, [
 			{ type: ToolResultContentType.Text, text: 'hi\n' },
-			{ type: ToolResultContentType.ShellExit, shellId: '0', exitCode: 0, cwd: '/repo', outputPreview: 'hi\n' },
+			{ type: ToolResultContentType.TerminalComplete, exitCode: 0, cwd: URI.file('/repo').toString(), preview: 'hi\n' },
 		]);
 	});
 
-	test('preserves non-zero shell_exit even when SDK tool completion succeeded', async () => {
+	test('preserves non-zero terminal completion even when SDK tool completion succeeded', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
@@ -145,7 +161,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
 		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
 		assert.strictEqual(part.toolCall.success, true);
-		assert.ok(part.toolCall.content?.some(content => content.type === ToolResultContentType.ShellExit && content.exitCode === 127));
+		assert.ok(part.toolCall.content?.some(content => content.type === ToolResultContentType.TerminalComplete && content.exitCode === 127));
 		assert.ok(!part.toolCall.content?.some(content => content.type === ToolResultContentType.Terminal));
 	});
 

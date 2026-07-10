@@ -81,6 +81,17 @@ A single agent host session uses several distinct identifiers:
 
 `notify/sessionAdded` is an authoritative upsert rather than create-only. An active provisional session can already have entered `_sessionCache` through `listSessions()` with its original checkout; when materialization publishes the final project and worktree working directory, the provider updates that adapter in place and reports it as changed.
 
+### Startup session caching (persistence)
+
+To avoid an empty list on window startup — before the agent host has started, authentication has settled, and the first `listSessions()` round-trip returns — the base provider persists a lightweight snapshot of each session summary to `IStorageService` and re-hydrates it on the next launch. This machinery lives in `BaseAgentHostSessionsProvider` and is **shared by both the local and remote providers**:
+
+- A subclass opts in by calling `_enableSessionCachePersistence(storageKey)` at the end of its constructor (once the identity fields that `createAdapter` depends on are set). This hydrates persisted summaries into `_sessionCache` immediately, so `getSessions()` returns cached sessions before any live list.
+- `createAdapter`/`updateAdapter` capture the source `IAgentSessionMetadata` in `_metaByRawId`; `onWillSaveState` lazily serializes the cache (overlaying mutable fields — title, `updatedAt`, `isRead`, `isArchived` — read from each adapter's observables), capped at the 100 most-recently-modified entries under `StorageScope.APPLICATION`.
+- Hydrated entries are reconciled against the authoritative `listSessions()` on the first successful `_refreshSessions()`: stale sessions that no longer exist are pruned.
+- `_shouldTrackSessionCacheChanges()` is a hook (default `true`) the remote provider overrides to suspend dirty-tracking while its sessions are unpublished (offline), so the on-disk snapshot survives an unreachable host.
+
+The **only** per-provider difference is the storage key: local uses the fixed `localAgentHost.cachedSessions` (single machine-wide host); remote uses `remoteAgentHost.cachedSessions.${authority}` (one key per connection).
+
 ## How Chat Content Loads & Sends (no `IChatSessionItemController`)
 
 A common point of confusion is whether the Agents window needs to register an
@@ -144,7 +155,7 @@ A quick chat is a **single-chat session** (`supportsMultipleChats: false`, force
 3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
 4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
 5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
+6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session. If commit detection times out or the connection is lost, the provisional skeleton is cleaned up and `sendRequest` rejects rather than returning an `InProgress` session that has no remaining lifecycle owner.
 
 For an already-committed session (including a newly-created peer chat), `sendRequest` loads and holds the target chat model through `IChatService.sendRequest`, applies the cached model/agent input state before dispatch, clears the draft afterwards, then clears the provider-side "new chat" flag so status returns to the host-reported value. Holding the model reference is required for peer chats opened by the lightweight new-chat composer, because no `ChatWidget` owns that model while the first message is dispatched.
 
@@ -166,9 +177,9 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 
 | File | Responsibility |
 |------|----------------|
-| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. |
+| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. On desktop the `isolation` property renders as a "Worktree" checkbox (checked = worktree, unchecked = folder) instead of a dropdown; the phone layout keeps the chip so it can route to the unified repo sheet. |
 | `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
-| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`). |
+| `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`), rendered immediately before approvals in the secondary toolbar for new and active sessions. |
 | `agentHostModelPicker.ts` | `getAgentHostModels` — filters language models by the session resource scheme. |
 | `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
 | `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |
@@ -201,6 +212,7 @@ Two synthetic filesystem providers expose JSONC settings editors:
 | Resource scheme | `agent-host-${sessionType.id}` | `remote-${authority}-${agent.provider}` |
 | Browse actions | none | host-filesystem "Folders" picker |
 | Diff URIs | `toAgentHostUri(uri, 'local')` | host-scoped mapper |
+| Startup session cache | Shared base persistence; fixed key `localAgentHost.cachedSessions` | Shared base persistence; key `remoteAgentHost.cachedSessions.${authority}` + `unpublishCachedSessions()` offline gate |
 | Extra interface members | — | `connectionStatus`, `remoteAddress`, `connect`/`disconnect` |
 
 ## Tests

@@ -7,7 +7,8 @@ import { basename } from '../../../base/common/resources.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
+import { IAgentService } from '../common/agentService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -27,6 +28,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
 		private readonly _onCommitted: (sessionKey: string) => Promise<void>,
 		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ILogService private readonly _logService: ILogService,
@@ -75,15 +77,16 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
+		const copilotResource = this._gitHubEndpointService.getCopilotResource();
 		const authToken = this._agentService.getAuthToken({
-			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
-			scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+			resource: copilotResource.resource,
+			scopes: copilotResource.scopes_supported,
 		});
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
 				localize('agentHost.changeset.commit.authRequired', "Sign in to GitHub Copilot to generate a commit message."),
-				[GITHUB_COPILOT_PROTECTED_RESOURCE],
+				[copilotResource],
 			);
 		}
 
@@ -104,7 +107,7 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 				throw new ProtocolError(
 					AHP_AUTH_REQUIRED,
 					localize('agentHost.changeset.commit.authExpired', "Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again."),
-					[GITHUB_COPILOT_PROTECTED_RESOURCE],
+					[copilotResource],
 				);
 			}
 			throw err;

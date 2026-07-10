@@ -12,6 +12,21 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
  */
 export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
+/** Response-formatting contract for workspace links emitted by Agent Host models. */
+export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
+	'<file_folder_and_symbol_links>',
+	'Always use Markdown links when referring to existing files, folders, or symbols in the workspace. This is very important for helping the user understand your responses.',
+	'- File: use the file name as the link text and the absolute filesystem path as the target, for example [foo.ts](/path/to/foo.ts).',
+	'- Folder: links to folders are also supported, with an absolute path to the folder as the target, for example [src/](/path/to/src).',
+	'- Symbol: link to symbols by using the containing file path with a 1-based line number as the target, for example [myMethod](/path/to/foo.ts:42).',
+	'- Use `/` path separators in link targets, including on Windows (`C:/path/to/foo.ts`).',
+	'- If a file path has spaces, wrap the target in angle brackets: [foo bar.ts](</path/to/foo bar.ts>).',
+	'- Use absolute filesystem paths rather than `file://` URIs.',
+	'- Do not provide line ranges.',
+	'- Use a markdown link format every time you refer to a file, folder, or symbol, not just the first time.',
+	'</file_folder_and_symbol_links>',
+].join('\n');
+
 /**
  * Default system-message customization applied to every Copilot CLI agent-host
  * session that has no per-model override registered in the
@@ -65,6 +80,15 @@ export function fullSystemPrompt(content: string): SystemMessageConfig {
  */
 export function sectionOverrides(sections: Partial<Record<SystemMessageSection, SectionOverride>>): SystemMessageConfig {
 	return { mode: 'customize', sections };
+}
+
+/** Appends universal content without changing a full-prompt replacement. */
+export function appendSystemMessageContent(config: SystemMessageConfig, content: string): SystemMessageConfig {
+	if (config.mode === 'replace') {
+		return config;
+	}
+	const existing = config.content;
+	return { ...config, content: existing ? `${existing}\n\n${content}` : content };
 }
 
 /**

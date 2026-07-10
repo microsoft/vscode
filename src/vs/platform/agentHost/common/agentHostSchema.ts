@@ -443,6 +443,12 @@ export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
  */
 export const AUTO_REPLY_SETTING_ID = 'chat.autoReply';
 
+// Root config key forwarded from the renderer when Copilot Chat's `github.copilot.chat.preferLongContext.enabled` setting changes.
+export const AgentHostPreferLongContextEnabledConfigKey = 'preferLongContextEnabled';
+
+// The Copilot Chat setting ID for preferring long context, forwarded into the agent host root config.
+export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongContext.enabled';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.autoApprove` setting changes. Holds the effective
@@ -679,6 +685,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
 		description: localize('agentHost.config.autoReplyEnabled.description', "Whether VS Code's auto-reply setting is enabled. When `true`, `ask_user` questions are auto-answered instead of blocking on the user, mirroring autopilot mode."),
+		default: false,
+	}),
+	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
+		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
 		default: false,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({

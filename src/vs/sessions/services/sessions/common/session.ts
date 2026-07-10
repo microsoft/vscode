@@ -66,6 +66,21 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * An archived session is read-only: its interactive chats must hide their
+ * composer. `Hidden` chats are internal workers filtered out of the UI, so they
+ * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
+ * archived, the chat keeps its own interactivity.
+ */
+export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	return isArchived ? ChatInteractivity.ReadOnly : interactivity;
+}
+
 export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
@@ -210,6 +225,16 @@ export interface ISessionFile {
  * Changes view — can locate it in {@link ISession.changesets} by id.
  */
 export const BRANCH_CHANGES_CHANGESET_ID = 'branchChanges';
+
+/**
+ * Well-known id of the changeset that holds the diff made during the session's
+ * **last turn** only (as opposed to the cumulative session diff). Consumers that
+ * want to reflect just the most recent turn — e.g. the chat input status pills —
+ * can locate it in {@link ISession.changesets} by id.
+ *
+ * Must match the agent host provider's `ChangesetKind.Turn` value.
+ */
+export const TURN_CHANGES_CHANGESET_ID = 'turn';
 
 export interface ISessionChangeset {
 	/** Unique identifier for the changeset. */
@@ -372,6 +397,14 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * File changes produced by the chat's **last turn** only (as opposed to the
+	 * cumulative chat {@link changes}). Derived from the chat's live output
+	 * stream so consumers — e.g. the chat input status pills — can reflect just
+	 * what the most recent request produced. Providers that cannot determine
+	 * this omit the observable.
+	 */
+	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

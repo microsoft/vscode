@@ -34,16 +34,18 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
+import { getModelProviderIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { withChatInputPickerMotion } from './chatInputPickerActionItem.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -72,6 +74,10 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 
 export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
 	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
+}
+
+export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier, useGenericIcon = false): ThemeIcon {
+	return model.metadata.statusIcon ?? getModelProviderIcon(model, useGenericIcon);
 }
 
 /**
@@ -103,10 +109,15 @@ const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
 /**
  * Returns a human-readable display name for a model vendor.
- * Looks up the registered provider descriptor's displayName first,
- * then falls back to capitalizing the raw vendor id.
+ * Uses known product names before falling back to the registered provider
+ * descriptor or a capitalized vendor id.
  */
 function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we we have 2 distinct vendors for Copilot CLI vs Copilot Chat.
+		// For now, we want to show "Copilot" in the model picker for both.
+		return localize('chat.modelPicker.copilotGroup', "Copilot");
+	}
 	const descriptor = languageModelsService.getVendors().find(v => v.vendor === vendor);
 	if (descriptor?.displayName) {
 		return descriptor.displayName;
@@ -165,6 +176,13 @@ function getProviderGroupForModel(
 	modelToGroup: Map<string, IProviderGroupInfo>,
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
+	// Agent-host models share one vendor but declare their upstream provider (a vendor id)
+	// via `modelGroup`; bucket by it, resolving the display name from the vendor registry —
+	// the same source used for every other vendor — so they don't collapse into one section.
+	if (model.metadata.modelGroup) {
+		return { vendor: model.metadata.vendor, groupName: getVendorDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+	}
+
 	const info = modelToGroup.get(model.identifier);
 	if (info) {
 		return info;
@@ -379,7 +397,9 @@ function createModelAction(
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
 	// shown either inline (promoted) or in a section header (Other Models).
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
-	const textParts = [detail, pricingForDescription].filter(Boolean);
+	const promo = ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
+	const promoDetail = promo ? localize('chat.promo.discount', "{0}% discount", promo.discountPercent) : undefined;
+	const textParts = [detail, promoDetail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
 
 	const action: IActionWidgetDropdownAction & { section?: string } = {
@@ -636,6 +656,18 @@ export function buildModelPickerItems(
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
+			// --- 1b. Discounted promo models (boosted next to Auto) ---
+			for (const model of models) {
+				if (placed.has(model.identifier) || placed.has(model.metadata.id)) {
+					continue;
+				}
+				if (ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
+					markPlaced(model.identifier, model.metadata.id);
+					const { action: promoAction, ariaDescription: promoAriaDesc } = createModelAction(model, selectedModelId, onSelect);
+					items.push(createModelItem(promoAction, model, openerService, undefined, isUBB, promoAriaDesc));
+				}
+			}
+
 			// Precompute group labels needed for inline badges
 			const allGroupKeys = new Set(
 				models.map(m => {
@@ -718,6 +750,15 @@ export function buildModelPickerItems(
 			// Recently used models (filtered to exclude pinned, limited to 3)
 			for (const id of filteredRecentIds) {
 				tryPlaceModel(id);
+			}
+
+			// Non-discount promos are featured without promotional presentation.
+			if (showFeatured) {
+				for (const model of models) {
+					if (model.metadata.promo && !ILanguageModelChatMetadata.hasPromoDiscount(model.metadata)) {
+						tryPlaceModel(model.identifier);
+					}
+				}
 			}
 
 			// Featured models from control manifest
@@ -1312,6 +1353,10 @@ export class ModelPickerWidget extends Disposable {
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
+		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.hide(true);
+			return;
+		}
 
 		const previousModel = this._selectedModel;
 
@@ -1401,7 +1446,7 @@ export class ModelPickerWidget extends Disposable {
 		// heading).
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
-		const listOptions = {
+		const listOptions = withChatInputPickerMotion({
 			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
 			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
@@ -1424,7 +1469,7 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
-		};
+		});
 		const previouslyFocusedElement = dom.getActiveElement();
 
 		const delegate = {
@@ -1480,7 +1525,7 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const { name, statusIcon } = this._selectedModel?.metadata || {};
+		const { name } = this._selectedModel?.metadata || {};
 
 		// Untrusted workspace: present a normal "Models" placeholder (no badge)
 		// rather than a dead-end label; the hover and dropdown carry the Restricted
@@ -1507,8 +1552,10 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		if (statusIcon && !noModelsAvailable) {
-			nameChildren.push(renderIcon(statusIcon));
+		const modelIcon = this._selectedModel ? getModelPickerIcon(this._selectedModel, this._delegate.useGenericModelIcon?.()) : undefined;
+		const compact = this._compact?.get() ?? false;
+		if (modelIcon && !noModelsAvailable) {
+			nameChildren.push(renderIcon(modelIcon));
 		}
 		const modelLabel = unavailable
 			? localize('chat.modelPicker.modelsLabel', "Models")
@@ -1517,7 +1564,9 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		if (!compact || !modelIcon || noModelsAvailable) {
+			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		}
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
@@ -1527,7 +1576,7 @@ export class ModelPickerWidget extends Disposable {
 		const effortConfig = this._getConfigProperty('navigation');
 		const tokensConfig = this._getConfigProperty('tokens');
 		if (this._configButton) {
-			if (this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
+			if (!compact && this._selectedModel && !noModelsAvailable && (effortConfig || tokensConfig)) {
 				const labelParts: string[] = [];
 				const ariaParts: string[] = [];
 				if (effortConfig) {
@@ -1556,11 +1605,13 @@ export class ModelPickerWidget extends Disposable {
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.
-		this._domNode.ariaLabel = restrictedMode
+		const ariaLabel = restrictedMode
 			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
 				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
+		this._domNode.ariaLabel = ariaLabel;
+		this._nameButton.ariaLabel = ariaLabel;
 	}
 
 	/**
@@ -1752,12 +1803,12 @@ export class ModelPickerWidget extends Disposable {
 				getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => element.kind === ActionListItemKind.Action ? 'menuitemradio' as const : 'separator' as const,
 				getWidgetRole: () => 'menu' as const,
 			},
-			{
+			withChatInputPickerMotion({
 				headerText: showCacheBreakHint ? localize('chat.config.cacheBreakHint', "Changing these options mid-session resets the prompt cache and may increase cost.") : undefined,
 				headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 				headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
 				headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
-			}
+			})
 		);
 
 		// Focus the requested section's first option (e.g. when opened from a
@@ -1781,6 +1832,7 @@ const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 
 export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, isUBB: boolean | undefined, onConfigure: ((group: string) => void) | undefined, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
+	const promo = !isAuto && ILanguageModelChatMetadata.hasPromoDiscount(model.metadata) ? model.metadata.promo : undefined;
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
 
@@ -1788,13 +1840,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
 	const tags = dom.$('.chat-model-hover-title-tags');
-	const categoryLabel = !isAuto ? getCategoryLabel(model.metadata.category) : undefined;
+	const categoryLabel = !isAuto && !promo ? getCategoryLabel(model.metadata.category) : undefined;
 	if (categoryLabel) {
 		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
 	}
 	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	// Auto has no fixed price category; when it carries a discount, surface it as
-	// the pill (e.g. "10% discount") so it reads like the other models' cost pill.
 	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
 	if (badgeLabel) {
 		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
@@ -1802,6 +1852,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			badge.classList.add('high-cost');
 		}
 		tags.appendChild(badge);
+	}
+	// When a model carries a promo discount, show a discount pill alongside the price category.
+	if (promo) {
+		const discountLabel = localize('chat.promo.discountBadge', "{0}% discount", promo.discountPercent);
+		tags.appendChild(dom.$('span.chat-model-hover-price-badge', undefined, discountLabel));
 	}
 	if (tags.childElementCount > 0) {
 		titleRow.appendChild(tags);
@@ -1821,6 +1876,21 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			warningContainer.appendChild(rendered.element);
 			container.appendChild(warningContainer);
 		}
+	}
+
+	// --- Promo info ---
+	if (promo) {
+		const promoContainer = dom.$('.chat-model-hover-promo-text');
+		promoContainer.appendChild(renderIcon(Codicon.info));
+		const endsAtDate = new Date(promo.endsAt);
+		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		const promoMessage = promo.message + ' ' + localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
+		const promoMd = new MarkdownString(promoMessage, { isTrusted: false, supportThemeIcons: true });
+		const rendered = disposables.add(renderMarkdown(promoMd, {
+			actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+		}));
+		promoContainer.appendChild(rendered.element);
+		container.appendChild(promoContainer);
 	}
 
 	// --- Cost info ---

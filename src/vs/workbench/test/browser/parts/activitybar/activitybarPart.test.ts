@@ -110,7 +110,7 @@ suite('ActivitybarPart', () => {
 
 	// --- Static constants ---------------------------------------------------
 
-	test('default constants match original (pre-compact) dimensions', () => {
+	test('default constants match expected dimensions', () => {
 		assert.deepStrictEqual(
 			{
 				width: ActivitybarPart.ACTIVITYBAR_WIDTH,
@@ -136,6 +136,21 @@ suite('ActivitybarPart', () => {
 				width: 36,
 				actionHeight: 32,
 				iconSize: 16,
+			}
+		);
+	});
+
+	test('floating constants are narrower than default', () => {
+		assert.deepStrictEqual(
+			{
+				width: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH,
+				actionHeight: ActivitybarPart.FLOATING_ACTION_HEIGHT,
+				compactWidth: ActivitybarPart.FLOATING_COMPACT_ACTIVITYBAR_WIDTH,
+			},
+			{
+				width: 44,
+				actionHeight: 44,
+				compactWidth: 32,
 			}
 		);
 	});
@@ -170,8 +185,8 @@ suite('ActivitybarPart', () => {
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
-				max: ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN,
 			}
 		);
 	});
@@ -248,7 +263,7 @@ suite('ActivitybarPart', () => {
 		fireConfigChange(configService, LayoutSettings.MODERN_UI);
 
 		assert.deepStrictEqual(events, [undefined]);
-		assert.strictEqual(part.minimumWidth, ActivitybarPart.ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);
+		assert.strictEqual(part.minimumWidth, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN);
 	});
 
 	// --- CSS custom properties on element -----------------------------------
@@ -277,6 +292,19 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.COMPACT_ACTION_HEIGHT}px`);
 		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.COMPACT_ICON_SIZE}px`);
 		assert.strictEqual(el.classList.contains('compact'), true);
+	});
+
+	test('updateCompactStyle sets correct CSS custom properties in floating mode', () => {
+		const { part } = createActivitybarPart(false, true);
+
+		const el = document.createElement('div');
+		fixture.appendChild(el);
+		part.create(el);
+
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-width'), `${ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-action-height'), `${ActivitybarPart.FLOATING_ACTION_HEIGHT}px`);
+		assert.strictEqual(el.style.getPropertyValue('--activity-bar-icon-size'), `${ActivitybarPart.ICON_SIZE}px`);
+		assert.strictEqual(el.classList.contains('compact'), false);
 	});
 
 	test('toggling compact updates CSS custom properties on element', () => {
