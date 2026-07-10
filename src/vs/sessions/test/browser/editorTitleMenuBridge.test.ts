@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { Menus } from '../../browser/menus.js';
 
@@ -28,6 +28,12 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 		return MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.map(item => item.command.id);
+	}
+
+	function sessionsEditorTitleSubmenuIds(): string[] {
+		return MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isISubmenuItem)
+			.map(item => item.submenu.id);
 	}
 
 	test('mirrors only extension-contributed editor/title items into the sessions editor title menu', () => {
@@ -66,6 +72,26 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 		registration.dispose();
 		await Promise.resolve();
 		assert.ok(!sessionsEditorTitleCommandIds().includes('test.ext.dynamic'), 'removed after unregistration');
+	});
+
+	test('mirrors only extension-contributed submenus into the sessions editor title menu', () => {
+		const local = store.add(new DisposableStore());
+
+		// Extension submenus are registered with an `api:` menu id; core submenus are not.
+		local.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			submenu: MenuId.for('api:test.ext.submenu'), title: 'Extension Submenu', group: 'navigation'
+		}));
+		local.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+			submenu: MenuId.for('test.core.submenu'), title: 'Core Submenu', group: 'navigation'
+		}));
+
+		store.add(new EditorTitleMenuBridgeContribution(createLayoutService(true)));
+
+		const mirrored = sessionsEditorTitleSubmenuIds();
+		assert.ok(mirrored.includes('api:test.ext.submenu'), 'extension submenu should be bridged');
+		assert.ok(!mirrored.includes('test.core.submenu'), 'core submenu should not be bridged');
+
+		local.dispose();
 	});
 
 	test('does nothing when the single-pane layout is disabled', () => {

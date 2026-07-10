@@ -454,17 +454,16 @@ class AddFileAsContextAction extends Action2 {
 registerAction2(AddFileAsContextAction);
 
 /**
- * In the single-pane layout the editor group renders its title actions from
- * {@link Menus.SessionsEditorTitle} instead of the core {@link MenuId.EditorTitle},
- * so extension-contributed `editor/title` actions would otherwise disappear. This
- * contribution mirrors only the extension-contributed items (identified by the
- * command's `source`, which the `commands` extension point sets) from
- * {@link MenuId.EditorTitle} into {@link Menus.SessionsEditorTitle}, keeping them
- * in sync as extensions register/unregister.
+ * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
+ * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.editorTitleMenuBridge';
+
+	// Extension submenus are registered with a `MenuId.for('api:<id>')` id (see the
+	// `submenus` extension point), which distinguishes them from core submenus.
+	private static readonly _extensionSubmenuPrefix = 'api:';
 
 	private readonly _mirrored = this._register(new DisposableStore());
 
@@ -489,9 +488,13 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 		this._mirrored.clear();
 
 		for (const item of MenuRegistry.getMenuItems(MenuId.EditorTitle)) {
-			// Only bridge actions contributed by extensions. Extension commands carry a
-			// `source` (set by the `commands` extension point); core items do not.
-			if (isIMenuItem(item) && item.command.source) {
+			// Bridge only extension contributions: command items whose command carries a
+			// `source` (set by the `commands` extension point), and submenu items whose
+			// submenu is an extension `api:` menu. Core items have neither.
+			const isExtensionItem = isIMenuItem(item)
+				? !!item.command.source
+				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
+			if (isExtensionItem) {
 				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, item));
 			}
 		}
