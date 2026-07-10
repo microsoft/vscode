@@ -10,8 +10,9 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { NullOpenerService } from '../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelHoverContent, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -217,7 +218,7 @@ function createControlManifest(): IModelsControlManifest {
 
 suite('buildModelPickerItems', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accessibility provider uses radio semantics for model items', () => {
 		const provider = getModelPickerAccessibilityProvider();
@@ -752,6 +753,55 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([auto, modelA, promoModel]);
 		const allGemini = getActionItems(items).filter(a => a.label === 'Gemini Flash');
 		assert.strictEqual(allGemini.length, 1, 'Promo model should appear exactly once');
+	});
+
+	test('non-positive promo models are featured without discount details', () => {
+		const auto = createAutoModel();
+		const zeroDiscountModel = createModel('zero-discount', 'Zero Discount');
+		zeroDiscountModel.metadata = { ...zeroDiscountModel.metadata, promo: { id: 'test-promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } } as ILanguageModelChatMetadata;
+		const negativeDiscountModel = createModel('negative-discount', 'Negative Discount');
+		negativeDiscountModel.metadata = { ...negativeDiscountModel.metadata, promo: { id: 'test-promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } } as ILanguageModelChatMetadata;
+		const manifestFeaturedModel = createModel('manifest-featured', 'Manifest Featured');
+		const items = callBuild([auto, zeroDiscountModel, negativeDiscountModel, manifestFeaturedModel], {
+			controlModels: {
+				'manifest-featured': { label: 'Manifest Featured', featured: true, exists: true },
+			},
+		});
+		const labels = new Set(['Auto', 'Zero Discount', 'Negative Discount', 'Manifest Featured']);
+		const featuredItems = getActionItems(items).filter(item => labels.has(item.label!));
+
+		assert.deepStrictEqual(featuredItems.map(item => ({ label: item.label, description: item.description })), [
+			{ label: 'Auto', description: undefined },
+			{ label: 'Manifest Featured', description: undefined },
+			{ label: 'Negative Discount', description: undefined },
+			{ label: 'Zero Discount', description: undefined },
+		]);
+	});
+
+	test('non-positive promo models have no promo hover presentation', () => {
+		const results = [0, -10].map(discountPercent => {
+			const model = createModel(`discount-${discountPercent}`, `Discount ${discountPercent}`);
+			model.metadata = {
+				...model.metadata,
+				category: 'powerful',
+				priceCategory: 'high',
+				promo: { id: `test-promo-${discountPercent}`, discountPercent, endsAt: '2026-07-20T23:59:59Z', message: 'Do not render this text' },
+			} as ILanguageModelChatMetadata;
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return {
+				discountPercent,
+				category: hover.element.querySelector('.chat-model-hover-category')?.textContent,
+				badges: Array.from(hover.element.querySelectorAll('.chat-model-hover-price-badge'), element => element.textContent),
+				promoText: hover.element.querySelector('.chat-model-hover-promo-text')?.textContent,
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ discountPercent: 0, category: 'Powerful', badges: ['High cost'], promoText: undefined },
+			{ discountPercent: -10, category: 'Powerful', badges: ['High cost'], promoText: undefined },
+		]);
 	});
 
 	test('Other Models grouped by vendor with separator headers', () => {
