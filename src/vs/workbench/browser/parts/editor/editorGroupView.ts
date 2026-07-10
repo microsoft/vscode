@@ -31,13 +31,15 @@ import { EventType as TouchEventType, GestureEvent } from '../../../../base/brow
 import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions, IEditorGroupMenuIds } from './editor.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { SubmenuAction } from '../../../../base/common/actions.js';
+import { Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { IMenuChangeEvent, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getActionBarActions, PrimaryAndSecondaryActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { hash } from '../../../../base/common/hash.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -189,7 +191,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(themeService);
 
@@ -2141,6 +2144,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				'navigation',
 				shouldInlineGroup
 			);
+
+			// Add a "Reopen Editor With" submenu to the overflow (...) menu when the active editor's
+			// resource can be opened by more than one editor type (e.g. Text Editor vs. Markdown
+			// Preview). This mirrors the editor type dropdown shown in the breadcrumbs bar. It is
+			// built per group so it reflects that group's active editor.
+			if (menuId === MenuId.EditorTitle) {
+				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
+				if (available) {
+					const editorTypeActions = createEditorTypeActions(available, this.editorResolverService, this.commandService, this.editorService);
+					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
+					if (actions.secondary.length) {
+						actions.secondary.push(new Separator());
+					}
+					actions.secondary.push(reopenWithSubmenu);
+				}
+			}
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes

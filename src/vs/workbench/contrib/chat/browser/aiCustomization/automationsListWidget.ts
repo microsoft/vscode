@@ -34,8 +34,7 @@ import { IAutomationService } from '../../common/automations/automationService.j
 import { IAutomationDialogService } from '../../common/automations/automationDialogService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { DAYS_OF_WEEK } from '../../common/automations/schedule.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { openSession as openSessionFromOpener } from '../agentSessions/agentSessionsOpener.js';
+import { openSessionByResource } from '../agentSessions/agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 
@@ -116,7 +115,6 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		private readonly editorService: IEditorService,
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly logService: ILogService,
-		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly instantiationService: IInstantiationService,
 	) { }
 
@@ -310,13 +308,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 				this.logService.debug(`[AutomationsListWidget] Opening session: ${sessionResource.toString()}`);
 				const activeEditor = this.editorService.activeEditor;
 				const activeGroupId = this.editorGroupsService.activeGroup.id;
-				const agentSession = this.agentSessionsService.getSession(sessionResource);
-				if (!agentSession) {
-					this.logService.warn(`[AutomationsListWidget] Session not found for ${sessionResource.toString()}`);
-					this.notificationService.error(localize('openRunSessionFailed', "Failed to open automation session"));
-					return;
-				}
-				this.instantiationService.invokeFunction(openSessionFromOpener, agentSession).then(() => {
+				this.instantiationService.invokeFunction(openSessionByResource, sessionResource).then(() => {
 					if (activeEditor) {
 						this.editorService.closeEditor({ editor: activeEditor, groupId: activeGroupId });
 					}
@@ -394,7 +386,6 @@ export class AutomationsListWidget extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -431,7 +422,7 @@ export class AutomationsListWidget extends Disposable {
 
 	private createList(): void {
 		const delegate = new AutomationItemDelegate();
-		const renderer = new AutomationItemRenderer(this, this.hoverService, this.notificationService, this.editorService, this.editorGroupsService, this.logService, this.agentSessionsService, this.instantiationService);
+		const renderer = new AutomationItemRenderer(this, this.hoverService, this.notificationService, this.editorService, this.editorGroupsService, this.logService, this.instantiationService);
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IAutomationListEntry>,
@@ -534,12 +525,14 @@ export class AutomationsListWidget extends Disposable {
 		this.updateList(this.automationService.automations.get());
 		const previousRunId = this.automationService.runsFor(automation.id).get()[0]?.id;
 		try {
-			// The runner does not support cancellation yet.
-			await this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			// Manual runs do not currently expose cancellation.
+			const operation = this.automationRunner.runOnce(automation, 'manual', 0, CancellationToken.None);
+			await operation.whenDispatched;
 			const latestRun = this.automationService.runsFor(automation.id).get()[0];
 			if (latestRun && latestRun.id !== previousRunId && latestRun.status !== 'failed') {
 				status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 			}
+			await operation.whenCompleted;
 		} catch (err) {
 			this.logService.error('[Automations] runNow failed unexpectedly', err);
 		} finally {
