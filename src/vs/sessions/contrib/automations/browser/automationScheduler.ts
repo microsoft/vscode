@@ -149,18 +149,17 @@ export class AutomationSchedulerCore extends Disposable {
 		const perRunCts = new CancellationTokenSource(this._runCts.token);
 		try {
 			if (timeoutMs <= 0) {
-				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token);
+				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted;
 				return;
 			}
 
 			let timedOut = false;
 			await raceTimeout(
-				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token),
+				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted,
 				timeoutMs,
 				() => {
 					timedOut = true;
-					this.logService.warn(`[AutomationScheduler] runOnce for automation ${automation.id} timed out after ${timeoutMs}ms; cancelling.`);
-					perRunCts.cancel();
+					this.logService.warn(`[AutomationScheduler] runOnce for automation ${automation.id} timed out after ${timeoutMs}ms.`);
 				},
 			);
 
@@ -181,6 +180,7 @@ export class AutomationSchedulerCore extends Disposable {
 			} catch (err) {
 				this.logService.warn('[AutomationScheduler] failed to mark timed-out run as failed', err);
 			}
+			perRunCts.cancel();
 		} finally {
 			perRunCts.dispose();
 		}
@@ -252,4 +252,3 @@ function isDue(automation: IAutomation, now: Date): boolean {
 	}
 	return next <= now.getTime();
 }
-

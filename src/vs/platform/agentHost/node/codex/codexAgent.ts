@@ -1099,6 +1099,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		return all.map(t => ({
+			type: 'function' as const,
 			name: t.name,
 			description: t.description ?? '',
 			inputSchema: (t.inputSchema ?? { type: 'object' }) as JsonValue,

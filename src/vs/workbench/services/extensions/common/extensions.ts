@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
+import { IAssignmentService } from '../../../../platform/assignment/common/assignment.js';
 import { getExtensionId, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ImplicitActivationEvents } from '../../../../platform/extensionManagement/common/implicitActivationEvents.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
@@ -325,7 +327,12 @@ export function isProposedApiEnabled(extension: IExtensionDescription, proposal:
 	if (!extension.enabledApiProposals) {
 		return false;
 	}
-	const enabled = extension.enabledApiProposals.includes(proposal);
+	let enabled = extension.enabledApiProposals.includes(proposal);
+	if (!enabled && _proposedApiEnabledResolver?.(extension, proposal)) {
+		// an experiment can grant proposed API access to extension/proposal combinations
+		// that have not declared the proposal via their `enabledApiProposals`-property
+		enabled = true;
+	}
 	if (!enabled) {
 		reportDisabledProposedApiUsage(extension, proposal);
 	}
@@ -376,6 +383,78 @@ function reportDisabledProposedApiUsage(extension: IExtensionDescription, propos
 	}
 	_reportedProposedApiUsages.add(key);
 	reporter({ extensionId: extension.identifier.value, proposalName: proposal });
+}
+
+type ProposedApiEnabledResolver = (extension: IExtensionDescription, proposal: ApiProposalName) => boolean;
+
+let _proposedApiEnabledResolver: ProposedApiEnabledResolver | undefined;
+
+/**
+ * The name of the experiment ("treatment") that can grant proposed API access to
+ * extension/proposal combinations that have not declared the proposal themselves.
+ */
+export const enabledApiProposalsFallbackExperimentName = 'extensionEnabledApiProposalsFallback';
+
+/**
+ * Resolves the value of the {@link enabledApiProposalsFallbackExperimentName}-experiment, or
+ * `undefined` when it does not apply (non-`stable` quality) or cannot be read in time.
+ */
+export async function resolveEnabledApiProposalsFallbackExperiment(assignmentService: IAssignmentService, quality: string | undefined): Promise<string | undefined> {
+	if (quality !== 'stable') {
+		return undefined;
+	}
+	try {
+		// This runs while building the ext host init data (whose promise has no error handling) and
+		// the assignment service can block on its initial network fetch, so cap the wait and swallow
+		// errors: falling back to `undefined` keeps today's behavior and the value is read from the
+		// cache on the next start.
+		return await raceTimeout(assignmentService.getTreatment<string>(enabledApiProposalsFallbackExperimentName), 5000);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Enables the {@link enabledApiProposalsFallbackExperimentName}-experiment which can grant proposed
+ * API access to extension/proposal combinations that have not declared the proposal via their
+ * `enabledApiProposals`-property. It only takes effect on `stable` builds.
+ *
+ * Note that the experiment only applies to extensions that already declare at least one proposal:
+ * an extension with no `enabledApiProposals` at all is never granted access.
+ *
+ * @param value A comma-separated list of `publisher.extension:proposalName` entries. Any combination
+ * that appears here will have {@link isProposedApiEnabled} return `true` even when the extension has
+ * not declared that particular proposal.
+ * @param quality The product quality. The experiment only takes effect when this is `stable`.
+ */
+export function setEnabledApiProposalsFallbackExperiment(value: string | undefined, quality: string | undefined): IDisposable {
+	if (quality !== 'stable' || !value) {
+		return Disposable.None;
+	}
+
+	const allowed = new Set<string>();
+	for (const entry of value.split(',')) {
+		const trimmed = entry.trim();
+		const idx = trimmed.indexOf(':');
+		if (idx <= 0 || idx === trimmed.length - 1) {
+			continue;
+		}
+		const extensionId = ExtensionIdentifier.toKey(trimmed.slice(0, idx));
+		const proposal = trimmed.slice(idx + 1);
+		allowed.add(`${extensionId}:${proposal}`);
+	}
+
+	if (allowed.size === 0) {
+		return Disposable.None;
+	}
+
+	const resolver: ProposedApiEnabledResolver = (extension, proposal) => allowed.has(`${ExtensionIdentifier.toKey(extension.identifier)}:${proposal}`);
+	_proposedApiEnabledResolver = resolver;
+	return toDisposable(() => {
+		if (_proposedApiEnabledResolver === resolver) {
+			_proposedApiEnabledResolver = undefined;
+		}
+	});
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {

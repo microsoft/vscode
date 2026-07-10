@@ -18,7 +18,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from './extHostConfigurat
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from './extHostExtensionActivator.js';
 import { ExtHostStorage, IExtHostStorage } from './extHostStorage.js';
 import { ExtHostWorkspace, IExtHostWorkspace } from './extHostWorkspace.js';
-import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason, IProposedApiUsage, setProposedApiUsageReporter } from '../../services/extensions/common/extensions.js';
+import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason, IProposedApiUsage, setProposedApiUsageReporter, setEnabledApiProposalsFallbackExperiment } from '../../services/extensions/common/extensions.js';
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../services/extensions/common/extensionDescriptionRegistry.js';
 import * as errors from '../../../base/common/errors.js';
 import type * as vscode from 'vscode';
@@ -206,6 +206,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		// report telemetry when an extension attempts to use a proposed API it is not entitled to use
 		this._register(setProposedApiUsageReporter(usage => this._reportProposedApiUsage(usage)));
+
+		// experiment: grant proposed API access to extension/proposal combinations that have not
+		// declared the proposal themselves (only takes effect on `stable`)
+		this._register(setEnabledApiProposalsFallbackExperiment(this._initData.enabledApiProposalsFallback, this._initData.quality));
 	}
 
 	private _reportProposedApiUsage(usage: IProposedApiUsage): void {

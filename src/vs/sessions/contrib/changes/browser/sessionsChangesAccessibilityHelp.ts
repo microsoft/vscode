@@ -34,6 +34,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(localize('sessionsChanges.sessionFilesToggle', "The Other Files header is a button. Press Enter or Space to collapse or expand the list. When expanded, use the arrow keys to move through the files and press Enter to open one: created or deleted files open in an editor, while edited files open as a diff against their pre-session content."));
 		content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use the view's toolbar actions to switch between Tree and List modes."));
+		content.push(localize('sessionsChanges.diffView', "File diffs can be shown side by side or inline. Use the Toggle Diff View command to switch between them{0}.", '<keybinding:workbench.action.agentSessions.toggleInlineView>'));
 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsChanges,
