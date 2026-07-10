@@ -200,6 +200,12 @@ import product from '../../platform/product/common/product.js';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('restoreFullscreen', "Controls whether a window should restore to full screen mode if it was exited in full screen mode.")
 			},
+			'window.removeRecentEntriesWhenUnavailable': {
+				'type': 'boolean',
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('removeRecentEntriesWhenUnavailable', "Controls whether entries are removed from the recently opened list when they cannot be opened, for example because the path no longer exists. Turn this off if paths may only be temporarily unavailable, such as folders on removable or mapped drives.")
+			},
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,

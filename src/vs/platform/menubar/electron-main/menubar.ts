@@ -22,7 +22,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdateService, StateType } from '../../update/common/update.js';
-import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, IWindowSettings, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -575,7 +575,7 @@ export class Menubar extends Disposable {
 					remoteAuthority: item.remoteAuthority
 				})).length > 0;
 
-				if (!success) {
+				if (!success && this.configurationService.getValue<IWindowSettings | undefined>('window')?.removeRecentEntriesWhenUnavailable !== false) {
 					await this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
 				}
 			}
