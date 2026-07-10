@@ -803,7 +803,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			try {
 				const mcpServer = await this.getMcpServer(url);
 				if (mcpServer) {
-					return mcpServer;
+					if (mcpServer.name === name) {
+						return mcpServer;
+					}
+					lastError = new Error(`MCP server lookup for '${name}' returned '${mcpServer.name}'`);
 				}
 			} catch (error) {
 				// Transient/undetermined failure on this endpoint: remember it and still

@@ -126,6 +126,17 @@ suite('McpGalleryService - resolveMcpServersFromGallery', () => {
 		]);
 	});
 
+	test('reports failure (undetermined) when a lookup returns a different server name', async () => {
+		const service = createService(manifest);
+		service.responses.set(serverUrl('io.github.owner/requested'), { name: 'io.github.owner/unrelated' } as IGalleryMcpServer);
+
+		const resolved = await service.resolveMcpServersFromGallery([{ name: 'io.github.owner/requested' }]);
+
+		assert.deepStrictEqual([...resolved.entries()].map(([name, result]) => [name, result.status]), [
+			['io.github.owner/requested', McpGalleryResolveStatus.Failed],
+		]);
+	});
+
 	test('getMcpServersFromGallery only returns matched servers', async () => {
 		const service = createService(manifest);
 		const found = { name: 'io.github.owner/found' } as IGalleryMcpServer;
