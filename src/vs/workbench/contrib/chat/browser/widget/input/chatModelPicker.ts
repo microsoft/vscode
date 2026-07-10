@@ -393,7 +393,8 @@ function createModelAction(
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
 	// shown either inline (promoted) or in a section header (Other Models).
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
-	const textParts = [detail, pricingForDescription].filter(Boolean);
+	const promoDetail = model.metadata.promo ? localize('chat.promo.discount', "{0}% discount", model.metadata.promo.discountPercent) : undefined;
+	const textParts = [detail, promoDetail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
 
 	const action: IActionWidgetDropdownAction & { section?: string } = {
@@ -648,6 +649,18 @@ export function buildModelPickerItems(
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect);
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
+			}
+
+			// --- 1b. Promo models (boosted next to Auto) ---
+			for (const model of models) {
+				if (placed.has(model.identifier) || placed.has(model.metadata.id)) {
+					continue;
+				}
+				if (model.metadata.promo) {
+					markPlaced(model.identifier, model.metadata.id);
+					const { action: promoAction, ariaDescription: promoAriaDesc } = createModelAction(model, selectedModelId, onSelect);
+					items.push(createModelItem(promoAction, model, openerService, undefined, isUBB, promoAriaDesc));
+				}
 			}
 
 			// Precompute group labels needed for inline badges
@@ -1815,13 +1828,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	const titleRow = dom.$('.chat-model-hover-title-row');
 	titleRow.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
 	const tags = dom.$('.chat-model-hover-title-tags');
-	const categoryLabel = !isAuto ? getCategoryLabel(model.metadata.category) : undefined;
+	const categoryLabel = !isAuto && !model.metadata.promo ? getCategoryLabel(model.metadata.category) : undefined;
 	if (categoryLabel) {
 		tags.appendChild(dom.$('span.chat-model-hover-category', undefined, categoryLabel));
 	}
 	const priceCategoryLabel = !isAuto ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
-	// Auto has no fixed price category; when it carries a discount, surface it as
-	// the pill (e.g. "10% discount") so it reads like the other models' cost pill.
 	const badgeLabel = isAuto ? model.metadata.detail : priceCategoryLabel;
 	if (badgeLabel) {
 		const badge = dom.$('span.chat-model-hover-price-badge', undefined, badgeLabel);
@@ -1829,6 +1840,11 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			badge.classList.add('high-cost');
 		}
 		tags.appendChild(badge);
+	}
+	// When a model carries a promo discount, show a discount pill alongside the price category.
+	if (!isAuto && model.metadata.promo) {
+		const discountLabel = localize('chat.promo.discountBadge', "{0}% discount", model.metadata.promo.discountPercent);
+		tags.appendChild(dom.$('span.chat-model-hover-price-badge', undefined, discountLabel));
 	}
 	if (tags.childElementCount > 0) {
 		titleRow.appendChild(tags);
@@ -1848,6 +1864,21 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 			warningContainer.appendChild(rendered.element);
 			container.appendChild(warningContainer);
 		}
+	}
+
+	// --- Promo info ---
+	if (!isAuto && model.metadata.promo) {
+		const promoContainer = dom.$('.chat-model-hover-promo-text');
+		promoContainer.appendChild(renderIcon(Codicon.info));
+		const endsAtDate = new Date(model.metadata.promo.endsAt);
+		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		const promoMessage = model.metadata.promo.message + ' ' + localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
+		const promoMd = new MarkdownString(promoMessage, { isTrusted: false, supportThemeIcons: true });
+		const rendered = disposables.add(renderMarkdown(promoMd, {
+			actionHandler: (link: string) => { void openerService.open(link, { allowCommands: false, fromUserGesture: true }); },
+		}));
+		promoContainer.appendChild(rendered.element);
+		container.appendChild(promoContainer);
 	}
 
 	// --- Cost info ---

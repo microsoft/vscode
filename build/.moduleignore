@@ -28,6 +28,10 @@ fsevents/test/**
 @vscode/deviceid/*.yml
 !@vscode/deviceid/build/Release/*.node
 
+@vscode/fs-copyfile/binding.gyp
+@vscode/fs-copyfile/build/**
+@vscode/fs-copyfile/src/**
+!@vscode/fs-copyfile/build/Release/*.node
 
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**

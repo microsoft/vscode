@@ -312,6 +312,16 @@ export interface ILanguageModelChatMetadata {
 	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
 	 */
 	readonly warningText?: IStringDictionary<string>;
+	/**
+	 * Optional promotional information for this model.
+	 * When present, indicates the model is experiencing a promotional discount.
+	 */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 export namespace ILanguageModelChatMetadata {

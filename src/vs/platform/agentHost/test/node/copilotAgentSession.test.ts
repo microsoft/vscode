@@ -1239,19 +1239,23 @@ suite('CopilotAgentSession', () => {
 			return [{
 				parentToolCallId: signal.parentToolCallId,
 				model: signal.action.usage.model,
+				inputTokens: signal.action.usage.inputTokens,
+				outputTokens: signal.action.usage.outputTokens,
 				totalNanoAiu: (signal.action.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.totalNanoAiu,
 			}];
 		});
 
 		assert.deepStrictEqual(usageSignals, [
 			// Parent-only call → parent aggregate.
-			{ parentToolCallId: undefined, model: 'claude-opus-4.8', totalNanoAiu: 500_000_000 },
-			// First subagent call → parent aggregate grows, plus the subagent component.
-			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 700_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 200_000_000 },
-			// Second subagent call → parent aggregate grows, plus the subagent component.
-			{ parentToolCallId: undefined, model: 'gpt-5.5', totalNanoAiu: 1_000_000_000 },
-			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', totalNanoAiu: 500_000_000 },
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 500_000_000 },
+			// First subagent call → parent aggregate grows but keeps the parent
+			// model/context, plus the subagent component carries the child model.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 700_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 5, outputTokens: 7, totalNanoAiu: 200_000_000 },
+			// Second subagent call → parent aggregate grows but keeps the parent
+			// model/context, plus the subagent component.
+			{ parentToolCallId: undefined, model: 'claude-opus-4.8', inputTokens: 10, outputTokens: 20, totalNanoAiu: 1_000_000_000 },
+			{ parentToolCallId: 'tc-subagent', model: 'gpt-5.5', inputTokens: 6, outputTokens: 8, totalNanoAiu: 500_000_000 },
 		]);
 	});
 
@@ -2390,6 +2394,81 @@ suite('CopilotAgentSession', () => {
 				const action = toolStart.action as ChatToolCallStartAction;
 				assert.strictEqual(action.toolCallId, 'tc-10');
 				assert.strictEqual(action.toolName, 'bash');
+			}
+		});
+
+		test('tool_start carries MCP App UI metadata from the SDK', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-app',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+				toolDescription: {
+					name: 'mcp_tool',
+					_meta: {
+						ui: { resourceUri: 'ui://docs' },
+					},
+				},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
+			if (toolStart && isAction(toolStart, ActionType.ChatToolCallStart)) {
+				const action = toolStart.action as ChatToolCallStartAction;
+				assert.deepStrictEqual(action._meta, {
+					mcpServerName: 'docs',
+					ui: { resourceUri: 'ui://docs' },
+				});
+			}
+		});
+
+		test('tool_start carries the MCP App channel when the server is already ready', async () => {
+			// A tool call cannot begin until its MCP server is Ready, so the
+			// AHP `mcp://` channel is always available at `tool.execution_start`
+			// and is published as part of the initial `_meta.ui` payload.
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+				},
+			});
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'docs',
+				status: 'connected',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-app-channel',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+				arguments: { topic: 'metadata' },
+				toolDescription: {
+					name: 'mcp_tool',
+					_meta: {
+						ui: { resourceUri: 'ui://docs' },
+					},
+				},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
+			if (toolStart && isAction(toolStart, ActionType.ChatToolCallStart)) {
+				const action = toolStart.action as ChatToolCallStartAction;
+				assert.deepStrictEqual({
+					contributor: action.contributor,
+					meta: action._meta,
+				}, {
+					contributor: {
+						kind: ToolCallContributorKind.MCP,
+						customizationId: 'mcp-top-level:copilot:test-session-1:docs',
+					},
+					meta: {
+						mcpServerName: 'docs',
+						toolArguments: '{"topic":"metadata"}',
+						ui: {
+							resourceUri: 'ui://docs',
+							channel: 'mcp://copilot/test-session-1/docs',
+						},
+					},
+				});
 			}
 		});
 

@@ -43,7 +43,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // --- Context Keys ---
@@ -52,8 +51,6 @@ export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoi
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
-/** Set on the specific widget where voice was initiated — used to scope connecting/connected UI to that widget only. */
-const AGENTS_VOICE_INITIATED_HERE = new RawContextKey<boolean>('agentsVoiceInitiatedHere', false);
 
 // --- Context Key Binding ---
 
@@ -66,28 +63,16 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 	constructor(
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
-		let wasConnected = false;
 		this._register(autorun(reader => {
-			const connected = voiceSessionController.isConnected.read(reader);
-			connectedKey.set(connected);
+			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
-			const state = voiceSessionController.voiceState.read(reader);
-			listeningKey.set(state === 'listening');
-
-			// Clear per-widget "initiated here" key when voice disconnects
-			if (wasConnected && !connected) {
-				for (const widget of chatWidgetService.getAllWidgets()) {
-					AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(false);
-				}
-			}
-			wasConnected = connected;
+			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
 		}));
 	}
 }
@@ -148,7 +133,6 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: -10
@@ -192,12 +176,6 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		if (!voiceController.isConnected.get()) {
-			// Mark this widget as the one where voice was initiated
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (widget) {
-				AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(true);
-			}
 			await voiceController.connect(mainWindow);
 		} else {
 			voiceController.pttDown();
@@ -223,7 +201,6 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: -10
@@ -268,7 +245,6 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: -9
@@ -313,7 +289,6 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				// Just before the Disconnect button (order -9) and after the mic/stop button (order -10).
@@ -514,26 +489,26 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by `agents.voice.turn.autoEndMode`."),
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by `agents.voice.turn.autoEndMode`."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.autoEndMode': {
 			type: 'string',
 			enum: ['off', 'vad', 'phrase', 'both'],
-			enumDescriptions: [
+			markdownEnumDescriptions: [
 				nls.localize('agents.voice.turn.autoEndMode.off', "Never end the turn automatically; it ends only when you release (or, in toggle mode, tap again) push-to-talk."),
 				nls.localize('agents.voice.turn.autoEndMode.vad', "End the turn automatically after a period of trailing silence (see `agents.voice.turn.silenceMs`)."),
 				nls.localize('agents.voice.turn.autoEndMode.phrase', "End the turn automatically when a stop phrase is spoken (see `agents.voice.turn.stopPhrases`)."),
 				nls.localize('agents.voice.turn.autoEndMode.both', "End the turn automatically on either trailing silence or a spoken stop phrase."),
 			],
-			description: nls.localize('agents.voice.turn.autoEndMode', "Controls whether and how the voice backend ends a held turn on its own. The backend is the single source of truth for turn-ending: `vad` ends on trailing silence (`agents.voice.turn.silenceMs`), `phrase` ends on a spoken stop phrase (`agents.voice.turn.stopPhrases`), `both` enables either, and `off` requires you to end the turn manually."),
+			markdownDescription: nls.localize('agents.voice.turn.autoEndMode', "Controls whether and how the voice backend ends a held turn on its own. The backend is the single source of truth for turn-ending: `vad` ends on trailing silence (`agents.voice.turn.silenceMs`), `phrase` ends on a spoken stop phrase (`agents.voice.turn.stopPhrases`), `both` enables either, and `off` requires you to end the turn manually."),
 			default: 'vad',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {
 			type: 'number',
-			description: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn. Applies only when `agents.voice.turn.autoEndMode` is `vad` or `both`; ignored otherwise. The backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth."),
+			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn. Applies only when `agents.voice.turn.autoEndMode` is `vad` or `both`; ignored otherwise. The backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth."),
 			default: 800,
 			minimum: 200,
 			maximum: 5000,
@@ -542,7 +517,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.turn.stopPhrases': {
 			type: 'array',
 			items: { type: 'string' },
-			description: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Applies only when `agents.voice.turn.autoEndMode` is `phrase` or `both`; ignored otherwise. The backend strips the matched phrase from the transcript before it reaches the agent."),
+			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Applies only when `agents.voice.turn.autoEndMode` is `phrase` or `both`; ignored otherwise. The backend strips the matched phrase from the transcript before it reaches the agent."),
 			default: ['send it'],
 			scope: ConfigurationScope.APPLICATION,
 		},

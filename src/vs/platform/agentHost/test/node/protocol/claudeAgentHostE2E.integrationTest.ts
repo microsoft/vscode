@@ -4,30 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Claude SDK integration tests.
+ * Agent host end-to-end tests (Claude).
  *
- * The cross-provider portion lives in {@link defineSharedRealSdkTests}; this
+ * The cross-provider portion lives in {@link defineAgentHostE2ETests}; this
  * file would layer on Claude-specific assertions as the provider grows.
  *
- * Disabled by default. To run, set `AGENT_HOST_REAL_SDK=1`. The Claude SDK
- * is resolved automatically from the dev dependency in
- * `node_modules/@anthropic-ai/claude-agent-sdk`.
+ * Runs by default in deterministic replay mode against committed fixtures (no
+ * token, no network). To re-record against real CAPI, set
+ * `AGENT_HOST_REPLAY_RECORD=1`. The Claude SDK is resolved automatically from
+ * the dev dependency in `node_modules/@anthropic-ai/claude-agent-sdk`.
  *
- *   AGENT_HOST_REAL_SDK=1 ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/protocol/claudeRealSdk.integrationTest.ts
+ *   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+ *     src/vs/platform/agentHost/test/node/protocol/claudeAgentHostE2E.integrationTest.ts
  *
- * **Authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
+ * **Recording authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
  * token`. Either works — the agent host's `CopilotApiService` discovers the
  * user's CAPI endpoint via `GET /copilot_internal/user` and uses the GitHub
  * token directly as a Bearer credential, the same pattern as the
- * `@github/copilot` CLI.
+ * `@github/copilot` CLI. Replay needs no credential.
  */
 
 import { existsSync } from 'fs';
 import { join } from '../../../../../base/common/path.js';
-import { defineSharedRealSdkTests, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
-
-const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
+import { defineAgentHostE2ETests, type IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
 
 /**
  * Resolve the path of the locally installed `@anthropic-ai/claude-agent-sdk`
@@ -42,27 +41,26 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
  * locate the package by joining `process.cwd()` with the well-known path.
  * Tests are always invoked from the repo root.
  *
- * Returns `undefined` silently when the directory is missing — only called
- * once the suite has already opted in via env vars, so the suite's own
- * skip-if-not-found path surfaces the missing dep.
+ * Returns `undefined` when the directory is missing, which disables the suite.
  */
 function resolveClaudeSdkRoot(): string | undefined {
 	const sdkPackageDir = join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk');
 	return existsSync(sdkPackageDir) ? process.cwd() : undefined;
 }
 
-// Resolve lazily: if the suite isn't opted in, skip the filesystem probe so a
-// missing SDK directory can't trip a disabled run.
-const CLAUDE_SDK_ROOT = REAL_SDK_ENABLED ? resolveClaudeSdkRoot() : undefined;
+// The shared suite runs by default in deterministic replay mode; recording is
+// opt-in via `AGENT_HOST_REPLAY_RECORD=1`. Both need the SDK on disk (it drives
+// the HTTP the proxy answers), so resolve it unconditionally.
+const CLAUDE_SDK_ROOT = resolveClaudeSdkRoot();
 
-const CLAUDE_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket — Real Claude SDK',
+const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Claude',
 	provider: 'claude',
 	scheme: 'claude',
 	shellToolName: 'Bash',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
-	enabled: REAL_SDK_ENABLED && !!CLAUDE_SDK_ROOT,
+	enabled: !!CLAUDE_SDK_ROOT,
 	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Claude has not landed worktree isolation yet (deferred to Phase 12).
 	// The shared suite skips that test when the flag is false.
@@ -74,4 +72,4 @@ const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	supportsPlanMode: false,
 };
 
-defineSharedRealSdkTests(CLAUDE_CONFIG);
+defineAgentHostE2ETests(CLAUDE_CONFIG);

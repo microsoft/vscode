@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -626,8 +626,8 @@ export class AgentService extends Disposable implements IAgentService {
 					const sessionStr = s.session.toString();
 					const changesetKeys = this._changesetCoordinator.getListMetadataKeys(sessionStr);
 					const metadataKeys: Record<string, true> = changesetKeys
-						? { customTitle: true, isRead: true, isArchived: true, isDone: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
-						: { customTitle: true, isRead: true, isArchived: true, isDone: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS };
+						? { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
+						: { customTitle: true, isRead: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [PEER_CHAT_BACKING_METADATA_KEY]: true, ...GIT_DB_METADATA_KEYS };
 					const m = await ref.object.getMetadataObject(metadataKeys);
 					// This session is an internal peer-chat backing (e.g. a
 					// Claude peer chat's SDK session, enumerated by the agent's
@@ -644,10 +644,10 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m.isRead !== undefined) {
 						updated = { ...updated, isRead: m.isRead === 'true' };
 					}
-					if (m.isArchived !== undefined) {
-						updated = { ...updated, isArchived: m.isArchived === 'true' };
-					} else if (m.isDone !== undefined) {
-						updated = { ...updated, isArchived: m.isDone === 'true' };
+					if (m[AH_META_IS_ARCHIVED_DB_KEY] !== undefined) {
+						updated = { ...updated, isArchived: m[AH_META_IS_ARCHIVED_DB_KEY] === 'true' };
+					} else if (m[AH_META_IS_DONE_DB_KEY] !== undefined) {
+						updated = { ...updated, isArchived: m[AH_META_IS_DONE_DB_KEY] === 'true' };
 					}
 					if (m[META_GIT_STATE]) {
 						try {
@@ -2054,8 +2054,8 @@ export class AgentService extends Disposable implements IAgentService {
 						const m = await db.object.getMetadataObject({
 							customTitle: true,
 							isRead: true,
-							isArchived: true,
-							isDone: true,
+							[AH_META_IS_ARCHIVED_DB_KEY]: true,
+							[AH_META_IS_DONE_DB_KEY]: true,
 							configValues: true,
 							[AH_META_WORKSPACELESS_DB_KEY]: true,
 							...GIT_DB_METADATA_KEYS,
@@ -2067,10 +2067,10 @@ export class AgentService extends Disposable implements IAgentService {
 						if (m.isRead !== undefined) {
 							isRead = m.isRead === 'true';
 						}
-						if (m.isArchived !== undefined) {
-							isArchived = m.isArchived === 'true';
-						} else if (m.isDone !== undefined) {
-							isArchived = m.isDone === 'true';
+						if (m[AH_META_IS_ARCHIVED_DB_KEY] !== undefined) {
+							isArchived = m[AH_META_IS_ARCHIVED_DB_KEY] === 'true';
+						} else if (m[AH_META_IS_DONE_DB_KEY] !== undefined) {
+							isArchived = m[AH_META_IS_DONE_DB_KEY] === 'true';
 						}
 
 						changesetMetadata = m as Record<string, string | undefined>;

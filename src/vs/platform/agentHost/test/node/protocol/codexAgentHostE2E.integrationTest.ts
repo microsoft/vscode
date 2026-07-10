@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Codex app-server integration tests.
+ * Agent host end-to-end tests (Codex).
  *
  * Disabled by default. To run, set `AGENT_HOST_REAL_CODEX=1`. The Codex CLI
  * is resolved automatically from the dev dependency in
  * `node_modules/@openai/codex`.
  *
  *   AGENT_HOST_REAL_CODEX=1 ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/protocol/codexRealSdk.integrationTest.ts
+ *     src/vs/platform/agentHost/test/node/protocol/codexAgentHostE2E.integrationTest.ts
  *
  * **Authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
  * token`. The agent host's Codex proxy forwards the app-server's Responses API
@@ -24,10 +24,14 @@ import assert from 'assert';
 import { join } from '../../../../../base/common/path.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MessageKind, PendingMessageKind, ChatInputResponseKind, type ChatInputRequest } from '../../../common/state/sessionState.js';
-import { createRealSession, defineSharedRealSdkTests, dispatchTurn, getAcceptedAnswers, type IRealSdkProviderConfig } from './realSdkTestHelpers.js';
+import { createRealSession, defineAgentHostE2ETests, dispatchTurn, getAcceptedAnswers, type IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
 import { getActionEnvelope, isActionNotification, startRealServer, TestProtocolClient, type IServerHandle } from './testHelpers.js';
 import { URI } from '../../../../../base/common/uri.js';
 
+// The cross-provider shared suite runs by default in deterministic replay; the
+// Codex-specific steering coverage below exercises real-time, multi-thread
+// behaviors (mid-turn steering, thread restarts, archive/truncate) that are not
+// deterministically reproducible, so it stays gated behind a real-run flag.
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
 function resolveCodexSdkRoot(): string | undefined {
@@ -35,29 +39,37 @@ function resolveCodexSdkRoot(): string | undefined {
 	return existsSync(sdkPackageDir) ? process.cwd() : undefined;
 }
 
-const CODEX_SDK_ROOT = REAL_CODEX_ENABLED ? resolveCodexSdkRoot() : undefined;
+// The shared suite runs by default in deterministic replay mode; recording is
+// opt-in via `AGENT_HOST_REPLAY_RECORD=1`. Both need the Codex CLI on disk (it
+// drives the /responses traffic the proxy answers), so resolve it always.
+const CODEX_SDK_ROOT = resolveCodexSdkRoot();
 
-const CODEX_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket - Real Codex App Server',
+const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Codex',
 	provider: 'codex',
 	scheme: 'codex',
 	shellToolName: 'shell',
 	subagentToolNames: [],
 	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: REAL_CODEX_ENABLED && !!CODEX_SDK_ROOT,
+	enabled: !!CODEX_SDK_ROOT,
 	codexSdkRoot: CODEX_SDK_ROOT,
 	supportsWorktreeIsolation: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
+	// Codex's `exec_command` shell tool call is not emitted by the bundled Codex
+	// CLI on Windows during replay, so the shell-permission test is POSIX-only.
+	shellPermissionReplayUnstableOnWindows: true,
 };
 
-defineSharedRealSdkTests(CODEX_CONFIG);
+defineAgentHostE2ETests(CODEX_CONFIG);
 
 // Codex-specific steering coverage. Steering is wired via `turn/steer`; the
 // agent buffers the message and promotes the codex `userMessage` echo into a
-// fresh visible turn (clearing the pending bubble). This exercises the full
-// path against the real app-server.
-(CODEX_CONFIG.enabled ? suite : suite.skip)('Protocol WebSocket - Real Codex App Server - steering', function () {
+// fresh visible turn (clearing the pending bubble). These exercise real-time,
+// stateful app-server behaviors (mid-turn steering, thread restarts, archive /
+// truncate) that are not deterministically reproducible, so they run only
+// against the live app-server (`AGENT_HOST_REAL_CODEX=1`).
+(REAL_CODEX_ENABLED && !!CODEX_SDK_ROOT ? suite : suite.skip)('Agent Host E2E — Codex - steering', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;

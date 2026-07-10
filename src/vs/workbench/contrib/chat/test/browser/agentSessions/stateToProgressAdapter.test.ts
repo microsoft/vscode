@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -838,6 +838,51 @@ suite('stateToProgressAdapter', () => {
 				assert.strictEqual(invocation.toolSpecificData.description, 'Review code');
 				assert.strictEqual(invocation.toolSpecificData.agentName, 'code-reviewer');
 			}
+		});
+
+		test('sets MCP App toolSpecificData for running MCP tool calls', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			}));
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: { topic: 'metadata' },
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					serverId: 'docs-customization',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
+		});
+
+		test('does not set MCP App toolSpecificData for a streaming MCP tool call', () => {
+			// A `Streaming` call is created in the UI's `Executing` state before
+			// it may transition to confirmation, so the App must not mount yet.
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				status: ToolCallStatus.Streaming,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			});
+
+			assert.strictEqual(invocation.toolSpecificData, undefined);
 		});
 
 		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
@@ -1830,6 +1875,57 @@ suite('stateToProgressAdapter', () => {
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				assert.strictEqual(invocation.toolSpecificData.modelName, 'Claude Sonnet 4', 'model name should survive a toolSpecificData refresh');
 			}
+		});
+
+		test('mounts MCP App toolSpecificData when a confirmed MCP tool starts running', () => {
+			// The MCP App channel is present in `_meta.ui` from the first tool
+			// state (a tool cannot start until its server is Ready), but the App
+			// is only mounted once the tool leaves confirmation and starts
+			// running.
+			const meta = {
+				ui: {
+					resourceUri: 'ui://docs/app',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			};
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				status: ToolCallStatus.PendingConfirmation,
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: meta,
+			});
+			// Confirmation state carries the raw input but does not mount the App.
+			assert.deepStrictEqual(invocation.toolSpecificData, { kind: 'input', rawInput: { topic: 'metadata' } });
+
+			let stateChanged = false;
+			const disposable = autorun(r => {
+				invocation.state.read(r);
+				stateChanged = true;
+			});
+			stateChanged = false;
+
+			updateRunningToolSpecificData(invocation, createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: meta,
+			}));
+
+			assert.strictEqual(stateChanged, true, 'state observers should be notified');
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: { topic: 'metadata' },
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					serverId: 'docs-customization',
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
+			disposable.dispose();
 		});
 
 		test('does not notify when no subagent content is present', () => {

@@ -130,6 +130,39 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 	};
 }
 
+function getToolRawInput(tc: ToolCallState): unknown {
+	try {
+		return tc.status === ToolCallStatus.Streaming || !tc.toolInput ? {} : JSON.parse(tc.toolInput);
+	} catch {
+		return { input: tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput };
+	}
+}
+
+function buildMcpAppToolInputData(tc: ToolCallState, sessionResource: URI, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
+	const mcpAppData = getMcpAppData(tc, sessionResource);
+	if (!mcpAppData) {
+		return undefined;
+	}
+	return {
+		kind: 'input',
+		rawInput: existingRawInput ?? getToolRawInput(tc),
+		mcpAppData,
+	};
+}
+
+function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | undefined): boolean {
+	if (a?.kind !== b?.kind || a?.resourceUri !== b?.resourceUri) {
+		return false;
+	}
+	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
+		return a.serverId === b.serverId && a.channel === b.channel;
+	}
+	if (a?.kind === 'local' && b?.kind === 'local') {
+		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
+	}
+	return a === b;
+}
+
 /**
  * Known tool names that spawn subagent sessions. Used as a client-side
  * fallback when the server hasn't set `_meta.toolKind` (e.g. sessions
@@ -1225,12 +1258,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else {
 		toolSpecificData = buildSessionCreatedToolData(tc);
 		if (!toolSpecificData) {
-			const mcpAppData = getMcpAppData(tc, sessionResource);
-			if (mcpAppData) {
-				let rawInput: unknown;
-				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput, mcpAppData };
-			}
+			toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
 		}
 	}
 
@@ -1804,6 +1832,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
+	} else if (tc.status !== ToolCallStatus.Streaming) {
+		invocation.toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
 	}
 
 	return invocation;
@@ -1850,6 +1880,23 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
 			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
+
+	// Mount the MCP App once the tool starts running. The channel is present
+	// in `_meta.ui` from the first tool state (a tool cannot start until its
+	// MCP server is Ready), but confirmation-gated tools are created without
+	// `mcpAppData` (see `toolCallStateToInvocation`), so this is where the App
+	// first appears for them. `buildMcpAppToolInputData` returns `undefined`
+	// for non-MCP tools (search, terminal, …), so those fall through to the
+	// handling below.
+	const existingInput = existing.toolSpecificData?.kind === 'input' ? existing.toolSpecificData : undefined;
+	const nextInput = buildMcpAppToolInputData(tc, sessionResource, existingInput?.rawInput);
+	if (nextInput) {
+		if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, nextInput.mcpAppData)) {
+			existing.toolSpecificData = nextInput;
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1978,15 +2025,17 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted) {
-		const mcpAppData = getMcpAppData(tc, backendSession);
-		if (mcpAppData) {
+		const mcpAppInput = buildMcpAppToolInputData(
+			tc,
+			backendSession,
+			invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData.rawInput : undefined,
+		);
+		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
-			let rawInput: unknown = existingInput?.rawInput;
-			if (rawInput === undefined) {
-				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
+			invocation.toolSpecificData = mcpAppInput;
+			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
+				invocation.notifyToolSpecificDataChanged();
 			}
-			invocation.toolSpecificData = { kind: 'input', rawInput, mcpAppData };
-			invocation.notifyToolSpecificDataChanged();
 		}
 	}
 

@@ -2860,6 +2860,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.checkpoint-file-changes-disclosure {
 		width: 100%;
+		interpolate-size: allow-keywords;
+
+		&::details-content {
+			block-size: 0;
+			overflow: hidden;
+			opacity: 0;
+			transition:
+				block-size 180ms cubic-bezier(0.2, 0, 0, 1),
+				opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+				content-visibility 180ms allow-discrete;
+		}
+
+		&[open]::details-content {
+			block-size: auto;
+			opacity: 1;
+		}
 	}
 
 	.chat-view-changes-icon {
@@ -2981,6 +2997,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.deletions {
 		color: var(--vscode-chat-linesRemovedForeground);
+	}
+}
+
+.monaco-reduce-motion .checkpoint-file-changes-disclosure::details-content,
+.monaco-workbench.monaco-reduce-motion .checkpoint-file-changes-disclosure::details-content {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.checkpoint-file-changes-disclosure::details-content {
+		transition: none;
 	}
 }
 
@@ -3235,16 +3262,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-collapsible-hover-chevron {
 	font-size: 12px;
 	opacity: 0;
-	transition: opacity 0.1s ease-in-out;
+	transform: rotate(0deg);
+	transform-origin: center;
+	transition:
+		opacity 100ms ease-in-out,
+		transform 180ms cubic-bezier(0.2, 0, 0, 1);
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-collapsible-hover-chevron.codicon-chevron-down {
+.chat-collapsible-hover-chevron.expanded {
 	opacity: 1;
+	transform: rotate(90deg);
 }
 
 .interactive-session .chat-used-context-label .monaco-button:hover .chat-collapsible-hover-chevron {
 	opacity: 1;
+}
+
+.monaco-reduce-motion .chat-collapsible-hover-chevron,
+.monaco-workbench.monaco-reduce-motion .chat-collapsible-hover-chevron {
+	transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-collapsible-hover-chevron {
+		transition: none;
+	}
 }
 
 .interactive-item-container .progress-container {
@@ -4520,6 +4563,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-warning-text p {
+	margin: 0;
+}
+
+.chat-model-hover-promo-text {
+	display: flex;
+	gap: 6px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 4px;
+	padding: 6px 8px;
+}
+
+.chat-model-hover-promo-text > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.chat-model-hover-promo-text p {
 	margin: 0;
 }
 

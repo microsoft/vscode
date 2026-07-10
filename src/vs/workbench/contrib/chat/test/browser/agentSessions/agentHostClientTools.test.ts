@@ -33,6 +33,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -489,6 +490,7 @@ suite('AgentHostClientTools', () => {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
 			});
+			instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			instantiationService.stub(IAgentHostImportConversationStore, {
 				set: () => { },

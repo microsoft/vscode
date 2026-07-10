@@ -4,89 +4,93 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Copilot SDK integration tests.
+ * Agent host end-to-end tests (Copilot).
  *
- * The cross-provider portion lives in {@link defineSharedRealSdkTests}; this
+ * The cross-provider portion lives in {@link defineAgentHostE2ETests}; this
  * file layers on Copilot-specific assertions (cost metadata, cd-prefix
  * stripping).
  *
- * Disabled by default. To run them, set `AGENT_HOST_REAL_SDK=1`:
+ * These run by default in deterministic replay mode against committed YAML
+ * fixtures (no token, no network). To re-record the fixtures against real CAPI,
+ * set `AGENT_HOST_REPLAY_RECORD=1`:
  *
- *   AGENT_HOST_REAL_SDK=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotRealSdk.integrationTest.ts
+ *   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
  *
- * Authentication: By default the token is obtained from `gh auth token`.
- * You can override it by setting `GITHUB_TOKEN=ghp_xxx`.
+ * Recording auth: the token is obtained from `gh auth token`, or override with
+ * `GITHUB_TOKEN=ghp_xxx`. Replay needs no credential.
  *
- * SAFETY: These tests create real agent sessions backed by the Copilot SDK.
+ * SAFETY: Recording creates real agent sessions backed by the Copilot SDK.
  * Prompts are kept to read-only questions, safe `echo` commands, and isolated
  * temp directories.
  */
 
 import assert from 'assert';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { tmpdir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type MessageAttachment } from '../../../common/state/sessionState.js';
 import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
-	createRealSession, defineSharedRealSdkTests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
-	type IRealSdkProviderConfig,
-} from './realSdkTestHelpers.js';
+	capiReplayFor, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
+	type IAgentHostE2EProviderConfig,
+} from './agentHostE2ETestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
-const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
-
-const COPILOT_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket — Real Copilot SDK',
+const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Copilot',
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
 	subagentToolNames: ['task'],
 	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: REAL_SDK_ENABLED,
+	// The shared suite runs by default in deterministic replay mode (tokenless,
+	// against committed fixtures). Recording new fixtures is opt-in via
+	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
+	enabled: true,
 	supportsWorktreeIsolation: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
 };
 
-defineSharedRealSdkTests(COPILOT_CONFIG);
+defineAgentHostE2ETests(COPILOT_CONFIG);
 
-(REAL_SDK_ENABLED ? suite : suite.skip)('Protocol WebSocket — Real Copilot SDK (Copilot-specific)', function () {
+suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
-	let userHomeDir: string;
 
-	suiteSetup(async function () {
-		this.timeout(60_000);
-		userHomeDir = await mkdtemp(`${tmpdir()}/ahp-customizations-home-`);
-		server = await startRealServer({ homeDir: userHomeDir });
-	});
-
-	suiteTeardown(function () {
-		server?.process.kill();
-	});
-
+	// Per-test server fronted by the record/replay proxy: these tests replay
+	// committed fixtures by default (tokenless) and record against real CAPI
+	// with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite.
 	setup(async function () {
-		this.timeout(30_000);
-		if (!tempDirs.includes(userHomeDir)) {
-			tempDirs.push(userHomeDir);
-		}
+		this.timeout(60_000);
+		server = await startRealServer({
+			homeDir: homedir(),
+			capiReplay: capiReplayFor(COPILOT_CONFIG.provider, this.currentTest?.title ?? 'unknown'),
+		});
 		client = new TestProtocolClient(server.port);
 		await client.connect();
 	});
 
 	teardown(async function () {
+		this.timeout(60_000);
 		for (const session of createdSessions) {
 			try {
-				await client.call('disposeSession', { session }, 5000);
+				await client.call('disposeSession', { session }, 30_000);
 			} catch { /* best-effort */ }
 		}
 		createdSessions.length = 0;
 		client.close();
+		// Flush the recording / surface strict replay cache-misses; kill even if
+		// the strict check throws.
+		try {
+			await server?.capiReplay?.stop();
+		} finally {
+			server?.process.kill();
+		}
 
 		for (const dir of tempDirs) {
 			try {

@@ -82,6 +82,7 @@ import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocatio
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
@@ -194,6 +195,22 @@ function userOriginMessage(text: string, attachments: readonly MessageAttachment
 	return attachments?.length
 		? { text, origin: { kind: MessageKind.User }, attachments: [...attachments] }
 		: { text, origin: { kind: MessageKind.User } };
+}
+
+/**
+ * Extracts a user-facing message from a session-load failure so the actual cause
+ * (e.g. a git worktree-recreation error) is shown instead of a generic message.
+ * Strips the `Failed to restore session <uri>: ` wrapper that `AgentService`
+ * adds around restore failures. Returns `undefined` when no message is available.
+ */
+export function unwrapSessionLoadErrorMessage(err: unknown): string | undefined {
+	const message = err instanceof Error ? err.message : (typeof err === 'string' ? err : undefined);
+	if (!message) {
+		return undefined;
+	}
+	// The session URI in the prefix contains `scheme:/…` (colon-slash), never
+	// `: ` (colon-space), so the non-greedy match stops at the wrapper separator.
+	return message.replace(/^Failed to restore session .+?: /, '');
 }
 
 /**
@@ -610,6 +627,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
+	/**
+	 * Per-session set of MCP server ids that already had an authentication
+	 * prompt surfaced in the current conversation. A server is removed from the
+	 * set once it reaches the running state ({@link McpServerStatus.Ready}), so
+	 * that a later auth requirement for the same server prompts again instead of
+	 * the prompt repeating on every message.
+	 */
+	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
@@ -670,9 +695,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 	) {
 		super();
 		this._config = config;
+
+		// Drop MCP servers from the per-session surfaced set once they reach the
+		// running state so a later auth requirement for the same server prompts
+		// again.
+		this._register(this._customizationService.onDidChangeCustomizations(() => this._reconcileSurfacedMcpAuthServers()));
 
 		this._register(autorun(reader => {
 			const defs = this._activeClientService.getClientTools(this._config.sessionType).read(reader);
@@ -885,6 +916,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// separate chat channel, so reading them before the chat
 					// subscription lands would yield an empty history.
 					await this._whenSubscriptionHydrated(sub, token);
+					// A failed subscription surfaces as an `Error` value; rethrow it
+					// so the real reason (e.g. the working directory no longer
+					// exists) is logged and rendered instead of a generic message.
+					if (sub.value instanceof Error) {
+						throw sub.value;
+					}
 					const rawState = this._getRawSessionState(resolvedSession.toString());
 					if (!rawState) {
 						throw new Error(`Session state did not hydrate for ${resolvedSession.toString()}`);
@@ -959,6 +996,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				} catch (err) {
 					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+					// Surface a hard load failure as a visible chat error instead of
+					// a silently empty session. Only when nothing else rendered, so a
+					// partially-hydrated history isn't clobbered. A bare response is
+					// dropped without a preceding request, so anchor it with a
+					// system-initiated request (renders as a compact notice, not a
+					// user bubble) and attach the error to its response. Prefer the
+					// underlying error message (e.g. the git worktree-recreation
+					// failure) so the user sees the actual cause, falling back to a
+					// generic message.
+					if (history.length === 0) {
+						history.push({
+							type: 'request',
+							prompt: '',
+							participant: this._config.agentId,
+							isSystemInitiated: true,
+							systemInitiatedLabel: localize('agentHost.sessionLoadFailedLabel', "Couldn't open session"),
+						});
+						history.push({
+							type: 'response',
+							parts: [],
+							participant: this._config.agentId,
+							errorDetails: { message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded.") },
+						});
+					}
 				}
 			}
 		} finally {
@@ -996,6 +1057,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
+				this._surfacedMcpAuthServers.delete(sessionResource);
 				const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 				this._chatURIsBySessionResource.delete(sessionResource);
 				if (chatURI) {
@@ -1878,35 +1940,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// own view, not the parent.
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
-			let mcpAuthPart: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
-			let mcpAuthRunId = 0;
 
-			store.add(autorun(reader => {
-				const pendingAuth = mcpAuthRequired$.read(reader);
-				const runId = ++mcpAuthRunId;
-				this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
-					// Ignore stale completions: a newer run has superseded this one
-					// (guards against out-of-order resolution of the async filter).
-					if (runId !== mcpAuthRunId) {
-						return;
-					}
-					// Don't emit an empty prompt: only surface the part once there is
-					// something to authenticate, or to update/hide a live prompt.
-					if (!servers.length && (!mcpAuthPart || mcpAuthPart.isUsed)) {
-						return;
-					}
-					if (!mcpAuthPart || mcpAuthPart.isUsed) {
-						mcpAuthPart = {
-							kind: 'mcpAuthenticationRequired',
-							sessionResource: opts.sessionResource.toJSON(),
-							isUsed: false,
-							servers: observableValue('mcpAuthNeededServers', []),
-						};
-						opts.sink([mcpAuthPart]);
-					}
-					mcpAuthPart.servers.set(servers.slice(), undefined);
-				});
-			}));
+			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
 
 			// Surface a "Starting MCP servers …" progress hint when servers
 			// remain in the `Starting` state past a short grace period after the
@@ -2131,6 +2166,100 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		return store;
+	}
+
+	/**
+	 * Surfaces the "MCP server … requires authentication" prompt for a turn.
+	 *
+	 * Each server is prompted at most once per conversation: {@link mcpAuthRequired$}
+	 * is session-wide, so without this guard the prompt would repeat on every
+	 * message. The per-session {@link _surfacedMcpAuthServers surfaced set} tracks
+	 * which servers were already prompted; it is pruned by
+	 * {@link _reconcileSurfacedMcpAuthServers} once a server reaches the running
+	 * state, so a server that is re-required after being authenticated (e.g.
+	 * after a restart) prompts again.
+	 *
+	 * The emitted part lists only the servers it introduced and shrinks as they
+	 * authenticate.
+	 */
+	private _setupMcpAuthPrompt(
+		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		let part: IChatMcpAuthenticationRequired & { servers: ISettableObservable<IChatMcpAuthenticationRequiredServer[]> } | undefined;
+		let ownedIds = new Set<string>();
+		let runId = 0;
+
+		store.add(autorun(reader => {
+			const pendingAuth = mcpAuthRequired$.read(reader);
+			const currentRunId = ++runId;
+			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
+				// Ignore stale completions: a newer run has superseded this one
+				// (guards against out-of-order resolution of the async filter).
+				if (currentRunId !== runId) {
+					return;
+				}
+				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
+				const newServers = servers.filter(server => !surfaced.has(server.id));
+				// Nothing new to prompt and no live prompt to update/hide.
+				if (!newServers.length && (!part || part.isUsed)) {
+					return;
+				}
+				if (!part || part.isUsed) {
+					ownedIds = new Set();
+					part = {
+						kind: 'mcpAuthenticationRequired',
+						sessionResource: opts.sessionResource.toJSON(),
+						isUsed: false,
+						servers: observableValue('mcpAuthNeededServers', []),
+					};
+					opts.sink([part]);
+				}
+				for (const server of newServers) {
+					surfaced.add(server.id);
+					ownedIds.add(server.id);
+				}
+				part.servers.set(servers.filter(server => ownedIds.has(server.id)), undefined);
+			});
+		}));
+	}
+
+	/**
+	 * Returns the mutable set of MCP server ids already surfaced for
+	 * authentication in the given session, creating it on first use.
+	 */
+	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
+		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
+		if (!surfaced) {
+			surfaced = new Set<string>();
+			this._surfacedMcpAuthServers.set(sessionResource, surfaced);
+		}
+		return surfaced;
+	}
+
+	/**
+	 * Prunes servers that reached the running ({@link McpServerStatus.Ready})
+	 * state from every session's {@link _surfacedMcpAuthServers surfaced set} so
+	 * a subsequent auth requirement surfaces a fresh prompt instead of being
+	 * suppressed. Only the running state counts as actioned — a server that
+	 * merely left {@link McpServerStatus.AuthRequired} for an error/stopped
+	 * state was not authenticated and stays suppressed.
+	 */
+	private _reconcileSurfacedMcpAuthServers(): void {
+		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
+			if (surfaced.size === 0) {
+				continue;
+			}
+			const ready = new Set(this._customizationService.getMcpServers(sessionResource)
+				.filter(server => server.status === McpServerStatus.Ready)
+				.map(server => server.id));
+			for (const id of surfaced) {
+				if (ready.has(id)) {
+					surfaced.delete(id);
+				}
+			}
+		}
 	}
 
 	private async _filterAutoGrantedMcpAuthentication(sessionResource: URI, servers: readonly IChatMcpAuthenticationRequiredServer[]): Promise<readonly IChatMcpAuthenticationRequiredServer[]> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Copilot SDK integration tests running on a mocked LLM.
+ * Agent host end-to-end tests (Copilot, mocked LLM).
  */
 
 import assert from 'assert';
@@ -14,11 +14,11 @@ import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { buildDefaultChatUri, ResponsePartKind, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../common/agentService.js';
-import { createRealSession, dispatchTurn, IRealSdkProviderConfig } from './realSdkTestHelpers.js';
+import { createRealSession, dispatchTurn, IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
 import { fetchSessionWithChat, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
-export const COPILOT_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket — Real Copilot SDK Mocked LLM',
+export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Copilot (Mocked LLM)',
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
@@ -31,7 +31,7 @@ export const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
 };
 
-suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', function () {
+suite('Agent Host E2E — Copilot, Mocked LLM (Copilot-specific)', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -102,9 +102,9 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot-specific)', 
  * {@link AgentHostSessionReleaseGraceMsEnvVar} grace so the release fires
  * promptly after the last subscriber drops (production defaults to 30s). Kept
  * in its own suite/server so the short grace can't perturb the timing of the
- * other real-SDK suites.
+ * other agent host e2e suites.
  */
-suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (idle release)', function () {
+suite('Agent Host E2E — Copilot, Mocked LLM (idle release)', function () {
 
 	// Short enough that a post-unsubscribe wait reliably outlasts it, long
 	// enough that the intra-test subscribe calls in createRealSession don't race it.

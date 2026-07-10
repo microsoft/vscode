@@ -32,6 +32,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -131,6 +132,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(this._renderChangesHeader(header, stats, showChanges));
 		this._register(this._renderPreviewAction(header, previewFiles, showPreview, resourceLabels));
 		this._register(this._renderChevron(header, details, showChanges));
+		this._register(dom.addDisposableListener(header, 'click', () => {
+			root.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		}));
 
 		// Only feed diffs into the list when the changes summary is shown, so the
 		// disclosure stays empty when just the preview action is enabled. Each
@@ -229,8 +233,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		const setExpansionState = () => {
 			header.setAttribute('aria-expanded', String(details.open));
-			chevron.classList.toggle('codicon-chevron-right', !details.open);
-			chevron.classList.toggle('codicon-chevron-down', details.open);
+			chevron.classList.toggle('expanded', details.open);
 		};
 		setExpansionState();
 

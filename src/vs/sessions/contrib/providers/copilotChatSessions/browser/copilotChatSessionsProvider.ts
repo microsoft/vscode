@@ -1751,6 +1751,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				longContextCacheCost: modelMetadata?.longContextCacheCost,
 				longContextCacheWriteCost: modelMetadata?.longContextCacheWriteCost,
 				priceCategory: modelMetadata?.priceCategory,
+				promo: modelMetadata?.promo,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
 				capabilities: modelMetadata?.capabilities ? {

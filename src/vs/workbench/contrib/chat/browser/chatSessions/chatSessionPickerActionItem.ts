@@ -184,6 +184,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					longContextCacheCost: optionItem.modelMetadata.longContextCacheCost,
 					longContextCacheWriteCost: optionItem.modelMetadata.longContextCacheWriteCost,
 					priceCategory: optionItem.modelMetadata.priceCategory,
+					promo: optionItem.modelMetadata.promo,
 					maxInputTokens: optionItem.modelMetadata.maxInputTokens ?? 0,
 					maxOutputTokens: optionItem.modelMetadata.maxOutputTokens ?? 0,
 					capabilities: optionItem.modelMetadata.capabilities ? {

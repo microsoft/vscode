@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Shared helpers and a parameterized suite factory for real-SDK integration
+ * Shared helpers and a parameterized suite factory for agent host e2e integration
  * tests. Both the Copilot (`copilotcli`) and Claude (`claude`) providers expose
  * the same agent-host protocol, so most tests are identical apart from a
  * handful of provider-specific tool names.
  *
- * Each provider invokes {@link defineSharedRealSdkTests} from its own
- * `*RealSdk.integrationTest.ts` file and then layers on any provider-specific
+ * Each provider invokes {@link defineAgentHostE2ETests} from its own
+ * `*AgentHostE2E.integrationTest.ts` file and then layers on any provider-specific
  * tests as a separate `suite` block.
  */
 
 import assert from 'assert';
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
+import { tmpdir, homedir } from 'os';
+import { fileURLToPath } from 'url';
+import { join } from '../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -40,14 +42,60 @@ import {
 } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
+import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
+
+// #region Record/replay
+
+/**
+ * When `AGENT_HOST_REPLAY_RECORD=1`, the shared suite runs against real CAPI (a
+ * real GitHub token) and captures the wire to per-test YAML fixtures. Otherwise
+ * it replays the committed fixtures deterministically with no token.
+ */
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
+/** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
+ * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
+const isWindows = process.platform === 'win32';
+/** A synthetic token used on replay (no real credential needed). */
+export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
+
+/**
+ * Fixtures live in the source tree (committed) though the compiled test runs
+ * from `out/`/`out-build/` — resolve up to the repo root and into `src/...`.
+ */
+const CAPTURES_DIR = fileURLToPath(new URL('../../../../../../../src/vs/platform/agentHost/test/node/protocol/captures/agentHostE2E/', import.meta.url));
+
+/** Per-test fixture path derived from the provider + test title. */
+function fixturePathFor(provider: string, testTitle: string): string {
+	const slug = testTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+	return join(CAPTURES_DIR, `${provider}-${slug}.yaml`);
+}
+
+/**
+ * Build the `capiReplay` option for a test: replays the committed per-test
+ * fixture by default (tokenless), or records it against real CAPI when
+ * `AGENT_HOST_REPLAY_RECORD=1`. Shared by {@link defineAgentHostE2ETests} and
+ * provider-specific suites so both go through the same record/replay path.
+ */
+export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
+}
+
+// #endregion
 
 // #region Token
 
 /** Resolve GitHub token from env or `gh auth token`. */
 export function resolveGitHubToken(): string {
+	// Replaying committed fixtures needs no real credential: the capture proxy
+	// serves recorded responses and ignores auth. Only recording talks to real
+	// CAPI and thus needs a real token.
+	if (!RECORD) {
+		return REPLAY_PLACEHOLDER_TOKEN;
+	}
 	const envToken = process.env['GITHUB_TOKEN'];
 	if (envToken) {
 		return envToken;
@@ -64,11 +112,11 @@ export function resolveGitHubToken(): string {
 // #region Provider configuration
 
 /**
- * Per-provider knobs for the shared real-SDK suite. Lets us share the bulk of
+ * Per-provider knobs for the shared agent host e2e suite. Lets us share the bulk of
  * the test bodies while parameterizing things that genuinely differ between
  * Copilot and Claude (tool names, URI scheme, server startup options).
  */
-export interface IRealSdkProviderConfig {
+export interface IAgentHostE2EProviderConfig {
 	/** Suite title shown in the test runner. */
 	readonly suiteTitle: string;
 	/** Provider id passed to `createSession`. */
@@ -120,6 +168,13 @@ export interface IRealSdkProviderConfig {
 	 */
 	readonly supportsSubagents: boolean;
 	/**
+	 * When set, this provider's shell tool call is not reproduced by its bundled
+	 * SDK on Windows during replay (e.g. Codex's `exec_command` yields no
+	 * tool-call notification there), so the shell-permission test runs only on
+	 * POSIX. macOS/Linux keep full coverage.
+	 */
+	readonly shellPermissionReplayUnstableOnWindows?: boolean;
+	/**
 	 * Whether the provider's plan-mode flow matches the shared test's
 	 * expectations (auto-approve session-state writes; reach the
 	 * exit-plan-mode tool as an `inputRequested`). Currently true only for
@@ -141,7 +196,7 @@ export interface IRealSdkProviderConfig {
 /** Create a session for the configured provider, authenticate, subscribe, and return the session URI. */
 export async function createRealSession(
 	c: TestProtocolClient,
-	config: IRealSdkProviderConfig,
+	config: IAgentHostE2EProviderConfig,
 	clientId: string,
 	trackingList: string[],
 	workingDirectory: URI,
@@ -491,11 +546,11 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 // #region Shared suite
 
 /**
- * Registers the cross-provider real-SDK suite. The body is identical for
+ * Registers the cross-provider agent host e2e suite. The body is identical for
  * every provider that speaks the agent host protocol — the only knobs are
  * tool names and URI scheme.
  */
-export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
+export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): void {
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
 		let server: IServerHandle;
@@ -509,7 +564,7 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		suiteTeardown(function () {
 			// no-op: the server is started/killed per-test in setup/teardown
-			// because some real-SDK paths (notably Claude's mid-turn dispose)
+			// because some agent host e2e paths (notably Claude's mid-turn dispose)
 			// leave the agent host in a bad state. Per-test isolation costs
 			// ~5s/test at startup but keeps a single broken test from
 			// poisoning every subsequent one.
@@ -517,7 +572,14 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({ claudeSdkRoot: config.claudeSdkRoot, codexSdkRoot: config.codexSdkRoot });
+			server = await startRealServer({
+				claudeSdkRoot: config.claudeSdkRoot,
+				codexSdkRoot: config.codexSdkRoot,
+				// Normalize the real home + temp roots out of recorded request
+				// bodies so committed fixtures carry no local absolute paths.
+				homeDir: homedir(),
+				capiReplay: capiReplayFor(config.provider, this.currentTest?.title ?? 'unknown'),
+			});
 			client = new TestProtocolClient(server.port);
 			await client.connect();
 		});
@@ -544,7 +606,13 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			}
 			createdSessions.length = 0;
 			client.close();
-			server?.process.kill();
+			// Flush the recording / surface strict replay cache-misses before the
+			// process goes away. Kill even if the strict check throws.
+			try {
+				await server?.capiReplay?.stop();
+			} finally {
+				server?.process.kill();
+			}
 
 			for (const dir of tempDirs) {
 				try {
@@ -629,7 +697,11 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			}
 		});
 
-		test('tool call triggers permission request and can be approved', async function () {
+		// Codex's `exec_command` shell tool call is not emitted by the bundled
+		// Codex CLI on Windows during replay (the turn streams text and completes
+		// with no tool call), so this shell-permission test is POSIX-only for such
+		// providers; Claude/Copilot still run it everywhere.
+		((isWindows && config.shellPermissionReplayUnstableOnWindows) ? test.skip : test)('tool call triggers permission request and can be approved', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
@@ -716,6 +788,19 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 				assert.ok(!notNeededBefore,
 					`no not-needed toolCallReady may precede the confirmation toolCallReady for ${ready.toolCallId}`);
 			}
+
+			// While recording, let the post-tool continuation finish so its
+			// model call lands in the fixture. Replay always issues that
+			// continuation, so without capturing it here replay would hit an
+			// unrecorded model call. Bounded + best-effort: some providers'
+			// continuations for a trivial prompt can run long.
+			if (RECORD) {
+				try {
+					await client.waitForNotification(n =>
+						isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
+						30_000);
+				} catch { /* bounded drain */ }
+			}
 		});
 
 		(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {
@@ -765,7 +850,11 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			assert.strictEqual(resubscribeResult.snapshot!.resource, sessionUri, 'follow-up turn should keep the original session resource');
 		});
 
-		test('can abort a running turn', async function () {
+		// Aborting a turn is inherently a real-streaming test: on replay the
+		// recorded (intentionally truncated) response is served instantly, so
+		// there is no mid-stream window to abort. Run it only while recording
+		// against real CAPI; it is skipped in deterministic replay.
+		(RECORD ? test : test.skip)('can abort a running turn', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);
@@ -797,20 +886,23 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			tempDirs.push(tempDir);
 			const workingDirUri = URI.file(tempDir).toString();
 
-			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-workdir-${config.provider}` });
-			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
+			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-workdir-${config.provider}` }, 30_000);
+			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-			await client.call('createSession', { channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri });
+			await client.call('createSession', { channel: sessionUri, provider: config.provider, workingDirectory: workingDirUri }, 30_000);
 			createdSessions.push(sessionUri);
 
-			const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const subscribeResult = await client.call<SubscribeResult>('subscribe', { channel: sessionUri }, 30_000);
 			const sessionState = subscribeResult.snapshot!.state as SessionState;
 			assert.strictEqual(sessionState.workingDirectory, workingDirUri,
 				`subscribe snapshot summary should carry the requested working directory`);
 		});
 
-		(config.supportsWorktreeIsolation ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+		// Worktree isolation asserts on resolved `.worktrees/...` paths and a
+		// host-terminal `pwd`, which are POSIX-shaped (the fixtures were recorded on
+		// macOS); skip on Windows where the worktree paths and shell differ.
+		(config.supportsWorktreeIsolation && !isWindows ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
@@ -1051,8 +1143,10 @@ export function defineSharedRealSdkTests(config: IRealSdkProviderConfig): void {
 			// A unique phrase that only the subagent is asked to emit in an
 			// intermediate assistant message, so replay can detect whether
 			// subagent assistant text leaks upward without depending on the
-			// parent agent's final summary behavior.
-			const sentinel = `subagent replay note ${generateUuid().replace(/-/g, '').slice(0, 10)}`;
+			// parent agent's final summary behavior. It is a fixed string (not a
+			// per-run uuid) so the recorded subagent reply still contains the
+			// phrase the freshly-issued prompt asks for on replay.
+			const sentinel = 'subagent replay note sentinel-7f3a';
 
 			let approvalsActive = true;
 			let approvalSeq = 2000;

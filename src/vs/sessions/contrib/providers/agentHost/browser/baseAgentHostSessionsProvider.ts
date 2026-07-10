@@ -40,11 +40,12 @@ import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
-import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, IChat, IChatCapabilities, IGitHubInfo, ISession, ISessionAgentRef, ISessionCapabilities, ISessionChangeset, ISessionChangesSummary, ISessionFile, ISessionFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -139,17 +140,6 @@ function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): C
 		return ChatPermissionLevel.Default;
 	}
 	return normalized;
-}
-
-function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
-	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-}
-
-function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown {
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== ChatPermissionLevel.Default) {
-		return ChatPermissionLevel.Default;
-	}
-	return value;
 }
 
 function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
@@ -297,7 +287,7 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 
-	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, lastTurnChanges?: IObservable<readonly ISessionFileChange[]>) {
+	constructor(resource: URI, summary: ChatSummary, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), lastTurnChanges?: IObservable<readonly ISessionFileChange[]>) {
 		super();
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : new Date();
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
@@ -320,9 +310,11 @@ class AdditionalChat extends Disposable {
 			checkpoints: observableValue(this, undefined),
 			modelId: this._modelId,
 			mode: this._mode,
-			isArchived: constObservable(false),
+			isArchived: sessionIsArchived,
 			isRead: constObservable(true),
-			interactivity: this._interactivity,
+			// An archived session is read-only: force every chat's interactivity to
+			// ReadOnly so the chat view hides the composer and gates mutating actions.
+			interactivity: derived(reader => effectiveChatInteractivity(sessionIsArchived.read(reader), this._interactivity.read(reader))),
 			description: this._description,
 			lastTurnEnd: this._lastTurnEnd,
 			origin: summary.origin ? { kind: toSessionChatOriginKind(summary.origin.kind), parentChat } : undefined,
@@ -709,7 +701,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			mode: this.mode,
 			isArchived: this.isArchived,
 			isRead: this.isRead,
-			interactivity: this._defaultChatInteractivity,
+			// An archived session is read-only: force the default chat's
+			// interactivity to ReadOnly so the chat view hides the composer and
+			// gates mutating actions.
+			interactivity: derived(this, reader => effectiveChatInteractivity(this.isArchived.read(reader), this._defaultChatInteractivity.read(reader))),
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
@@ -845,7 +840,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _createAdditionalChat(chatId: string, summary: ChatSummary): AdditionalChat {
 		const resource = URI.from({ scheme: this._resourceScheme, path: `/${this._rawId}`, fragment: chatId });
 		const lastTurnChanges = this._sessionOutput.getLastTurnChanges(URI.parse(summary.resource));
-		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), lastTurnChanges);
+		return new AdditionalChat(resource, summary, this._newChatIds.has(chatId), this._resolveParentChatResource(summary.origin), this.isArchived, lastTurnChanges);
 	}
 
 	/**

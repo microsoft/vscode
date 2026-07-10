@@ -721,6 +721,39 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 	});
 
+	test('promo model is boosted right after Auto', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Limited time offer' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const actions = getActionItems(items);
+		// Auto first, then promo model immediately after
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'Gemini Flash');
+	});
+
+	test('promo model shows discount in description', () => {
+		const auto = createAutoModel();
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-2', discountPercent: 30, endsAt: '2026-07-20T23:59:59Z', message: 'Summer sale' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, promoModel]);
+		const promoItem = getActionItems(items).find(a => a.label === 'Gemini Flash');
+		assert.ok(promoItem);
+		const desc = typeof promoItem.item?.description === 'string' ? promoItem.item.description : '';
+		assert.ok(desc.includes('30%'), `Expected description to contain "30%" but got: ${desc}`);
+	});
+
+	test('promo model is not duplicated in Other Models section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-3', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Promo' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const allGemini = getActionItems(items).filter(a => a.label === 'Gemini Flash');
+		assert.strictEqual(allGemini.length, 1, 'Promo model should appear exactly once');
+	});
+
 	test('Other Models grouped by vendor with separator headers', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('zebra', 'Zebra', 'copilot');
