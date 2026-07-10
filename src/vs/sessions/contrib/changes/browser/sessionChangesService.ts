@@ -93,10 +93,6 @@ export class SessionChangesService implements ISessionChangesService {
 	async openChangesEditor(sessionResource: URI, options?: IMultiDiffEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		const multiDiffSource = this.getChangesEditorResource(sessionResource);
 
-		// The layout service is the single source of truth for the single-pane
-		// decision. In minimal environments — component fixtures / tests — a plain
-		// workbench layout service is registered whose `isSinglePaneLayoutEnabled`
-		// is undefined (falsy), matching the classic layout.
 		if (this.layoutService.isSinglePaneLayoutEnabled) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...options, pinned: true }, group);

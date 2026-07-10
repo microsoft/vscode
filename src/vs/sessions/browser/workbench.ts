@@ -139,11 +139,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/**
 	 * Whether the Agents window is using the single-pane (docked detail panel)
-	 * layout. Fixed at construction by the workbench subclass — `false` for the
-	 * classic/mobile workbench, `true` for {@link SinglePaneWorkbench}. Imperative
-	 * features gate single-pane behaviour on this (and declarative `when` clauses on
-	 * the `SinglePaneLayoutEnabledContext` context key it publishes) instead of
-	 * reading the setting directly.
+	 * layout. Fixed at construction — `false` for the classic/mobile workbench,
+	 * `true` for {@link SinglePaneWorkbench}.
 	 */
 	readonly isSinglePaneLayoutEnabled: boolean;
 
@@ -534,10 +531,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 					isPhoneLayoutCtx.set(this.layoutPolicy.viewportClass.read(reader) === 'phone');
 				}));
 
-				// Single-Pane Layout Context Key: mirrors `isSinglePaneLayoutEnabled` so
-				// declarative `when` clauses can gate on the single-pane layout. Fixed at
-				// construction (a reload applies a setting change). Imperative code reads
-				// `isSinglePaneLayoutEnabled` off the layout service instead.
 				SinglePaneLayoutEnabledContext.bindTo(contextKeyService).set(this.isSinglePaneLayoutEnabled);
 
 				// Virtual keyboard tracking (visualViewport): publishes the

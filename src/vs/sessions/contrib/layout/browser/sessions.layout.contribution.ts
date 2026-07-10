@@ -27,13 +27,13 @@ class SessionsLayoutContribution extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		if (isWeb && isMobile) {
-			this._register(instantiationService.createInstance(MobileLayoutController));
+		if (layoutService.isSinglePaneLayoutEnabled) {
+			this._register(instantiationService.createInstance(SinglePaneLayoutController));
 			return;
 		}
 
-		if (layoutService.isSinglePaneLayoutEnabled) {
-			this._register(instantiationService.createInstance(SinglePaneLayoutController));
+		if (isWeb && isMobile) {
+			this._register(instantiationService.createInstance(MobileLayoutController));
 			return;
 		}
 

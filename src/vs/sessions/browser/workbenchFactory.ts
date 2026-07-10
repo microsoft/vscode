@@ -14,12 +14,8 @@ import { SinglePaneWorkbench } from './singlePaneWorkbench.js';
 import { IWorkbenchOptions, Workbench } from './workbench.js';
 
 /**
- * Creates the Agents window workbench, choosing the single-pane (docked
- * detail-panel) variant when the setting is enabled on a non-phone viewport. This
- * is the **only** place the `sessions.layout.singlePaneDetailPanel` setting is read:
- * the chosen variant fixes {@link Workbench.isSinglePaneLayoutEnabled} (read by
- * imperative code) and the `SinglePaneLayoutEnabledContext` context key it publishes
- * (read by declarative `when` clauses). The layout mode is fixed at construction —
+ * Creates the Agents window workbench, choosing the single-pane variant when the
+ * detail-panel setting is enabled on a non-phone viewport. Fixed at construction —
  * toggling the setting requires a window reload.
  */
 export function createSessionsWorkbench(parent: HTMLElement, options: IWorkbenchOptions | undefined, serviceCollection: ServiceCollection, logService: ILogService): Workbench {
