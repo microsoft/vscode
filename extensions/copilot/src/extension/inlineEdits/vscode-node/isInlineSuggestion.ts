@@ -30,7 +30,8 @@ export function toInlineSuggestion(cursorPos: Position, doc: TextDocument, range
 		}
 	}
 
-	// Preserve the established behavior for insertions into an empty next line.
+	// Preserve the established behavior for empty-range insertions at the start of
+	// the next line (the target line itself may be non-empty, e.g. `\t) {`).
 	const nextLineInsertion = tryAdjustNextLineInsertion(cursorPos, doc, range, newText);
 	if (nextLineInsertion) {
 		return nextLineInsertion;

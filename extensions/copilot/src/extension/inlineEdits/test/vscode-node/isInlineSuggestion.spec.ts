@@ -418,6 +418,10 @@ function createDocumentSymbol(
 				].join('\n'),
 			});
 			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
+
+			// With rebasing disabled the non-empty next-line range cannot be pulled
+			// up by the ungated fallback, so the edit must not be rebased.
+			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false));
 		});
 
 		test('rebases a replacement starting after indentation on the next line', () => {
@@ -821,6 +825,22 @@ const fieldLabels: Record<keyof FormData, string> = {
 			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText));
 			// Also exercise the ungated fallback (advanced disabled).
 			assert.isUndefined(toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false));
+		});
+
+		test('next-line insertion: ungated fallback pulls up a CRLF-terminated insertion (advanced disabled)', () => {
+			// With rebasing disabled, tryAdjustNextLineInsertion must still pull an
+			// empty-range next-line insertion up to the cursor when newText ends with
+			// the document's CRLF, dropping exactly that trailing break.
+			const document = createCRLFDocument(['function foo(', '', 'other']);
+			const cursorPosition = new Position(0, 13); // end of "function foo("
+			const replaceRange = new Range(1, 0, 1, 0);
+			const replaceText = '  a: string,\r\n  b: number\r\n';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText, false);
+			assert.isDefined(result);
+			assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
+			assert.strictEqual(result!.newText, '\r\n  a: string,\r\n  b: number');
+			assert.strictEqual(applyEdit(document, result!.range, result!.newText), applyEdit(document, replaceRange, replaceText));
 		});
 	});
 
