@@ -1110,9 +1110,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// they actually target one of the main editor groups. Modal
 		// opens stay neutral. Programmatic opens that suppress auto
 		// visibility (e.g. working set application) are ignored.
-		// The managed empty Files tab is a placeholder that activates as a side
-		// effect of closing another tab (e.g. the Changes tab); it must never
-		// reveal a hidden editor. Real content (files, diffs, browser) still does.
+		// The base handler reveals a hidden editor for any such open;
+		// `SinglePaneWorkbench` overrides `revealEditorOnOpen` to keep a
+		// docked-detail editor (Changes/Files) from revealing the editor area
+		// while the detail panel is already showing its content.
 		this._register(this.editorService.onWillOpenEditor(e => this.revealEditorOnOpen(e)));
 
 		// Hide editor part when last editor closes
