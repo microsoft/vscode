@@ -20,9 +20,6 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
-import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
@@ -30,6 +27,7 @@ import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionHasChangesContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
 const openChangesViewActionOptions: IAction2Options = {
@@ -305,38 +303,36 @@ class ToggleSessionChangesInlineViewAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSessionChangesInlineViewAction.ID,
-			title: localize2('toggleInlineView', "Toggle Inline View"),
-			category: localize2('compare', "Compare"),
-			f1: false,
-			menu: {
-				// Command Palette, gated to when the single-pane Changes editor is active.
-				id: MenuId.CommandPalette,
-				when: singlePaneChangesEditorActive
-			}
+			title: localize2('toggleDiffView', "Toggle Diff View"),
+			category: localize2('changes', "Changes"),
+			f1: true,
+			precondition: singlePaneChangesEditorTitleVisible,
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
-		const pane = resolvedContext.groupedEditors[0]?.group.activeEditorPane ?? accessor.get(IEditorService).activeEditorPane;
-		if (pane instanceof SessionChangesEditor) {
-			pane.toggleInlineView();
-		}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const renderSideBySide = configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true;
+		configurationService.updateValue('diffEditor.renderSideBySide', !renderSideBySide, ConfigurationTarget.WORKSPACE);
 	}
 }
 
 registerAction2(ToggleSessionChangesInlineViewAction);
 
-// Header overflow ("…") entry, rendered as a checkable "Inline View" menu item
-// (checked while the diffs render inline), mirroring the single diff editor.
+// Primary header button with state-specific titles: "Show Side by Side Diff" when
+// currently inline, and (checked) "Show Inline Diff" when currently side by side.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: ToggleSessionChangesInlineViewAction.ID,
-		title: localize('inlineView', "Inline View"),
-		toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
+		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		icon: Codicon.diffSidebyside,
+		toggled: {
+			condition: EditorContextKeys.multiDiffEditorRenderSideBySide,
+			title: localize('showInlineDiff', "Show Inline Diff"),
+		},
 	},
-	group: 'secondary',
-	order: 10,
+	group: '1_diff',
+	order: 20,
 	when: singlePaneChangesEditorTitleVisible
 });
 

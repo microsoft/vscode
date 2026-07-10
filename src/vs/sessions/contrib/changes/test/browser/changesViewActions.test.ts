@@ -76,7 +76,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the single-pane editor header overflow (secondary group) as a checkable item', () => {
+	test('toggle inline view is contributed to the single-pane editor header (1_diff group) with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
@@ -84,25 +84,27 @@ suite('Changes View Actions', () => {
 		assert.ok(item, 'expected the toggle inline view action on the single-pane editor header menu');
 		const when = item.when?.serialize() ?? '';
 		const toggled = item.command.toggled;
-		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
+		const toggledInfo = isICommandActionToggleInfo(toggled) ? toggled : undefined;
 		assert.deepStrictEqual({
 			id: item.command.id,
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-			toggledOnInline: toggledCondition?.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.negate().serialize(),
+			toggledTitle: toggledInfo?.title,
+			toggledOnSideBySide: toggledInfo?.condition.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.serialize(),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'workbench.action.agentSessions.toggleInlineView',
-			title: 'Inline View',
-			group: 'secondary',
-			order: 10,
-			icon: undefined,
-			toggledOnInline: true,
+			title: 'Show Side by Side Diff',
+			group: '1_diff',
+			order: 20,
+			icon: Codicon.diffSidebyside.id,
+			toggledTitle: 'Show Inline Diff',
+			toggledOnSideBySide: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneConfigGate: true,
@@ -110,7 +112,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the command palette (Compare category)', () => {
+	test('toggle inline view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
@@ -124,13 +126,15 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'workbench.action.agentSessions.toggleInlineView',
-			title: 'Toggle Inline View',
-			category: 'Compare',
+			title: 'Toggle Diff View',
+			category: 'Changes',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneConfigGate: true,
+			hasEditorAreaVisibleGate: true,
 		});
 	});
 

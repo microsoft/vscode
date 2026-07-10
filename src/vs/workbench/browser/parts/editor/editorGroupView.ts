@@ -2328,6 +2328,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// is the exception: its items fall into the toolbar's overflow ("…") menu.
 			const toolbarOptions = {
 				menuOptions: { shouldForwardArgs: true },
+				highlightToggledItems: true,
 				toolbarOptions: { primaryGroup: (group: string) => group !== 'secondary', useSeparatorsInPrimaryActions: true }
 			};
 			if (headerPrimaryMenuId) {

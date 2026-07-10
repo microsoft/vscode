@@ -140,11 +140,16 @@ export class SessionChangesEditor extends EditorPane {
 			paneInstantiationService.createInstance(SessionChangesUIElementFactory),
 			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
-		this.widget.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
+		this._applyRenderSideBySide();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
+				this._applyRenderSideBySide();
+			}
+		}));
 	}
 
-	toggleInlineView(): void {
-		this.widget?.toggleRenderSideBySide();
+	private _applyRenderSideBySide(): void {
+		this.widget?.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
 	}
 
 	/**
