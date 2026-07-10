@@ -40,45 +40,6 @@
 	gap: 4px;
 }
 
-.ai-customization-management-editor .sidebar-home-button {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 5px 8px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	font-size: 12px;
-	font-weight: 400;
-	line-height: 18px;
-	font-family: inherit;
-	transition: background-color 0.1s ease;
-}
-
-.ai-customization-management-editor .sidebar-home-button:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .sidebar-home-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.ai-customization-management-editor .sidebar-home-icon {
-	flex-shrink: 0;
-	font-size: 14px;
-	opacity: 0.85;
-}
-
-.ai-customization-management-editor .sidebar-home-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .ai-customization-management-editor .sidebar-sections-list {
 	flex: 1;
 	overflow: hidden;
@@ -694,80 +655,6 @@
 .ai-customization-list-widget .section-footer .section-footer-link:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground);
-}
-
-/* Overview View (compact snapshot) */
-.ai-customization-overview {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	padding: 8px;
-}
-
-.ai-customization-overview .overview-sections {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-
-.ai-customization-overview .overview-section {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 12px;
-	background-color: var(--vscode-sideBar-background);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	cursor: pointer;
-	transition: background-color 0.1s ease;
-	flex: 1 1 120px;
-	min-width: 100px;
-}
-
-.ai-customization-overview .overview-section:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-focusBorder);
-}
-
-.ai-customization-overview .overview-section:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.ai-customization-overview .overview-section .section-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	opacity: 0.9;
-}
-
-.ai-customization-overview .overview-section .section-text {
-	flex: 1;
-	min-width: 0;
-}
-
-.ai-customization-overview .overview-section .section-label {
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	color: var(--vscode-foreground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-
-
-.ai-customization-overview .overview-section .section-count {
-	flex-shrink: 0;
-	font-size: 9px;
-	font-weight: 500;
-	padding: 1px 5px;
-	background-color: var(--vscode-list-inactiveSelectionBackground);
-	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
-	border-radius: 8px;
-	min-width: 14px;
-	text-align: center;
 }
 
 /* Content container visibility */
