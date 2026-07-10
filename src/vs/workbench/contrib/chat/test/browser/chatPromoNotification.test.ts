@@ -129,6 +129,29 @@ suite('ChatPromoNotificationContribution', () => {
 		assert.strictEqual(notification.actions.length, 0);
 	});
 
+	test('does not show notification for non-positive promo discounts', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{
+				identifier: 'copilot:zero-discount',
+				metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			},
+			{
+				identifier: 'copilot:negative-discount',
+				metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			},
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.strictEqual(notifService.getNotification(), undefined);
+	});
+
 	test('does not show notification for already-dismissed promo', () => {
 		const notifService = createMockNotificationService(disposables);
 		const { service: lmService } = createMockLanguageModelsService([{

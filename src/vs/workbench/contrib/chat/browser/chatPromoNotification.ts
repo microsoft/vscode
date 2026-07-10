@@ -58,7 +58,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 		const promoByHarness = new Map<string, NonNullable<ILanguageModelChatMetadata['promo']>>();
 		for (const id of modelIds) {
 			const meta = this._languageModelsService.lookupLanguageModel(id);
-			if (!meta?.promo || dismissed.has(meta.promo.id)) {
+			if (!meta || !ILanguageModelChatMetadata.hasPromoDiscount(meta) || dismissed.has(meta.promo.id)) {
 				continue;
 			}
 			const harness = meta.targetChatSessionType ?? localChatSessionType;

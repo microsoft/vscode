@@ -313,8 +313,8 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly warningText?: IStringDictionary<string>;
 	/**
-	 * Optional promotional information for this model.
-	 * When present, indicates the model is experiencing a promotional discount.
+	 * Optional promotional information for this model. Positive discounts surface
+	 * promotional UI; non-positive discounts only feature the model in the picker.
 	 */
 	readonly promo?: {
 		readonly id: string;
@@ -339,6 +339,10 @@ export namespace ILanguageModelChatMetadata {
 			return true;
 		}
 		return name === asQualifiedName(metadata);
+	}
+
+	export function hasPromoDiscount(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent > 0;
 	}
 
 	/**
