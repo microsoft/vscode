@@ -11,6 +11,7 @@ import { createActionViewItem } from '../../../../platform/actions/browser/menuE
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, type IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
@@ -216,6 +217,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._outerEditorHeight = this._headerHeight;
 
 		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
+		const ctxAllUnchangedRegionsShown = EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.bindTo(this._contextKeyService);
+		this._register(autorun(reader => {
+			ctxAllUnchangedRegionsShown.set(this.editor.allUnchangedRegionsShown.read(reader));
+		}));
 		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri ?? this._viewModel.get()?.originalUri))),

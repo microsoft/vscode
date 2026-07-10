@@ -76,7 +76,8 @@
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .actions-container > li:last-child,
-.style-override.monaco-workbench .part > .title .title-actions .actions-container > li:last-child {
+.style-override.monaco-workbench .part > .title .title-actions .actions-container > li:last-child,
+.style-override.monaco-workbench .part > .title .global-actions .actions-container > li:last-child {
 	margin-right: 0;
 }
 
@@ -125,8 +126,7 @@
 
 .style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
 	.agent-sessions-title-container {
-		padding-left: 12px;
-		padding-right: 0;
+		padding: 0 0 4px 12px;
 	}
 }
 
@@ -190,7 +190,33 @@
 	padding: 4px 6px;
 	min-width: 19px;
 	min-height: 19px;
+}
+
 .style-override.monaco-workbench .interactive-session .interactive-input-part {
 	padding-bottom: 0;
 }
 
+/*
+ * Give the integrated terminal in the panel bottom breathing room so the last
+ * row of output/input is not flush against the panel edge, matching the Modern
+ * UI panel spacing.
+ *
+ * `.xterm` is bottom-aligned (`position: absolute; bottom: 0`) within its
+ * wrapper. TerminalInstance._getDimension() reads the element's computed
+ * `padding-bottom` and subtracts it from the available height before computing
+ * rows, so this insets the content without clipping the final row or causing an
+ * overflow/scroll regression (the same mechanism as the existing left gutter
+ * padding).
+ */
+.style-override.monaco-workbench .part.panel .pane-body.integrated-terminal .xterm {
+	padding-bottom: var(--vscode-spacing-size80, 8px);
+}
+
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource-group .actions-container,
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource .actions-container {
+	gap: 2px;
+}
+
+.style-override.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+	margin-right: 4px;
+}

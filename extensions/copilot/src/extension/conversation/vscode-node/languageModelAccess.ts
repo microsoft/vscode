@@ -367,7 +367,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					[ApiChatLocation.Editor]: endpoint instanceof AutoChatEndpoint, // inline chat gets 'Auto' by default
 				},
 				isUserSelectable: endpoint.showInModelPicker,
-				warningText: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.warningText,
+				warningText: endpoint instanceof AutoChatEndpoint ? undefined : (() => {
+					const texts: Record<string, string> = { ...endpoint.warningText };
+					if (endpoint.degradationReason) {
+						texts['degradation'] = endpoint.degradationReason;
+					}
+					return Object.keys(texts).length > 0 ? texts : undefined;
+				})(),
+				promo: endpoint instanceof AutoChatEndpoint ? undefined : endpoint.promo,
 				capabilities: {
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,

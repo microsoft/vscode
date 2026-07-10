@@ -207,7 +207,7 @@ function modelsEqual(a: readonly IByokLmModelInfo[], b: readonly IByokLmModelInf
 	}
 	return a.every((m, i) => {
 		const n = b[i];
-		return m.vendor === n.vendor && m.id === n.id && m.name === n.name && m.maxContextWindowTokens === n.maxContextWindowTokens && m.supportsVision === n.supportsVision;
+		return m.vendor === n.vendor && m.id === n.id && m.name === n.name && m.modelIdentifier === n.modelIdentifier && m.maxContextWindowTokens === n.maxContextWindowTokens && m.supportsVision === n.supportsVision;
 	});
 }
 

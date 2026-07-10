@@ -16,9 +16,10 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { ChatTreeItem } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { isRequestVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import { isRequestVM, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { budgetBucketPrompts, MAX_TICKS, PromptItem } from './promptBucketing.js';
 
 /** Aggregated diff stats for the edits a prompt (or bucket) produced. */
@@ -40,14 +41,12 @@ export interface PromptFileDiff {
 	readonly removed: number;
 }
 
-/** Content-space layout used by the overview-ruler rail to place marks + the viewport thumb. */
+/** Content-space layout used by the overview-ruler rail to place the prompt marks. */
 export interface IPromptScrollLayout {
-	/** Each prompt's top offset in transcript content pixels. */
+	/** Each prompt's top offset in the rail's estimated content space. */
 	readonly marks: readonly { readonly requestId: string; readonly top: number }[];
-	/** Total transcript content height in pixels. */
+	/** Total content height in the estimated space, matching `marks`. */
 	readonly total: number;
-	/** Current scroll offset in content pixels. */
-	readonly scrollTop: number;
 }
 
 /** A single tick shown on the prompt timeline rail. */
@@ -69,6 +68,32 @@ export interface PromptTick {
 }
 
 const MAX_PREVIEW_LENGTH = 80;
+
+/** Kinds of transcript row, bucketed for height estimation (prompts are short, responses tall). */
+type PromptItemKind = 'request' | 'response' | 'other';
+
+/** Classifies a transcript item for per-kind height estimation. */
+function itemKind(item: ChatTreeItem): PromptItemKind {
+	if (isRequestVM(item)) {
+		return 'request';
+	}
+	if (isResponseVM(item)) {
+		return 'response';
+	}
+	return 'other';
+}
+
+// Content "signal" = a cheap, unit-less size proxy (roughly the rendered line
+// count) for an un-measured row. Absolute pixels come from a factor learned from
+// measured rows (see `_computeAdaptiveLayout`), so these constants only need to
+// get the *relative* sizes right, not the exact line height.
+const CHARS_PER_LINE = 48;
+/** Extra line-units a fenced code block adds beyond its text (border, padding, toolbar). */
+const CODE_BLOCK_UNITS = 3;
+/** Signal is capped so one pathological row can't dominate the whole estimate. */
+const MAX_SIGNAL = 60;
+/** Seed pixels-per-signal-unit, used only until a row of that kind has been measured. */
+const PRIOR_PX_PER_UNIT: Record<PromptItemKind, number> = { request: 18, response: 20, other: 40 };
 
 /** First non-empty line of a prompt, trimmed and length-capped for previews. */
 function getPromptPreview(text: string): string {
@@ -145,6 +170,9 @@ export class PromptTimelineModel extends Disposable {
 
 	private readonly _viewModelListener = this._register(new MutableDisposable());
 
+	/** Per-item content-signal cache (id -> {version, signal}) for height estimation; version invalidates on content growth. */
+	private readonly _signalCache = new Map<string, { version: number; signal: number }>();
+
 	constructor(
 		private readonly widget: ChatWidget,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -174,31 +202,114 @@ export class PromptTimelineModel extends Disposable {
 	}
 
 	/**
-	 * The prompts' positions in transcript content space, for the overview-ruler
-	 * rail. Each prompt's top comes from the chat list's layout height model
-	 * (`ChatWidget.getElementTop`), the same virtualization-safe source the
-	 * scrollbar uses, so off-screen prompts get correct positions without waiting
-	 * for their rows to render. Marks, `total`, and `scrollTop` all share the
-	 * list's content-pixel space, so the viewport thumb stays aligned.
+	 * The prompts' positions for the overview-ruler rail, in an *estimated*
+	 * content space that stays stable while the transcript virtualizes. There is no
+	 * viewport thumb: the native scrollbar is the drag affordance and the active
+	 * mark is the "you-are-here", so the rail never draws a second slider.
+	 *
+	 * The chat list's own height model (`getElementTop`/`scrollHeight`) guesses
+	 * every un-rendered row at one flat default height (200px). Real turns are
+	 * nothing like flat — prompts are short, responses tall and variable — so as
+	 * rows render and get measured the list's tops snap around, dragging the marks
+	 * with them (the "scroll jitter"). For the marks we instead build our own
+	 * heights: measured rows use their real `currentRenderedHeight`; un-measured
+	 * rows are estimated from a content signal calibrated to measured rows (see
+	 * `_computeAdaptiveLayout`), so marks land near their final spot immediately and
+	 * barely drift. Once every row is measured this estimate equals the list's real
+	 * layout.
 	 */
 	getScrollLayout(): IPromptScrollLayout | undefined {
+		const layout = this._computeAdaptiveLayout();
+		if (!layout) {
+			return undefined;
+		}
+		const { items, tops, total } = layout;
+		const marks: { requestId: string; top: number }[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (isRequestVM(item)) {
+				marks.push({ requestId: item.id, top: tops[i] });
+			}
+		}
+		return { marks, total };
+	}
+
+	/**
+	 * Builds a per-item content-height model for the marks. Measured rows
+	 * contribute their real rendered height; un-measured rows are estimated from a
+	 * cheap content signal (~ rendered line count) scaled by a pixels-per-unit
+	 * factor *learned from the measured rows of the same kind*, so the estimate
+	 * calibrates to the real line height/width instead of relying on magic
+	 * constants. Falls back to a seed factor until a row of that kind is measured.
+	 */
+	private _computeAdaptiveLayout(): { items: readonly ChatTreeItem[]; tops: number[]; total: number } | undefined {
 		const items = this.widget.viewModel?.getItems();
 		if (!items) {
 			return undefined;
 		}
-		const marks: { requestId: string; top: number }[] = [];
+
+		// Learn pixels-per-signal-unit per kind from rows we have already measured.
+		const measuredPx: Record<PromptItemKind, number> = { request: 0, response: 0, other: 0 };
+		const measuredSignal: Record<PromptItemKind, number> = { request: 0, response: 0, other: 0 };
 		for (const item of items) {
-			if (isRequestVM(item)) {
-				const top = this.widget.getElementTop(item);
-				if (top !== undefined) {
-					marks.push({ requestId: item.id, top });
-				}
+			const measured = item.currentRenderedHeight;
+			if (measured !== undefined && measured > 0) {
+				const kind = itemKind(item);
+				measuredPx[kind] += measured;
+				measuredSignal[kind] += this._itemSignal(item);
 			}
 		}
-		return { marks, total: this.widget.scrollHeight, scrollTop: this.widget.scrollTop };
+		const pxPerUnit = (kind: PromptItemKind): number =>
+			measuredSignal[kind] > 0 ? measuredPx[kind] / measuredSignal[kind] : PRIOR_PX_PER_UNIT[kind];
+
+		const tops: number[] = [];
+		let acc = 0;
+		for (const item of items) {
+			tops.push(acc);
+			const measured = item.currentRenderedHeight;
+			acc += (measured !== undefined && measured > 0)
+				? measured
+				: pxPerUnit(itemKind(item)) * this._itemSignal(item);
+		}
+		return { items, tops, total: acc };
+	}
+
+	/**
+	 * A cheap, unit-less size proxy for a row (~ rendered line count), used to
+	 * estimate un-measured rows. Cached per item and only recomputed when the
+	 * content grows (responses stream), so scanning every row on each scroll stays
+	 * cheap even for long sessions.
+	 */
+	private _itemSignal(item: ChatTreeItem): number {
+		if (isRequestVM(item)) {
+			const cached = this._signalCache.get(item.id);
+			const version = item.messageText.length;
+			if (cached && cached.version === version) {
+				return cached.signal;
+			}
+			const signal = Math.min(MAX_SIGNAL, 1 + Math.ceil(version / CHARS_PER_LINE));
+			this._signalCache.set(item.id, { version, signal });
+			return signal;
+		}
+		if (isResponseVM(item)) {
+			const parts = item.response.value;
+			const cached = this._signalCache.get(item.id);
+			if (cached && cached.version === parts.length) {
+				return cached.signal;
+			}
+			const text = item.response.getMarkdown();
+			const codeBlocks = Math.floor((text.match(/```/g)?.length ?? 0) / 2);
+			const lines = Math.ceil(text.length / CHARS_PER_LINE);
+			const signal = Math.min(MAX_SIGNAL, 1 + lines + codeBlocks * CODE_BLOCK_UNITS);
+			this._signalCache.set(item.id, { version: parts.length, signal });
+			return signal;
+		}
+		return 1;
 	}
 
 	private _bindViewModel(): void {
+		// Different session's items have unrelated ids; drop stale signal estimates.
+		this._signalCache.clear();
 		this._viewModelListener.value = this.widget.viewModel?.onDidChange(() => this._recompute());
 		this._recompute();
 	}

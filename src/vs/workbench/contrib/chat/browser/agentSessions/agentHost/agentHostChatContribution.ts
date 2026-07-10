@@ -235,6 +235,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
+		const ahService = this._agentHostService;
 
 		// Chat session contribution.
 		// Keep the delegation picker available for local agent host sessions in
@@ -256,13 +257,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return ahService.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
 
-		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
+			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,

@@ -641,6 +641,23 @@ suite('CopilotChatSessionsProvider', () => {
 		providerSession.dispose();
 	});
 
+	test('Copilot CLI session forwards git.worktreeIncludeFiles for worktree isolation', async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
+		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }), { configurationService: configService });
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const providerSession = provider.getSession(session.sessionId)! as ICopilotChatSession & IDisposable & { getAgentHostSessionConfig(): Record<string, unknown> };
+		providerSession.setIsolationMode('worktree');
+		providerSession.setBranch('main');
+
+		assert.deepStrictEqual(providerSession.getAgentHostSessionConfig(), {
+			isolation: 'worktree',
+			branch: 'main',
+			worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**']
+		});
+		providerSession.dispose();
+	});
+
 	// ---- Session actions -------
 
 	test('archiveSession sets archived state', () => {

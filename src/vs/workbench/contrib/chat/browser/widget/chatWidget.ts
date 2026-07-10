@@ -196,7 +196,7 @@ type ChatThinkingStyleUsageClassification = {
 	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the request was a new submit or a rerun.' };
 };
 
-const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 'terminalCommandPrefix'>> = {
 	supportsFileAttachments: true,
 	supportsToolAttachments: true,
 	supportsMCPAttachments: true,
@@ -1657,7 +1657,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
 				location: this.location,
-				getCurrentLanguageModelId: () => this.input.currentLanguageModel,
+				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 			}
 		));
@@ -2460,8 +2460,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const options: IChatSendRequestOptions = {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
-			userSelectedModelId: this.input.currentLanguageModel,
-			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
+			...this.getSelectedModelRequestOptions(),
 			modeInfo: this.input.currentModeInfo,
 		};
 		const result = await this.chatService.resendRequest(lastRequest, options);
@@ -2753,8 +2752,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modeInfo = this.input.currentModeInfo;
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
-			userSelectedModelId: this.input.currentLanguageModel,
-			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
+			...this.getSelectedModelRequestOptions(),
 			location: this.location,
 			locationData: this._location.resolveData?.(),
 			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
@@ -2878,6 +2876,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		return true;
+	}
+
+	// Keep the selected model and its editor-scoped configuration together so
+	// resend/confirmation flows preserve custom per-model settings.
+	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
+		const modelId = this.input.currentLanguageModel;
+		return {
+			userSelectedModelId: modelId,
+			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
+		};
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {

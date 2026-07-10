@@ -28,6 +28,8 @@ export const enum SessionConfigKey {
 	Mode = 'mode',
 	/** `'worktreeBranchPrefix'` — prefix for the worktree branch name. */
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
+	/** `'worktreeIncludeFiles'` — glob patterns for git-ignored files to copy into a new worktree. */
+	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 }
 
 /**

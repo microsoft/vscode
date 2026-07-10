@@ -22,9 +22,12 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import './media/chatCollapsibleContentPart.css';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
+
+	public static readonly userToggleEvent = 'chatCollapsibleUserToggle';
 
 	private _domNode?: HTMLElement;
 	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
@@ -38,6 +41,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected readonly _showCheckmarks: IObservable<boolean>;
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
+	private ariaLabel: string;
 
 	public get icon(): ThemeIcon | undefined {
 		return this._overrideIcon.get();
@@ -57,6 +61,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this.ariaLabel = typeof title === 'string' ? title : title.value;
 		this.element = context.element;
 		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 		this._showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, configurationService);
@@ -87,6 +92,16 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
+		let animatedContent: HTMLElement | undefined;
+		if (this.shouldPrepareContentAnimation()) {
+			this._domNode.classList.add('chat-collapsible-content-animatable');
+			this._domNode.classList.toggle('chat-collapsible-content-animated', this.shouldAnimateContent());
+			const animationContainer = $('.chat-collapsible-content-animation');
+			animatedContent = $('.chat-collapsible-content-animation-inner');
+			animationContainer.appendChild(animatedContent);
+			this._domNode.appendChild(animationContainer);
+		}
+
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
 		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
 		collapseButton.element.appendChild(hoverChevron);
@@ -101,6 +116,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._register(collapseButton.onDidClick(() => {
 			const value = this._isExpanded.get();
 			this._isExpanded.set(!value, undefined);
+			this._domNode?.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
 
 		// Initialize the expanded state based on the subclass's isExpanded() method
@@ -118,18 +134,25 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._domNode?.classList.toggle('show-checkmarks', showCheckmarks);
 
 			// Update hover chevron direction
-			hoverChevron.classList.toggle('codicon-chevron-right', !expanded);
-			hoverChevron.classList.toggle('codicon-chevron-down', expanded);
-
-			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
-			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
+			hoverChevron.classList.toggle('expanded', expanded);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if ((expanded || this.shouldInitEarly()) && !this._contentInitialized) {
 				this._contentInitialized = true;
 				this._contentElement = this.initContent();
-				this._domNode?.appendChild(this._contentElement);
+				(animatedContent ?? this._domNode)?.appendChild(this._contentElement);
+				this.contentDidInitialize();
+				if (expanded && animatedContent) {
+					animatedContent.parentElement?.getBoundingClientRect();
+				}
 			}
+
+			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
+			if (animatedContent) {
+				animatedContent.inert = !expanded;
+			}
+			this.updateAriaLabel(collapseButton.element, this.ariaLabel, expanded);
+			this.expansionDidChange(expanded);
 		}));
 
 		return this._domNode;
@@ -140,6 +163,22 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected shouldInitEarly(): boolean {
 		return false;
 	}
+
+	protected shouldAnimateContent(): boolean {
+		return true;
+	}
+
+	protected shouldPrepareContentAnimation(): boolean {
+		return this.shouldAnimateContent();
+	}
+
+	protected setContentAnimationEnabled(enabled: boolean): void {
+		this.domNode.classList.toggle('chat-collapsible-content-animated', enabled);
+	}
+
+	protected contentDidInitialize(): void { }
+
+	protected expansionDidChange(_expanded: boolean): void { }
 
 	abstract hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 
@@ -168,7 +207,14 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this.title = title;
 		if (this._collapseButton) {
 			this._collapseButton.label = title;
-			this.updateAriaLabel(this._collapseButton.element, title, this.isExpanded());
+		}
+		this.setAriaLabel(title);
+	}
+
+	protected setAriaLabel(label: string): void {
+		this.ariaLabel = label;
+		if (this._collapseButton) {
+			this.updateAriaLabel(this._collapseButton.element, label, this.isExpanded());
 		}
 	}
 
@@ -190,7 +236,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		labelElement.appendChild(result.element);
 
 		const textContent = result.element.textContent || '';
-		this.updateAriaLabel(this._collapseButton.element, textContent, this.isExpanded());
+		this.setAriaLabel(textContent);
 
 		this._renderedTitleWithWidgets.value = result;
 	}

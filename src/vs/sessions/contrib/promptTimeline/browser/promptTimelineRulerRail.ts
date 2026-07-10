@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventType, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { PromptTimelineCard } from './promptTimelineCard.js';
+import { spaceMarkCenters } from './promptTimelineLayout.js';
 import { IPromptScrollLayout, PromptFileDiff, PromptTick } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
@@ -18,32 +19,42 @@ import './media/promptTimeline.css';
 const MIN_TARGET = 24;
 /** Below this transcript width the rail hides so it does not crowd the content. */
 const MIN_HOST_WIDTH = 320;
+/** Skip re-positioning a mark for sub-pixel drift, so estimate noise doesn't cause micro-jitter. */
+const RELAYOUT_MIN_DELTA = 0.5;
 
 interface IMarkEntry {
 	tick: PromptTick;
 	readonly button: HTMLButtonElement;
 	readonly bar: HTMLElement;
+	/** Last applied `top` (px) so tiny relayout deltas can be skipped. */
+	lastTop?: number;
 }
 
 /**
  * The overview-ruler rail. The whole session is compressed into the rail height
  * like the editor's overview ruler: each prompt is a mark at its proportional
- * scroll position, coloured only to signal whether it changed code, with the
- * real scrollbar slider as a you-are-here thumb. Detail lives in the hover card.
+ * scroll position, coloured only to signal whether it changed code. The rail sits
+ * in a gutter beside the transcript's native scrollbar (no second slider); the
+ * active mark is the "you-are-here". Detail lives in the hover card.
  */
 export class PromptTimelineRulerRail extends Disposable implements IPromptTimelineRail {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _marksContainer: HTMLElement;
-	private readonly _thumb: HTMLElement;
 	private readonly _card: PromptTimelineCard;
 	private readonly _markDisposables = this._register(new DisposableStore());
 	private readonly _marks: IMarkEntry[] = [];
+	/** Delays enabling the glide until after a structural rebuild's first layout, so freshly created marks don't slide in from the top. */
+	private readonly _glideEnabler = this._register(new MutableDisposable());
 
 	private _activeRequestId: string | undefined;
 	private _layout: IPromptScrollLayout | undefined;
 	private _resizeObserverReady = false;
 	private _hostWidth = Number.POSITIVE_INFINITY;
+	/** Cached rail height; only changes on resize (observed), so we avoid reading it — a forced reflow — on every scroll. */
+	private _railHeight = 0;
+	/** Coalesces scroll-driven relayouts to one per animation frame. */
+	private readonly _relayoutScheduled = this._register(new MutableDisposable());
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
@@ -63,8 +74,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		this._domNode.setAttribute('role', 'toolbar');
 		this._domNode.setAttribute('aria-orientation', 'vertical');
 		this._marksContainer = append(this._domNode, $('.prompt-timeline-ruler-marks'));
-		this._thumb = append(this._domNode, $('.prompt-timeline-ruler-thumb'));
-		this._thumb.classList.add('hidden');
 		this._card = this._register(new PromptTimelineCard(this._domNode));
 		this._register(this._card.onDidReview(tick => this._onDidReview.fire(tick)));
 		this._register(this._card.onDidReviewFile(e => this._onDidReviewFile.fire(e)));
@@ -99,6 +108,10 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		this._marks.length = 0;
 		clearNode(this._marksContainer);
 		this._card.hide();
+		// New buttons start at top:0; disable the glide so they don't animate from
+		// the top into place, then re-enable it after this layout so later drift glides.
+		this._marksContainer.classList.remove('glide');
+		this._glideEnabler.clear();
 
 		for (const tick of ticks) {
 			const button = append(this._marksContainer, $<HTMLButtonElement>('button.prompt-timeline-ruler-mark'));
@@ -120,6 +133,8 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		this._updateTabStops(activeIndex >= 0 ? activeIndex : 0);
 		this._updateActiveClasses();
 		this._relayout();
+		// Marks are now positioned; enable the glide for subsequent (drift) relayouts.
+		this._glideEnabler.value = scheduleAtNextAnimationFrame(getWindow(this._domNode), () => this._marksContainer.classList.add('glide'));
 	}
 
 	/** Roving tabindex: exactly one mark is tabbable so the toolbar is a single Tab stop. */
@@ -188,36 +203,63 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 
 	setScrollLayout(layout: IPromptScrollLayout | undefined): void {
 		this._layout = layout;
-		this._relayout();
+		// Scroll fires many events per frame; coalesce so we lay out (and touch the DOM) once.
+		this._scheduleRelayout();
 	}
 
-	/** Places each mark at its proportional scroll position and sizes the viewport thumb. */
+	/** Coalesces relayout to at most once per animation frame. */
+	private _scheduleRelayout(): void {
+		if (this._relayoutScheduled.value) {
+			return;
+		}
+		this._relayoutScheduled.value = scheduleAtNextAnimationFrame(getWindow(this._domNode), () => {
+			this._relayoutScheduled.clear();
+			this._relayout();
+		});
+	}
+
+	/** Places each mark at its proportional scroll position, spaced so hit targets never overlap. */
 	private _relayout(): void {
-		const height = this._domNode.clientHeight;
+		// Use the cached height (refreshed only on resize) to avoid a forced reflow per scroll.
+		const height = this._railHeight > 0 ? this._railHeight : (this._railHeight = this._domNode.clientHeight);
 		const layout = this._layout;
 		const overflowing = this._hostWidth < MIN_HOST_WIDTH;
 		this._domNode.classList.toggle('overflowing', overflowing);
 		if (overflowing || height <= 0 || !layout || layout.total <= 0) {
-			this._thumb.classList.add('hidden');
 			return;
 		}
 		const scale = height / layout.total;
-		const tops = new Map(layout.marks.map(m => [m.requestId, m.top]));
+		const topById = new Map(layout.marks.map(m => [m.requestId, m.top]));
+
+		// Collect visible marks (in order) with their desired proportional centre.
+		const visible: { entry: IMarkEntry; center: number }[] = [];
 		for (const entry of this._marks) {
-			const top = tops.get(entry.tick.requestId);
+			const top = topById.get(entry.tick.requestId);
 			if (top === undefined) {
 				entry.button.classList.add('hidden');
+				entry.lastTop = undefined;
 				continue;
 			}
 			entry.button.classList.remove('hidden');
-			// The button is a >=24px hit target centered on the mark's compressed position.
-			entry.button.style.top = `${top * scale - MIN_TARGET / 2}px`;
+			visible.push({ entry, center: top * scale });
 		}
-		// The thumb reuses the scrollbar slider: its span is the visible viewport,
-		// approximated by the rail height (the rail overlays the transcript viewport).
-		this._thumb.classList.remove('hidden');
-		this._thumb.style.top = `${(layout.scrollTop / layout.total) * height}px`;
-		this._thumb.style.height = `${Math.max(20, (height / layout.total) * height)}px`;
+
+		// Prompts can sit arbitrarily close in content space (a short turn, or after height
+		// re-estimates settle), which would let the >=24px hit targets overlap. Push adjacent
+		// marks apart to keep a full target's spacing while staying as close to their
+		// proportional position as the rail allows.
+		spaceMarkCenters(visible, height, MIN_TARGET);
+
+		for (const { entry, center } of visible) {
+			// The button is a >=24px hit target centered on the mark's (spaced) position.
+			const y = center - MIN_TARGET / 2;
+			// Skip sub-pixel drift so estimate noise doesn't jitter the marks.
+			if (entry.lastTop !== undefined && Math.abs(y - entry.lastTop) < RELAYOUT_MIN_DELTA) {
+				continue;
+			}
+			entry.lastTop = y;
+			entry.button.style.top = `${y}px`;
+		}
 	}
 
 	private _updateActiveClasses(): void {
@@ -247,7 +289,11 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 			return;
 		}
 		this._resizeObserverReady = true;
-		const observer = new ResizeObserverCtor(() => this._relayout());
+		const observer = new ResizeObserverCtor(() => {
+			// Height only changes here (window/input-part resize); refresh the cache and lay out.
+			this._railHeight = this._domNode.clientHeight;
+			this._relayout();
+		});
 		observer.observe(this._domNode);
 		this._register(toDisposable(() => observer.disconnect()));
 	}
