@@ -19,7 +19,7 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext } from '../../../common/contextkeys.js';
+import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -38,14 +38,13 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
 // The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
-// redesign, so they are hidden when the setting is enabled (original layout keeps them).
-const singlePaneDetailPanel = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true);
+// redesign, so they are hidden when single-pane is enabled (original layout keeps them).
+const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
 const notSinglePaneDetailPanel = singlePaneDetailPanel.negate();
 
 const editorTitleActionsWhen = ContextKeyExpr.and(

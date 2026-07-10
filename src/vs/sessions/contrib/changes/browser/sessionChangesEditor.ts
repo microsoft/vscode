@@ -31,7 +31,7 @@ import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multi
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
-import { shouldUseSinglePaneLayout } from '../../../browser/parts/singlePaneEditorPart.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
@@ -99,6 +99,7 @@ export class SessionChangesEditor extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super(SessionChangesEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -118,7 +119,7 @@ export class SessionChangesEditor extends EditorPane {
 		// In single-pane, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
-		this._singlePane = shouldUseSinglePaneLayout(this.configurationService);
+		this._singlePane = this.layoutService.isSinglePaneLayoutEnabled;
 		if (!this._singlePane) {
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));

@@ -6,6 +6,11 @@ bar spanning the editor content and a docked detail panel).
 
 - The whole feature is gated behind the experimental setting **`sessions.layout.singlePaneDetailPanel`**
   (const `DOCK_DETAIL_PANEL_SETTING`), read **once at startup** — a window reload applies a change.
+  The setting is read only by `createSessionsWorkbench` (which selects the workbench/parts); the
+  resulting choice is published as `IAgentWorkbenchLayoutService.isSinglePaneLayoutEnabled` (read by
+  imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
+  `when` clauses). Features must gate on those — never read the setting or the context key directly
+  in imperative code.
 - When the setting is **OFF** (default), the Agents window renders exactly as before (auxiliary bar as
   its own grid column with its composite tab strip; the standard multi-diff Changes editor). Nothing in
   this document applies.

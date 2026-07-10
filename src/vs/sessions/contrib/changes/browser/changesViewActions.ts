@@ -21,11 +21,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
@@ -124,7 +123,7 @@ registerAction2(OpenPullRequestAction);
 const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
+	SinglePaneLayoutEnabledContext
 );
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
@@ -160,7 +159,7 @@ class ChangesHeaderActionsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
-					ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+					SinglePaneLayoutEnabledContext,
 					SessionHasChangesContext
 				)
 			},

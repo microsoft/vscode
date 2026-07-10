@@ -28,6 +28,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -285,7 +286,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
-		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, configService),
+		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+		}),
 		contextKeyService,
 	};
 
