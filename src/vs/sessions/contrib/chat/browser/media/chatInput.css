@@ -135,6 +135,16 @@
 	flex: 1;
 }
 
+/* Voice mode controls (mic / stop / settings / disconnect) */
+.sessions-chat-voice-toolbar {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-voice-toolbar .monaco-toolbar {
+	position: relative;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
 /* Session config toolbar (model picker via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {

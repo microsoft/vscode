@@ -195,6 +195,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getOptionGroupsForSessionType() { return []; }
 		override supportsDelegationForSessionType() { return false; }
 		override getSessionOption() { return undefined; }
+		override getCapabilitiesForSessionType() { return undefined; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};

@@ -10,6 +10,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { localize } from '../../../nls.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
@@ -22,6 +24,7 @@ import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
 import { autorun, observableValue, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext, SessionHasTerminalsContext } from '../../common/contextkeys.js';
+import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { ISessionTerminalsService } from '../../services/sessions/browser/sessionTerminalsService.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
@@ -88,6 +91,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionTerminalsService sessionTerminalsService: ISessionTerminalsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -146,6 +150,23 @@ export class SessionView extends Disposable implements ISerializableView {
 			const session = this._sessionObs.read(reader);
 			const activeChat = session?.activeChat.read(reader);
 			const readOnly = !!activeChat && activeChat.interactivity.read(reader) !== ChatInteractivity.Full;
+			// Give an archived session an explanation specific to why it is
+			// read-only, plus an inline "Restore" action; other read-only chats
+			// (e.g. subagent transcripts) keep the generic message.
+			if (readOnly) {
+				const archived = !!session && session.isArchived.read(reader);
+				if (archived && session) {
+					this._readOnlyBanner.setContent({
+						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+						action: {
+							label: localize('sessionReadOnlyBanner.restore', "Restore"),
+							run: () => this.commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, session),
+						},
+					});
+				} else {
+					this._readOnlyBanner.setContent({ message: localize('sessionReadOnlyBanner.message', "This chat is read-only") });
+				}
+			}
 			// Only re-layout when the banner's visibility (and thus its
 			// contribution to `barHeight`) actually changes; toggling within the
 			// same read-only state leaves the bar height unchanged. Re-layouts

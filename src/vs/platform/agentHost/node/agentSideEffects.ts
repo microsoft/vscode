@@ -28,6 +28,8 @@ import {
 	isAhpChatChannel,
 	isDefaultChatUri,
 	isSubagentChatUri,
+	isChatReadOnly,
+	AH_META_IS_ARCHIVED_DB_KEY,
 	MessageKind,
 	parseChatUri,
 	parseRequiredSessionUriFromChatUri,
@@ -35,6 +37,7 @@ import {
 	ResponsePartKind,
 	ROOT_STATE_URI,
 	SessionLifecycle,
+	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
 	type ErrorInfo,
@@ -238,6 +241,25 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		const customizations = await agent.getSessionCustomizations(URI.parse(session));
+
+		// Skip the dispatch when the resolved customizations match what the
+		// session state already holds. A single edit under a shared `~/.claude`
+		// tree fans out to every open session (and, via the agent-level
+		// `onDidCustomizationsChange`, is republished once per session), so
+		// without this guard a single change emitted O(N^2) identical
+		// `SessionCustomizationsChanged` envelopes. Comparing against the
+		// authoritative session state (rather than a side cache) keeps this
+		// correct across idle-eviction + restore: a restored session's state
+		// starts without customizations, so the first successful refresh always
+		// dispatches even if the resolved set matches the prior incarnation.
+		// It also needs no cleanup on session teardown. `undefined` (never
+		// published) never equals a resolved array, so the initial publish
+		// always goes through.
+		const current = this._stateManager.getSessionState(session)?.customizations;
+		if (current && equals(current, customizations)) {
+			return;
+		}
+
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: [...customizations],
@@ -1152,7 +1174,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionIsArchivedChanged: {
-				this._persistSessionFlag(channel, 'isArchived', action.isArchived ? 'true' : '');
+				this._persistSessionFlag(channel, AH_META_IS_ARCHIVED_DB_KEY, action.isArchived ? 'true' : '');
 				const agent = this._options.getAgent(channel);
 				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
 					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel}`, err);
@@ -1343,6 +1365,30 @@ export class AgentSideEffects extends Disposable {
 		senderClientId: string | undefined;
 	}): Promise<void> {
 		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
+
+		// Read-only chats reject user-dispatched turns. `interactivity` is the
+		// general signal (e.g. subagent worker chats are `ReadOnly`), and an
+		// archived session downgrades its interactive chats to read-only too — so
+		// enforce off the chat's effective interactivity rather than special-casing
+		// archived. This is the enforcement behind the UI hiding the composer, so a
+		// buggy or remote client cannot run work in a read-only or archived session
+		// (which may no longer have its isolated worktree on disk).
+		const chatState = this._stateManager.getChatState(chat);
+		const sessionStatus = this._stateManager.getSessionSummary(options.sessionChannel)?.status ?? 0;
+		const sessionArchived = (sessionStatus & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+			this._logService.warn(`[AgentSideEffects] Rejecting turn on read-only chat=${chat} (archived=${sessionArchived}), turnId=${turnId}`);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				error: sessionArchived
+					? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
+					: { errorType: 'readOnly', message: 'This chat is read-only.' },
+			});
+			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');
+			this._toolCallTracker.clearSession(turnChannel);
+			return;
+		}
 
 		const chatUri = URI.parse(chat);
 

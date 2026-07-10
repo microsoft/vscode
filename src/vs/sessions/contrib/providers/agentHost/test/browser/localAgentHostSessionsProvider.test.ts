@@ -315,6 +315,26 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 	}();
 }
 
+/**
+ * Mimics production, where `chat.defaultConfiguration` ships with a schema
+ * default (`{ mode: 'interactive', approvals: 'default' }`), so an untouched
+ * setting is reported by `inspect` only as `defaultValue` (no user layer).
+ * The plain {@link TestConfigurationService} does not register schema defaults,
+ * so it cannot reproduce the "configured default masks remembered pick" bug.
+ */
+function createSchemaDefaultConfigurationService(): TestConfigurationService {
+	return new class extends TestConfigurationService {
+		override inspect<T>(key: string) {
+			const base = super.inspect<T>(key);
+			if (key === 'chat.defaultConfiguration' && base.userValue === undefined) {
+				const schemaDefault = { mode: 'interactive', approvals: 'default' } as unknown as T;
+				return { ...base, value: schemaDefault, defaultValue: schemaDefault };
+			}
+			return base;
+		}
+	}();
+}
+
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
 ], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
@@ -2010,32 +2030,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession gives chat.defaultConfiguration precedence over remembered autoApprove while normalizing by policy', async () => {
+	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			forwardedToAgentHost: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+		});
+	});
+
+	test('createNewSession gives remembered autoApprove precedence over a configured setting while policy still clamps', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
 			[SessionConfigKey.AutoApprove]: 'autoApprove',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 
-		// Case 1: policy restricts auto-approve — setting 'autoApprove' is clamped to 'default'
+		// Case 1: policy restricts auto-approve — remembered 'autoApprove' is clamped to 'default'
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
 		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
 		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
-		// Case 2: configured 'default' wins over remembered 'autoApprove'
+		// Case 2: an ordinary configured setting is a plain default — the remembered pick wins over it
 		const configuredDefaultConfig = new TestConfigurationService();
 		await configuredDefaultConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'default' });
 		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
 		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
 
-		// The forwarded config proves the setting took precedence over the
-		// remembered value and was properly normalized.
 		assert.deepStrictEqual({
 			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
 			configuredDefault: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
 			policyRestricted: 'default',
-			configuredDefault: 'default',
+			configuredDefault: 'autoApprove',
 		});
 	});
 
@@ -2045,6 +2078,94 @@ suite('LocalAgentHostSessionsProvider', () => {
 			[SessionConfigKey.AutoApprove]: 'autopilot',
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'autopilot',
+			autoApprove: 'default',
+		});
+	});
+
+	test('createNewSession drops an invalid remembered mode instead of forwarding it', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'bogus',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.mode, undefined);
+	});
+
+	test('createNewSession seeds remembered mode/approvals when chat.defaultConfiguration is at its schema default', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'plan',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: createSchemaDefaultConfigurationService(),
+			storageService,
+		});
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'plan',
+			autoApprove: 'autoApprove',
+		});
+	});
+
+	test('createNewSession keeps remembered picks over an ordinary configured chat.defaultConfiguration setting', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'plan',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = createSchemaDefaultConfigurationService();
+		// An ordinary configured setting acts as a default that the remembered pick overrides.
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'plan',
+			autoApprove: 'autoApprove',
+		});
+	});
+
+	test('createNewSession uses configured chat.defaultConfiguration when there is no remembered pick', async () => {
+		const config = createSchemaDefaultConfigurationService();
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'autoApprove' });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'autopilot',
+			autoApprove: 'autoApprove',
+		});
+	});
+
+	test('createNewSession lets an enterprise policy chat.defaultConfiguration override remembered picks', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'plan',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.defaultConfiguration') {
+					return { ...base, policyValue: { mode: 'autopilot', approvals: 'default' } as unknown as T };
+				}
+				return base;
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
 
@@ -3091,6 +3212,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
+
+	test('sendRequest rejects when the backend session never commits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const rejection = assert.rejects(
+			provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }),
+			/session was not committed/,
+		);
+
+		await timeout(0);
+		await timeout(30_000);
+		await rejection;
+		assert.deepStrictEqual(changes.map(change => ({
+			added: change.added.map(session => session.resource.toString()),
+			removed: change.removed.map(session => session.resource.toString()),
+		})), [
+			{ added: [session.resource.toString()], removed: [] },
+			{ added: [], removed: [session.resource.toString()] },
+		]);
+	}));
 
 	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {
 		// Regression: when the first send of a session type triggers a lengthy

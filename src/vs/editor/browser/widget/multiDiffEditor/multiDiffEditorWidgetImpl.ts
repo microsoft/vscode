@@ -78,6 +78,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		private readonly _renderSideBySide: IObservable<boolean | undefined>,
+		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
@@ -111,7 +112,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			// Also pin `useInlineViewWhenSpaceIsLimited` off so the toggle deterministically
 			// controls inline vs. side-by-side regardless of the available width.
 			const options: IDiffEditorOptions = renderSideBySide === undefined ? {} : { renderSideBySide, useInlineViewWhenSpaceIsLimited: false };
-			return options;
+			return { ...this._diffEditorOptions, ...options };
 		});
 		this._objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
 			const template = this._instantiationService.createInstance(

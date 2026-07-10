@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -49,7 +49,7 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -69,7 +69,7 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
-import product from '../../../product/common/product.js';
+import { getAppNodeModulesPath } from '../appNodeModules.js';
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
@@ -237,6 +237,25 @@ export interface IExitPlanModeResponse {
 
 export function getCopilotWorktreesRoot(repositoryRoot: URI): URI {
 	return URI.joinPath(repositoryRoot, '..', `${basename(repositoryRoot.fsPath)}.worktrees`);
+}
+
+/**
+ * Thrown when a session cannot be resumed because its working directory is gone
+ * and could not be repaired: the worktree could not be recreated (for a live
+ * session), or the repository-root fallback is also missing (for an archived
+ * session). The Copilot SDK can only read a session's transcript through a live
+ * session bound to an existing directory, so this is unrecoverable. Surfaced
+ * (rather than swallowed into an empty transcript) so opening such a session
+ * shows a clear error — including the underlying {@link reason} (e.g. the git
+ * failure) when one is available — instead of a blank chat.
+ */
+export class SessionWorkingDirectoryMissingError extends Error {
+	constructor(readonly workingDirectory: URI, readonly reason?: string) {
+		super(reason
+			? localize('sessionWorkingDirectoryMissingWithReason', "This session couldn't be loaded because its worktree is missing and could not be recreated: {0}", reason)
+			: localize('sessionWorkingDirectoryMissing', "This session couldn't be loaded because its working directory no longer exists: {0}", workingDirectory.fsPath));
+		this.name = 'SessionWorkingDirectoryMissingError';
+	}
 }
 
 export function getCopilotWorktreeDirectoryName(branchName: string, branchPrefix: string = ''): string {
@@ -992,14 +1011,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			// Resolve the CLI entry point and native SDK binaries from node_modules.
-			// In a built app these live next to the ASAR archive in
+			// In the desktop app these live next to the ASAR archive in
 			// `node_modules.asar.unpacked` (the `@github/copilot-<platform>` CLI and
 			// the `@microsoft/mxc-sdk/bin` executables are unpacked so they can be
-			// spawned), while in dev they live in `node_modules`.
+			// spawned), while in dev and on the server (which has no ASAR) they live
+			// in a plain `node_modules`.
 			// We can't use require.resolve() because @github/copilot's exports map
 			// blocks direct subpath access.
-			const moduleRootPath = product.commit ? nodeModulesAsarUnpackedPath : nodeModulesPath;
-			const nodeModulesUri = FileAccess.asFileUri(moduleRootPath);
+			const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
 			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
 
 			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
@@ -1879,6 +1898,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let branchProperty: ISchemaProperty<string> | undefined;
 		let branchDefault: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
+		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
@@ -1915,6 +1935,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				readOnly: true,
 				sessionMutable: false,
 			});
+
+			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
+				type: 'array',
+				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
+				description: localize('agentHost.sessionConfig.worktreeIncludeFilesDescription', "Glob patterns for git-ignored files to copy into the isolated worktree."),
+				items: {
+					type: 'string',
+					title: localize('agentHost.sessionConfig.worktreeIncludeFilesItem', "Pattern"),
+				},
+				readOnly: true,
+				sessionMutable: false,
+			});
 		}
 
 		const sessionSchema = createSchema({
@@ -1922,6 +1954,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...platformSessionSchema.definition,
 			...(branchProperty ? { [SessionConfigKey.Branch]: branchProperty } : {}),
 			...(worktreeBranchPrefixProperty ? { [SessionConfigKey.WorktreeBranchPrefix]: worktreeBranchPrefixProperty } : {}),
+			...(worktreeIncludeFilesProperty ? { [SessionConfigKey.WorktreeIncludeFiles]: worktreeIncludeFilesProperty } : {}),
 		});
 
 		const values = sessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
@@ -1932,9 +1965,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// falls through to the host-level `permissions` default, and only
 			// materializes on the session once the user hits "Allow in this
 			// Session".
-			// worktreeBranchPrefix intentionally omitted from defaults — the
-			// value originates on the client (`git.branchPrefix`); when the
-			// client doesn't supply one it simply stays unset.
+			// worktreeBranchPrefix / worktreeIncludeFiles intentionally omitted
+			// from defaults — the values originate on the client (`git.*`);
+			// when the client doesn't supply them they simply stay unset.
 			...(branchDefault !== undefined ? { [SessionConfigKey.Branch]: branchDefault } : {}),
 		});
 
@@ -2168,6 +2201,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const entry = context.target ?? await this._resumeSession(sessionId).catch(err => {
+			if (err instanceof SessionWorkingDirectoryMissingError) {
+				// Unrecoverable: surface to the restore/subscribe path so the
+				// client shows a clear error instead of a silently empty chat.
+				throw err;
+			}
 			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
 			return undefined;
 		});
@@ -2329,32 +2367,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!meta?.worktreePath || !meta.repositoryRoot) {
 			return;
 		}
-		const { branchName, worktreePath, repositoryRoot } = meta;
 
 		// Skip if the worktree directory already exists — nothing to do.
 		try {
-			await fs.access(worktreePath.fsPath);
+			await fs.access(meta.worktreePath.fsPath);
 			return;
 		} catch {
 			// expected when the worktree was cleaned up on archive
 		}
 
-		// Skip if the branch is missing — we have no commit to attach the
-		// recreated worktree to.
-		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
-		if (!branchPresent) {
-			this._logService.info(`[Copilot:${sessionId}] Skipping worktree recreation: branch '${branchName}' is missing`);
-			return;
-		}
-
-		try {
-			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
-			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
-			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
-			this._logService.info(`[Copilot:${sessionId}] Recreated worktree '${worktreePath.fsPath}' on unarchive`);
-		} catch (error) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to recreate worktree '${worktreePath.fsPath}' on unarchive: ${error instanceof Error ? error.message : String(error)}`);
-		}
+		await this._recreateWorktree(sessionId, { branchName: meta.branchName, worktreePath: meta.worktreePath, repositoryRoot: meta.repositoryRoot });
 	}
 
 	private async _abortSession(chat: URI): Promise<void> {
@@ -3113,14 +3135,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// A workspace-less chat's working directory is a stable per-session scratch dir
 		// that may have been reaped (OS temp cleanup, reboot) while the session
 		// persisted. Recreate it (mkdir -p) so shell/git/scratch ops don't fail.
+		let resolvedWorkingDirectory = workingDirectory;
 		if (storedMetadata.workspaceless) {
 			await this._ensureWorkspacelessScratchDir(workingDirectory, sessionId);
+		} else {
+			// A worktree-isolated session's working directory may have been removed
+			// (archive cleanup deletes the worktree while keeping the branch). The
+			// SDK requires an existing directory to bring up the session — the only
+			// path to read the transcript. Fall back to the persisted repository
+			// root so the session resumes for history. Turns on archived sessions
+			// are rejected host-side, so nothing runs in this directory.
+			resolvedWorkingDirectory = await this._ensureResumeWorkingDirectory(sessionUri, sessionId, workingDirectory);
 		}
 		// Anchor customization discovery to the working directory (the worktree for
 		// worktree-isolated sessions), matching how the session was materialized.
 		// Older sessions persisted `customizationDirectory` as the user-picked
 		// folder; preferring the working directory corrects them on resume.
-		const customizationDirectory = workingDirectory;
+		const customizationDirectory = resolvedWorkingDirectory;
 		// Always create an ActiveClient so the snapshot includes host +
 		// session-discovered customizations, even when no client has
 		// registered an active-client handle yet.
@@ -3128,7 +3159,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.reanchor(customizationDirectory);
 		const snapshot = await activeClient.snapshot();
 
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
 		if (storedMetadata.agent && !resolvedAgentName) {
 			this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
@@ -3137,7 +3168,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'resume',
 			client,
 			sessionId,
-			workingDirectory,
+			workingDirectory: resolvedWorkingDirectory,
 			resolvedAgentName,
 			snapshot,
 			activeClientToolSet: activeClient.toolSet,
@@ -3161,6 +3192,134 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._registerInitializedSession(sessionId, agentSession);
 
 		return agentSession;
+	}
+
+	/**
+	 * Resolves the directory to resume a session's SDK bring-up against,
+	 * repairing a missing worktree when possible.
+	 *
+	 * Normally this is the session's persisted `workingDirectory`. But that
+	 * directory can be gone:
+	 *
+	 * - **Archived worktree session**: archiving deliberately removes the
+	 *   worktree (keeping the branch). Archived sessions are read-only — turns
+	 *   are rejected host-side — so we resume against the persisted repository
+	 *   root purely to read the transcript (the SDK needs an existing directory
+	 *   to bring the session up).
+	 * - **Live (non-archived) worktree session whose worktree vanished** (e.g.
+	 *   the user deleted it, or a cleanup tool removed it): the session is still
+	 *   interactive, so silently resuming in the source repository would lose
+	 *   isolation and risk running the agent against the user's working tree.
+	 *   Instead we recreate the worktree from its persisted branch and resume
+	 *   there. If recreation is impossible (branch gone / git failure) we surface
+	 *   the failure rather than degrade to the source repository.
+	 *
+	 * Throws {@link SessionWorkingDirectoryMissingError} when the directory
+	 * cannot be resolved, so the load failure is surfaced to the client instead
+	 * of silently producing an empty (or misdirected) session.
+	 *
+	 * Uses the persisted `repositoryRoot` rather than deriving it from the
+	 * working directory (see the `_readWorktreeMetadata` gotcha).
+	 */
+	private async _ensureResumeWorkingDirectory(session: URI, sessionId: string, workingDirectory: URI): Promise<URI> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return workingDirectory;
+		}
+		try {
+			await fs.access(workingDirectory.fsPath);
+			return workingDirectory;
+		} catch {
+			// Working directory is missing — repair or fall back below.
+		}
+
+		const meta = await this._readWorktreeMetadata(session).catch(() => undefined);
+		const archived = await this._isSessionArchived(session);
+
+		if (archived) {
+			// Read-only: resume against the repository root for history only.
+			if (meta?.repositoryRoot) {
+				try {
+					await fs.access(meta.repositoryRoot.fsPath);
+					this._logService.info(`[Copilot:${sessionId}] Archived session working directory '${workingDirectory.fsPath}' is missing; resuming against repository root '${meta.repositoryRoot.fsPath}' for history`);
+					return meta.repositoryRoot;
+				} catch {
+					// Repository root is gone too — fall through to the unrecoverable case.
+				}
+			}
+			this._logService.warn(`[Copilot:${sessionId}] Cannot resume archived session: working directory '${workingDirectory.fsPath}' is missing and no usable repository-root fallback was found`);
+			throw new SessionWorkingDirectoryMissingError(workingDirectory);
+		}
+
+		// Live worktree session whose worktree vanished: recreate it rather than
+		// silently degrading to the source repository (which would lose the
+		// session's isolation).
+		let recreateFailureReason: string | undefined;
+		if (meta?.worktreePath && meta.repositoryRoot) {
+			const recreated = await this._recreateWorktree(sessionId, { branchName: meta.branchName, worktreePath: meta.worktreePath, repositoryRoot: meta.repositoryRoot });
+			if (recreated.ok) {
+				this._logService.info(`[Copilot:${sessionId}] Recreated missing worktree '${meta.worktreePath.fsPath}' for a live session on resume`);
+				return meta.worktreePath;
+			}
+			recreateFailureReason = recreated.reason;
+		}
+
+		// Not a worktree session, or the worktree could not be recreated: surface
+		// the failure (with the git reason when we have one) instead of running in
+		// the wrong place.
+		this._logService.warn(`[Copilot:${sessionId}] Cannot resume: working directory '${workingDirectory.fsPath}' is missing and its worktree could not be recreated${recreateFailureReason ? `: ${recreateFailureReason}` : ''}`);
+		throw new SessionWorkingDirectoryMissingError(workingDirectory, recreateFailureReason);
+	}
+
+	/**
+	 * Reads the persisted archived flag for a session from its database. The
+	 * flag is written by the orchestrator as the `isArchived` metadata key (with
+	 * a legacy `isDone` fallback for sessions persisted before the rename).
+	 */
+	private async _isSessionArchived(session: URI): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const [isArchived, isDone] = await Promise.all([
+				ref.object.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				ref.object.getMetadata(AH_META_IS_DONE_DB_KEY),
+			]);
+			return isArchived !== undefined ? isArchived === 'true' : isDone === 'true';
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/**
+	 * Recreates a worktree from its persisted branch via `git worktree add`.
+	 * Shared by the unarchive path ({@link _recreateWorktreeOnUnarchive}) and the
+	 * resume repair path ({@link _ensureResumeWorkingDirectory}). Resolves to
+	 * `{ ok: true }` on success, or `{ ok: false, reason }` with a
+	 * human-readable reason (branch missing, or the git error) when it cannot
+	 * recreate; both cases are logged. Callers decide how to surface the reason.
+	 */
+	private async _recreateWorktree(sessionId: string, meta: { readonly branchName: string; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+		const { branchName, worktreePath, repositoryRoot } = meta;
+		// Skip if the branch is missing — we have no commit to attach the
+		// recreated worktree to.
+		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
+		if (!branchPresent) {
+			const reason = localize('worktreeRecreateBranchMissing', "the branch '{0}' no longer exists", branchName);
+			this._logService.info(`[Copilot:${sessionId}] Cannot recreate worktree: branch '${branchName}' is missing`);
+			return { ok: false, reason };
+		}
+		try {
+			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
+			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
+			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
+			this._logService.info(`[Copilot:${sessionId}] Recreated worktree '${worktreePath.fsPath}'`);
+			return { ok: true };
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : String(error);
+			this._logService.warn(`[Copilot:${sessionId}] Failed to recreate worktree '${worktreePath.fsPath}': ${reason}`);
+			return { ok: false, reason };
+		}
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {
@@ -3218,6 +3377,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runtime accepted undefined when `branch` was not set in config. Preserve
 		// that behavior by passing through whatever value (or undefined) was set.
 		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+
+		const worktreeIncludeFiles = Array.isArray(config.config[SessionConfigKey.WorktreeIncludeFiles]) &&
+			config.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
+			? config.config[SessionConfigKey.WorktreeIncludeFiles] as string[]
+			: undefined;
+		if (worktreeIncludeFiles?.length) {
+			try {
+				await this._gitService.copyWorktreeIncludeFiles(repositoryRoot, worktree, worktreeIncludeFiles);
+			} catch (error) {
+				this._logService.warn(`[Copilot:${sessionId}] Failed to copy worktree include files: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
 		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
 		// Queue the worktree announcement so the first turn (live) and any
 		// subsequent restore (history) both surface the message in the chat.

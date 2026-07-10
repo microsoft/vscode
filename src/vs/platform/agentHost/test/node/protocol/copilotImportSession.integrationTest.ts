@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Copilot SDK integration test for IMPORTING a translated conversation.
+ * Agent host end-to-end test (Copilot) for IMPORTING a translated conversation.
  *
  * Validates the core premise of local→Copilot-CLI migration: a synthesized
  * `events.jsonl` (built by {@link buildSessionEventLogFromTurns}) seeded through
@@ -31,7 +31,7 @@ import { rgDiskPath } from '../../../../../base/node/ripgrep.js';
 import { MessageKind, ResponsePartKind, TurnState, type ResponsePart, type Turn } from '../../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns } from '../../../node/copilot/buildSessionEvents.js';
 import { DiskSessionFsProvider } from '../../../node/copilot/diskSessionFsProvider.js';
-import { resolveGitHubToken } from './realSdkTestHelpers.js';
+import { resolveGitHubToken } from './agentHostE2ETestHelpers.js';
 
 /**
  * Directory entry shape returned by {@link SessionFsProvider.readdirWithTypes}.
@@ -157,7 +157,7 @@ function userTurn(id: string, text: string, response: string): Turn {
 	};
 }
 
-(REAL_SDK_ENABLED ? suite : suite.skip)('Real Copilot SDK — import via seeded events.jsonl', function () {
+(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host E2E — Copilot import via seeded events.jsonl', function () {
 
 	this.timeout(120_000);
 
@@ -247,7 +247,7 @@ function userTurn(id: string, text: string, response: string): Turn {
  * storage untouched. The test first creates a throwaway session to *discover*
  * the exact native layout, then seeds a fresh session at that layout.
  */
-(REAL_SDK_ENABLED ? suite : suite.skip)('Real Copilot SDK — import via configDirectory (native storage)', function () {
+(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host E2E — Copilot import via configDirectory (native storage)', function () {
 
 	this.timeout(120_000);
 

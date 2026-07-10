@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
@@ -36,12 +37,14 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._viewModel,
 			this._workbenchUIElementFactory,
 			this._renderSideBySide,
+			this._diffEditorOptions,
 		));
 	});
 
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _diffEditorOptions: IDiffEditorOptions | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();

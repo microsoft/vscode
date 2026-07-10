@@ -224,6 +224,16 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			}));
 		}
 		override async listAgentInstructions() { return agentInstructions; }
+		override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken) {
+			return files.filter(f => f.type === type && f.storage === storage).map(f => ({
+				uri: f.uri,
+				storage: f.storage as PromptsStorage.local,
+				type: f.type,
+				name: f.name,
+				description: f.description,
+				extension: toExtensionInfo(f) as never,
+			}));
+		}
 		override async getCustomAgents() {
 			return files.filter(f => f.type === PromptsType.agent).map(a => ({
 				uri: a.uri, name: a.name ?? 'agent', description: a.description, storage: a.storage,

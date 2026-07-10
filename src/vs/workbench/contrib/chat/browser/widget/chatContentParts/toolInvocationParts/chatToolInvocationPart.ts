@@ -6,7 +6,7 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -34,6 +34,32 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
+
+/**
+ * Value equality for {@link IMcpAppRenderData}, used so the App's derived
+ * render data stays stable across state ticks that don't actually change what
+ * the webview renders — otherwise re-reading `state` (to react to in-place
+ * `toolSpecificData` mutations) would recreate the webview on every progress
+ * update.
+ */
+function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRenderData | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	if (a.kind !== b.kind || a.resourceUri !== b.resourceUri || a.input !== b.input || a.sessionResource.toString() !== b.sessionResource.toString()) {
+		return false;
+	}
+	if (a.kind === 'agentHost' && b.kind === 'agentHost') {
+		return a.serverId === b.serverId && a.channel === b.channel;
+	}
+	if (a.kind === 'local' && b.kind === 'local') {
+		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
+	}
+	return false;
+}
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -105,16 +131,27 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				}
 			}));
 
-			appData = toolInvocation.toolSpecificDataKind
-				.map(() => this.getMcpAppRenderData())
-				.map((data, reader) => {
-					if (!data) {
-						return undefined;
-					}
+			appData = derivedOpts<IMcpAppRenderData | undefined>({
+				owner: this,
+				equalsFn: mcpAppRenderDataEquals,
+			}, reader => {
+				// Read `state` alongside `toolSpecificDataKind` so the App
+				// re-derives when `toolSpecificData` is mutated in place — e.g.
+				// `mcpAppData` attached on the confirmation -> running
+				// transition, which bumps `state` via
+				// `notifyToolSpecificDataChanged()` but leaves the kind (`input`)
+				// unchanged. `equalsFn` keeps the webview stable across state
+				// ticks that don't change the render data.
+				reader.readObservable(toolInvocation.state);
+				reader.readObservable(toolInvocation.toolSpecificDataKind);
+				const data = this.getMcpAppRenderData();
+				if (!data) {
+					return undefined;
+				}
 
-					const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
-					return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
-				});
+				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
+				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
+			});
 		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.

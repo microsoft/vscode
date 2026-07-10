@@ -34,9 +34,23 @@ import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
+/** Default height (px) of a single notification row. */
+export const DEFAULT_NOTIFICATION_ROW_HEIGHT = 42;
+
+/** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
+let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
+
+/**
+ * Overrides the height (px) of a single notification row. Used by the Modern UI
+ * style-override experiment to shrink the collapsed notification card.
+ */
+export function setNotificationRowHeight(height: number): void {
+	notificationRowHeight = height;
+}
+
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
-	private static readonly ROW_HEIGHT = 42;
+	private static get ROW_HEIGHT(): number { return notificationRowHeight; }
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;

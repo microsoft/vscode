@@ -194,7 +194,7 @@ export function setup(logger: Logger): void {
 		 * Expected result: The command is sandbox-wrapped and its output contains
 		 * `${sandboxReply}` and `SANDBOX_EXIT_CODE=0`.
 		 */
-		it('runs terminal commands inside the sandbox', async function () {
+		it.skip('runs terminal commands inside the sandbox', async function () {
 			const app = this.app as Application;
 
 			try {

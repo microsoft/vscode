@@ -34,8 +34,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -80,19 +82,6 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 		}
 	}
 	return undefined;
-}
-
-function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
-	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-}
-
-function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
-	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
-	// tool calls, so clamp anything but Default when policy disables auto-approve.
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== 'default') {
-		return 'default';
-	}
-	return value;
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
@@ -225,6 +214,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 ]);
 
@@ -593,8 +583,8 @@ export class AgentHostChatInputPicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostChatInputPicker.ariaLabel', "{0} Picker", ctx.schema.title),
 			},
 			actionItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic
-				? { showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") }
-				: undefined,
+				? withChatInputPickerMotion({ showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") })
+				: withChatInputPickerMotion(undefined),
 		);
 	}
 
@@ -688,7 +678,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const ctx = this._readContext();
 		const normalizedValue = ctx?.schema.type === 'boolean'
 			? value === 'true'
-			: normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+			: normalizeSessionConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
 		const partial = { [this._property]: normalizedValue };
 		const nextConfig = { ...(this._readCurrentValues() ?? {}), ...partial };
 

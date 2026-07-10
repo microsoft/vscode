@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
+import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './parts/editorPartSizing.js';
 import { ISideBarResizeContext, Workbench } from './workbench.js';
 
 interface IDockedSideBarResizeContext extends ISideBarResizeContext {
@@ -97,14 +98,26 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _persistedEditorWidth(editorGridWidth: number | undefined): number | undefined {
-		// The docked panel lives inside the editor grid node; exclude it to avoid reload drift.
-		return typeof editorGridWidth === 'number'
-			? Math.max(0, editorGridWidth - this._dockedAuxiliaryBarWidth)
-			: editorGridWidth;
+		if (typeof editorGridWidth !== 'number') {
+			return editorGridWidth;
+		}
+		// The docked detail panel lives inside the editor grid node only while the
+		// detail (auxiliary bar) is visible. Subtract it only in that case so the
+		// persisted value is the pure editor-content width — mirroring the grid
+		// descriptor, which adds the detail width back only when the detail is
+		// visible. Subtracting it unconditionally would shrink an Editor-only
+		// session's side pane by the detail width on every reload (compounding).
+		const dockedDetailWidth = this.partVisibility.auxiliaryBar ? this._dockedAuxiliaryBarWidth : 0;
+		return Math.max(0, editorGridWidth - dockedDetailWidth);
 	}
 
-	protected override _persistedAuxiliaryBarWidth(_gridWidth: number | undefined): number | undefined {
-		return this._memento.detailWidthGrownForSidebarHide ?? this._dockedAuxiliaryBarWidth;
+	protected override _persistedGridViewSize(view: ISerializableView, dimension: 'width' | 'height', visible: boolean): number | undefined {
+		// The docked auxiliary bar is not a grid view (it lives inside the editor
+		// node), so its width comes from the docked layout state, not the grid.
+		if (view === this.auxiliaryBarPartView) {
+			return this._memento.detailWidthGrownForSidebarHide ?? this._dockedAuxiliaryBarWidth;
+		}
+		return super._persistedGridViewSize(view, dimension, visible);
 	}
 
 	protected override _defaultSideBarSize(policySideBarSize: number): number {
@@ -200,17 +213,26 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
-		// Give the editor a comfortable even split when revealed without a user-chosen
-		// width to restore. Hiding collapses the node to the detail width and the grid
-		// caches it, so a later cross-session reveal would otherwise come back narrow.
-		// A captured size in the memento always wins.
-		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
-		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
-		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize;
+		// Part sizes are workbench-global, so hiding the side pane must not discard the
+		// user's chosen editor width. Capture the current editor content width before the
+		// grid collapses the node, so revealing later — e.g. switching back from a session
+		// that closed the pane — restores it instead of resetting to the default split.
+		if (hidden) {
+			const contentWidth = this._persistedEditorWidth(this.workbenchGrid.getViewSize(this.editorPartView).width);
+			if (contentWidth !== undefined && contentWidth >= EDITOR_PART_MINIMUM_WIDTH) {
+				this._savedPartSizes = { ...this._savedPartSizes, editor: contentWidth };
+			}
+		}
 
-		const mainAreaWidthBeforeReveal = shouldApplyEvenSplit
-			? this.workbenchGrid.getViewSize(this.sessionsPartView).width
-			: 0;
+		// When revealing without a captured "Hide Editor" size to restore, prefer the
+		// remembered global editor width and only fall back to the 60%-of-window split
+		// when there is no known good width (a genuine first open).
+		const dockedEditorSizeBeforeHide = this._memento.dockedEditorSizeBeforeHide;
+		const savedEditorWidth = this._savedPartSizes.editor;
+		const canRestoreSavedWidth = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH;
+		const shouldRestoreDockedEditorSize = !hidden && !!dockedEditorSizeBeforeHide;
+		const shouldRestoreSavedWidth = !hidden && !shouldRestoreDockedEditorSize && canRestoreSavedWidth;
+		const shouldApplyEvenSplit = !hidden && !shouldRestoreDockedEditorSize && !shouldRestoreSavedWidth;
 
 		this.workbenchGrid.setViewVisible(this.editorPartView, this.partVisibility.editor || this.partVisibility.auxiliaryBar);
 
@@ -232,16 +254,31 @@ export class SinglePaneWorkbench extends Workbench {
 		} else if (dockedEditorSizeBeforeHide) {
 			this.workbenchGrid.resizeView(this.editorPartView, dockedEditorSizeBeforeHide);
 			this._memento.dockedEditorSizeBeforeHide = undefined;
+		} else if (shouldRestoreSavedWidth) {
+			const height = this.workbenchGrid.getViewSize(this.editorPartView).height;
+			const detailWidth = this.partVisibility.auxiliaryBar ? this._dockedAuxiliaryBarWidth : 0;
+			this.workbenchGrid.resizeView(this.editorPartView, { width: savedEditorWidth + detailWidth, height });
 		}
 
 		if (shouldApplyEvenSplit) {
 			this._hasAppliedInitialEditorSplit = true;
-			this._applyEditorSplitSize(mainAreaWidthBeforeReveal);
+			this._applyEditorSplitSize(this.workbenchGrid.width);
 		}
 
 		this._layoutDockedAuxBar();
 		this._fireDidChangePartVisibility(Parts.EDITOR_PART, !hidden);
 		this._notifyContainerDidLayout();
+	}
+
+	protected override _applyEditorSplitSize(_mainAreaWidth: number): void {
+		// The single-pane side pane opens to a fixed fraction of the full window width
+		// (not an even split of the main area), so it always reveals at a comfortable size.
+		const targetEditorWidth = Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(this.workbenchGrid.width * SIDE_PANE_WIDTH_RATIO));
+		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		this.workbenchGrid.resizeView(this.editorPartView, {
+			width: targetEditorWidth,
+			height: currentEditorSize.height
+		});
 	}
 
 	protected override _onWillHideAuxiliaryBar(hidden: boolean): void {
