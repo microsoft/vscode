@@ -310,10 +310,10 @@ class ToggleSessionChangesInlineViewAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const renderSideBySide = configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true;
-		configurationService.updateValue('diffEditor.renderSideBySide', !renderSideBySide, ConfigurationTarget.WORKSPACE);
+		return configurationService.updateValue('diffEditor.renderSideBySide', !renderSideBySide, ConfigurationTarget.WORKSPACE);
 	}
 }
 
