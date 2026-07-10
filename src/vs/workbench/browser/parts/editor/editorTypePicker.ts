@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorResolverService, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority, priorityToRank } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
 
@@ -50,6 +50,22 @@ export function getAvailableEditorTypes(activeEditor: EditorInput | null | undef
 		currentId: activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id,
 		editors
 	};
+}
+
+/** Whether a custom editor can be selected by default for the resource. */
+export function hasDefaultEditorAssociation(available: IAvailableEditorTypes, configuredDefaultEditor: string | undefined): boolean {
+	if (configuredDefaultEditor !== undefined && configuredDefaultEditor !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		return true;
+	}
+
+	return available.editors.some(editor => {
+		if (editor.id === DEFAULT_EDITOR_ASSOCIATION.id) {
+			return false;
+		}
+
+		const priority = available.isDiffEditor ? editor.priority.diff : editor.priority.editor;
+		return priorityToRank(priority) >= priorityToRank(RegisteredEditorPriority.builtin);
+	});
 }
 
 /**

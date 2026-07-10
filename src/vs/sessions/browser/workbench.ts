@@ -65,7 +65,7 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { EditorMaximizedContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { EditorMaximizedContext, IsPhoneLayoutContext, SinglePaneLayoutEnabledContext } from '../common/contextkeys.js';
 import {
 	NotificationsPosition,
 	NotificationsSettings,
@@ -140,9 +140,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/**
 	 * Whether the Agents window is using the single-pane (docked detail panel)
-	 * layout. Fixed at construction by the workbench subclass — `false` for the
-	 * classic/mobile workbench, `true` for {@link SinglePaneWorkbench}. Features
-	 * gate single-pane behaviour on this instead of reading the setting directly.
+	 * layout. Fixed at construction — `false` for the classic/mobile workbench,
+	 * `true` for {@link SinglePaneWorkbench}.
 	 */
 	readonly isSinglePaneLayoutEnabled: boolean;
 
@@ -532,6 +531,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this._register(autorun(reader => {
 					isPhoneLayoutCtx.set(this.layoutPolicy.viewportClass.read(reader) === 'phone');
 				}));
+
+				SinglePaneLayoutEnabledContext.bindTo(contextKeyService).set(this.isSinglePaneLayoutEnabled);
 
 				// Virtual keyboard tracking (visualViewport): publishes the
 				// keyboard height as an observable, mirrors it onto the

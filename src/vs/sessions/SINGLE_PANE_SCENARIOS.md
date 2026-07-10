@@ -6,6 +6,11 @@ bar spanning the editor content and a docked detail panel).
 
 - The whole feature is gated behind the experimental setting **`sessions.layout.singlePaneDetailPanel`**
   (const `DOCK_DETAIL_PANEL_SETTING`), read **once at startup** — a window reload applies a change.
+  The setting is read only by `createSessionsWorkbench` (which selects the workbench/parts); the
+  resulting choice is published as `IAgentWorkbenchLayoutService.isSinglePaneLayoutEnabled` (read by
+  imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
+  `when` clauses). Features must gate on those — never read the setting or the context key directly
+  in imperative code.
 - When the setting is **OFF** (default), the Agents window renders exactly as before (auxiliary bar as
   its own grid column with its composite tab strip; the standard multi-diff Changes editor). Nothing in
   this document applies.
@@ -42,7 +47,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. **This is the default state for a created session** — opening the side pane shows the Changes editor with the detail panel closed; the detail is opened only via **Toggle Details** (or restored per-session). |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. |
 
-A created session opens the side pane to **Editor only** (Changes editor, detail closed) by default; a Changes/file editor becoming active never force-opens the detail (the one exception is restoring the detail after a transient browser-tab hide). A new-session view opens to the **Files detail** (its editor content stays hidden by R1).
+A created session opens the side pane to **Editor only** (Changes editor, detail closed) by default; a Changes/file editor becoming active never force-opens the detail (the one exception is restoring the detail after a transient browser-tab hide). Opening the empty **Files placeholder** (making it the **active editor** — via the `+` Files entry or by selecting its tab) reveals the Files detail, because the placeholder's content (the Files tree) lives there. The detail-panel strategy keys this on the active-editor signal, so the managed auto-ensured Files tab (opened *inactive* as a background tab) never triggers it — the Editor-only default is preserved — and hiding the detail afterwards sticks (hiding does not change the active editor). It is also skipped while the whole side pane is closed (editor content hidden) or during a session-switch restore. A new-session view opens to the **Files detail** (its editor content stays hidden by R1).
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) gives it a comfortable width of **60% of the full window width**
