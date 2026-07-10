@@ -1139,10 +1139,12 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		});
 
 		// FLAKE PROBE (throwaway branch — do NOT merge): register the subagent-reopen
-		// test many times, ungated on Windows, so CI empirically exercises the
-		// Claude/Windows path that motivated `subagentReplayUnstableOnWindows`. Every
-		// registration keeps the identical title so all runs reuse the one committed
-		// fixture. Count is env-tunable via AGENT_HOST_FLAKE_PROBE_COUNT.
+		// test many times to stress the shipped fix. The Windows gate
+		// (`subagentReplayUnstableOnWindows`) is KEPT, so this confirms the gated fix
+		// stays all-green under repeat: Windows skips Claude, macOS/Linux run Claude Nx,
+		// and Copilot runs Nx everywhere. Every registration keeps the identical title
+		// so all runs reuse the one committed fixture. Count is env-tunable via
+		// AGENT_HOST_FLAKE_PROBE_COUNT.
 		const __reopenProbeCount = Number(process.env['AGENT_HOST_FLAKE_PROBE_COUNT'] ?? '20') || 1;
 		const __runReopenTest = async function (this: Mocha.Context) {
 			this.timeout(180_000);
@@ -1267,7 +1269,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 				`parent text: ${JSON.stringify(parentText).slice(0, 800)}`);
 		};
 		for (let __probe = 0; __probe < __reopenProbeCount; __probe++) {
-			(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', __runReopenTest);
+			((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', __runReopenTest);
 		}
 	});
 }
