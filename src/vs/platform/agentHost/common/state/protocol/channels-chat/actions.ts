@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -138,6 +138,8 @@ export interface ChatToolCallStartAction extends ToolCallActionBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called. Absent for
 	 * server-side tools that are not contributed by a client or MCP server.
@@ -386,6 +388,23 @@ export interface ChatErrorAction {
 	_meta?: Record<string, unknown>;
 }
 
+/**
+ * The activity description of this chat changed.
+ *
+ * Dispatched by the server to indicate what the chat is currently doing
+ * (e.g. running a tool, thinking). Clear activity by omitting it or setting it
+ * to `undefined`.
+ * Producers SHOULD also update the parent session's chat catalog with
+ * `session/chatUpdated` so `ChatSummary.activity` stays in sync.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatActivityChangedAction {
+	type: ActionType.ChatActivityChanged;
+	/** Human-readable description of current activity; omit or set `undefined` to clear */
+	activity?: string;
+}
 
 /**
  * Token usage report for a turn.
@@ -462,6 +481,26 @@ export interface ChatTruncatedAction {
 	type: ActionType.ChatTruncated;
 	/** Keep turns up to and including this turn. Omit to clear all turns. */
 	turnId?: string;
+}
+
+/**
+ * Loads older completed turns into this chat's state.
+ *
+ * Hosts dispatch this before responding to `fetchTurns`, and before applying
+ * any operation that references a turn older than the currently loaded window.
+ * `turns` is ordered oldest-first and is prepended to the current `turns`
+ * window. `turnsNextCursor` replaces the state's cursor; omit it when all
+ * retained turns are now loaded.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatTurnsLoadedAction {
+	type: ActionType.ChatTurnsLoaded;
+	/** Older completed turns loaded into the state, ordered oldest-first. */
+	turns: Turn[];
+	/** Opaque cursor for loading the next older page, if one remains. */
+	turnsNextCursor?: string;
 }
 
 // ─── Pending Message Actions ─────────────────────────────────────────────────
@@ -626,9 +665,11 @@ export type ChatAction =
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction
+	| ChatActivityChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatTruncatedAction
+	| ChatTurnsLoadedAction
 	| ChatPendingMessageSetAction
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction

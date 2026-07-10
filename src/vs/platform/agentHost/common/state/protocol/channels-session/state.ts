@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary } from '../channels-chat/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -160,6 +160,23 @@ export interface SessionState extends SessionMetadata {
 	 */
 	changesets?: Changeset[];
 	/**
+	 * Outstanding input the session is blocked on, aggregated across every chat
+	 * so a client can discover and answer it from the session channel alone,
+	 * without subscribing to individual chats.
+	 *
+	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
+	 * identifier the client needs to respond. A client answers by dispatching the
+	 * ordinary `chat/*` action to that chat's channel — see
+	 * {@link SessionInputRequest} for the per-variant response path. A present,
+	 * non-empty list implies {@link SessionStatus.InputNeeded} on
+	 * {@link SessionSummary.status}.
+	 *
+	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
+	 * chats raise requests and removes them with `session/inputNeededRemoved`
+	 * once the underlying request resolves.
+	 */
+	inputNeeded?: SessionInputRequest[];
+	/**
 	 * Additional provider-specific metadata for this session.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
@@ -196,6 +213,136 @@ export interface SessionActiveClient {
 	customizations?: ClientPluginCustomization[];
 }
 
+// ─── Session Input Requests ──────────────────────────────────────────────────
+
+/**
+ * Discriminant for the kinds of outstanding input a session can surface in
+ * {@link SessionState.inputNeeded}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputRequestKind {
+	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	ChatInput = 'chatInput',
+	/** A tool call awaiting parameter- or result-confirmation. */
+	ToolConfirmation = 'toolConfirmation',
+	/** A running tool the session wants an active client to execute. */
+	ToolClientExecution = 'toolClientExecution',
+}
+
+/**
+ * Fields common to every {@link SessionInputRequest} variant.
+ *
+ * @category Session Input Types
+ */
+interface SessionInputRequestBase {
+	/**
+	 * Stable key for this entry, unique within the session's
+	 * {@link SessionState.inputNeeded} list. The host derives it however it likes
+	 * (for example from the chat URI plus the underlying request or tool-call
+	 * id); consumers MUST treat it as opaque. It is the key for the
+	 * `session/inputNeededSet` / `session/inputNeededRemoved` upsert convention.
+	 */
+	id: string;
+	/**
+	 * The chat the underlying request lives in. This is the channel a client
+	 * dispatches its response to — it does not need to have subscribed to that
+	 * chat first.
+	 */
+	chat: URI;
+}
+
+/**
+ * A user-input elicitation surfaced at the session level, mirroring one entry
+ * of the owning chat's {@link ChatState.inputRequests}.
+ *
+ * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
+ * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
+ * keyed by {@link ChatInputRequest.id | `request.id`}.
+ *
+ * @category Session Input Types
+ */
+export interface SessionChatInputRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ChatInput;
+	/** The mirrored chat input request. */
+	request: ChatInputRequest;
+}
+
+/**
+ * A tool call blocked on confirmation — either parameter confirmation before
+ * execution or result confirmation after — surfaced at the session level.
+ *
+ * Respond by dispatching `chat/toolCallConfirmed` (for
+ * {@link ToolCallPendingConfirmationState}) or `chat/toolCallResultConfirmed`
+ * (for {@link ToolCallPendingResultConfirmationState}) to
+ * {@link SessionInputRequestBase.chat | `chat`}, keyed by `turnId` and
+ * `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolConfirmationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolConfirmation;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting confirmation. */
+	toolCall: ToolCallConfirmationState;
+}
+
+/**
+ * A running tool whose execution is delegated to an active client. Surfaced so
+ * a client that provides the tool can pick up the work without subscribing to
+ * the owning chat.
+ *
+ * The {@link toolCall} is always a {@link ToolCallRunningState} (a
+ * {@link ToolCallState} in `running` status) whose
+ * {@link ToolCallRunningState.contributor | `contributor`} is a client
+ * {@link ToolCallClientContributor} whose `clientId` matches the denormalized
+ * {@link clientId} here. Execute and report the result by dispatching
+ * `chat/toolCallComplete` (and optionally streaming with
+ * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
+ * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolClientExecution;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/**
+	 * The `clientId` expected to execute the tool. Matches the `clientId` of the
+	 * tool call's client {@link ToolCallContributor}.
+	 */
+	clientId: string;
+	/**
+	 * The running tool call the session wants the owning client to execute. The
+	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
+	 * {@link ToolCallState} in `running` status).
+	 */
+	toolCall: ToolCallState;
+}
+
+/**
+ * One outstanding piece of input a session is blocked on, aggregated across all
+ * chats in {@link SessionState.inputNeeded}.
+ *
+ * Each entry is self-sufficient: it carries the owning
+ * {@link SessionInputRequestBase.chat | `chat`} URI plus every identifier needed
+ * to construct the response, so a client can answer by dispatching the ordinary
+ * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
+ * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
+ * to the chat**. The host removes the entry with `session/inputNeededRemoved`
+ * once the underlying request resolves.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputRequest =
+	| SessionChatInputRequest
+	| SessionToolConfirmationRequest
+	| SessionToolClientExecutionRequest;
+
 /**
  * Server-owned project metadata for a session.
  *
@@ -223,11 +370,9 @@ export interface ProjectInfo {
  *   `Error` — bits 0–4) from the
  *   {@link SessionState.defaultChat | default chat} when present, else from
  *   the most recently modified chat. **Promote** `InputNeeded` whenever any
- *   chat in the session needs input, **promote** `Error` whenever any chat is
- *   in an error state, and **promote** `InProgress` whenever any chat is
- *   actively streaming — all override the default-chat bits, with precedence
- *   `InputNeeded` > `Error` > `InProgress`. The orthogonal flag bits
- *   (`IsRead`, `IsArchived`) remain session-scoped.
+ *   chat in the session needs input, and **promote** `Error` whenever any
+ *   chat is in an error state — both override the default-chat bits. The
+ *   orthogonal flag bits (`IsRead`, `IsArchived`) remain session-scoped.
  * - `activity`: mirror the activity string of the default chat, or of the
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
@@ -494,6 +639,14 @@ interface CustomizationBase {
 	 * Absent when the customization covers the whole resource.
 	 */
 	range?: TextRange;
+	/**
+	 * Additional provider-specific metadata for this customization.
+	 *
+	 * Mirrors the MCP `_meta` convention. Optional and opaque to the
+	 * protocol; producers and consumers agree on its contents
+	 * out-of-band.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -595,6 +748,15 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/**
+	 * Version of the plugin, sourced from the
+	 * [Open Plugins](https://open-plugins.com/) manifest's optional
+	 * `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
+	 * declares no version — the field is optional there — or the source
+	 * has no version concept. Provenance / display only: the host neither
+	 * parses nor enforces it.
+	 */
+	version?: string;
 }
 
 /**
@@ -637,6 +799,35 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
 }
 
 /**
+ * Fields shared by the leaf child customizations that live inside a
+ * container — {@link AgentCustomization}, {@link SkillCustomization},
+ * {@link PromptCustomization}, {@link RuleCustomization}, and
+ * {@link HookCustomization}.
+ *
+ * {@link McpServerCustomization} is also a child but does not extend this
+ * base: it always carries an explicit {@link McpServerCustomization.enabled}
+ * because it can appear as a top-level customization too.
+ *
+ * @category Customization Types
+ */
+interface ChildCustomizationBase extends CustomizationBase {
+	/**
+	 * Whether this child is individually enabled. Absent means enabled, so a
+	 * producer only needs to set it to surface a child that exists but is
+	 * turned off on its own.
+	 *
+	 * This flag is independent of the parent container's: the **effective**
+	 * enabled state of a child is
+	 * `container.enabled && (child.enabled ?? true)`, so a disabled container
+	 * disables every child regardless of each child's own flag.
+	 *
+	 * A child is turned on or off by id with
+	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * A custom agent contributed by a plugin or directory.
  *
  * Mirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)
@@ -645,7 +836,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  *
  * @category Customization Types
  */
-export interface AgentCustomization extends CustomizationBase {
+export interface AgentCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Agent;
 	/**
 	 * Short description of what the agent specializes in and when to
@@ -653,11 +844,33 @@ export interface AgentCustomization extends CustomizationBase {
 	 */
 	description?: string;
 	/**
-	 * Additional provider-specific metadata for this custom agent.
-	 *
-	 * Mirrors the MCP `_meta` convention.
+	 * Model the agent is pinned to, sourced from the agent file's
+	 * frontmatter `model`. Absent means the agent inherits the session's
+	 * default model.
 	 */
-	_meta?: Record<string, unknown>;
+	model?: string;
+	/**
+	 * Allowlist of tool names the agent is scoped to, sourced from the
+	 * agent file's frontmatter `tools`. A non-empty list restricts the
+	 * agent to exactly those tools. Absent — or an empty list — imposes no
+	 * restriction beyond the session default: the agent may use any
+	 * available tool. Producers express "no restriction" by omitting the
+	 * field rather than sending an empty array, so an empty list carries no
+	 * meaning distinct from absence.
+	 */
+	tools?: string[];
+	/**
+	 * When `true`, the agent will not auto-delegate to this custom agent
+	 * as a sub-agent; it can only be selected by the user. Absent or
+	 * `false` means the agent may delegate to it.
+	 */
+	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot select this custom agent (for example,
+	 * in a picker); it remains available for the agent to auto-delegate
+	 * to. Absent or `false` means the user may select it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -670,7 +883,7 @@ export interface AgentCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface SkillCustomization extends CustomizationBase {
+export interface SkillCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Skill;
 	/**
 	 * Short description used for help text and auto-invocation matching.
@@ -683,6 +896,12 @@ export interface SkillCustomization extends CustomizationBase {
 	 * `disable-model-invocation` flag.
 	 */
 	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot directly invoke this skill (for example,
+	 * as a slash command); it remains available for the agent to
+	 * auto-invoke. Absent or `false` means the user may invoke it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -690,7 +909,7 @@ export interface SkillCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface PromptCustomization extends CustomizationBase {
+export interface PromptCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Prompt;
 	/** Short description of what the prompt does. */
 	description?: string;
@@ -709,7 +928,7 @@ export interface PromptCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface RuleCustomization extends CustomizationBase {
+export interface RuleCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Rule;
 	/**
 	 * Description of what the rule enforces.
@@ -733,7 +952,7 @@ export interface RuleCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface HookCustomization extends CustomizationBase {
+export interface HookCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Hook;
 }
 

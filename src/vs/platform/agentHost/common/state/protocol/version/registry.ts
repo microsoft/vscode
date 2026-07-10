@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.5.0';
+export const PROTOCOL_VERSION = '0.6.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,7 +35,9 @@ export const PROTOCOL_VERSION = '0.5.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-	'0.5.0',
+	'0.6.0',
+	'0.5.2',
+	'0.5.1',
 ]);
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
@@ -88,11 +90,15 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionServerToolsChanged]: '0.1.0',
 	[ActionType.SessionActiveClientSet]: '0.5.0',
 	[ActionType.SessionActiveClientRemoved]: '0.5.0',
+	[ActionType.SessionInputNeededSet]: '0.5.1',
+	[ActionType.SessionInputNeededRemoved]: '0.5.1',
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
 	[ActionType.SessionCustomizationToggled]: '0.1.0',
 	[ActionType.SessionCustomizationUpdated]: '0.1.0',
 	[ActionType.SessionCustomizationRemoved]: '0.2.0',
 	[ActionType.SessionMcpServerStateChanged]: '0.3.0',
+	[ActionType.SessionMcpServerStartRequested]: '0.5.2',
+	[ActionType.SessionMcpServerStopRequested]: '0.5.2',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',
 	[ActionType.SessionActivityChanged]: '0.1.0',
@@ -112,6 +118,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatTurnComplete]: '0.4.0',
 	[ActionType.ChatTurnCancelled]: '0.4.0',
 	[ActionType.ChatError]: '0.4.0',
+	[ActionType.ChatActivityChanged]: '0.5.0',
 	[ActionType.ChatUsage]: '0.4.0',
 	[ActionType.ChatReasoning]: '0.4.0',
 	[ActionType.ChatPendingMessageSet]: '0.4.0',
@@ -122,9 +129,11 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
 	[ActionType.ChatInputCompleted]: '0.4.0',
 	[ActionType.ChatTruncated]: '0.4.0',
+	[ActionType.ChatTurnsLoaded]: '0.5.1',
 	[ActionType.ChangesetStatusChanged]: '0.2.0',
 	[ActionType.ChangesetFileSet]: '0.2.0',
 	[ActionType.ChangesetFileRemoved]: '0.2.0',
+	[ActionType.ChangesetFilesReviewChanged]: '0.6.0',
 	[ActionType.ChangesetContentChanged]: '0.4.0',
 	[ActionType.ChangesetOperationsChanged]: '0.2.0',
 	[ActionType.ChangesetOperationStatusChanged]: '0.3.0',
@@ -178,6 +187,7 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
 	'root/sessionAdded': '0.1.0',
 	'root/sessionRemoved': '0.1.0',
 	'root/sessionSummaryChanged': '0.1.0',
+	'root/progress': '0.5.0',
 	'auth/required': '0.1.0',
 	'otlp/exportLogs': '0.2.0',
 	'otlp/exportTraces': '0.2.0',

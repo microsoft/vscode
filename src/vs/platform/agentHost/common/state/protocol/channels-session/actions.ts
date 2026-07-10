@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo, URI } from '../common/state.js';
-import type { ToolDefinition, SessionActiveClient, Customization, McpServerState } from './state.js';
+import type { ToolDefinition, SessionActiveClient, SessionInputRequest, Customization, McpServerState } from './state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
 
@@ -250,6 +250,50 @@ export interface SessionActiveClientRemovedAction {
 	clientId: string;
 }
 
+// ─── Input Needed Actions ────────────────────────────────────────────────────
+
+/**
+ * A session-level input request was added or updated.
+ *
+ * Upsert semantics keyed by {@link SessionInputRequest.id | `request.id`}: the
+ * host dispatches this with the full {@link SessionInputRequest} to append a new
+ * entry to {@link SessionState.inputNeeded} or replace the existing entry with
+ * the same `id`.
+ *
+ * Server-originated: the host mirrors chat-level requests (elicitations, tool
+ * confirmations, client-tool executions) into the session aggregate so clients
+ * subscribed only to the session channel can discover them. Clients respond by
+ * dispatching the ordinary `chat/*` action to the entry's `chat` channel — see
+ * {@link SessionInputRequest}.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionInputNeededSetAction {
+	type: ActionType.SessionInputNeededSet;
+	/** The input request to add or update, matched by `id`. */
+	request: SessionInputRequest;
+}
+
+/**
+ * A session-level input request was removed.
+ *
+ * Removes the entry identified by `id` from
+ * {@link SessionState.inputNeeded}; a no-op when no entry matches.
+ *
+ * Server-originated: the host dispatches this once the underlying request
+ * resolves (the user answers, the tool call is confirmed, or the client
+ * reports its result).
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionInputNeededRemovedAction {
+	type: ActionType.SessionInputNeededRemoved;
+	/** The `id` of the input request to remove. */
+	id: string;
+}
+
 // ─── Customization Actions ───────────────────────────────────────────────────
 
 /**
@@ -268,12 +312,16 @@ export interface SessionCustomizationsChangedAction {
 }
 
 /**
- * A client toggled a container customization on or off.
+ * A client toggled a customization on or off.
  *
- * Targets a top-level container (plugin or directory) by `id`. Only
- * containers have an `enabled` flag; children are always active when
- * their container is enabled. Is a no-op when no matching container is
- * found.
+ * Matches `id` against every top-level customization first — a plugin or
+ * directory container, or a bare top-level MCP server — then against the
+ * children inside each container (a skill, agent, or other entry), and
+ * sets the matched entry's `enabled` flag. Disabling a container still
+ * disables all of its children — the effective state of a child is
+ * `container.enabled && (child.enabled ?? true)` — so toggling a child
+ * only matters while its container is enabled. Is a no-op when no
+ * customization has the given `id`.
  *
  * @category Session Actions
  * @version 1
@@ -281,9 +329,9 @@ export interface SessionCustomizationsChangedAction {
  */
 export interface SessionCustomizationToggledAction {
 	type: ActionType.SessionCustomizationToggled;
-	/** The id of the container to toggle. */
+	/** The id of the container or child to toggle. */
 	id: string;
-	/** Whether to enable or disable the container. */
+	/** Whether to enable or disable the targeted customization. */
 	enabled: boolean;
 }
 
@@ -359,6 +407,58 @@ export interface SessionMcpServerStateChangedAction {
 	 * {@link McpServerStatus.Ready | `Ready`}).
 	 */
 	channel?: URI;
+}
+
+/**
+ * Requests that the host start or restart an existing
+ * {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Starting | `starting`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}; the host remains
+ * authoritative and SHOULD follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * once the server becomes ready, needs authentication, fails, or is
+ * rejected. Is a no-op when no matching `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStartRequestedAction {
+	type: ActionType.SessionMcpServerStartRequested;
+	/** The id of the {@link McpServerCustomization} to start. */
+	id: string;
+}
+
+/**
+ * Requests that the host stop an existing {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Stopped | `stopped`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}. Replacing an
+ * {@link McpServerStatus.AuthRequired | `authRequired`} lifecycle state with
+ * `stopped` unblocks the server from waiting on authentication. If the host
+ * also raised session-level input-needed state solely for that MCP server, it
+ * SHOULD remove that input-needed entry when accepting the stop.
+ *
+ * The host remains authoritative and MAY reject the action or follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * if the final lifecycle state differs. Is a no-op when no matching
+ * `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStopRequestedAction {
+	type: ActionType.SessionMcpServerStopRequested;
+	/** The id of the {@link McpServerCustomization} to stop. */
+	id: string;
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

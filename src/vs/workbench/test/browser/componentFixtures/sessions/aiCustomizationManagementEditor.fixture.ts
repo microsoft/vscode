@@ -65,7 +65,7 @@ import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/
 import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
 import { IIterativePager } from '../../../../../base/common/paging.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -122,6 +122,10 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 }
 
 type FixtureAgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
+
+function mcpLifecycleNoop(): Promise<void> {
+	return Promise.resolve();
+}
 
 function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAgentHostMcpServer[] = []): IAgentHostCustomizationService {
 	return new class extends mock<IAgentHostCustomizationService>() {
@@ -205,6 +209,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeAgentInstructions = Event.None;
 		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override getPromptLocationLabel() { return ''; }
@@ -219,6 +224,16 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			}));
 		}
 		override async listAgentInstructions() { return agentInstructions; }
+		override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken) {
+			return files.filter(f => f.type === type && f.storage === storage).map(f => ({
+				uri: f.uri,
+				storage: f.storage as PromptsStorage.local,
+				type: f.type,
+				name: f.name,
+				description: f.description,
+				extension: toExtensionInfo(f) as never,
+			}));
+		}
 		override async getCustomAgents() {
 			return files.filter(f => f.type === PromptsType.agent).map(a => ({
 				uri: a.uri, name: a.name ?? 'agent', description: a.description, storage: a.storage,
@@ -459,9 +474,9 @@ const mcpRuntimeServers = [
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
-	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
 interface IRenderEditorOptions {

@@ -178,6 +178,44 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('persists reasoning duration when response progress moves on', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const response = testDisposables.add(new Response([]));
+			response.updateContent({ kind: 'thinking', value: ['First', ' thought'] });
+			clock.tick(1500);
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Done') });
+
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'thinking' ? {
+				kind: part.kind,
+				value: part.value,
+				reasoningDurationMs: part.reasoningDurationMs,
+			} : { kind: part.kind }), [
+				{ kind: 'thinking', value: ['First', ' thought'], reasoningDurationMs: 1500 },
+				{ kind: 'markdownContent' },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('persists reasoning duration when response completes without a rendered row', () => {
+		const clock = sinon.useFakeTimers({ now: 1000 });
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'thinking', value: 'Still reasoning' });
+			clock.tick(2300);
+			request.response?.complete();
+
+			const thinkingPart = request.response?.entireResponse.value.find(part => part.kind === 'thinking');
+			assert.strictEqual(thinkingPart?.kind === 'thinking' ? thinkingPart.reasoningDurationMs : undefined, 2300);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -405,6 +443,20 @@ suite('Response', () => {
 		response.updateContent({ content: md1, kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+	});
+
+	test('system notification remains distinct from later response content', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background command completed') });
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Finished processing output.') });
+
+		assert.deepStrictEqual({
+			kinds: response.value.map(part => part.kind),
+			text: response.toString(),
+		}, {
+			kinds: ['systemNotification', 'markdownContent'],
+			text: 'Background command completed\n\nFinished processing output.',
+		});
 	});
 
 	test('inline reference', async () => {

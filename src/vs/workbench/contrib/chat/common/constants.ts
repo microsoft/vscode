@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { IChatSessionsService, localChatSessionType, SessionType } from './chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -13,6 +14,13 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../comm
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
+import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
+
+export const enum BYOKUtilityModelDefault {
+	None = 'none',
+	MainAgent = 'mainAgent',
+	Copilot = 'copilot',
+}
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
@@ -27,6 +35,7 @@ export enum ChatConfiguration {
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
 	UtilitySmallModel = 'chat.utilitySmallModel',
+	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -96,12 +105,14 @@ export enum ChatConfiguration {
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
+	TurnStatusPills = 'chat.turnStatusPills',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
+	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
 }
 
 /**
@@ -253,7 +264,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Falls back to {@link localChatSessionType} when local is enabled, or when no
  * visible non-local provider is available.
  */
-export function getDefaultNewChatSessionType(
+export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
 ): string {
@@ -274,14 +285,80 @@ export function getDefaultNewChatSessionType(
 	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService)[0] ?? localChatSessionType;
 }
 
-export function getDefaultNewChatSessionResource(
+export function getComputedDefaultSessionResource(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
 ): URI {
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService);
+	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService);
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+export function isRememberedSessionTypeUsable(
+	sessionType: string,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+): boolean {
+	if (sessionType === localChatSessionType) {
+		return isEditorLocalAgentEnabled(configurationService);
+	}
+	if (isAgentHostTarget(sessionType)) {
+		return true;
+	}
+	return !!chatSessionsService.getChatSessionContribution(sessionType);
+}
+
+export interface IDefaultNewChatSessionTypeOptions {
+	readonly explicitOverride?: string;
+	readonly currentSessionType?: string;
+}
+
+export function getDefaultNewChatSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	storageService: IStorageService,
+	options?: IDefaultNewChatSessionTypeOptions
+): string {
+	if (options?.explicitOverride) {
+		return options.explicitOverride;
+	}
+
+	const remembered = getRememberedSessionType(storageService);
+	if (remembered && isRememberedSessionTypeUsable(remembered, configurationService, chatSessionsService)) {
+		return remembered;
+	}
+
+	if (options?.currentSessionType) {
+		return options.currentSessionType;
+	}
+
+	return getComputedDefaultSessionType(configurationService, chatSessionsService);
+}
+
+export function getDefaultNewChatSessionResource(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	storageService: IStorageService,
+	options?: IDefaultNewChatSessionTypeOptions
+): URI {
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, options);
+	return defaultType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+}
+
+export function recordUserSelectedSessionType(
+	storageService: IStorageService,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	sessionType: string
+): void {
+	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService)) {
+		clearUserSelectedSessionType(storageService);
+	} else {
+		storeUserSelectedSessionType(storageService, sessionType);
+	}
 }
 
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {

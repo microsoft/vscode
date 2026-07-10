@@ -41,6 +41,7 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 			this.promptsService.onDidChangeSkills,
 			this.promptsService.onDidChangeHooks,
 			this.promptsService.onDidChangeInstructions,
+			this.promptsService.onDidChangeAgentInstructions,
 		);
 	}
 

@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -20,6 +20,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -29,13 +30,9 @@ import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
-import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
-import { confirmArchiveOnPhone } from '../mobile/mobileArchiveConfirmSheet.js';
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {
@@ -475,6 +472,58 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	}
 });
 
+const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
+
+// Gate on AI features being enabled and the local agent host (which serves
+// quick chats) being available.
+const QuickChatEnabledContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	AGENT_HOST_ENABLED_CONTEXT_KEY,
+);
+
+registerAction2(class NewQuickChatAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_QUICK_CHAT_COMMAND_ID,
+			title: localize2('newQuickChat', "New Quick Chat"),
+			icon: Codicon.add,
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: QuickChatEnabledContext,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyN),
+				when: ContextKeyExpr.and(QuickChatEnabledContext, IsSessionsWindowContext, EditorAreaFocusContext.negate()),
+			},
+			menu: [
+				{
+					// Sole create affordance for quick chats: the "+" on the
+					// always-visible in-list "Chats" section header. Opens the
+					// composer; the session type is chosen via its inline picker.
+					id: SessionSectionToolbarMenuId,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(QuickChatEnabledContext, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'quickchats')),
+				},
+			]
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		// Opens the composer with the default (last-used or first) quick-chat
+		// session type; the user changes it via the inline composer picker.
+		const sessionsService = accessor.get(ISessionsService);
+		const activeQuickChat = sessionsService.openQuickChat();
+
+		// On mobile web, the sidebar drawer covers the viewport; close it so the
+		// new quick chat composer becomes visible after creation.
+		if (isWeb && isMobile) {
+			accessor.get(ICommandService).executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+		}
+
+		accessor.get(ISessionsPartService).focusSession(activeQuickChat);
+	}
+});
+
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
 function getArchiveSectionConfirmationMessage(context: ISessionSection): string {
@@ -503,7 +552,12 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
+				// Not on Done itself, and not on the "Chats" (quick chats) section —
+				// quick chats have no archive/Done action.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
+					ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'quickchats'),
+				),
 			}]
 		});
 	}
@@ -515,37 +569,24 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
-			if (isPhoneLayout(layoutService)) {
-				const confirmed = await confirmArchiveOnPhone(layoutService, {
-					title: localize('archiveSectionSheet.title', "Mark All as Done"),
-					message: getArchiveSectionConfirmationMessage(context),
-					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
-					primaryLabel: localize('archiveSectionSessions.archive', "Mark All as Done"),
-				});
-				if (!confirmed) {
-					return;
+			const confirmed = await dialogService.confirm({
+				message: getArchiveSectionConfirmationMessage(context),
+				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
 				}
-			} else {
-				const confirmed = await dialogService.confirm({
-					message: getArchiveSectionConfirmationMessage(context),
-					detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
-					primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
-					checkbox: {
-						label: localize('doNotAskAgain', "Do not ask me again")
-					}
-				});
+			});
 
-				if (!confirmed.confirmed) {
-					return;
-				}
+			if (!confirmed.confirmed) {
+				return;
+			}
 
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 
@@ -765,7 +806,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 registerAction2(class UnarchiveSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.unarchiveSession',
+			id: UNARCHIVE_SESSION_COMMAND_ID,
 			title: localize2('unarchiveSession', "Restore"),
 			icon: Codicon.discard,
 			menu: [{
@@ -859,7 +900,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 		if (!context) {
 			return;
 		}
-		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.supportsDelete);
+		const sessions = (Array.isArray(context) ? context : [context]).filter(session => session.capabilities.get().supportsDelete);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -1019,59 +1060,6 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 		const sessions = sessionsManagementService.getSessions()
 			.filter(s => !s.isArchived.get() && !sessionsListModelService.isSessionRead(s));
 		sessionsListModelService.markAllRead(sessions);
-	}
-});
-
-registerAction2(class MarkSessionAsDoneAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.markAsDone',
-			title: localize2('markAsDone', "Mark as Done"),
-			icon: Codicon.check,
-			precondition: ChatContextKeys.requestInProgress.negate(),
-			menu: [{
-				id: MenuId.AgentsChangesToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					SessionIsArchivedContext.negate(),
-					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
-					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
-					hasActiveSessionFailedCIChecks.negate(),
-					ContextKeyExpr.or(
-						// No changes
-						ActiveSessionContextKeys.HasBranchChanges.negate(),
-						// Merge changes (base branch is not protected)
-						ContextKeyExpr.and(
-							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(false),
-							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
-							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
-							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
-						),
-						// Pull-request (base branch is protected)
-						ContextKeyExpr.and(
-							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(true),
-							ActiveSessionContextKeys.HasPullRequest.isEqualTo(true),
-							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
-							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
-							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
-						)
-					)
-				)
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
-		const activeSession = sessionsService.activeSession.get();
-		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
-			return;
-		}
-		sessionsManagementService.archiveSession(activeSession);
 	}
 });
 

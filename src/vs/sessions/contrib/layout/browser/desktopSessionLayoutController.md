@@ -40,8 +40,8 @@ the **first** time (no remembered choice yet) and again after the whole side pan
 including after a reload (the pane is restored closed, but opening Changes re-reveals it). If
 you explicitly closed just the side pane (while keeping the editor open), it stays closed on later
 opens (and across reloads). An already-open side pane is left on whatever view you chose. Skipped while
-the editor is maximized (D5) or multiple sessions are visible, where the side pane is managed by other
-rules.
+the editor is maximized (D5), multiple sessions are visible, or single-pane detail-panel mode is enabled,
+where the side pane is managed by other rules.
 
 #### D9 — Closing the whole side pane is not an aux-bar choice
 The "side pane" is the editor area together with the auxiliary bar. Closing it (e.g. from the side
@@ -77,9 +77,12 @@ The side pane is restored in this order:
 A few transitions intentionally ignore the remembered state above.
 
 #### D4 — Submitting a new session
-When a new session becomes created (`isCreated` changes from false to true) while staying active, the
-side pane stays as you left it: if it was open it stays open and switches to **Changes**; if it was
-closed it stays closed, but opening it later shows **Changes**.
+When a new session becomes created while staying active — either `isCreated` changes from false to true
+on the same resource, or the provider replaces the draft with a committed resource — the side pane stays
+as you left it: if it was open it stays open and switches to **Changes**; if it was closed it stays
+closed, but opening it later shows **Changes**. In single-pane detail-panel mode, the submit transition
+also keeps the editor content closed because managed Changes/File tab opens are suppressed; the open side
+pane shows the Changes detail.
 
 #### D5 — Maximizing the editor
 While the editor area is maximized, the side pane always shows **Changes**, regardless of the session's
@@ -95,6 +98,46 @@ When a chat turn produces new file changes, the side pane is **not** opened auto
 active view is not switched automatically — it stays as you left it. Only a new session opens it
 (D3b), and only the created transition switches it to Changes (D4).
 
+### Scenario: the side pane has nothing to show
+Some sessions gate off every auxiliary-bar view container — e.g. a workspace-less **quick chat**,
+where the Changes and Files containers are hidden — so the aux bar would otherwise be an empty column.
+
+#### D10 — An empty auxiliary bar is hidden
+When the auxiliary bar has **no active view container** (nothing to show), its part is kept **hidden**
+instead of showing an empty column, and the chat takes the space. This updates reactively as the active
+session flips (a container being gated off hides the part; a container becoming active again lets the
+normal restore rules D3/D8 reveal it) and also when the **part itself becomes visible** without any
+container-/descriptor-change signal firing — a bare detail toggle that shows the column before a container
+opens, or a restore that shows it while its containers are gated off — so the detail toggle can never read
+"on" over a blank panel. Reconciling away an empty column runs under `suppressEditorPartAutoVisibility()`
+so it never resurrects the editor as a side effect (editor visibility stays with D3/D8). The controller
+only ever *hides* an empty aux bar — it never reveals one. Correspondingly, the docked host
+(`setAuxiliaryBarHidden`) never force-opens a `hideIfEmpty` container with no active views when the aux bar
+is shown, so a show can never present a blank docked panel; and **Toggle Side Panel** only affects the part
+that has content: it reveals the editor when it has editors and the aux bar is empty, and never reveals an
+empty aux bar (when neither side has content the toggle-open is a no-op). Together these guarantee the
+invariant that `partVisibility.auxiliaryBar` (⇒ `AuxiliaryBarVisibleContext` ⇒ the detail toggle) is true
+iff the docked detail panel is rendered with an active view container. For a **quick chat** — which has no
+side pane at all (workspace-less, so the aux bar stays hidden and the chat is full-width) — the **Toggle
+Side Panel** command is **disabled** outright (`precondition: IsQuickChatSessionContext.negate()`), so its
+menu item, keybinding, and command-palette entry are inert.
+
+#### D11 — Single-pane new-session views are Files-only
+In single-pane detail-panel mode only, while a new (uncreated) workspace session view is active, the
+editor content is hidden by default so the editor tab bar and Files detail panel remain without showing
+editor content. The hide is **transition-triggered**: `_registerNewSessionRules` (a no-op base hook
+overridden by `SinglePaneLayoutController`) hides the editor part when it **just became
+visible**, or when the new-session view was **just entered** with the editor already visible (an
+inherited-visible editor from the previous session), and only while the active editor is not real content
+(the managed empty tab or none). It leaves the editor alone once a real file/browser editor is active.
+Switching to a managed tab (e.g. the Files placeholder) while the editor is **already** visible does not
+hide it — only a visibility transition or entering the view does. An explicit reveal sticks — opening a
+file reveals the editor before the file becomes the active editor (Task 4), and toggling the detail panel
+off reveals the empty editor so the side pane does not vanish (Task 2); entering the view always resets to
+editor-closed, so a stale cross-session explicit reveal cannot carry over. A momentary width-based reveal
+(e.g. a sash drag) is re-hidden by the same rule. The shared D3b/D9b new-session side-pane visibility state
+is unchanged: once the user hides the side pane for a new session, it stays hidden for later new sessions.
+
 ### Scenario: a cramped (small) window
 On a small window there isn't room for the sessions sidebar, the editor, and the side pane all at once.
 
@@ -108,6 +151,13 @@ auto-hides the sidebar: a session-switch that restores the new session's saved s
 responsive state instead of reacting to it, so only in-session layout changes drive the auto-hide. The
 whole behaviour is gated by the experimental setting `sessions.layout.autoCollapseSessionsSidebar`, which
 defaults **on** in non-stable builds (Insiders / exploration) and **off** in stable.
+
+**Single-pane override.** In single-pane detail-panel mode `_registerResponsiveSidebar` is replaced with an
+explicit-details rule: the sessions sidebar is auto-hidden **only** when the user opens the details pane via
+the **Toggle Details** action (`workbench.action.toggleAuxiliaryBar`), freeing horizontal space for the
+editor area, and restored when the details pane is closed via the same action. It is not window-size driven,
+ignores automatic details opens (submit, session restore), is suspended while multiple sessions are visible,
+and hands control back once the user reopens the sessions sidebar manually.
 
 ---
 
@@ -134,7 +184,10 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   `_isAuxiliaryBarContainerPinned` implement D3c/D3d.
 - **New-session submit [D4]** — `_onNewSessionSubmitted` keeps the aux bar as left, switches an open one
   to Changes, and records Changes as the active container even when hidden so opening the side pane
-  later starts on Changes.
+  later starts on Changes. `_onSessionReplaced` applies the same state transfer when a provider commits
+  the draft as a new resource. In single-pane mode, the tab opens that accompany this transition are
+  managed by `SinglePaneLayoutController` under editor-auto-visibility suppression, so they
+  do not reveal editor content.
 - **Editor maximized [D5]** — driven from the sync autorun via `editorMaximizedObs`
   (`IAgentWorkbenchLayoutService.isEditorMaximized()`); forced visibility is never captured (D2). The
   sessions workbench (`setEditorMaximized` in `browser/workbench.ts`) snapshots the editor part size +
@@ -142,6 +195,26 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   its previous width.
 - **No auto-reveal [D6]** — the sync logic never opens the side pane or switches the active container
   in response to file changes; only D3b opens it, and D4 switches it to Changes.
+- **Empty aux bar [D10]** — `_registerAuxiliaryBarPartVisibility` re-checks `_hasActiveAuxViewContainers()`
+  (base; `IViewDescriptorService.getViewContainersByLocation(AuxiliaryBar)` filtered by
+  `IViewsService.isViewContainerActive`) on container add/remove
+  (`onDidChangeViewContainers`/`onDidChangeContainerLocation`), each aux container model's
+  `onDidChangeActiveViewDescriptors` (the `when`-gating signal), aux-bar
+  `onDidChangeViewContainerVisibility`, and the aux-bar part becoming visible
+  (`onDidChangePartVisibility` with `partId === AUXILIARYBAR_PART && visible`).
+  `_syncAuxiliaryBarPartVisibility` hides `AUXILIARYBAR_PART` (via
+  `_hideAuxiliaryBarForRestore`, so [D2] doesn't record it) when there are no active containers, wrapped in
+  `suppressEditorPartAutoVisibility()` so the hide never triggers the docked swap-reveal of the editor, and
+  never reveals it — reveals stay with D3/D8. Symmetrically, `Workbench.setAuxiliaryBarHidden` gates its
+  docked "show last/default composite" fallback on `_isAuxViewContainerActive(id)` (mirroring
+  `IViewsService.isViewContainerActive`) so it never force-opens an empty `hideIfEmpty` container. The base
+  `toggleSidePane` re-open branch guards the aux-bar
+  un-hide with `_hasActiveAuxViewContainers()` symmetric to the editor's `hasEditors` guard, and the
+  "ensure a visible effect" fallback prefers the editor and only falls back to the aux bar when it has
+  active containers. The `Toggle Side Panel` command itself (`workbench.action.agentToggleSidePanel`,
+  registered by the base controller) carries `precondition: IsQuickChatSessionContext.negate()`, so it is
+  disabled (menu item, keybinding, palette) whenever the active session is a quick chat, which has no side
+  pane to toggle.
 - **First Changes open [D8]** — `_revealChangesViewOnFirstOpen`, registered on
   `IEditorService.onDidActiveEditorChange` **and** on `onDidChangePartVisibility` for `EDITOR_PART`
   becoming visible. The latter covers re-clicking the **Changes** button after the whole side pane was
@@ -157,6 +230,11 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   visible. A hide that came from collapsing the whole side pane (D9) sets `auxiliaryBarHiddenByCollapse:
   true`, so opening a Changes editor re-reveals the aux bar even across a reload (the pane is still
   restored closed). The reveal flows through the [D2] listener, which records `{ auxiliaryBarVisible: true }`.
+  In single-pane detail-panel mode these listeners are not registered; the DetailPanelController maps the
+  active editor to a container and reveals the matching Files/Explorer or Changes detail panel when a File
+  or Changes editor becomes active. That reveal is edge-triggered on editor activation, so explicitly
+  hiding the detail panel is respected while the same editor remains active; Browser tabs still hide the
+  panel transiently and switching back re-opens it.
 - **Side-pane close [D9]** — the side-pane toggle lives on the controller (`toggleSidePane`). Its UI
   entry point (the `Toggle Side Panel` action: menu item, keybinding, command-palette entry, toggled
   icon) is registered by the base controller in its constructor and calls `toggleSidePane` directly.
@@ -170,6 +248,9 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   an existing marker while the aux bar stays hidden and never fabricates one, so an explicit aux-bar hide
   on another session is never mistaken for a collapse. On reload the side pane is restored closed, yet
   opening Changes (D8) re-reveals it because the marker is present.
+  In single-pane mode, hiding the docked detail panel via `workbench.action.toggleAuxiliaryBar` reveals
+  editor content first when it was hidden, so the detail toggle swaps detail → editor instead of closing
+  the whole side pane; `Toggle Side Panel` remains the action that can hide both parts.
 - **New-session / side-pane close [D9b]** — the base `toggleSidePane` calls the
   `_onSidePaneToggled(collapsed, previousAuxiliaryBarVisible)` hook at the end (still inside the
   `_togglingSidePane` window). The desktop controller overrides it (skipped while multi-session /
@@ -180,6 +261,14 @@ defaults **on** in non-stable builds (Insiders / exploration) and **off** in sta
   collapsing an already editor-only state) just captures the resulting state, so an explicit aux-bar hide
   — including one whose editor-only state is restored when the pane re-opens — is never turned into a
   collapse.
+- **Single-pane new-session rule [D11]** — `LayoutController` exposes `_registerNewSessionRules` as a
+  no-op hook. `SinglePaneLayoutController` overrides it with an `autorun` over the active
+  session, multi-session state, editor maximized state, the active editor, and **the editor-part
+  visibility**; on an uncreated workspace session that is not a quick chat, it hides `EDITOR_PART` (under
+  `suppressEditorPartAutoVisibility()`) when the editor just became visible or the view was just entered
+  with the editor visible, tracking the previous editor-visible / in-new-session-view values across runs so
+  a mere active-editor change (e.g. switching to the Files placeholder) does not retrigger the hide. D3b
+  continues to open the Files container unless the shared new-session side-pane state says it is hidden.
 - **Responsive sidebar [D7]** — `_registerResponsiveSidebar` derives `spaceConstrained = enabled && small
   && editor visible && aux-bar visible && !multipleSessionsVisible` from the experimental setting
   `sessions.layout.autoCollapseSessionsSidebar` (`observableConfigValue`, default `product.quality !==

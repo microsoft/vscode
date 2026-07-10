@@ -11,6 +11,7 @@ import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTE
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostByokModelsEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
@@ -105,6 +106,12 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			},
+		},
+		[AgentHostByokModelsEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, the agent host wires up the BYOK ('bring your own key') language-model bridge so extension-provided BYOK models can run in agent-host sessions. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: true,
+			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostCodexAgentEnabledSettingId]: {
 			type: 'boolean',

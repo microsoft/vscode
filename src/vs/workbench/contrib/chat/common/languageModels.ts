@@ -284,10 +284,44 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly targetChatSessionType?: string;
 	/**
+	 * Optional grouping hint for the model picker. When set, the picker buckets this model
+	 * under a sub-group within its vendor, identified by this vendor id — e.g. agent-host models,
+	 * which all share one vendor, grouped by their upstream provider — instead of a single
+	 * vendor-wide bucket. The display name is resolved from the vendor registry
+	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
+	 * Presentation-only; it does not affect model selection or routing.
+	 */
+	readonly modelGroup?: { readonly id: string };
+	/**
+	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
+	 * original model is registered under in the renderer's LM service
+	 * (`toModelIdentifier(vendor, group, id)` — `<vendor>/<group>/<id>` or `<vendor>/<id>`).
+	 * This is exactly the id the "Manage Models" view keys visibility by; it is carried
+	 * across the agent-host bridge and surfaced here so the model picker can honour the
+	 * model's visibility toggle. Absent for native agent-host models and non-agent-host
+	 * models.
+	 */
+	readonly byokModelIdentifier?: string;
+	/**
 	 * An optional JSON schema describing the per-model configuration options.
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
 	readonly configurationSchema?: ILanguageModelConfigurationSchema;
+	/**
+	 * Optional warning text to display in the model picker hover as a warning banner.
+	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+	 */
+	readonly warningText?: IStringDictionary<string>;
+	/**
+	 * Optional promotional information for this model. Positive discounts surface
+	 * promotional UI; non-positive discounts only feature the model in the picker.
+	 */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -305,6 +339,52 @@ export namespace ILanguageModelChatMetadata {
 			return true;
 		}
 		return name === asQualifiedName(metadata);
+	}
+
+	export function hasPromoDiscount(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent > 0;
+	}
+
+	/**
+	 * Documentation link explaining how Auto model selection works.
+	 * NOTE: Also defined in extensions/copilot/src/extension/conversation/common/languageModelAccess.ts — keep in sync.
+	 */
+	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+	/**
+	 * Builds the shared description shown for the Auto model, rendered as Markdown
+	 * (it contains a "Learn More" link). The discount sentence is only included
+	 * when a positive discount is provided.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
+	 * omitted or not positive, the discount sentence is left out entirely.
+	 */
+	export function getAutoModelDescription(discountPercent?: number): string {
+		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
+		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
+		if (typeof discountPercent === 'number' && discountPercent > 0) {
+			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
+			return `${base} ${discount} ${learnMore}`;
+		}
+		return `${base} ${learnMore}`;
+	}
+
+	/**
+	 * The "Manage Models" identifier that an agent-host copy of an extension-provided
+	 * BYOK model is toggled under, or `undefined` when the model is not such a copy.
+	 *
+	 * Agent-host BYOK models make a round trip that rewrites their id (the node agent host
+	 * re-advertises the extension model under the agent-host vendor). Their original LM
+	 * service identifier — `toModelIdentifier(vendor, group, id)`, i.e. `<vendor>/<group>/<id>`
+	 * or `<vendor>/<id>`, which is what the Manage Models view stores when hiding the model —
+	 * is carried across the bridge and surfaced on {@link ILanguageModelChatMetadata.byokModelIdentifier}.
+	 * This returns it, so callers can match the copy against the user's visibility toggles.
+	 *
+	 * Returns `undefined` for models that are not agent-host BYOK copies (native harness
+	 * models and non-agent-host models), which are matched by their own identifier instead.
+	 */
+	export function getAgentHostByokManageModelsIdentifier(metadata: ILanguageModelChatMetadata): string | undefined {
+		return metadata.byokModelIdentifier;
 	}
 }
 
@@ -723,6 +803,11 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  * Auto should never appear in user-curated lists (MRU, pinned).
  */
 const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
+
+export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
+	return model?.metadata.id === 'auto' || model?.identifier === AUTO_MODEL_IDENTIFIER;
+}
+
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 
@@ -2201,7 +2286,20 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const g of vendorGroups) {
 			const name = g.group?.name ?? fallbackName;
 			if (name === groupName) {
-				result.push(...g.modelIdentifiers);
+				for (const id of g.modelIdentifiers) {
+					// Exclude agent-host BYOK copies. They are not shown as rows in this
+					// group (they surface under their real provider), so group-level
+					// visibility toggles (`isGroupHidden` / `setGroupHidden`) must not
+					// touch them — otherwise hiding the agent-host group would flip the
+					// hidden state of these copies in the underlying model set even though
+					// the UI never lists them here. Their visibility is owned by the real
+					// provider row and honoured in the picker via the reconstructed id.
+					const metadata = this._modelCache.get(id);
+					if (metadata && ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+						continue;
+					}
+					result.push(id);
+				}
 			}
 		}
 		return result;

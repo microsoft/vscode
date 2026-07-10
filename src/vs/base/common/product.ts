@@ -407,6 +407,7 @@ export interface IDefaultChatAgent {
 
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
+	readonly optimizeUsageDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
 	readonly managePlanUrl: string;
 	readonly upgradePlanUrl: string;

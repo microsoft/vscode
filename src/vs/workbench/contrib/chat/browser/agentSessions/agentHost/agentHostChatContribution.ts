@@ -8,8 +8,10 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -25,6 +27,7 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
+import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -39,8 +42,8 @@ Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncAct
 });
 
 async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
-	const configurationService = accessor.get(IConfigurationService);
-	if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+	if (!agentHostEnablementService.enabled) {
 		return false;
 	}
 
@@ -50,6 +53,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	const agentHostService = accessor.get(IAgentHostService);
+	const configurationService = accessor.get(IConfigurationService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 	while (true) {
 		const rootState = agentHostService.rootState.value;
@@ -113,12 +117,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (!agentHostEnablementService.enabled) {
 			return;
 		}
 
@@ -134,6 +139,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			this._authTokenCache.clear();
 		}));
+
+		// Surface the agent host's lazy, first-use SDK download as a progress
+		// notification. The Agents window renders this via its own sessions
+		// provider (`BaseAgentHostSessionsProvider`), so only wire it up here
+		// for regular editor windows to avoid duplicate notifications (this
+		// contribution runs in both windows). The matching `createSession`
+		// opt-in (`progressToken`) lives in the editor-window session handlers.
+		if (!this._isSessionsWindow) {
+			const downloadProgress = this._register(this._instantiationService.createInstance(AgentHostDownloadProgress));
+			this._register(this._agentHostService.onDidNotification(n => {
+				if (n.type === NotificationType.Progress) {
+					downloadProgress.handleProgress(n);
+				}
+			}));
+		}
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
@@ -215,6 +235,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
+		const ahService = this._agentHostService;
 
 		// Chat session contribution.
 		// Keep the delegation picker available for local agent host sessions in
@@ -236,13 +257,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return ahService.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
 
-		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
+			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,

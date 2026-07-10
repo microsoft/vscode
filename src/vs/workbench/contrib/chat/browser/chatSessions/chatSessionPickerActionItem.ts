@@ -15,12 +15,13 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerOptions, withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -55,6 +56,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -71,6 +73,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			actionBarActionProvider: undefined,
 			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
 			getAnchor: () => this._getAnchorElement(),
+			listOptions: withChatInputPickerMotion(undefined),
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -181,6 +184,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					longContextCacheCost: optionItem.modelMetadata.longContextCacheCost,
 					longContextCacheWriteCost: optionItem.modelMetadata.longContextCacheWriteCost,
 					priceCategory: optionItem.modelMetadata.priceCategory,
+					promo: optionItem.modelMetadata.promo,
 					maxInputTokens: optionItem.modelMetadata.maxInputTokens ?? 0,
 					maxOutputTokens: optionItem.modelMetadata.maxOutputTokens ?? 0,
 					capabilities: optionItem.modelMetadata.capabilities ? {
@@ -190,7 +194,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					isDefaultForLocation: {},
 				},
 			};
-			const hover = getModelHoverContent(syntheticModel, isUBB);
+			const hover = getModelHoverContent(syntheticModel, isUBB, undefined, this.openerService);
 			if (hover) {
 				return { content: hover.element, disposable: hover.disposable };
 			}

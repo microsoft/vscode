@@ -506,8 +506,6 @@ export class TaskApiError extends Error {
  */
 export class TaskApiHttpClient implements ITaskApiClient {
 
-	private static readonly SIGN_IN_DETAIL = l10n.t('Sign in to GitHub to use the Cloud Agent (Task API).');
-
 	constructor(
 		private readonly _capiClientService: ICAPIClientService,
 		private readonly _authService: IAuthenticationService,
@@ -515,8 +513,7 @@ export class TaskApiHttpClient implements ITaskApiClient {
 	) { }
 
 	private async _authHeaders(): Promise<Record<string, string>> {
-		const session = await this._authService.getGitHubSession('permissive', { silent: true })
-			?? await this._authService.getGitHubSession('permissive', { createIfNone: { detail: TaskApiHttpClient.SIGN_IN_DETAIL } });
+		const session = await this._authService.getGitHubSession('permissive', { silent: true });
 		const token = session?.accessToken;
 		if (!token) {
 			throw new Error(l10n.t('Sign in to GitHub to use the Cloud Agent.'));

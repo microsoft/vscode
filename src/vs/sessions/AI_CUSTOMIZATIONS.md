@@ -69,6 +69,12 @@ The management editor opens as a compact modal editor. The modal title and welco
 
 The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
 
+The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
+
+Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
+
+Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
@@ -210,6 +216,10 @@ AHP Remote Server ────────────────────�
 
 - **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
 
+### MCP server list active-session controls
+
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Other VS Code-owned actions such as enable/disable, configuration, and install/uninstall stay on the local MCP row; model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
+
 ### Structured Detail Preview
 
 For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`, `.prompt.md`), the management editor opens a **structured preview** by default instead of showing the raw file immediately.
@@ -258,7 +268,7 @@ The MCP Servers section combines locally known MCP servers with MCP servers repo
 
 ### Sidebar Customizations Section
 
-The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron.
+The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron. The collapsed/expanded state is persisted per profile (`StorageScope.PROFILE`) and restored on reload.
 
 The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. All entries keep the active customization harness in sync with the active session before opening the editor.
 

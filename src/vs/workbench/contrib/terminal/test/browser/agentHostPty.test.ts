@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -31,6 +32,7 @@ class MockAgentConnection implements IAgentConnection {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 	readonly onMcpNotification: Event<import('../../../../../platform/agentHost/common/agentService.js').IMcpNotification> = Event.None;
+	readonly initializeResult: IObservable<import('../../../../../platform/agentHost/common/state/protocol/common/commands.js').InitializeResult | undefined> = constObservable(undefined);
 
 	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];

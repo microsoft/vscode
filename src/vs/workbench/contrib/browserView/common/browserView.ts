@@ -25,6 +25,7 @@ import {
 	IPermissionCategoryState,
 } from '../../../../platform/browserView/common/browserPermissions.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
+import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -254,6 +255,19 @@ export interface IBrowserViewWorkbenchService {
 	 * @param context The filter context to use (or inferred if not provided)
 	 */
 	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput>;
+
+	/**
+	 * Resolve the preferred editor group for opening an integrated browser
+	 * editor. Honors the `workbench.browser.newTabPlacement` setting, routing new
+	 * tabs into a dedicated (locked) side group or auxiliary window when
+	 * configured. When the workbench forces editors into a modal part
+	 * (`workbench.editor.useModal: 'all'`), browser opens that target the active
+	 * group (or leave it unspecified) are
+	 * redirected to the main editor area so the browser docks instead of opening
+	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
+	 * specific group) are left untouched.
+	 */
+	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a

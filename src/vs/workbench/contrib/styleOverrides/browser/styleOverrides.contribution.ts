@@ -9,6 +9,14 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
+
+/** Reduced scrollbar size (px) applied when the style-override experiment is on. */
+const SCROLLBAR_OVERRIDE_SIZE = 8;
+
+/** Reduced collapsed notification row height (px) applied when the style-override experiment is on. */
+const NOTIFICATION_ROW_OVERRIDE_HEIGHT = 34;
 
 // Bundle the CSS for every style-override module. Every file gates all of its
 // rules behind the single `.style-override` ancestor class, so the styles are
@@ -18,6 +26,7 @@ import './media/commandCenter.css';
 import './media/editorBorder.css';
 import './media/fontRamp.css';
 import './media/keyboardFocusOnly.css';
+import './media/notificationsDialogs.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
@@ -68,7 +77,8 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'shadows' },
 	{ id: 'statusBar' },
 	{ id: 'tabs' },
-	{ id: 'titlebar' }
+	{ id: 'titlebar' },
+	{ id: 'notificationsDialogs' },
 ];
 
 /**
@@ -138,10 +148,20 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const container of this.layoutService.containers) {
 			this.applyTo(container, enabled);
 		}
+		this.applyScrollbarSize(enabled);
+		this.applyNotificationRowHeight(enabled);
 	}
 
 	private applyTo(container: HTMLElement, enabled: boolean): void {
 		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+	}
+
+	private applyScrollbarSize(enabled: boolean): void {
+		setGlobalDefaultScrollbarSize(enabled ? SCROLLBAR_OVERRIDE_SIZE : DEFAULT_SCROLLBAR_SIZE);
+	}
+
+	private applyNotificationRowHeight(enabled: boolean): void {
+		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_OVERRIDE_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
 	override dispose(): void {
@@ -149,6 +169,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const container of this.layoutService.containers) {
 			container.classList.remove(STYLE_OVERRIDE_CLASS);
 		}
+		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
 		super.dispose();
 	}
 }

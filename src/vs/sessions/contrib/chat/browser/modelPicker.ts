@@ -106,6 +106,7 @@ export class ModelPicker extends Disposable {
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
+		compact: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -145,10 +146,17 @@ export class ModelPicker extends Disposable {
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
 			showAutoModel: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel,
+			isCacheWarm: () => {
+				const session = this._session.get();
+				// The session's prompt cache is warm once its first request has
+				// been sent (status leaves Untitled), matching the main-window
+				// picker which warms as soon as the first request is added.
+				return session ? session.status.get() !== SessionStatus.Untitled : false;
+			},
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
-			compact: observableValue('compact', false),
+			compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));

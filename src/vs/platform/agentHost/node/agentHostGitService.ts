@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import * as fsPromises from 'fs/promises';
+import { cp as copyFile } from '@vscode/fs-copyfile';
+import * as path from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { parse } from '../../../base/common/glob.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -14,7 +18,7 @@ import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../c
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -117,8 +121,41 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 180_000, throwOnError: true });
 	}
 
+	async copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[]): Promise<void> {
+		try {
+			const worktreeIncludePaths = await this._getWorktreeIncludePaths(repositoryRoot, globs);
+			if (worktreeIncludePaths.length === 0) {
+				return;
+			}
+
+			const startTime = performance.now();
+			const limiter = new Limiter<void>(15);
+			const results = await Promise.allSettled(worktreeIncludePaths.map(sourcePath => limiter.queue(async () => {
+				const targetPath = path.join(worktree.fsPath, path.relative(repositoryRoot.fsPath, sourcePath));
+				await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
+				await copyFile(sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+			})));
+
+			const failedOperations = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			this._logService.info(`[AgentHostGitService][copyWorktreeIncludeFiles] Copied ${worktreeIncludePaths.length - failedOperations.length}/${worktreeIncludePaths.length} folder(s)/file(s) to worktree ${worktree.fsPath}. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			if (failedOperations.length > 0) {
+				this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree ${worktree.fsPath}.`);
+				for (const error of failedOperations) {
+					this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] ${error.reason}`);
+				}
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitService][copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree ${worktree.fsPath}: ${error}`);
+		}
+	}
+
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		// `-f` (force) so recreation succeeds even when the worktree directory was
+		// deleted out-of-band but git still has it registered ("missing but
+		// already registered worktree"). This is our own managed per-session
+		// worktree/branch, so overriding git's safeguards here is safe.
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
@@ -139,7 +176,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
-		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
 	}
 
 	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
@@ -216,24 +253,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		// Resolve the merge-base commit. With a base branch, prefer the
-		// corresponding origin/<base> remote-tracking ref when it exists so
-		// branch changes match a PR-style comparison even if the local base
-		// branch is stale. Without a usable base, fall back to HEAD itself,
-		// which surfaces uncommitted work but no committed-on-branch work -
-		// the best we can do without context. For empty repos with no HEAD,
-		// fall back to the well-known empty-tree object.
-		let mergeBaseCommit: string | undefined;
-		if (options.baseBranch) {
-			const baseBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, options.baseBranch) ?? options.baseBranch;
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
-		}
-		if (!mergeBaseCommit) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
-		}
-		if (!mergeBaseCommit) {
-			mergeBaseCommit = EMPTY_TREE_OBJECT;
-		}
+		// Resolve the merge-base commit the Branch Changes diff is anchored on.
+		const mergeBaseCommit = await this._resolveBranchMergeBaseCommit(repositoryRoot, options.baseBranch);
 
 		// Detect whether the working tree has any untracked files. If so we
 		// have to use the temp-index trick so the untracked content is
@@ -258,6 +279,38 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
+	}
+
+	async resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+
+		return this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch);
+	}
+
+	/**
+	 * Resolves the merge-base commit-ish the Branch Changes baseline is anchored
+	 * on. With a base branch, prefers the corresponding `origin/<base>`
+	 * remote-tracking ref when it exists so branch changes match a PR-style
+	 * comparison even if the local base branch is stale. Without a usable base,
+	 * falls back to `HEAD` (surfaces uncommitted work but no committed-on-branch
+	 * work). For empty repos with no `HEAD`, falls back to the empty-tree object.
+	 * Always resolves to a commit-ish (never `undefined`) once the repository
+	 * root is known.
+	 */
+	private async _resolveBranchMergeBaseCommit(repositoryRoot: URI, baseBranch?: string): Promise<string> {
+		let mergeBaseCommit: string | undefined;
+		if (baseBranch) {
+			const resolvedBase = await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranch) ?? baseBranch;
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', resolvedBase]))?.trim();
+		}
+		if (!mergeBaseCommit) {
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
+		}
+
+		return mergeBaseCommit ?? EMPTY_TREE_OBJECT;
 	}
 
 	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string, changedPaths: readonly string[]): Promise<string | undefined> {
@@ -314,25 +367,108 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined ? remoteBranch : undefined;
 	}
 
-	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
-		// Validate sha before passing it to git. `git show <sha>:<path>` parses
-		// its argument as a revision, so an attacker-controlled sha that starts
-		// with `-` could inject options, and a non-hex value could resolve to
-		// commit could resolve to surprising refs. Object names are 4-64 lowercase hex chars.
-		if (!/^[0-9a-f]{4,64}$/.test(sha)) {
-			return undefined;
+	private async _getWorktreeIncludePaths(repositoryRoot: URI, globs: readonly string[]): Promise<string[]> {
+		if (globs.length === 0) {
+			return [];
 		}
 
+		// List the git-ignored (but untracked) files: `--others` selects
+		// untracked files, `--ignored` restricts to those matched by an exclude
+		// source, and `--exclude-standard` uses the standard sources (.gitignore,
+		// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
+		// paths containing spaces or other special characters survive intact.
+		//
+		// The `--directory` variant additionally collapses a *wholly*-ignored
+		// directory (one containing no tracked files) into a single `dir/`
+		// entry. It is enumerated in parallel and used below to copy such
+		// directories as one recursive unit rather than file-by-file.
+		const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
+		const [filesOutput, directoryOutput] = await Promise.all([
+			this._runGit(repositoryRoot, baseArgs, { timeout: 30_000 }),
+			this._runGit(repositoryRoot, [...baseArgs, '--directory', '--no-empty-directory'], { timeout: 30_000 }),
+		]);
+		if (!filesOutput) {
+			return [];
+		}
+
+		// git emits repository-relative, forward-slash paths.
+		const ignoredFiles = filesOutput.split('\x00').filter(entry => entry.length > 0);
+		if (ignoredFiles.length === 0) {
+			return [];
+		}
+
+		// Keep only the ignored files that match one of the configured
+		// `git.worktreeIncludeFiles` glob patterns (VS Code glob semantics),
+		// and — in the same pass — tally which wholly-ignored directories
+		// contain an *unmatched* ignored file (and therefore cannot be
+		// collapsed). `git ls-files --directory` reports a wholly-ignored
+		// directory as a single `dir/` entry and never nests these entries
+		// (it stops descending once a directory is wholly ignored), so each
+		// file has at most one containing directory and no de-duplication of
+		// the directory set is required.
+		const matchers = globs.map(pattern => parse(pattern));
+		const wholeDirectories = new Set((directoryOutput ?? '')
+			.split('\x00').filter(entry => entry.endsWith('/')));
+
+		const matchedFiles: string[] = [];
+		const nonCollapsibleDirectories = new Set<string>();
+		for (const file of ignoredFiles) {
+			if (matchers.some(matcher => matcher(file))) {
+				matchedFiles.push(file);
+			} else if (wholeDirectories.size > 0) {
+				const containingDirectory = findContainingDirectory(file, wholeDirectories);
+				if (containingDirectory !== undefined) {
+					nonCollapsibleDirectories.add(containingDirectory);
+				}
+			}
+		}
+		if (matchedFiles.length === 0) {
+			return [];
+		}
+
+		// Collapse matched files into their containing directory when the whole
+		// directory can be copied as a single recursive unit — i.e. it is
+		// wholly ignored (so it has no tracked files a recursive copy would
+		// clobber) and every ignored file it contains matched a glob (so
+		// nothing unwanted is copied, tracked by `nonCollapsibleDirectories` above).
+		// This turns a large tree such as `node_modules/` into one copy instead
+		// of one per file, while a partially-matched or partially-tracked
+		// directory falls back to its individual matched files. `--directory`
+		// with `--no-empty-directory` never reports an empty directory, so every
+		// entry in `wholeDirectories` is known to contain at least one ignored file.
+		const collapsedDirectories = new Set<string>();
+		for (const dir of wholeDirectories) {
+			if (!nonCollapsibleDirectories.has(dir)) {
+				collapsedDirectories.add(dir);
+			}
+		}
+
+		// Emit the collapsed directories plus every matched file not already
+		// covered by one of them.
+		const includePaths: string[] = [...collapsedDirectories];
+		for (const file of matchedFiles) {
+			if (
+				collapsedDirectories.size === 0 ||
+				findContainingDirectory(file, collapsedDirectories) === undefined
+			) {
+				includePaths.push(file);
+			}
+		}
+
+		return includePaths.map(entry => path.join(repositoryRoot.fsPath, entry));
+	}
+
+	async showBlob(workingDirectory: URI, ref: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
 		}
 
 		// `git show` exits non-zero when the path didn't exist at that
-		// commit; `_runGit` swallows that into `undefined` which is exactly
+		// ref; `_runGit` swallows that into `undefined` which is exactly
 		// the contract callers want.
 		return new Promise((resolve) => {
-			cp.execFile('git', ['show', `${sha}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
+			cp.execFile('git', ['show', `${ref}:${repoRelativePath}`], { cwd: workingDirectory.fsPath, timeout: 5000, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
 				if (error) {
 					resolve(undefined);
 					return;
@@ -411,6 +547,58 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async revParse(repositoryRoot: URI, expression: string): Promise<string | undefined> {
 		const out = await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', expression]);
 		return out?.trim() || undefined;
+	}
+
+	async overlayPathIntoTree(repositoryRoot: URI, baseTreeOid: string, path: string, sourceTreeOid: string): Promise<string | undefined> {
+		// Build a throwaway index seeded from `baseTreeOid`, replace/remove the
+		// single `path` using `sourceTreeOid`, and write the result back out as
+		// a new tree. The user's real index is never touched (mirrors the
+		// temp-index technique used by `captureWorkingTreeAsTree`).
+		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-review-overlay-${generateUuid()}`);
+		await this._fileService.createFolder(tempDir);
+		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
+		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
+
+		try {
+			const readTreeOut = await this._runGit(repositoryRoot, ['read-tree', baseTreeOid], { env, throwOnError: false });
+			if (readTreeOut === undefined) {
+				return undefined;
+			}
+
+			// Resolve the source blob (mode + oid) for `path`. `-z` avoids
+			// path quoting; an empty result means the path is absent in the
+			// source tree, so the overlay removes it from the base.
+			const lsTreeOut = await this._runGit(repositoryRoot, ['ls-tree', '-z', sourceTreeOid, '--', path], { env });
+			const entry = parseSingleLsTreeEntry(lsTreeOut);
+			if (entry) {
+				const updateIndexOut = await this._runGit(repositoryRoot, ['update-index', '--add', '--cacheinfo', `${entry.mode},${entry.oid},${path}`], { env, throwOnError: false });
+				if (updateIndexOut === undefined) {
+					return undefined;
+				}
+			} else {
+				// `--force-remove` tolerates the path already being absent from
+				// the index, so removing an untracked/added path is a no-op.
+				const updateIndexOut = await this._runGit(repositoryRoot, ['update-index', '--force-remove', '--', path], { env, throwOnError: false });
+				if (updateIndexOut === undefined) {
+					return undefined;
+				}
+			}
+
+			const writeTreeOut = await this._runGit(repositoryRoot, ['write-tree'], { env });
+			return writeTreeOut?.trim();
+		} finally {
+			try {
+				await this._fileService.del(tempDir, { recursive: true, useTrash: false });
+			} catch { /* best-effort */ }
+		}
+	}
+
+	async diffTreePaths(repositoryRoot: URI, fromTreeish: string, toTreeish: string): Promise<string[] | undefined> {
+		const out = await this._runGit(repositoryRoot, ['diff', '--name-only', '--no-renames', '-z', fromTreeish, toTreeish, '--']);
+		if (out === undefined) {
+			return undefined;
+		}
+		return out.split('\x00').filter(Boolean);
 	}
 
 	async computeFileDiffsBetweenRefs(workingDirectory: URI, options: { readonly sessionUri: string; readonly fromRef: string; readonly toRef: string }): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -528,6 +716,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 }
 
 /**
+ * Returns the shallowest directory from `directories` that contains `file`, or
+ * `undefined` if none does. `file` is a repository-relative, forward-slash path
+ * and every entry in `directories` is expected to end with a trailing `/` (as
+ * produced by `git ls-files --directory`). Walking the path's `/` boundaries
+ * and probing the set is O(path depth) per file, avoiding an O(directories)
+ * scan for each file.
+ */
+function findContainingDirectory(file: string, directories: ReadonlySet<string>): string | undefined {
+	let index = file.indexOf('/');
+	while (index !== -1) {
+		const prefix = file.slice(0, index + 1);
+		if (directories.has(prefix)) {
+			return prefix;
+		}
+		index = file.indexOf('/', index + 1);
+	}
+	return undefined;
+}
+
+/**
  * Builds a diagnostic error message for a failed `git` invocation that
  * preserves the reason (timeout / signal / exit code) instead of just
  * surfacing whatever happened to be on stderr. When `git` is killed by
@@ -632,6 +840,30 @@ export function parseChangedPaths(output: string | undefined, includeStatus: (st
 		}
 	}
 	return result;
+}
+
+/**
+ * Parses NUL-terminated `git ls-tree -z <tree> -- <path>` output for a single
+ * path and returns its `{ mode, oid }`, or `undefined` when the path is absent
+ * from the tree (empty output). Each entry has the form
+ * `<mode> SP <type> SP <oid> TAB <path> NUL`; we only need the mode and oid.
+ *
+ * Exported for tests.
+ */
+export function parseSingleLsTreeEntry(output: string | undefined): { mode: string; oid: string } | undefined {
+	if (!output) {
+		return undefined;
+	}
+	const entry = output.split('\x00')[0];
+	if (!entry) {
+		return undefined;
+	}
+	const tabIndex = entry.indexOf('\t');
+	const meta = (tabIndex === -1 ? entry : entry.substring(0, tabIndex)).split(' ');
+	if (meta.length < 3) {
+		return undefined;
+	}
+	return { mode: meta[0], oid: meta[2] };
 }
 
 /**

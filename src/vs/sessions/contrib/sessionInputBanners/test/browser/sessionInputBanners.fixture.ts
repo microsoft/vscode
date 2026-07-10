@@ -13,6 +13,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 		render: (context) => renderBanners(context, [ciBanner(2, 5, 3)]),
 	}),
 
+	CIFailuresLoading: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanners(context, [ciBanner(2, 5, 3)], 480, true),
+	}),
+
 	Comments: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderBanners(context, [commentsBanner(3, 'mixed')]),
@@ -73,7 +78,7 @@ function commentsBanner(count: number, kind: 'pr' | 'agent' | 'mixed'): ISession
 	};
 }
 
-function renderBanners({ container, disposableStore, theme }: ComponentFixtureContext, banners: readonly ISessionInputBanner[], width = 480): void {
+function renderBanners({ container, disposableStore, theme }: ComponentFixtureContext, banners: readonly ISessionInputBanner[], width = 480, working = false): void {
 	container.style.width = `${width}px`;
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -85,6 +90,7 @@ function renderBanners({ container, disposableStore, theme }: ComponentFixtureCo
 
 	for (const banner of banners) {
 		const widget = disposableStore.add(instantiationService.createInstance(SessionInputBannerWidget, banner));
+		widget.setWorking(working);
 		container.appendChild(widget.domNode);
 	}
 }

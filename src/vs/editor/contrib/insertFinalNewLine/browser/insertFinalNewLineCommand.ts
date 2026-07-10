@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from '../../../../base/common/strings.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -40,13 +39,6 @@ export class InsertFinalNewLineCommand implements ICommand {
  */
 export function insertFinalNewLine(model: ITextModel): ISingleEditOperation | undefined {
 	const lineCount = model.getLineCount();
-	const lastLine = model.getLineContent(lineCount);
-	const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
-
-	if (!lineCount || lastLineIsEmptyOrWhitespace) {
-		return;
-	}
-
 	return EditOperation.insert(
 		new Position(lineCount, model.getLineMaxColumn(lineCount)),
 		model.getEOL()

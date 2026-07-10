@@ -645,6 +645,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/automations",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -674,6 +678,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/promptTimeline",
 			"project": "vscode-sessions"
 		},
 		{

@@ -26,14 +26,17 @@ import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -50,7 +53,6 @@ import { IOutputService } from '../../../services/output/common/output.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { McpServerStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -111,6 +113,8 @@ export class ListMcpServerCommand extends Action2 {
 			mcpService: accessor.get(IMcpService),
 			commandService: accessor.get(ICommandService),
 			quickInput: accessor.get(IQuickInputService),
+			notificationService: accessor.get(INotificationService),
+			logService: accessor.get(ILogService),
 		};
 		return this._runWithMode(services, undefined);
 	}
@@ -198,7 +202,7 @@ export class ListMcpServerCommand extends Action2 {
 		const { agentHostCustomizations, commandService, quickInput } = services;
 
 		const BACK_ID = '$back';
-		type ItemType = { id: string } & IQuickPickItem;
+		type ItemType = { id: string; server?: IAgentHostMcpServer } & IQuickPickItem;
 
 		const store = new DisposableStore();
 		const pick = quickInput.createQuickPick<ItemType>({ useSeparators: true });
@@ -218,10 +222,12 @@ export class ListMcpServerCommand extends Action2 {
 					alwaysShow: true,
 				} satisfies ItemType] : servers.map((server): ItemType => ({
 					id: server.id,
+					server,
 					label: server.name,
 					description: server.enabled
 						? mcpServerStatusToLabel(server.status)
 						: localize('mcp.disabled', 'Disabled'),
+					buttons: getAgentHostMcpServerButtons(server),
 				}))),
 				{ type: 'separator' } satisfies IQuickPickSeparator,
 				{
@@ -239,6 +245,19 @@ export class ListMcpServerCommand extends Action2 {
 
 		refresh();
 		store.add(agentHostCustomizations.onDidChangeCustomizations(() => refresh()));
+		store.add(pick.onDidTriggerItemButton(async event => {
+			if (!isAgentHostMcpServerButton(event.button) || !event.item.server) {
+				return;
+			}
+
+			pick.busy = true;
+			try {
+				await runAgentHostMcpServerLifecycleAction(event.item.server, event.button.action, services);
+				refresh();
+			} finally {
+				pick.busy = false;
+			}
+		}));
 
 		const picked = await new Promise<ItemType | undefined>(resolve => {
 			store.add(pick.onDidAccept(() => {
@@ -271,6 +290,69 @@ interface IListMcpServerServices {
 	readonly mcpService: IMcpService;
 	readonly commandService: ICommandService;
 	readonly quickInput: IQuickInputService;
+	readonly notificationService: INotificationService;
+	readonly logService: ILogService;
+}
+
+type AgentHostMcpServerLifecycleAction = 'start' | 'stop';
+type IAgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
+
+interface IAgentHostMcpServerButton extends IQuickInputButton {
+	readonly action: AgentHostMcpServerLifecycleAction;
+}
+
+function isAgentHostMcpServerButton(button: IQuickInputButton): button is IAgentHostMcpServerButton {
+	return 'action' in button && (button.action === 'start' || button.action === 'stop');
+}
+
+const startAgentHostMcpServerButton: IAgentHostMcpServerButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.play),
+	tooltip: localize('mcp.start', 'Start Server'),
+	action: 'start',
+};
+
+const stopAgentHostMcpServerButton: IAgentHostMcpServerButton = {
+	iconClass: ThemeIcon.asClassName(Codicon.debugStop),
+	tooltip: localize('mcp.stop', 'Stop Server'),
+	action: 'stop',
+};
+
+function getAgentHostMcpServerButtons(server: IAgentHostMcpServer): IAgentHostMcpServerButton[] {
+	if (canStartAgentHostMcpServer(server)) {
+		return [startAgentHostMcpServerButton];
+	}
+	if (canStopAgentHostMcpServer(server)) {
+		return [stopAgentHostMcpServerButton];
+	}
+	return [];
+}
+
+function canStartAgentHostMcpServer(server: IAgentHostMcpServer): boolean {
+	return server.enabled && (server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error);
+}
+
+function canStopAgentHostMcpServer(server: IAgentHostMcpServer): boolean {
+	return server.enabled && (
+		server.status === McpServerStatus.Starting
+		|| server.status === McpServerStatus.Ready
+		|| server.status === McpServerStatus.AuthRequired
+	);
+}
+
+async function runAgentHostMcpServerLifecycleAction(server: IAgentHostMcpServer, action: AgentHostMcpServerLifecycleAction, services: Pick<IListMcpServerServices, 'notificationService' | 'logService'>): Promise<void> {
+	try {
+		if (action === 'start' && canStartAgentHostMcpServer(server)) {
+			await server.start();
+		} else if (action === 'stop' && canStopAgentHostMcpServer(server)) {
+			await server.stop();
+		}
+	} catch (error) {
+		services.logService.error(`Failed to ${action} MCP server '${server.name}'`, error);
+		const message = error instanceof Error ? error.message : String(error);
+		services.notificationService.error(action === 'start'
+			? localize('mcp.agentHost.startError', "Failed to start MCP server '{0}': {1}", server.name, message)
+			: localize('mcp.agentHost.stopError', "Failed to stop MCP server '{0}': {1}", server.name, message));
+	}
 }
 
 function mcpServerStatusToLabel(status: McpServerStatus): string {
@@ -304,6 +386,8 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const outputService = accessor.get(IOutputService);
+		const notificationService = accessor.get(INotificationService);
+		const logService = accessor.get(ILogService);
 
 		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
 		if (!server) {
@@ -312,20 +396,41 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 
 		const logOutputChannelId = server.logOutputChannelId;
 
-		type ItemType = { action: 'toggle' | 'showOutput' } & IQuickPickItem;
+		type ItemType = { action: 'toggle' | 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction } & IQuickPickItem;
 
 		const items: (ItemType | IQuickPickSeparator)[] = [
 			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
-			{
-				label: server.enabled
-					? localize('mcp.agentHost.disable', 'Disable Server')
-					: localize('mcp.agentHost.enable', 'Enable Server'),
-				description: server.enabled
-					? mcpServerStatusToLabel(server.status)
-					: localize('mcp.disabled', 'Disabled'),
-				action: 'toggle',
-			},
 		];
+		if (canStartAgentHostMcpServer(server)) {
+			items.push({
+				label: localize('mcp.start', 'Start Server'),
+				description: mcpServerStatusToLabel(server.status),
+				action: 'start',
+			});
+		} else if (canStopAgentHostMcpServer(server)) {
+			items.push({
+				label: localize('mcp.stop', 'Stop Server'),
+				description: mcpServerStatusToLabel(server.status),
+				action: 'stop',
+			});
+		}
+
+		items.push({
+			label: server.enabled
+				? localize('mcp.agentHost.disable', 'Disable Server')
+				: localize('mcp.agentHost.enable', 'Enable Server'),
+			description: server.enabled
+				? mcpServerStatusToLabel(server.status)
+				: localize('mcp.disabled', 'Disabled'),
+			action: 'toggle',
+		});
+		if (server.state.kind === McpServerStatus.AuthRequired) {
+			items.push({
+				label: localize('mcp.agentHost.authenticate', 'Authenticate'),
+				description: server.state.resource.resource,
+				action: 'authenticate',
+			});
+		}
 
 		if (logOutputChannelId) {
 			items.push({
@@ -346,6 +451,16 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			if (logOutputChannelId) {
 				await outputService.showChannel(logOutputChannelId);
 			}
+			return;
+		}
+
+		if (picked.action === 'authenticate') {
+			await agentHostCustomizations.authenticateMcpServer(agentHostSession, server.id);
+			return;
+		}
+
+		if (picked.action === 'start' || picked.action === 'stop') {
+			await runAgentHostMcpServerLifecycleAction(server, picked.action, { notificationService, logService });
 			return;
 		}
 
@@ -1112,6 +1227,19 @@ export class ShowOutput extends Action2 {
 	}
 }
 
+interface IAgentHostMcpServerCommandArg {
+	readonly agentHostSession: URI;
+	readonly serverId: string;
+}
+
+function isAgentHostMcpServerCommandArg(arg: string | IAgentHostMcpServerCommandArg): arg is IAgentHostMcpServerCommandArg {
+	return typeof arg !== 'string' && URI.isUri(arg.agentHostSession) && typeof arg.serverId === 'string';
+}
+
+function getAgentHostMcpServer(accessor: ServicesAccessor, arg: IAgentHostMcpServerCommandArg): IAgentHostMcpServer | undefined {
+	return accessor.get(IAgentHostCustomizationService).getMcpServers(arg.agentHostSession).find(server => server.id === arg.serverId);
+}
+
 export class RestartServer extends Action2 {
 	constructor() {
 		super({
@@ -1122,7 +1250,14 @@ export class RestartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
+	async run(accessor: ServicesAccessor, serverId: string | IAgentHostMcpServerCommandArg, opts?: IMcpServerStartOpts) {
+		if (isAgentHostMcpServerCommandArg(serverId)) {
+			const server = getAgentHostMcpServer(accessor, serverId);
+			accessor.get(ILogService).warn(`Restarting MCP server '${server?.name ?? serverId.serverId}' is not supported for agent-host servers`);
+			accessor.get(INotificationService).warn(localize('mcp.agentHost.restartUnsupported', "Restarting MCP server '{0}' is not supported for agent-host servers. Stop and start the server instead.", server?.name ?? serverId.serverId));
+			return;
+		}
+
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		s?.showOutput();
 		await s?.stop();
@@ -1140,7 +1275,12 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+	async run(accessor: ServicesAccessor, serverId: string | IAgentHostMcpServerCommandArg, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+		if (isAgentHostMcpServerCommandArg(serverId)) {
+			await getAgentHostMcpServer(accessor, serverId)?.start();
+			return;
+		}
+
 		let servers = accessor.get(IMcpService).servers.get();
 		if (serverId !== '*') {
 			servers = servers.filter(s => s.definition.id === serverId);
@@ -1165,7 +1305,12 @@ export class StopServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string) {
+	async run(accessor: ServicesAccessor, serverId: string | IAgentHostMcpServerCommandArg) {
+		if (isAgentHostMcpServerCommandArg(serverId)) {
+			await getAgentHostMcpServer(accessor, serverId)?.stop();
+			return;
+		}
+
 		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
 		await s?.stop();
 	}

@@ -444,6 +444,8 @@ export interface IDocumentFilterDto {
 	isBuiltin?: boolean;
 }
 
+export type ITabSelectorDto = { uri: IDocumentFilterDto[] } | { viewType: string };
+
 export interface IShareableItemDto {
 	resourceUri: UriComponents;
 	selection?: IRange;
@@ -1476,7 +1478,7 @@ export interface ExtHostChatContextShape {
 	$provideWorkspaceChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]>;
 	$provideExplicitChatContext(handle: number, token: CancellationToken): Promise<IChatContextItem[]>;
 	$resolveExplicitChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
-	$provideResourceChatContext(handle: number, options: { resource: UriComponents; withValue: boolean }, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	$provideResourceChatContext(handle: number, options: { resource: UriComponents; withValue: boolean; viewType?: string }, token: CancellationToken): Promise<IChatContextItem | undefined>;
 	$resolveResourceChatContext(handle: number, context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 	$executeChatContextItemCommand(itemHandle: number): Promise<void>;
 }
@@ -1484,7 +1486,7 @@ export interface ExtHostChatContextShape {
 export interface MainThreadChatContextShape extends IDisposable {
 	$registerChatWorkspaceContextProvider(handle: number, id: string): void;
 	$registerChatExplicitContextProvider(handle: number, id: string): void;
-	$registerChatResourceContextProvider(handle: number, id: string, selector: IDocumentFilterDto[]): void;
+	$registerChatResourceContextProvider(handle: number, id: string, selector: ITabSelectorDto): void;
 	$unregisterChatContextProvider(handle: number): void;
 	$updateWorkspaceContextItems(handle: number, items: IChatContextItemDto[]): void;
 	$executeChatContextItemCommand(itemHandle: number): Promise<void>;
@@ -2197,6 +2199,24 @@ export interface MainThreadQuickDiffShape extends IDisposable {
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 	$createSourceControlDiffInformation(handle: number, uri: UriComponents): Promise<void>;
 	$disposeSourceControlDiffInformation(handle: number): Promise<void>;
+}
+
+export interface IAgentEditorCommentDto {
+	id: string;
+	range: IRange;
+	body: string;
+	author?: string;
+}
+
+export interface MainThreadAgentEditorCommentsShape extends IDisposable {
+	$createAgentEditorComments(handle: number, uri: UriComponents): Promise<void>;
+	$addComment(handle: number, range: IRange, body: string): Promise<void>;
+	$deleteComment(handle: number, id: string): Promise<void>;
+	$disposeAgentEditorComments(handle: number): Promise<void>;
+}
+
+export interface ExtHostAgentEditorCommentsShape {
+	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void;
 }
 
 export interface IDocumentDiffLineChangeDto {
@@ -4042,6 +4062,7 @@ export const MainContext = {
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
+	MainThreadAgentEditorComments: createProxyIdentifier<MainThreadAgentEditorCommentsShape>('MainThreadAgentEditorComments'),
 	MainThreadDocumentDiff: createProxyIdentifier<MainThreadDocumentDiffShape>('MainThreadDocumentDiff'),
 	MainThreadQuickOpen: createProxyIdentifier<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
@@ -4118,6 +4139,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createProxyIdentifier<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createProxyIdentifier<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostQuickDiff: createProxyIdentifier<ExtHostQuickDiffShape>('ExtHostQuickDiff'),
+	ExtHostAgentEditorComments: createProxyIdentifier<ExtHostAgentEditorCommentsShape>('ExtHostAgentEditorComments'),
 	ExtHostStatusBar: createProxyIdentifier<ExtHostStatusBarShape>('ExtHostStatusBar'),
 	ExtHostShare: createProxyIdentifier<ExtHostShareShape>('ExtHostShare'),
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),

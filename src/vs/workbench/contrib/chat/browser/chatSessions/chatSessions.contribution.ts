@@ -42,6 +42,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -961,6 +962,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return provider.provideChatInputCompletions(sessionResource, params, token);
 	}
 
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
+		return this._contentProviders.get(resolvedType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
+	}
+
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const provider = this._contentProviders.get(resolvedType);
@@ -1162,7 +1169,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const sessionType = getChatSessionType(sessionResource);
 		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
-			throw Error(`Can not find provider for ${sessionResource}`);
+			throw Error(`Cannot find provider '${sessionType}'`);
 		}
 
 		// Check again after async provider resolution
@@ -1176,7 +1183,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
-			throw Error(`Can not find provider for ${sessionResource}`);
+			throw Error(`Cannot find provider '${resolvedType}'`);
 		}
 
 		let session: IChatSession;
@@ -1494,6 +1501,12 @@ type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+	/**
+	 * A prior conversation to seed into the new session as real, editable turns
+	 * ("Continue in…" migration). Consumed once when the backend session is
+	 * created; see {@link IAgentHostImportConversationStore}.
+	 */
+	readonly importConversation?: IAgentHostImportConversation;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1512,9 +1525,17 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const editorService = accessor.get(IEditorService);
 	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
+
+	// Stash any imported ("Continue in…") conversation before the session is
+	// opened: opening can eagerly pre-create the backend session (via the chat
+	// input picker), which consumes this to seed the turns as editable history.
+	if (chatSendOptions?.importConversation && chatSendOptions.importConversation.turns.length > 0) {
+		importConversationStore.set(sessionResource, chatSendOptions.importConversation);
+	}
 
 	// Open chat session
 	try {
@@ -1533,6 +1554,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 				const options: IChatEditorOptions = {
 					override: ChatEditorInput.EditorID,
 					pinned: true,
+					...(openOptions.type === AgentSessionProviders.Local ? { explicitSessionType: localChatSessionType } : {}),
 					title: {
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
 					}

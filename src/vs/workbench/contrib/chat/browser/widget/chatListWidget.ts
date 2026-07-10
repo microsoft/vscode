@@ -10,7 +10,7 @@ import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../..
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -31,6 +31,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
+import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
@@ -38,6 +39,75 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 export interface IChatListWidgetStyles {
 	listForeground?: string;
 	listBackground?: string;
+}
+
+/**
+ * Tracks when a user-triggered resize has remained stable across animation frames.
+ */
+export class UserToggleResizeState {
+
+	private framesUntilSettled = 0;
+
+	constructor(private readonly requiredStableFrames: number) { }
+
+	get isActive(): boolean {
+		return this.framesUntilSettled > 0;
+	}
+
+	start(): void {
+		this.framesUntilSettled = this.requiredStableFrames;
+	}
+
+	markResized(): void {
+		if (this.isActive) {
+			this.start();
+		}
+	}
+
+	advanceFrame(): void {
+		if (this.isActive) {
+			this.framesUntilSettled--;
+		}
+	}
+}
+
+class UserToggleResizeTracker extends Disposable {
+
+	private readonly state = new UserToggleResizeState(2);
+	private readonly pendingFrame = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(
+		target: HTMLElement,
+		private readonly onDidSettle: () => void,
+	) {
+		super();
+
+		const targetWindow = dom.getWindow(target);
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatListWidget.userToggleResize', () => {
+			this.state.markResized();
+			this.scheduleFrame(targetWindow);
+		}, targetWindow));
+		this._register(resizeObserver.observe(target));
+
+		this.state.start();
+		this.scheduleFrame(targetWindow);
+	}
+
+	private scheduleFrame(targetWindow: Window): void {
+		if (this.pendingFrame.value) {
+			return;
+		}
+
+		this.pendingFrame.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
+			this.pendingFrame.clear();
+			this.state.advanceFrame();
+			if (this.state.isActive) {
+				this.scheduleFrame(targetWindow);
+			} else {
+				this.onDidSettle();
+			}
+		});
+	}
 }
 
 export interface IChatListWidgetOptions {
@@ -103,9 +173,9 @@ export interface IChatListWidgetOptions {
 	readonly location?: ChatAgentLocation;
 
 	/**
-	 * Callback to get current language model ID (for rerun requests).
+	 * Callback to get the selected language model request options (for rerun requests).
 	 */
-	readonly getCurrentLanguageModelId?: () => string | undefined;
+	readonly getSelectedModelRequestOptions?: () => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 
 	/**
 	 * Callback to get current mode info (for rerun requests).
@@ -176,6 +246,7 @@ export class ChatListWidget extends Disposable {
 	//#region Private fields
 
 	private readonly _tree: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
+	private readonly _delegate: ChatListDelegate;
 	private readonly _renderer: ChatListItemRenderer;
 
 	private _viewModel: IChatViewModel | undefined;
@@ -186,13 +257,14 @@ export class ChatListWidget extends Disposable {
 	private _suppressAutoScroll: boolean = false;
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
+	private readonly _userToggleResizeTrackers = this._register(new DisposableMap<ChatTreeItem, UserToggleResizeTracker>());
 
 	private readonly _container: HTMLElement;
 	private readonly _scrollDownButton: Button;
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
-	private readonly _getCurrentLanguageModelId: (() => string | undefined) | undefined;
+	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _renderStyle: 'compact' | 'minimal' | undefined;
 
@@ -257,7 +329,7 @@ export class ChatListWidget extends Disposable {
 
 		this._viewModel = options.viewModel;
 		this._location = options.location;
-		this._getCurrentLanguageModelId = options.getCurrentLanguageModelId;
+		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
@@ -297,7 +369,7 @@ export class ChatListWidget extends Disposable {
 		));
 
 		// Create delegate
-		const delegate = scopedInstantiationService.createInstance(
+		this._delegate = scopedInstantiationService.createInstance(
 			ChatListDelegate,
 			options.defaultElementHeight ?? 200
 		);
@@ -345,7 +417,7 @@ export class ChatListWidget extends Disposable {
 					noCommandDetection: true,
 					attempt: request.attempt + 1,
 					location: this._location,
-					userSelectedModelId: this._getCurrentLanguageModelId?.(),
+					...this._getSelectedModelRequestOptions?.(),
 					modeInfo: this._getCurrentModeInfo?.(),
 				};
 				this.chatAccessibilityService.acceptRequest(e.sessionResource);
@@ -364,7 +436,7 @@ export class ChatListWidget extends Disposable {
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
 			this._container,
-			delegate,
+			this._delegate,
 			[this._renderer],
 			{
 				identityProvider: { getId: (e: ChatTreeItem) => e.id },
@@ -453,6 +525,17 @@ export class ChatListWidget extends Disposable {
 		// Set initial at-bottom state (scrollLock defaults to true)
 		this.updateScrollDownButtonVisibility();
 
+		this._register(dom.addDisposableListener(this._container, ChatCollapsibleContentPart.userToggleEvent, e => {
+			if (!dom.isHTMLElement(e.target)) {
+				return;
+			}
+
+			const element = this._renderer.getElementFromNode(e.target);
+			if (element) {
+				this.trackUserToggleResize(element, e.target);
+			}
+		}));
+
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
@@ -531,6 +614,8 @@ export class ChatListWidget extends Disposable {
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
+		const previousItem = items.at(-2);
+		const needsInitialPreviousItemHeight = (isRequestVM(previousItem) || isResponseVM(previousItem)) && previousItem.currentRenderedHeight === undefined;
 
 		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
 			element: item,
@@ -572,6 +657,10 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
+
+		if (needsInitialPreviousItemHeight) {
+			this.updateLastItemMinHeight();
+		}
 	}
 
 	/**
@@ -654,10 +743,23 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
+			if (this._userToggleResizeTrackers.has(element)) {
+				this._tree.updateElementHeight(element, height);
+				return;
+			}
 			this._withPersistedAutoScroll(() => {
 				this._tree.updateElementHeight(element, height);
 			});
 		}
+	}
+
+	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
+		const tracker: UserToggleResizeTracker = new UserToggleResizeTracker(target, () => {
+			if (this._userToggleResizeTrackers.get(element) === tracker) {
+				this._userToggleResizeTrackers.deleteAndDispose(element);
+			}
+		});
+		this._userToggleResizeTrackers.set(element, tracker);
 	}
 
 	/**
@@ -665,6 +767,18 @@ export class ChatListWidget extends Disposable {
 	 */
 	reveal(element: ChatTreeItem, relativeTop?: number): void {
 		this._tree.reveal(element, relativeTop);
+	}
+
+	/**
+	 * The top offset of an element in transcript content space (same space as
+	 * `scrollTop`/`scrollHeight`), or `undefined` if it is not in the list. Reads
+	 * the layout height model, so it also resolves off-screen elements.
+	 */
+	getElementTop(element: ChatTreeItem): number | undefined {
+		if (!this._tree.hasElement(element)) {
+			return undefined;
+		}
+		return this._tree.getElementTop(element);
 	}
 
 	/**
@@ -715,11 +829,12 @@ export class ChatListWidget extends Disposable {
 	 * Scroll the list to reveal the last item.
 	 */
 	scrollToEnd(): void {
-		if (this._lastItem) {
-			const offset = Math.max(this._lastItem.currentRenderedHeight ?? 0, 1e6);
-			if (this._tree.hasElement(this._lastItem)) {
-				this._tree.reveal(this._lastItem, offset);
-			}
+		// Reveal the tree's actual last node rather than the held `_lastItem`. `reveal` reliably
+		// scrolls all the way down even while item heights are still settling (see #234089)
+		const lastElement = this._tree.getNode(null).children.at(-1)?.element;
+		if (lastElement) {
+			const offset = Math.max(lastElement.currentRenderedHeight ?? 0, 1e6);
+			this._tree.reveal(lastElement, offset);
 		}
 	}
 
@@ -876,7 +991,7 @@ export class ChatListWidget extends Disposable {
 			const maxRequestShownHeight = 200;
 			const secondToLastItemHeight = Math.min(
 				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
-					secondToLastItem.currentRenderedHeight ?? 150 : 150,
+					secondToLastItem.currentRenderedHeight ?? this._delegate.getMeasuredHeight(secondToLastItem) ?? 150 : 150,
 				maxRequestShownHeight);
 			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
 			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');

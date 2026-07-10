@@ -354,7 +354,7 @@ export class ApiRepository implements Repository {
 		return this.#repository.createWorktree(options);
 	}
 
-	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+	deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
 		return this.#repository.deleteWorktree(path, options);
 	}
 

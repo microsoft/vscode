@@ -9,8 +9,9 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -69,12 +70,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
-				const detail = isAuto && typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100
+				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
+				const detail = isAuto && hasDiscount
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
 					: undefined;
 				const tooltip = isAuto
-					? localize('agentHost.auto.tooltip', "Auto selects the best model based on your request complexity and model performance.")
+					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined;
+				const modelGroup = AgentHostLanguageModelProvider._modelGroupFor(m);
+				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -101,7 +105,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
+						promo: pricing.promo,
 						targetChatSessionType: this._sessionType,
+						// Group agent-host models in the picker by their upstream provider
+						// (Copilot CLI, OpenAI, a 3p BYOK provider, …). All of a host's
+						// models share one vendor, so without this they'd render as a single
+						// undifferentiated bucket. Presentation-only; routing stays by vendor.
+						...(modelGroup ? { modelGroup } : {}),
+						...(byokModelIdentifier !== undefined && { byokModelIdentifier }),
 						capabilities: {
 							vision: m.supportsVision ?? false,
 							toolCalling: true,
@@ -141,6 +152,20 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			case 'contextSize': return 'tokens';
 			default: return undefined;
 		}
+	}
+
+	/**
+	 * Derives the picker group id for a model — the vendor its models are bucketed
+	 * under. BYOK models are surfaced by the agent host under the `vendor/id` selection
+	 * id (see `resolveByokSessionConfig`), so their upstream vendor is the id prefix;
+	 * native harness models have no prefix and group under their `provider` (the harness,
+	 * e.g. `copilotcli`). The picker resolves the display name from the vendor registry —
+	 * no name mapping lives here.
+	 */
+	private static _modelGroupFor(model: SessionModelInfo): { id: string } | undefined {
+		const slash = model.id.indexOf('/');
+		const groupVendorId = slash > 0 ? model.id.slice(0, slash) : model.provider;
+		return groupVendorId ? { id: groupVendorId } : undefined;
 	}
 
 	async sendChatRequest(): Promise<never> {

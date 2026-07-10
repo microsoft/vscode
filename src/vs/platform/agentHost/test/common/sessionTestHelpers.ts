@@ -8,13 +8,15 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import type { IFileEditContent, IFileEditRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
 	private readonly _drafts = new Map<string, Message>();
+	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
+	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -113,7 +115,45 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._edits.length = 0;
 	}
 
+	async insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+		this._localTurns.set(record.turnId, record);
+	}
+
+	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+		return [...this._localTurns.values()].sort((a, b) => a.seq - b.seq);
+	}
+
+	async deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+		for (const id of turnIds) {
+			this._localTurns.delete(id);
+		}
+	}
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
+
+	async markFileReviewed(uri: URI, nonce: string): Promise<void> {
+		if (!this._reviewedFiles.some(r => r.uri.toString() === uri.toString() && r.nonce === nonce)) {
+			this._reviewedFiles.push({ uri, nonce });
+		}
+	}
+
+	async unmarkFileReviewed(uri: URI, nonce: string): Promise<void> {
+		const index = this._reviewedFiles.findIndex(r => r.uri.toString() === uri.toString() && r.nonce === nonce);
+		if (index >= 0) {
+			this._reviewedFiles.splice(index, 1);
+		}
+	}
+
+	async getReviewedFiles(): Promise<IReviewedFileRecord[]> {
+		return [...this._reviewedFiles];
+	}
+
+	async getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]> {
+		return this._reviewedFiles.filter(r => r.uri.toString() === uri.toString());
+	}
+
+	async isFileReviewed(uri: URI, nonce: string): Promise<boolean> {
+		return this._reviewedFiles.some(r => r.uri.toString() === uri.toString() && r.nonce === nonce);
+	}
 
 	async setTurnCheckpointRef(_turnId: string, _ref: string): Promise<void> { }
 
@@ -202,6 +242,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },
+		copyWorktreeIncludeFiles: async () => { },
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,
@@ -213,13 +254,48 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		push: async () => { },
 		getSessionGitState: async () => undefined,
 		computeSessionFileDiffs: async () => undefined,
+		resolveBranchBaselineCommit: async () => undefined,
 		showBlob: async () => undefined,
 		captureWorkingTreeAsTree: async () => undefined,
 		commitTree: async () => undefined,
 		updateRef: async () => { },
 		deleteRefs: async () => { },
 		revParse: async () => undefined,
+		overlayPathIntoTree: async () => undefined,
+		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
+	};
+}
+
+/**
+ * Returns a no-op {@link IAgentHostChangesetService} for tests that need to
+ * inject the changeset service but don't exercise changeset computation.
+ * Individual methods can be reassigned by callers that want to spy on them.
+ */
+export function createNoopChangesetService(): import('../../common/agentHostChangesetService.js').IAgentHostChangesetService {
+	return {
+		_serviceBrand: undefined,
+		registerStaticChangesets: () => { },
+		restoreStaticChangeset: () => { },
+		parsePersistedStaticChangesets: () => ({}),
+		applyPersistedStaticChangesets: () => { },
+		restorePersistedStaticChangesets: () => ({}),
+		persistChangesSummary: () => { },
+		getListMetadataKeys: () => undefined,
+		computeListEntryChanges: () => undefined,
+		isStaticChangesetComputeActive: () => false,
+		refreshChangesetCatalog: () => { },
+		refreshBranchChangeset: () => { },
+		refreshSessionChangeset: () => { },
+		onWorkingDirectoryAvailable: () => { },
+		recomputeSubscribedChangesets: () => { },
+		onSessionDisposed: () => { },
+		computeTurnChangeset: async session => session,
+		computeCompareTurnsChangeset: async session => session,
+		computeUncommittedChangeset: async session => session,
+		onToolCallEditsApplied: () => { },
+		onTurnComplete: () => { },
+		onSessionTruncated: () => { },
 	};
 }
 

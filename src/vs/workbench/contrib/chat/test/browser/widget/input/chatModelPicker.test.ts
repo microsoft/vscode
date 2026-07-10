@@ -10,8 +10,10 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { NullOpenerService } from '../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelHoverContent, getModelPickerAccessibilityProvider, getModelPickerIcon } from '../../../../browser/widget/input/chatModelPicker.js';
+import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
@@ -46,6 +48,72 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 
 function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
+}
+
+suite('model provider icons', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses provider-specific icons', () => {
+		assert.deepStrictEqual([
+			getModelProviderIcon(createModel('gpt-5.6-terra', 'GPT-5.6 Terra')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5')).id,
+			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro')).id,
+			getModelProviderIcon(createAutoModel()).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
+			getModelProviderIcon(createModel('auto', 'Auto', 'openai'), true).id,
+			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
+			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5'), true).id,
+		], [
+			'chat-model-provider-openai',
+			'chat-model-provider-claude',
+			'chat-model-provider-gemini',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-copilot',
+			'chat-model-provider-generic',
+			'chat-model-provider-generic',
+		]);
+	});
+
+	test('status icon wins, warning text keeps provider icon', () => {
+		const model = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const modelWithStatusIcon = { ...model, metadata: { ...model.metadata, statusIcon: Codicon.info } };
+		const modelWithWarningText = { ...model, metadata: { ...model.metadata, warningText: { degradation: 'Degraded' } } };
+
+		assert.deepStrictEqual([
+			getModelPickerIcon(modelWithStatusIcon).id,
+			getModelPickerIcon(modelWithWarningText).id,
+		], [
+			Codicon.info.id,
+			getModelProviderIcon(model).id,
+		]);
+	});
+});
+
+/**
+ * Builds an agent-host model: all such models share a single vendor (the
+ * `agent-host-<type>` session type) but declare their upstream provider's
+ * vendor id via `modelGroup`. The picker buckets by it and resolves the
+ * display name from the vendor registry.
+ */
+function createAgentHostModel(id: string, name: string, modelGroup: { id: string }): ILanguageModelChatMetadataAndIdentifier {
+	const vendor = 'agent-host-copilotcli';
+	return {
+		identifier: `${vendor}:${id}`,
+		metadata: {
+			id,
+			name,
+			vendor,
+			version: '1.0',
+			family: id,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isDefaultForLocation: {},
+			targetChatSessionType: vendor,
+			modelGroup,
+		} as ILanguageModelChatMetadata,
+	};
 }
 
 function getActionItems(items: IActionListItem<IActionWidgetDropdownAction>[]): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -164,7 +232,7 @@ function createControlManifest(): IModelsControlManifest {
 
 suite('buildModelPickerItems', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accessibility provider uses radio semantics for model items', () => {
 		const provider = getModelPickerAccessibilityProvider();
@@ -668,6 +736,88 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 	});
 
+	test('promo model is boosted right after Auto', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-1', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Limited time offer' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const actions = getActionItems(items);
+		// Auto first, then promo model immediately after
+		assert.strictEqual(actions[0].label, 'Auto');
+		assert.strictEqual(actions[1].label, 'Gemini Flash');
+	});
+
+	test('promo model shows discount in description', () => {
+		const auto = createAutoModel();
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-2', discountPercent: 30, endsAt: '2026-07-20T23:59:59Z', message: 'Summer sale' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, promoModel]);
+		const promoItem = getActionItems(items).find(a => a.label === 'Gemini Flash');
+		assert.ok(promoItem);
+		const desc = typeof promoItem.item?.description === 'string' ? promoItem.item.description : '';
+		assert.ok(desc.includes('30%'), `Expected description to contain "30%" but got: ${desc}`);
+	});
+
+	test('promo model is not duplicated in Other Models section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const promoModel = createModel('gemini-flash', 'Gemini Flash');
+		promoModel.metadata = { ...promoModel.metadata, promo: { id: 'test-promo-3', discountPercent: 20, endsAt: '2026-07-20T23:59:59Z', message: 'Promo' } } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, promoModel]);
+		const allGemini = getActionItems(items).filter(a => a.label === 'Gemini Flash');
+		assert.strictEqual(allGemini.length, 1, 'Promo model should appear exactly once');
+	});
+
+	test('non-positive promo models are featured without discount details', () => {
+		const auto = createAutoModel();
+		const zeroDiscountModel = createModel('zero-discount', 'Zero Discount');
+		zeroDiscountModel.metadata = { ...zeroDiscountModel.metadata, promo: { id: 'test-promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } } as ILanguageModelChatMetadata;
+		const negativeDiscountModel = createModel('negative-discount', 'Negative Discount');
+		negativeDiscountModel.metadata = { ...negativeDiscountModel.metadata, promo: { id: 'test-promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } } as ILanguageModelChatMetadata;
+		const manifestFeaturedModel = createModel('manifest-featured', 'Manifest Featured');
+		const items = callBuild([auto, zeroDiscountModel, negativeDiscountModel, manifestFeaturedModel], {
+			controlModels: {
+				'manifest-featured': { label: 'Manifest Featured', featured: true, exists: true },
+			},
+		});
+		const labels = new Set(['Auto', 'Zero Discount', 'Negative Discount', 'Manifest Featured']);
+		const featuredItems = getActionItems(items).filter(item => labels.has(item.label!));
+
+		assert.deepStrictEqual(featuredItems.map(item => ({ label: item.label, description: item.description })), [
+			{ label: 'Auto', description: undefined },
+			{ label: 'Manifest Featured', description: undefined },
+			{ label: 'Negative Discount', description: undefined },
+			{ label: 'Zero Discount', description: undefined },
+		]);
+	});
+
+	test('non-positive promo models have no promo hover presentation', () => {
+		const results = [0, -10].map(discountPercent => {
+			const model = createModel(`discount-${discountPercent}`, `Discount ${discountPercent}`);
+			model.metadata = {
+				...model.metadata,
+				category: 'powerful',
+				priceCategory: 'high',
+				promo: { id: `test-promo-${discountPercent}`, discountPercent, endsAt: '2026-07-20T23:59:59Z', message: 'Do not render this text' },
+			} as ILanguageModelChatMetadata;
+			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
+			assert.ok(hover);
+			disposables.add(hover.disposable);
+			return {
+				discountPercent,
+				category: hover.element.querySelector('.chat-model-hover-category')?.textContent,
+				badges: Array.from(hover.element.querySelectorAll('.chat-model-hover-price-badge'), element => element.textContent),
+				promoText: hover.element.querySelector('.chat-model-hover-promo-text')?.textContent,
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ discountPercent: 0, category: 'Powerful', badges: ['High cost'], promoText: undefined },
+			{ discountPercent: -10, category: 'Powerful', badges: ['High cost'], promoText: undefined },
+		]);
+	});
+
 	test('Other Models grouped by vendor with separator headers', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('zebra', 'Zebra', 'copilot');
@@ -756,6 +906,52 @@ suite('buildModelPickerItems', () => {
 		assert.ok(promoted);
 		// Badge should carry the user-configured group name, not the vendor displayName.
 		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
+	});
+
+	test('Other Models splits agent-host models into sections by their modelGroup and labels copilotcli as Copilot', () => {
+		// Agent-host models all share one vendor but declare their upstream provider's
+		// vendor id via `modelGroup`; the picker resolves each group's display name from
+		// the vendor registry and renders one section per provider instead of collapsing
+		// them under the shared vendor. No BYOK config groups are registered, so grouping
+		// falls through to `modelGroup`.
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const hf = createAgentHostModel('huggingface/gemma', 'Gemma', { id: 'huggingface' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+			{ vendor: 'huggingface', displayName: 'Hugging Face', groups: [] },
+		]);
+		const items = callBuild([auto, cli, openai, hf], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		// Buckets sorted alphabetically by resolved group display name.
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['Copilot', 'Hugging Face', 'OpenAI']);
+	});
+
+	test('Other Models keeps a single section when agent-host models share one modelGroup', () => {
+		const auto = createAutoModel();
+		const a = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const b = createAgentHostModel('gpt-5', 'GPT-5', { id: 'copilotcli' });
+		const service = createLanguageModelsServiceStub([{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] }]);
+		const items = callBuild([auto, a, b], { languageModelsService: service });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted agent-host model shows its modelGroup name as the inline badge', () => {
+		const auto = createAutoModel();
+		const cli = createAgentHostModel('claude-haiku-4.5', 'Claude Haiku 4.5', { id: 'copilotcli' });
+		const openai = createAgentHostModel('openai/gpt-5-nano', 'GPT-5 nano', { id: 'openai' });
+		const service = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openai', displayName: 'OpenAI', groups: [] },
+		]);
+		// More than one group is present, so promoted models surface their group inline.
+		const items = callBuild([auto, cli, openai], { recentModelIds: [openai.identifier], languageModelsService: service });
+		const promoted = getActionItems(items).find(a => a.label === 'GPT-5 nano');
+		assert.ok(promoted);
+		assert.strictEqual(promoted.badge, 'OpenAI');
 	});
 
 	test('onSelect callback is wired into action items', () => {
@@ -1467,4 +1663,3 @@ suite('chat model picker - languageModelChatProvider visibility regression', () 
 		);
 	});
 });
-

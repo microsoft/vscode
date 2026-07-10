@@ -70,7 +70,6 @@ function createMockEntitlementService(opts?: {
 		isInternal: false,
 		sku: undefined,
 		copilotTrackingId: undefined,
-		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
 		hasByokModels: false,
 		onDidChangeSentiment: Event.None,
@@ -134,6 +133,7 @@ function createMockNotificationService() {
 			return !filter || filter(lastNotification) ? lastNotification : undefined;
 		},
 		handleMessageSent() { },
+		announceRendered() { },
 	};
 
 	return {

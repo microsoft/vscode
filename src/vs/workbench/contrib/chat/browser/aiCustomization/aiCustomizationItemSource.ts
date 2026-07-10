@@ -282,6 +282,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}));
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this.cachedPromise = undefined;
+	}
+
 	async fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.cachedPromise) {
 			this.cachedPromise = this.itemProvider.provideChatSessionCustomizations(this.sessionResource, CancellationToken.None);
@@ -330,16 +335,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
 	 * group. User-authored overrides (different URI, same name) are preserved.
 	 *
-	 * A workbench that uses the base `PromptsService` will throw on
-	 * `BUILTIN_STORAGE` — we catch and return the items unchanged in that case.
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
 	 */
 	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		let builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = [];
-		try {
-			builtinPaths = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage, CancellationToken.None);
-		} catch {
-			return [...items];
-		}
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
 		if (builtinPaths.length === 0) {
 			return [...items];
 		}

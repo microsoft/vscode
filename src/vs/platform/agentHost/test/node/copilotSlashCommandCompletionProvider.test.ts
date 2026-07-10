@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { CopilotSlashCommandCompletionProvider, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
+import { Customization, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
@@ -105,6 +106,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
 			isRubberDuckEnabled: () => true,
 			getRuntimeSlashCommands: async () => runtimeCommands,
+			getSessionCustomizations: async () => [],
 		});
 		const session = 'copilotcli:/abc';
 
@@ -124,12 +126,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/plan task ', '/compact ', '/research ', '/research query ', '/rubber-duck ', '/env ', '/review ', '/security-review ', '/rubber-duck review prompt ', '/security-review scope ', '/review scope '].sort());
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/research ', '/rubber-duck ', '/env ', '/review ', '/security-review '].sort());
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
 			const items = await run('/p');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/plan task ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ']);
 		});
 
 		test('filters to /compact when "/c" typed', async () => {
@@ -146,18 +148,14 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await run('/r');
 			assert.deepStrictEqual(items.map(i => i.insertText), [
 				'/research ',
-				'/research query ',
 				'/review ',
-				'/review scope ',
-				'/rubber-duck ',
-				'/rubber-duck review prompt '
+				'/rubber-duck '
 			].sort());
 		});
 
 		test('filters to /security-review when "/s" typed', async () => {
 			const items = await run('/s');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ',
-				'/security-review scope ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/security-review ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -178,96 +176,73 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('range covers only the leading slash word', async () => {
 			const items = await run('/p extra text', 2);
-			assert.strictEqual(items.length, 2);
+			assert.strictEqual(items.length, 1);
 			assert.strictEqual(items[0].rangeStart, 0);
 			assert.strictEqual(items[0].rangeEnd, 2);
 		});
 
 		test('attachment is Simple with command + description meta', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(item => ({ type: item.attachment?.type, meta: item.attachment?._meta })), [
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
 				{
-					type: 'simple',
+					insertText: '/compact ',
+					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'compact',
-						description: 'Runtime compact'
-					}
+						description: 'Runtime compact',
+					},
 				},
 				{
-					type: 'simple',
+					insertText: '/env ',
+					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'env',
-						description: 'Runtime env'
-					}
+						description: 'Runtime env',
+					},
 				},
 				{
+					insertText: '/plan ',
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'plan',
 						description: 'Runtime plan',
+						argumentHint: 'task',
 					},
 				},
 				{
-					type: MessageAttachmentKind.Simple,
-					meta: {
-						command: 'plan',
-						description: 'Runtime plan',
-					},
-				},
-				{
+					insertText: '/research ',
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'research',
 						description: 'Runtime research',
+						argumentHint: 'query',
 					},
 				},
 				{
-					type: MessageAttachmentKind.Simple,
-					meta: {
-						command: 'research',
-						description: 'Runtime research',
-					},
-				},
-				{
+					insertText: '/review ',
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'review',
 						description: 'Runtime review',
+						argumentHint: 'scope',
 					},
 				},
 				{
+					insertText: '/rubber-duck ',
 					type: MessageAttachmentKind.Simple,
 					meta: {
-						command: 'review',
-						description: 'Runtime review',
+						command: 'rubber-duck',
+						description: 'Runtime rubber-duck',
+						argumentHint: 'review prompt',
 					},
 				},
 				{
-					type: 'simple',
-					meta: {
-						command: 'rubber-duck',
-						description: 'Runtime rubber-duck'
-					}
-				},
-				{
-					type: 'simple',
-					meta: {
-						command: 'rubber-duck',
-						description: 'Runtime rubber-duck'
-					}
-				},
-				{
-					type: 'simple',
-					meta: {
-						command: 'security-review',
-						description: 'Runtime security review'
-					}
-				},
-				{
+					insertText: '/security-review ',
 					type: MessageAttachmentKind.Simple,
 					meta: {
 						command: 'security-review',
 						description: 'Runtime security review',
+						argumentHint: 'scope',
 					},
 				},
 			]);
@@ -277,6 +252,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => false,
 				getRuntimeSlashCommands: async () => runtimeCommands,
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
@@ -285,13 +261,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				'/compact ',
 				'/env ',
 				'/plan ',
-				'/plan task ',
 				'/research ',
-				'/research query ',
 				'/review ',
-				'/review scope ',
-				'/security-review ',
-				'/security-review scope '
+				'/security-review '
 			].sort());
 		});
 
@@ -299,6 +271,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
 				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
@@ -310,6 +283,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
 				getRuntimeSlashCommands: async () => runtimeCommands.filter(command => command.name !== 'env'),
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
@@ -317,15 +291,10 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), [
 				'/compact ',
 				'/plan ',
-				'/plan task ',
 				'/research ',
-				'/research query ',
 				'/review ',
-				'/review scope ',
 				'/rubber-duck ',
-				'/rubber-duck review prompt ',
 				'/security-review ',
-				'/security-review scope ',
 			].sort());
 		});
 
@@ -339,11 +308,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					allowDuringAgentExecution: true,
 					input: { hint: 'scope' },
 				}],
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/f', offset: 2,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/focus ', '/focus scope ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/focus ']);
 		});
 
 		test('keeps runtime commands that also have local send-time handling', async () => {
@@ -354,11 +324,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					{ name: 'compact', description: 'runtime compact', kind: 'builtin', allowDuringAgentExecution: true },
 					{ name: 'runtime-only', description: 'runtime only', kind: 'client', allowDuringAgentExecution: true },
 				],
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/runtime-only ', '/plan task '].sort());
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/runtime-only '].sort());
 		});
 
 		test('uses runtime input metadata to determine trailing space insertion', async () => {
@@ -368,53 +339,62 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					{ name: 'no-input', description: 'No input', kind: 'builtin', allowDuringAgentExecution: true },
 					{ name: 'needs-input', description: 'Needs input', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'value' } },
 				],
+				getSessionCustomizations: async () => [],
 			});
 			const withInput = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/n', offset: 2,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(withInput.map(i => i.insertText), ['/no-input ', '/needs-input ', '/needs-input value '].sort());
+			assert.deepStrictEqual(withInput.map(i => i.insertText), ['/no-input ', '/needs-input '].sort());
 		});
 
-		test('expands an enumerated hint into one item per option (with brackets)', async () => {
+		test('expands input choices into one item per choice', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: '', choices: [{ name: 'on', description: 'Turn the feature on' }, { name: 'off', description: 'Turn the feature off' }] } },
+				],
+				getSessionCustomizations: async () => [],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
+			}, CancellationToken.None);
+			// Structured choices expand into one item per choice, each carrying its own description.
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, meta: item.attachment?._meta })), [
+				{ insertText: '/toggle off ', meta: { command: 'toggle', description: 'Turn the feature off' } },
+				{ insertText: '/toggle on ', meta: { command: 'toggle', description: 'Turn the feature on' } },
+			]);
+		});
+
+		test('includes a bare command item when a choice has an empty name', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => [
+					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: '', choices: [{ name: '', description: 'Show the current state' }, { name: 'on', description: 'Turn on' }, { name: 'off', description: 'Turn off' }] } },
+				],
+				getSessionCustomizations: async () => [],
+			});
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
+			}, CancellationToken.None);
+			// A choice with an empty name produces the bare command alongside the other options.
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle off ', '/toggle on ']);
+		});
+
+		test('surfaces the free-text hint as an argument hint when there are no choices', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
 				getRuntimeSlashCommands: async () => [
 					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: '[on|off]' } },
 				],
+				getSessionCustomizations: async () => [],
 			});
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
 			}, CancellationToken.None);
-			// An enumerated hint expands into the bare command plus one item per option.
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle on ', '/toggle off '].sort());
-		});
-
-		test('expands an enumerated hint into one item per option (without brackets)', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
-				isRubberDuckEnabled: () => true,
-				getRuntimeSlashCommands: async () => [
-					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'on|off' } },
-				],
-			});
-			const items = await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
-			}, CancellationToken.None);
-			// An enumerated hint expands into the bare command plus one item per option.
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle ', '/toggle on ', '/toggle off '].sort());
-		});
-
-		test('expands an enumerated hint into one item per option (requires input)', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
-				isRubberDuckEnabled: () => true,
-				getRuntimeSlashCommands: async () => [
-					{ name: 'toggle', description: 'Toggle a feature on or off', kind: 'builtin', allowDuringAgentExecution: true, input: { required: true, hint: '[on|off]' } },
-				],
-			});
-			const items = await gated.provideCompletionItems({
-				kind: CompletionItemKind.UserMessage, channel: session, text: '/t', offset: 2,
-			}, CancellationToken.None);
-			// An enumerated hint expands into the bare command plus one item per option.
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle on ', '/toggle off '].sort());
+			// Without structured choices, the free-text hint is not expanded into options; it is surfaced as an argument hint on a single item.
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, meta: item.attachment?._meta })), [
+				{ insertText: '/toggle ', meta: { command: 'toggle', description: 'Toggle a feature on or off', argumentHint: '[on|off]' } },
+			]);
 		});
 
 		test('passes raw session id to runtime command listing', async () => {
@@ -425,11 +405,186 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					seen = id;
 					return [{ name: 'focus', kind: 'builtin', description: 'Focus', allowDuringAgentExecution: true }];
 				},
+				getSessionCustomizations: async () => [],
 			});
 			await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/f', offset: 2,
 			}, CancellationToken.None);
 			assert.strictEqual(seen, 'abc');
+		});
+	});
+
+	suite('runtime skill completions', () => {
+		const session = 'copilotcli:/abc';
+
+		function skill(name: string, description?: string): SkillCustomization {
+			return {
+				type: CustomizationType.Skill,
+				id: `file:///skills/${name}/SKILL.md`,
+				uri: `file:///skills/${name}/SKILL.md`,
+				name,
+				...(description !== undefined ? { description } : {}),
+			};
+		}
+
+		function plugin(name: string, children?: readonly SkillCustomization[], enabled = true): PluginCustomization {
+			return {
+				type: CustomizationType.Plugin,
+				id: `file:///plugins/${name}`,
+				uri: `file:///plugins/${name}`,
+				name,
+				enabled,
+				load: { kind: CustomizationLoadStatus.Loaded },
+				...(children ? { children: [...children] } : {}),
+			};
+		}
+
+		function syncedPlugin(name: string, children?: readonly SkillCustomization[]): PluginCustomization {
+			return {
+				...plugin(name, children),
+				id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+			};
+		}
+
+		function createProvider(runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[], customizations: readonly Customization[] = []): CopilotSlashCommandCompletionProvider {
+			return new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => runtimeCommands,
+				getSessionCustomizations: async () => customizations,
+			});
+		}
+
+		async function run(provider: CopilotSlashCommandCompletionProvider, text: string, offset = text.length) {
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
+		}
+
+		test('includes runtime skills that are not known local skills', async () => {
+			const provider = createProvider([
+				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+			]);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+		});
+
+		test('excludes runtime skills that match a known plugin skill (with plugin prefix)', async () => {
+			const provider = createProvider(
+				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[plugin('my-plugin', [skill('my-skill')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items, []);
+		});
+
+		test('excludes runtime skills that match a known plugin skill with the same name (no prefix)', async () => {
+			const provider = createProvider(
+				[{ name: 'monitor-pr', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[plugin('monitor-pr', [skill('monitor-pr')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items, []);
+		});
+
+		test('excludes runtime skills that match a known synced plugin skill (no prefix)', async () => {
+			const provider = createProvider(
+				[{ name: 'monitor-pr', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('skills-bundle', [skill('monitor-pr')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items, []);
+		});
+
+		test('includes runtime skills whose name differs from the prefixed known skill candidate', async () => {
+			// A non-synced plugin skill is known as `my-plugin:my-skill`, so a bare `my-skill` runtime skill is still surfaced.
+			const provider = createProvider(
+				[{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[plugin('my-plugin', [skill('my-skill')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+		});
+
+		test('treats skills inside disabled containers as unknown', async () => {
+			const provider = createProvider(
+				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[plugin('my-plugin', [skill('my-skill')], false)],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-plugin:my-skill ']);
+		});
+
+		test('ignores mcp server containers when computing known skills', async () => {
+			const mcpServer: Customization = {
+				type: CustomizationType.McpServer,
+				id: 'file:///mcp/my-skill',
+				uri: 'file:///mcp/my-skill',
+				name: 'my-skill',
+				enabled: true,
+				state: { kind: McpServerStatus.Ready },
+			};
+			const provider = createProvider(
+				[{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[mcpServer],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+		});
+
+		test('surfaces the skill prompt hint as an argument hint', async () => {
+			const provider = createProvider([
+				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true, input: { hint: 'do stuff' } },
+			]);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
+				{
+					insertText: '/my-skill ',
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'my-skill',
+						description: 'Runtime skill',
+						argumentHint: 'do stuff',
+					},
+				},
+			]);
+		});
+
+		test('does not expand a skill hint into option items', async () => {
+			const provider = createProvider([
+				{ name: 'toggle-skill', description: 'Toggle skill', kind: 'skill', allowDuringAgentExecution: true, input: { hint: '[on|off]' } },
+			]);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle-skill ']);
+		});
+
+		test('surfaces runtime skills alongside builtins for a leading slash', async () => {
+			const provider = createProvider([
+				{ name: 'plan', description: 'Runtime plan', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'task' } },
+				{ name: 'alpha-skill', description: 'Alpha skill', kind: 'skill', allowDuringAgentExecution: true },
+			]);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/alpha-skill '].sort());
+		});
+
+		test('returns only runtime skills for an in-message slash token', async () => {
+			const provider = createProvider([
+				{ name: 'plan', description: 'Runtime plan', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'task' } },
+				{ name: 'runtime-only', description: 'Client command', kind: 'client', allowDuringAgentExecution: true },
+				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+			]);
+			const items = await run(provider, 'use /');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+		});
+
+		test('excludes known skills even for an in-message slash token', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'my-plugin:my-skill', description: 'Known skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'other-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[plugin('my-plugin', [skill('my-skill')])],
+			);
+			const items = await run(provider, 'use /');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/other-skill ']);
 		});
 	});
 });
