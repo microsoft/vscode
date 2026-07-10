@@ -7,7 +7,8 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -75,35 +76,64 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('toggle inline view is contributed to the single-pane editor header (1_diff group)', () => {
+	test('toggle inline view is contributed to the single-pane editor header overflow (secondary group) as a checkable item', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
 
 		assert.ok(item, 'expected the toggle inline view action on the single-pane editor header menu');
 		const when = item.when?.serialize() ?? '';
+		const toggled = item.command.toggled;
+		const toggledCondition = isICommandActionToggleInfo(toggled) ? toggled.condition : toggled;
 		assert.deepStrictEqual({
 			id: item.command.id,
 			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 			group: item.group,
 			order: item.order,
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+			toggledOnInline: toggledCondition?.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.negate().serialize(),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
 			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'workbench.action.agentSessions.toggleInlineView',
-			title: 'Toggle Inline View',
-			group: '1_diff',
-			order: 20,
-			icon: Codicon.diffSidebyside.id,
+			title: 'Inline View',
+			group: 'secondary',
+			order: 10,
+			icon: undefined,
+			toggledOnInline: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasSinglePaneConfigGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
 	});
+
+	test('toggle inline view is contributed to the command palette (Compare category)', () => {
+		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
+
+		assert.ok(item, 'expected the toggle inline view action in the command palette');
+		const when = item.when?.serialize() ?? '';
+		assert.deepStrictEqual({
+			id: item.command.id,
+			title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
+			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
+			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+		}, {
+			id: 'workbench.action.agentSessions.toggleInlineView',
+			title: 'Toggle Inline View',
+			category: 'Compare',
+			hasSessionsWindowGate: true,
+			hasActiveEditorGate: true,
+			hasSinglePaneConfigGate: true,
+		});
+	});
+
 
 	test('view mode toggles are contributed to the single-pane editor header overflow', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)

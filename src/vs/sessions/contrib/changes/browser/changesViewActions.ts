@@ -5,8 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -305,19 +305,13 @@ class ToggleSessionChangesInlineViewAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSessionChangesInlineViewAction.ID,
-			title: localize2('agentSessions.toggleInlineView', "Toggle Inline View"),
-			icon: Codicon.diffSidebyside,
+			title: localize2('toggleInlineView', "Toggle Inline View"),
+			category: localize2('compare', "Compare"),
 			f1: false,
-			toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: '1_diff',
-				order: 20,
-				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext)
+				// Command Palette, gated to when the single-pane Changes editor is active.
+				id: MenuId.CommandPalette,
+				when: singlePaneChangesEditorActive
 			}
 		});
 	}
@@ -332,6 +326,19 @@ class ToggleSessionChangesInlineViewAction extends Action2 {
 }
 
 registerAction2(ToggleSessionChangesInlineViewAction);
+
+// Header overflow ("…") entry, rendered as a checkable "Inline View" menu item
+// (checked while the diffs render inline), mirroring the single diff editor.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	command: {
+		id: ToggleSessionChangesInlineViewAction.ID,
+		title: localize('inlineView', "Inline View"),
+		toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
+	},
+	group: 'secondary',
+	order: 10,
+	when: singlePaneChangesEditorTitleVisible
+});
 
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';
