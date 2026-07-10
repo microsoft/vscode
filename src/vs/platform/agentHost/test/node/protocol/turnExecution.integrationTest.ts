@@ -125,7 +125,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
 	});
 
-	test('fetchTurns returns completed turn history', async function () {
+	test('fetchTurns acknowledges completed turn history loading', async function () {
 		this.timeout(15_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns');

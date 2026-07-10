@@ -32,7 +32,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpToolsChanged, inventoryToSdkServers, translateCodexMcpStartupState, type ICodexMcpServerEntry } from './codexMcpServers.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
-import type { AhpMcpUiHostCapabilities, Customization } from '../../common/state/protocol/channels-session/state.js';
+import { McpServerStatus, type AhpMcpUiHostCapabilities, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -1099,6 +1099,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		return all.map(t => ({
+			type: 'function' as const,
 			name: t.name,
 			description: t.description ?? '',
 			inputSchema: (t.inputSchema ?? { type: 'object' }) as JsonValue,
@@ -1119,7 +1120,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
-				return { result: { contentItems: [{ type: 'inputText', text }], success: true } };
+				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
 			}
@@ -2111,6 +2112,51 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		await this._teardownSessionInMemory(session, sessionId);
+	}
+
+	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources but keeps its codex thread resumable — the
+	 * on-disk rollout is preserved and the shared codex process stays alive, so
+	 * the session transparently resumes on the next access. Used by idle-session
+	 * eviction to bound memory in long-lived host processes.
+	 *
+	 * No-ops for sessions that have nothing durable to resume from (provisional
+	 * sessions whose codex thread was never started) and for sessions with a
+	 * turn in flight — `thread/unsubscribe` mid-turn would drop live progress.
+	 */
+	async releaseSession(sessionUri: URI): Promise<void> {
+		const sessionId = AgentSession.id(sessionUri);
+		const session = this._sessions.get(sessionId);
+		if (!session) {
+			return;
+		}
+		// Provisional sessions have no codex thread on disk to resume from;
+		// releasing them would lose their in-memory state. Leave them in place.
+		if (session.threadId === undefined) {
+			return;
+		}
+		// Defensive active-turn guard: the orchestrator already skips eviction
+		// while a turn is active, but one could have started between that check
+		// and this call.
+		if (session.currentTurnId !== undefined) {
+			return;
+		}
+		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
+		await this._teardownSessionInMemory(session, sessionId);
+	}
+
+	/**
+	 * Shared in-memory teardown for a codex session: drops the tracked entry,
+	 * disposes its MCP controller, unparks pending approvals / client tool calls
+	 * / user inputs, and unsubscribes the codex thread (`thread/unsubscribe`).
+	 * Non-destructive — the codex thread's on-disk rollout is preserved, so the
+	 * session can be resumed later. Shared by {@link disposeSession} (which the
+	 * orchestrator pairs with durable deletion) and the non-destructive
+	 * {@link releaseSession}.
+	 */
+	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string): Promise<void> {
 		session.disposed = true;
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
@@ -2511,6 +2557,35 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async startMcpServer(sessionUri: URI, id: string): Promise<void> {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		const serverName = session ? this._resolveMcpServerName(session, id) : undefined;
+		if (!session || !serverName) {
+			this._logService.warn(`[Codex] Cannot start unknown MCP server customization ${id}`);
+			return;
+		}
+		const conn = await this._ensureConnection();
+		await conn.client.request<'config/mcpServer/reload'>('config/mcpServer/reload', undefined);
+		await this._refreshMcpInventory(conn.client);
+	}
+
+	async stopMcpServer(sessionUri: URI, id: string): Promise<void> {
+		const session = this._sessions.get(AgentSession.id(sessionUri));
+		const serverName = session ? this._resolveMcpServerName(session, id) : undefined;
+		if (!session || !serverName) {
+			this._logService.warn(`[Codex] Cannot stop unknown MCP server customization ${id}`);
+			return;
+		}
+		// TODO: Wire this when Codex exposes a typed MCP server stop request.
+	}
+
+	private _resolveMcpServerName(session: ICodexSession, id: string): string | undefined {
+		const controller = this._getOrCreateMcpController(session);
+		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
+		this._refreshMcpCustomizationIds(session, controller);
+		return controller.serverNameForCustomizationId(id);
+	}
+
 	/**
 	 * Lazily create the per-session {@link McpCustomizationController}. Not
 	 * registered on the agent (sessions come and go) — disposed explicitly
@@ -2590,6 +2665,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				toolsChanged.push(name);
 			}
 		}
+		for (const [name, entry] of this._mcpInventory) {
+			if (!next.has(name) && entry.state.kind !== McpServerStatus.Ready) {
+				next.set(name, entry);
+			}
+		}
 		this._mcpInventory.clear();
 		for (const [name, entry] of next) {
 			this._mcpInventory.set(name, entry);
@@ -2614,17 +2694,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			void this._refreshMcpInventory(client);
 			return;
 		}
-		if (status === 'cancelled') {
-			this._mcpInventory.delete(name);
-		} else {
-			const prev = this._mcpInventory.get(name);
-			this._mcpInventory.set(name, {
-				state: translateCodexMcpStartupState(status, error),
-				tools: prev?.tools ?? [],
-				resources: prev?.resources ?? [],
-				resourceTemplates: prev?.resourceTemplates ?? [],
-			});
-		}
+		const prev = this._mcpInventory.get(name);
+		this._mcpInventory.set(name, {
+			state: translateCodexMcpStartupState(status, error),
+			tools: prev?.tools ?? [],
+			resources: prev?.resources ?? [],
+			resourceTemplates: prev?.resourceTemplates ?? [],
+		});
 		this._applyMcpInventoryToSessions();
 	}
 

@@ -409,6 +409,58 @@ export interface SessionMcpServerStateChangedAction {
 	channel?: URI;
 }
 
+/**
+ * Requests that the host start or restart an existing
+ * {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Starting | `starting`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}; the host remains
+ * authoritative and SHOULD follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * once the server becomes ready, needs authentication, fails, or is
+ * rejected. Is a no-op when no matching `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStartRequestedAction {
+	type: ActionType.SessionMcpServerStartRequested;
+	/** The id of the {@link McpServerCustomization} to start. */
+	id: string;
+}
+
+/**
+ * Requests that the host stop an existing {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Stopped | `stopped`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}. Replacing an
+ * {@link McpServerStatus.AuthRequired | `authRequired`} lifecycle state with
+ * `stopped` unblocks the server from waiting on authentication. If the host
+ * also raised session-level input-needed state solely for that MCP server, it
+ * SHOULD remove that input-needed entry when accepting the stop.
+ *
+ * The host remains authoritative and MAY reject the action or follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * if the final lifecycle state differs. Is a no-op when no matching
+ * `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStopRequestedAction {
+	type: ActionType.SessionMcpServerStopRequested;
+	/** The id of the {@link McpServerCustomization} to stop. */
+	id: string;
+}
+
 // ─── Config Actions ──────────────────────────────────────────────────────────
 
 /**

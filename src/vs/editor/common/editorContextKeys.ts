@@ -29,6 +29,7 @@ export namespace EditorContextKeys {
 	export const isEmbeddedDiffEditor = new RawContextKey<boolean>('isEmbeddedDiffEditor', false, nls.localize('isEmbeddedDiffEditor', "Whether the context is an embedded diff editor"));
 	export const inMultiDiffEditor = new RawContextKey<boolean>('inMultiDiffEditor', false, nls.localize('inMultiDiffEditor', "Whether the context is a multi diff editor"));
 	export const multiDiffEditorAllCollapsed = new RawContextKey<boolean>('multiDiffEditorAllCollapsed', undefined, nls.localize('multiDiffEditorAllCollapsed', "Whether all files in multi diff editor are collapsed"));
+	export const multiDiffEditorItemAllUnchangedRegionsShown = new RawContextKey<boolean>('multiDiffEditorItemAllUnchangedRegionsShown', false, nls.localize('multiDiffEditorItemAllUnchangedRegionsShown', "Whether all unchanged regions of a multi diff editor file are revealed"));
 	export const multiDiffEditorRenderSideBySide = new RawContextKey<boolean>('multiDiffEditorRenderSideBySide', true, nls.localize('multiDiffEditorRenderSideBySide', "Whether the multi diff editor renders diffs side by side instead of inline"));
 	export const hasChanges = new RawContextKey<boolean>('diffEditorHasChanges', false, nls.localize('diffEditorHasChanges', "Whether the diff editor has changes"));
 	export const comparingMovedCode = new RawContextKey<boolean>('comparingMovedCode', false, nls.localize('comparingMovedCode', "Whether a moved code block is selected for comparison"));

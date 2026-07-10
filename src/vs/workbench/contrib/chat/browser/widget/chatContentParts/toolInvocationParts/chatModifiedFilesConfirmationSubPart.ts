@@ -8,11 +8,13 @@ import { Button, ButtonWithIcon } from '../../../../../../../base/browser/ui/but
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { basename, isEqual } from '../../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -28,8 +30,57 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
+import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+
+type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
+
+function isCreatedFile(file: ModifiedFileConfirmationEntry): boolean {
+	return file.editKind === 'create' || (file.editKind === undefined && !file.originalUri && !file.originalContentUri && !!file.modifiedContentUri);
+}
+
+/** Returns the pending file entry referenced by a confirmation-message link. */
+export function findModifiedFileConfirmationEntry(modifiedFiles: readonly ModifiedFileConfirmationEntry[], resource: URI): ModifiedFileConfirmationEntry | undefined {
+	return modifiedFiles.find(file => isEqual(URI.revive(file.uri), resource));
+}
+
+/** Returns the summary shown above pending file changes. */
+export function getModifiedFilesSummaryLabel(modifiedFiles: readonly ModifiedFileConfirmationEntry[]): string {
+	const allFilesCreated = modifiedFiles.length > 0 && modifiedFiles.every(isCreatedFile);
+	if (allFilesCreated) {
+		return modifiedFiles.length === 1
+			? localize('oneFileCreated', '1 file created')
+			: localize('manyFilesCreated', '{0} files created', modifiedFiles.length);
+	}
+
+	return modifiedFiles.length === 1
+		? localize('oneFileChanged', '1 file changed')
+		: localize('manyFilesChanged', '{0} files changed', modifiedFiles.length);
+}
+
+/** Creates the editor input used to preview a pending file change. */
+export function createModifiedFilePreviewEditorInput(resource: URI, originalUri: URI | undefined, modifiedContentUri: URI | undefined, title: string | undefined, options: IEditorOptions | undefined): IUntypedEditorInput {
+	const modifiedUri = modifiedContentUri ?? resource;
+	if (originalUri) {
+		return {
+			original: { resource: originalUri },
+			modified: { resource: modifiedUri },
+			options,
+		};
+	}
+
+	if (modifiedContentUri) {
+		return {
+			label: title ?? basename(resource),
+			original: { resource: undefined, contents: '' },
+			modified: { resource: modifiedContentUri },
+			options,
+		};
+	}
+
+	return { resource, options };
+}
 
 export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	public override readonly domNode: HTMLElement;
@@ -109,7 +160,9 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		if (message) {
 			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
-			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
+				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),
+			});
 			container.append(renderedMessage.element);
 		}
 
@@ -138,9 +191,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		const removedSpan = dom.append(countsContainer, dom.$('.working-set-lines-removed'));
 		titleButton.element.appendChild(countsContainer);
 
-		const filesLabel = data.modifiedFiles.length === 1
-			? localize('oneFileChanged', '1 file changed')
-			: localize('manyFilesChanged', '{0} files changed', data.modifiedFiles.length);
+		const filesLabel = getModifiedFilesSummaryLabel(data.modifiedFiles);
 		titleButton.label = filesLabel;
 
 		let added = 0;
@@ -211,21 +262,13 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 			}
 
 			const options = e.element.options;
-			const modifiedUri = options?.modifiedUri ?? e.element.reference;
-			const originalUri = options?.originalUri;
-			if (originalUri) {
-				await this.editorService.openEditor({
-					original: { resource: originalUri },
-					modified: { resource: modifiedUri },
-					options: e.editorOptions,
-				});
-				return;
-			}
-
-			await this.editorService.openEditor({
-				resource: modifiedUri,
-				options: e.editorOptions,
-			});
+			await this.editorService.openEditor(createModifiedFilePreviewEditorInput(
+				e.element.reference,
+				options?.originalUri,
+				options?.modifiedUri,
+				e.element.title,
+				e.editorOptions,
+			));
 		}));
 
 		const maxItemsShown = 6;
@@ -264,6 +307,22 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		}));
 
 		return container;
+	}
+
+	private async openModifiedFilePreview(data: IChatModifiedFilesConfirmationData, resource: URI, editorOptions: IEditorOptions): Promise<boolean> {
+		const file = findModifiedFileConfirmationEntry(data.modifiedFiles, resource);
+		if (!file) {
+			return false;
+		}
+
+		await this.editorService.openEditor(createModifiedFilePreviewEditorInput(
+			resource,
+			file.originalContentUri ? URI.revive(file.originalContentUri) : file.originalUri ? URI.revive(file.originalUri) : undefined,
+			file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : undefined,
+			file.title,
+			editorOptions,
+		));
+		return true;
 	}
 
 	private async openAllChanges(data: IChatModifiedFilesConfirmationData): Promise<void> {

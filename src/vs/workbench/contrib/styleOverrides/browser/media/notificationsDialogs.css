@@ -43,6 +43,10 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
+.style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
 .style-override .monaco-dialog-box .dialog-toolbar-row {
 	position: absolute;
 	top: 8px;

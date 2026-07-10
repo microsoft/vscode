@@ -142,8 +142,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		// Expanded list showing the per-row "Preview" action on the markdown and
-		// HTML rows (edited `.ts`/`.css` rows have no preview action).
+		// Expanded list showing the per-row "Preview" action on the markdown row
+		// (edited `.ts`/`.css` and HTML rows have no preview action).
 		ChangesAndPreview_Expanded: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				expanded: true,
@@ -152,15 +152,6 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 					fileDiff('index.html', 30, 4, true),
 					fileDiff('app.ts', 8, 3, false),
 					fileDiff('styles.css', 4, 1, false),
-				],
-			}),
-		}),
-
-		ChangesAndPreview_Html: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				diffs: [
-					fileDiff('index.html', 30, 4, true),
-					fileDiff('styles.css', 8, 3, false),
 				],
 			}),
 		}),

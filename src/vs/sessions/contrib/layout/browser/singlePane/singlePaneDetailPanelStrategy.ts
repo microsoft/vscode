@@ -42,7 +42,8 @@ const enum DetailPanelTarget {
  * reveals/hides the auxiliary bar accordingly. A created single-pane session
  * defaults to the Changes editor with the detail closed; a Changes/file editor
  * becoming active never force-reveals a hidden detail (except restoring it after
- * a transient browser-tab hide).
+ * a transient browser-tab hide). Opening the empty Files placeholder (making it
+ * the active editor) reveals the Files detail, since its content lives there.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
@@ -77,6 +78,16 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 			auxBarVisibleObs.read(reader);
 			const generation = ++this._detailGeneration;
 			void this._detailSequencer.queue(() => this._syncDetailTarget(target, generation)).catch(onUnexpectedError);
+		}));
+
+		// The empty Files placeholder's content (the Files tree) lives in the detail; keyed on active-editor so the inactive auto-ensured tab never reveals it.
+		this._register(this._editorService.onDidActiveEditorChange(() => {
+			if (this._editorService.activeEditor instanceof EmptyFileEditorInput
+				&& this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+				&& !this._ctx.isRestoringSessionLayout
+				&& !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			}
 		}));
 	}
 

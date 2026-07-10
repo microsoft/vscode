@@ -146,4 +146,33 @@ suite('ByokLmBridgeRegistry', () => {
 
 		reg.dispose();
 	});
+
+	test('treats a change in only the model identifier as a model change (re-publishes)', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const onDidChange = store.add(new Emitter<void>());
+		let models: IByokLmModelInfo[] = [{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 1/aion-labs/aion-3.0' }];
+		const connection: IByokLmBridgeConnection = {
+			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+			listModels: async () => models,
+			onDidChangeModels: onDidChange.event,
+		};
+		const reg = store.add(registry.register('client-a', connection));
+		await registry.listModels();
+
+		let changes = 0;
+		store.add(registry.onDidChangeModels(() => { changes++; }));
+
+		// Only the carried identifier changed (e.g. the user renamed the provider group) — the
+		// registry must still notice and re-publish so the picker keys visibility by the new id.
+		models = [{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }];
+		onDidChange.fire();
+		await flush();
+
+		assert.deepStrictEqual({ changes, models: registry.getModels() }, {
+			changes: 1,
+			models: [{ vendor: 'openrouter', id: 'aion-labs/aion-3.0', modelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }],
+		});
+
+		reg.dispose();
+	});
 });

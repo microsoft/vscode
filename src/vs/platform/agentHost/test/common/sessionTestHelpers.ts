@@ -242,6 +242,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },
+		copyWorktreeIncludeFiles: async () => { },
 		addExistingWorktree: async () => { },
 		removeWorktree: async () => { },
 		branchExists: async () => false,

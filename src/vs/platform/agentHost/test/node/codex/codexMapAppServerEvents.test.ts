@@ -23,6 +23,7 @@ suite('codexMapAppServerEvents', () => {
 				items: [{
 					type: 'userMessage',
 					id: 'item_user',
+					clientId: null,
 					content: [{ type: 'text', text: 'hello', text_elements: [] }],
 				}],
 				itemsView: { type: 'full' } as never,

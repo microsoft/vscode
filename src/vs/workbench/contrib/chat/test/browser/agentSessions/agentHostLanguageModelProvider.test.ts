@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {
@@ -83,5 +84,40 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {
+		const provider = createProvider();
+		// A grouped BYOK copy: the node agent host carried the original LM service identifier
+		// (`<vendor>/<group>/<id>`) via _meta; the provider surfaces it verbatim.
+		provider.updateModels([
+			makeModel('openrouter/aion-labs/aion-3.0', { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }),
+			// A groupless BYOK copy and a native model (no _meta) for contrast.
+			makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' }),
+			makeModel('claude-haiku-4.5'),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const byName = Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata]));
+
+		// The carried identifier is surfaced on the metadata and returned by the accessor.
+		assert.deepStrictEqual({
+			grouped: {
+				byokModelIdentifier: byName['openrouter/aion-labs/aion-3.0'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['openrouter/aion-labs/aion-3.0']),
+			},
+			groupless: {
+				byokModelIdentifier: byName['anthropic/claude-sonnet-4'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['anthropic/claude-sonnet-4']),
+			},
+			native: {
+				byokModelIdentifier: byName['claude-haiku-4.5'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['claude-haiku-4.5']),
+			},
+		}, {
+			grouped: { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0', manageModelsId: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' },
+			groupless: { byokModelIdentifier: 'anthropic/claude-sonnet-4', manageModelsId: 'anthropic/claude-sonnet-4' },
+			native: { byokModelIdentifier: undefined, manageModelsId: undefined },
+		});
 	});
 });
