@@ -343,7 +343,7 @@ export function convertAgentHostEventsToDebugEvents(
 	const resolved = new Map<string, IChatDebugResolvedEventContent>();
 	// Positions of emitted model-turn events, so session-cumulative usage from
 	// `session.shutdown` can be back-filled onto them (see below).
-	const modelTurnRefs: { readonly index: number; readonly id: string; readonly outputTokens?: number }[] = [];
+	const modelTurnRefs: { readonly index: number; readonly id: string; readonly outputTokens?: number; readonly model?: string }[] = [];
 
 	// Logical-tree context. The "current message" pointers are tracked per agent
 	// (keyed by `agentId`, `''` for the main agent) so a sub-agent turn never
@@ -408,7 +408,7 @@ export function convertAgentHostEventsToDebugEvents(
 				const durationInMillis = turnStart ? diffMillis(turnStart.timestamp, record.timestamp) : undefined;
 
 				currentAssistantMessageByAgent.set(agentKey, record.id);
-				modelTurnRefs.push({ index: events.length, id: record.id, outputTokens });
+				modelTurnRefs.push({ index: events.length, id: record.id, outputTokens, model });
 				events.push({
 					kind: 'modelTurn', id: record.id, sessionResource, created, parentEventId,
 					model, requestName: 'copilotcli', outputTokens, durationInMillis,
@@ -470,14 +470,23 @@ export function convertAgentHostEventsToDebugEvents(
 	// sum over model turns) report them; the per-turn split is an even
 	// approximation but the column sums are exact. Totals that aren't known
 	// (e.g. input/cache on a live session) are left blank.
-	const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
-	if (totals && modelTurnRefs.length > 0) {
-		const n = modelTurnRefs.length;
-		const inputs = totals.inputTokens !== undefined ? distributeEvenly(totals.inputTokens, n) : undefined;
-		const cached = totals.cacheReadTokens !== undefined ? distributeEvenly(totals.cacheReadTokens, n) : undefined;
-		const aiu = distributeEvenly(totals.totalNanoAiu, n);
+	//
+	// Per-model exact attribution: when `session.shutdown` reports per-model
+	// `modelMetrics`, distribute *each model's* exact input/cache/AIU across only
+	// that model's turns. The per-turn split stays an approximation, but summing
+	// by model is then exact — which the Cost view's by-model and matrix
+	// breakdowns rely on. Live sessions (no per-model metrics) fall back to an
+	// even distribution of the session totals across all turns.
+	const applyDistributedUsage = (refs: readonly { readonly index: number; readonly id: string; readonly outputTokens?: number }[], usage: ISessionUsageTotals): void => {
+		const n = refs.length;
+		if (n === 0) {
+			return;
+		}
+		const inputs = usage.inputTokens !== undefined ? distributeEvenly(usage.inputTokens, n) : undefined;
+		const cached = usage.cacheReadTokens !== undefined ? distributeEvenly(usage.cacheReadTokens, n) : undefined;
+		const aiu = distributeEvenly(usage.totalNanoAiu, n);
 		for (let i = 0; i < n; i++) {
-			const ref = modelTurnRefs[i];
+			const ref = refs[i];
 			const turn = events[ref.index] as IChatDebugModelTurnEvent;
 			const inputTokens = inputs?.[i];
 			const cachedTokens = cached?.[i];
@@ -486,8 +495,30 @@ export function convertAgentHostEventsToDebugEvents(
 			events[ref.index] = { ...turn, inputTokens, cachedTokens, totalTokens, copilotUsageNanoAiu };
 			const detail = resolved.get(ref.id);
 			if (detail?.kind === 'modelTurn') {
-				resolved.set(ref.id, { ...detail, inputTokens, cachedTokens, totalTokens });
+				resolved.set(ref.id, { ...detail, inputTokens, cachedTokens, totalTokens, copilotUsageNanoAiu });
 			}
+		}
+	};
+
+	const perModelUsage = extractPerModelUsage(records);
+	if (perModelUsage && modelTurnRefs.length > 0) {
+		const refsByModel = new Map<string, typeof modelTurnRefs>();
+		for (const ref of modelTurnRefs) {
+			const key = ref.model ?? '';
+			const list = refsByModel.get(key) ?? [];
+			list.push(ref);
+			refsByModel.set(key, list);
+		}
+		for (const [model, usage] of perModelUsage) {
+			const refs = refsByModel.get(model);
+			if (refs) {
+				applyDistributedUsage(refs, usage);
+			}
+		}
+	} else {
+		const totals = extractSessionUsageTotals(records) ?? fallbackUsageTotals;
+		if (totals && modelTurnRefs.length > 0) {
+			applyDistributedUsage(modelTurnRefs, totals);
 		}
 	}
 
@@ -542,6 +573,38 @@ function extractSessionUsageTotals(records: readonly IAgentHostEventRecord[]): I
 	// cache are then known to be zero (not unknown), so returning the totals here
 	// keeps the caller from falling back to live AIU for a finished session.
 	return { inputTokens, cacheReadTokens, totalNanoAiu };
+}
+
+/**
+ * Extracts exact per-model usage from the last `session.shutdown` record's
+ * `modelMetrics`, keyed by raw model id. Each entry carries that model's exact
+ * input/cache tokens and Copilot AIU. Returns `undefined` when there is no
+ * `session.shutdown` record or it carries no `modelMetrics` (e.g. an active
+ * session), so the caller can fall back to an even session-total distribution.
+ */
+function extractPerModelUsage(records: readonly IAgentHostEventRecord[]): Map<string, ISessionUsageTotals> | undefined {
+	let shutdown: IAgentHostEventRecord | undefined;
+	for (const record of records) {
+		if (record.type === 'session.shutdown') {
+			shutdown = record; // keep the last one
+		}
+	}
+	const modelMetrics = shutdown?.data.modelMetrics;
+	if (!modelMetrics || typeof modelMetrics !== 'object') {
+		return undefined;
+	}
+
+	const perModel = new Map<string, ISessionUsageTotals>();
+	for (const [model, metric] of Object.entries(modelMetrics as Record<string, unknown>)) {
+		const entry = metric as Record<string, unknown> | undefined;
+		const usage = entry?.usage as Record<string, unknown> | undefined;
+		perModel.set(model, {
+			inputTokens: asNumber(usage?.inputTokens),
+			cacheReadTokens: asNumber(usage?.cacheReadTokens),
+			totalNanoAiu: asNumber(entry?.totalNanoAiu) ?? 0,
+		});
+	}
+	return perModel.size > 0 ? perModel : undefined;
 }
 
 /** Splits `total` into `n` integer parts that sum exactly to `total`. */

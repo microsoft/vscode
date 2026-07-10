@@ -32,6 +32,7 @@ import { ChatDebugOverviewView, OverviewNavigation } from './chatDebugOverviewVi
 import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
 import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
 import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
+import { ChatDebugCostView, CostNavigation } from './chatDebugCostView.js';
 
 const $ = DOM.$;
 
@@ -64,6 +65,7 @@ export class ChatDebugEditor extends EditorPane {
 	private logsView: ChatDebugLogsView | undefined;
 	private flowChartView: ChatDebugFlowChartView | undefined;
 	private cacheExplorerView: ChatDebugCacheExplorerView | undefined;
+	private costView: ChatDebugCostView | undefined;
 	private filterState: ChatDebugFilterState | undefined;
 
 	private readonly sessionModelListener = this._register(new MutableDisposable());
@@ -127,6 +129,9 @@ export class ChatDebugEditor extends EditorPane {
 				case OverviewNavigation.CacheExplorer:
 					this.showView(ViewState.CacheExplorer);
 					break;
+				case OverviewNavigation.Cost:
+					this.showView(ViewState.Cost);
+					break;
 			}
 		}));
 
@@ -169,6 +174,19 @@ export class ChatDebugEditor extends EditorPane {
 			}
 		}));
 
+		this.costView = this._register(this.instantiationService.createInstance(ChatDebugCostView, this.container));
+		this._register(this.costView.onNavigate(nav => {
+			switch (nav) {
+				case CostNavigation.Home:
+					this.endActiveSession();
+					this.showView(ViewState.Home);
+					break;
+				case CostNavigation.Overview:
+					this.showView(ViewState.Overview);
+					break;
+			}
+		}));
+
 		// When new debug events arrive, refresh the active session view
 		this._register(this.chatDebugService.onDidAddEvent(event => {
 			if (this.viewState === ViewState.Home) {
@@ -180,6 +198,8 @@ export class ChatDebugEditor extends EditorPane {
 					this.flowChartView?.refresh();
 				} else if (this.viewState === ViewState.CacheExplorer) {
 					this.cacheExplorerView?.refresh();
+				} else if (this.viewState === ViewState.Cost) {
+					this.costView?.refresh();
 				}
 				// Note: Logs view is intentionally omitted here — it handles
 				// onDidAddEvent internally via loadEvents() → addEvent() →
@@ -202,11 +222,12 @@ export class ChatDebugEditor extends EditorPane {
 				if (e.kind === 'setCustomTitle') {
 					if (this.viewState === ViewState.Home) {
 						this.homeView?.render();
-					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer) {
+					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart || this.viewState === ViewState.CacheExplorer || this.viewState === ViewState.Cost) {
 						this.overviewView?.updateBreadcrumb();
 						this.logsView?.updateBreadcrumb();
 						this.flowChartView?.updateBreadcrumb();
 						this.cacheExplorerView?.updateBreadcrumb();
+						this.costView?.updateBreadcrumb();
 					}
 				}
 			}));
@@ -264,9 +285,15 @@ export class ChatDebugEditor extends EditorPane {
 			this.cacheExplorerView?.hide();
 		}
 
+		if (state === ViewState.Cost) {
+			this.costView?.show();
+		} else {
+			this.costView?.hide();
+		}
+
 	}
 
-	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart' | 'cache'): void {
+	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart' | 'cache' | 'cost'): void {
 		// End the previous session's streaming pipeline before switching
 		const previousSessionResource = this.chatDebugService.activeSessionResource;
 		if (previousSessionResource && previousSessionResource.toString() !== sessionResource.toString()) {
@@ -283,11 +310,13 @@ export class ChatDebugEditor extends EditorPane {
 		this.logsView?.setSession(sessionResource);
 		this.flowChartView?.setSession(sessionResource);
 		this.cacheExplorerView?.setSession(sessionResource);
+		this.costView?.setSession(sessionResource);
 
 		const targetState = view === 'logs' ? ViewState.Logs
 			: view === 'flowchart' ? ViewState.FlowChart
 				: view === 'cache' ? ViewState.CacheExplorer
-					: ViewState.Overview;
+					: view === 'cost' ? ViewState.Cost
+						: ViewState.Overview;
 		this.showView(targetState);
 	}
 
@@ -365,6 +394,8 @@ export class ChatDebugEditor extends EditorPane {
 			this.navigateToSession(sessionResource, 'flowchart');
 		} else if (viewHint === 'cache' && sessionResource) {
 			this.navigateToSession(sessionResource, 'cache');
+		} else if (viewHint === 'cost' && sessionResource) {
+			this.navigateToSession(sessionResource, 'cost');
 		} else if (viewHint === 'overview' && sessionResource) {
 			this.navigateToSession(sessionResource, 'overview');
 		} else if (viewHint === 'home') {
