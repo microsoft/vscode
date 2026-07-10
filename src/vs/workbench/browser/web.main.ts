@@ -97,6 +97,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, NullNativeManagedSettingsService, NullFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
 
 export interface IBrowserMainWorkbench {
@@ -367,6 +368,10 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
+		// Web has no native MDM / file managed-settings channels; register empty Null services so
+		// browser-layer consumers (e.g. policy telemetry) can depend on them uniformly.
+		serviceCollection.set(INativeManagedSettingsService, new NullNativeManagedSettingsService());
+		serviceCollection.set(IFileManagedSettingsService, new NullFileManagedSettingsService());
 		const policyService = new AccountPolicyService(logService, defaultAccountService);
 		serviceCollection.set(IPolicyService, policyService);
 		serviceCollection.set(IAccountPolicyGateService, policyService);
