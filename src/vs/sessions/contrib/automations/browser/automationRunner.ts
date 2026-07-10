@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -12,6 +13,7 @@ import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Sessions-layer runner. Never throws; failures are recorded on the run row. */
@@ -91,19 +93,45 @@ export class AutomationRunner implements IAutomationRunner {
 
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions);
 
-			// Re-check cancellation post-send so mid-flight timeouts surface as `failed`.
+			if (session) {
+				await this.automationService.updateRun(runId, {
+					sessionResource: session.resource.toString(),
+				});
+			}
+
 			if (token.isCancellationRequested) {
 				await this._markCancelled(runId, trigger, automation, startTimeMs);
 				return;
 			}
 
+			const terminalStatus = session
+				? await waitForState(
+					session.status,
+					status => status === SessionStatus.Completed || status === SessionStatus.Error,
+					undefined,
+					token,
+				)
+				: SessionStatus.Completed;
+
+			if (token.isCancellationRequested) {
+				await this._markCancelled(runId, trigger, automation, startTimeMs);
+				return;
+			}
+
+			if (terminalStatus === SessionStatus.Error) {
+				throw new Error(localize('automationRunner.sessionFailed', "Agent session failed."));
+			}
+
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
 				completedAt: new Date().toISOString(),
-				...(session ? { sessionResource: session.resource.toString() } : {}),
 			});
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
+			if (runId && token.isCancellationRequested) {
+				await this._markCancelled(runId, trigger, automation, startTimeMs);
+				return;
+			}
 			this.logService.error(`[AutomationRunner] run for ${automation.id} failed`, err);
 			try {
 				const errorMessage = err instanceof Error ? err.message : String(err);
@@ -125,11 +153,13 @@ export class AutomationRunner implements IAutomationRunner {
 
 	private async _markCancelled(runId: string, trigger: AutomationRunTrigger, automation: IAutomation, startTimeMs: number): Promise<void> {
 		try {
-			await this.automationService.updateRun(runId, {
-				status: 'failed',
-				completedAt: new Date().toISOString(),
-				errorMessage: localize('automationRunner.cancelled', "Cancelled"),
-			});
+			if (this.automationService.getActiveRunFor(automation.id)?.id === runId) {
+				await this.automationService.updateRun(runId, {
+					status: 'failed',
+					completedAt: new Date().toISOString(),
+					errorMessage: localize('automationRunner.cancelled', "Cancelled"),
+				});
+			}
 			publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
 			this.logService.error(`[AutomationRunner] error recording cancellation for ${automation.id}`, err);

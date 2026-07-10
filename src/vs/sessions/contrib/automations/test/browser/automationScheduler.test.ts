@@ -280,11 +280,8 @@ suite('AutomationSchedulerCore', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), folderUri: FOLDER });
 
-		// A runner whose first invocation hangs until we release it,
-		// AND that creates a run row (mimicking the real runner) so
-		// the timeout path has something to mark as failed. Dispatch
-		// order is not guaranteed to match creation order, so the
-		// runner records which automation it hung on.
+		// The first run hangs until cancellation and tries to record `Cancelled`,
+		// matching the real runner's timeout behavior.
 		let hungAutomationId: string | undefined;
 		class HangingRunner implements IAutomationRunner {
 			declare readonly _serviceBrand: undefined;
@@ -296,7 +293,17 @@ suite('AutomationSchedulerCore', () => {
 				if (this.calls === 1) {
 					hungAutomationId = automation.id;
 					await service.recordRunStart(automation.id, trigger, leaderWindowId);
-					const listener = token?.onCancellationRequested(() => { this.cancelObserved = true; });
+					const listener = token?.onCancellationRequested(() => {
+						this.cancelObserved = true;
+						const active = service.getActiveRunFor(automation.id);
+						if (active) {
+							void service.updateRun(active.id, {
+								status: 'failed',
+								errorMessage: 'Cancelled',
+							});
+						}
+						this.hung.complete();
+					});
 					try {
 						await this.hung.p;
 					} finally {
@@ -337,9 +344,5 @@ suite('AutomationSchedulerCore', () => {
 		// by the timeout path.
 		const otherRun = service.runs.get().find(r => r.automationId === otherId);
 		assert.notStrictEqual(otherRun?.status, 'failed');
-
-		// Cleanup: release the hung promise so the runner can exit.
-		runner.hung.complete();
-		await core.waitForPendingRuns();
 	});
 });

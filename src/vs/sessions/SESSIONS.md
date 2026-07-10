@@ -554,6 +554,15 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
 
+### Automation Run Lifecycle
+
+`AutomationRunner` records the committed session resource on the run row as soon
+as `createAndSendNewChatRequest` returns, then observes `ISession.status` until it
+reaches a terminal state. `InProgress`, `Untitled`, and `NeedsInput` all keep the
+automation run `running`; `Completed` completes the run and `Error` fails it.
+Scheduler cancellation also stops the observation and fails the run, so a timed
+out or disposed scheduler does not leave a live observable subscription behind.
+
 ---
 
 ## Adding a New Provider
