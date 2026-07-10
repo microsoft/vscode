@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/editorTabs.css';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
