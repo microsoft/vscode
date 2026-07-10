@@ -29,7 +29,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractiv
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -3672,6 +3672,131 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-write-1', approved: true },
 			]);
+		});
+
+		test('session-level autoApprove marks client tools in subagent sessions for client-side approval', async () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			const bypassSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			disposables.add(bypassSideEffects.registerProgressListener(agent));
+
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent' } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'inner-problems-1', toolName: 'problems', displayName: 'Problems',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'inner-problems-1', toolName: 'problems', displayName: 'Problems',
+					invocationMessage: 'Check problems', toolInput: '{"filePaths":[]}',
+					confirmationTitle: 'Allow tool call?', edits: undefined,
+				},
+				permissionKind: 'custom-tool',
+			});
+
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			await waitForState(stateManager, () => {
+				const subagentState = stateManager.getSessionState(subagentUri);
+				const part = subagentState?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'inner-problems-1');
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation ? part.toolCall : undefined;
+			});
+
+			const configAction = {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			} as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), configAction, { clientId: 'test-client', clientSeq: 1 });
+			bypassSideEffects.handleAction(sessionUri.toString(), configAction);
+
+			const state = await waitForState(stateManager, () => {
+				const subagentState = stateManager.getSessionState(subagentUri);
+				const part = subagentState?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'inner-problems-1');
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall._meta?.autoApproveBySetting === true ? part.toolCall : undefined;
+			});
+			assert.deepStrictEqual({
+				meta: state._meta,
+				permissionCalls: agent.respondToPermissionCalls,
+			}, {
+				meta: { toolKind: undefined, language: undefined, autoApproveBySetting: true },
+				permissionCalls: [],
+			});
+		});
+
+		test('cancelled subagent confirmations are not retried when bypass is enabled', async () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			const bypassSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			disposables.add(bypassSideEffects.registerProgressListener(agent));
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { [SessionConfigKey.AutoApprove]: 'default' },
+			});
+
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent' } } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper' });
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'inner-write-1', toolName: 'write', displayName: 'Write', contributor: undefined,
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri), parentToolCallId: 'tc-parent',
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'inner-write-1', toolName: 'write', displayName: 'Write',
+					invocationMessage: 'Write file', toolInput: undefined,
+					confirmationTitle: 'Write file?', edits: undefined,
+				},
+				permissionKind: 'write',
+				permissionPath: '/tmp/cancelled-write',
+			});
+
+			const subagentUri = buildSubagentChatUri(sessionUri.toString(), 'tc-parent');
+			await waitForState(stateManager, () => {
+				const subagentState = stateManager.getSessionState(subagentUri);
+				const part = subagentState?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'inner-write-1');
+				return part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation ? part.toolCall : undefined;
+			});
+			bypassSideEffects.cancelSubagentSessions(defaultChatUri);
+
+			const configAction = {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			} as const;
+			stateManager.dispatchClientAction(sessionUri.toString(), configAction, { clientId: 'test-client', clientSeq: 1 });
+			bypassSideEffects.handleAction(sessionUri.toString(), configAction);
+			await new Promise(resolve => setTimeout(resolve, 20));
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, []);
 		});
 	});
 

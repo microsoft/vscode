@@ -70,6 +70,28 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
 	});
 
+	test('ChatToolCallReady refreshes metadata while PendingConfirmation', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+			_meta: { autoApproveBySetting: true },
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall._meta : undefined, { autoApproveBySetting: true });
+	});
+
 	test('Chat status is InputNeeded when a tool call is PendingResultConfirmation', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 

@@ -359,7 +359,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatToolCallReady:
 			return refreshSummaryStatus(updateToolCallInParts(state, action.turnId, action.toolCallId, tc => {
-				if (tc.status !== ToolCallStatus.Streaming && tc.status !== ToolCallStatus.Running) {
+				if (tc.status !== ToolCallStatus.Streaming && tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.PendingConfirmation) {
 					return tc;
 				}
 				const base = tcBaseWithMeta(tc, action._meta);
