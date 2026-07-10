@@ -639,6 +639,14 @@ interface CustomizationBase {
 	 * Absent when the customization covers the whole resource.
 	 */
 	range?: TextRange;
+	/**
+	 * Additional provider-specific metadata for this customization.
+	 *
+	 * Mirrors the MCP `_meta` convention. Optional and opaque to the
+	 * protocol; producers and consumers agree on its contents
+	 * out-of-band.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -740,6 +748,15 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/**
+	 * Version of the plugin, sourced from the
+	 * [Open Plugins](https://open-plugins.com/) manifest's optional
+	 * `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
+	 * declares no version — the field is optional there — or the source
+	 * has no version concept. Provenance / display only: the host neither
+	 * parses nor enforces it.
+	 */
+	version?: string;
 }
 
 /**
@@ -854,12 +871,6 @@ export interface AgentCustomization extends ChildCustomizationBase {
 	 * to. Absent or `false` means the user may select it.
 	 */
 	disableUserInvocation?: boolean;
-	/**
-	 * Additional provider-specific metadata for this custom agent.
-	 *
-	 * Mirrors the MCP `_meta` convention.
-	 */
-	_meta?: Record<string, unknown>;
 }
 
 /**

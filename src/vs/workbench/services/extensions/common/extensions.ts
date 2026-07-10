@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
@@ -324,7 +325,57 @@ export function isProposedApiEnabled(extension: IExtensionDescription, proposal:
 	if (!extension.enabledApiProposals) {
 		return false;
 	}
-	return extension.enabledApiProposals.includes(proposal);
+	const enabled = extension.enabledApiProposals.includes(proposal);
+	if (!enabled) {
+		reportDisabledProposedApiUsage(extension, proposal);
+	}
+	return enabled;
+}
+
+export interface IProposedApiUsage {
+	/**
+	 * The identifier of the extension that attempted to use the proposal.
+	 */
+	readonly extensionId: string;
+	/**
+	 * The name of the API proposal that the extension is not allowed to use.
+	 */
+	readonly proposalName: ApiProposalName;
+}
+
+type ProposedApiUsageReporter = (usage: IProposedApiUsage) => void;
+
+let _proposedApiUsageReporter: ProposedApiUsageReporter | undefined;
+const _reportedProposedApiUsages = new Set<string>();
+
+/**
+ * Registers a reporter that is invoked whenever an extension attempts to use a proposed API
+ * that it has not declared via its `enabledApiProposals`-property. This is used to gather
+ * telemetry about extensions that rely on proposed API they are not entitled to use.
+ *
+ * Each unique extension/proposal combination is reported at most once per session in order to
+ * avoid flooding telemetry from the (potentially hot) call sites of {@link isProposedApiEnabled}.
+ */
+export function setProposedApiUsageReporter(reporter: ProposedApiUsageReporter): IDisposable {
+	_proposedApiUsageReporter = reporter;
+	return toDisposable(() => {
+		if (_proposedApiUsageReporter === reporter) {
+			_proposedApiUsageReporter = undefined;
+		}
+	});
+}
+
+function reportDisabledProposedApiUsage(extension: IExtensionDescription, proposal: ApiProposalName): void {
+	const reporter = _proposedApiUsageReporter;
+	if (!reporter) {
+		return;
+	}
+	const key = `${ExtensionIdentifier.toKey(extension.identifier)}/${proposal}`;
+	if (_reportedProposedApiUsages.has(key)) {
+		return;
+	}
+	_reportedProposedApiUsages.add(key);
+	reporter({ extensionId: extension.identifier.value, proposalName: proposal });
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {

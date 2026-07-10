@@ -244,10 +244,10 @@ export interface InitializeResult {
 	 */
 	completionTriggerCharacters?: string[];
 	/**
-	 * The prefix (e.g. `!`) that marks a chat message as a terminal command to
-	 * be executed by the host rather than forwarded to the agent. Absent when
-	 * the host does not support inline terminal commands. Clients MUST NOT
-	 * assume a default when this is absent.
+	 * Prefix that the host recognizes at the start of a user {@link Message.text}
+	 * as a shorthand for executing the remainder as a terminal command. Currently
+	 * the standardized convention is `"!"`; absence means the host does not
+	 * support command prefixes.
 	 */
 	terminalCommandPrefix?: string;
 	/**
