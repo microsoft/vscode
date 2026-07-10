@@ -238,6 +238,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
 		override getActiveNotification() { return undefined; }
+		override announceRendered() { }
 	}());
 	reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { override readonly model = new class extends mock<IAgentSessionsService['model']>() { override readonly onDidChangeSessions = Event.None; }(); }());
 	// Agent-host chat widgets (e.g. the turn changes summary fixtures) create the
