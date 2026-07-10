@@ -196,13 +196,24 @@
  * Dim the foreground of inactive tabs so the active tab reads as the clear
  * focal point. The active tab keeps the full `--vscode-foreground` colour
  * (paired with the stronger active background above).
+ *
+ * Skip labels that carry a file-decoration color class so git/problem
+ * decoration colors still apply to the entire tab label (name + description),
+ * matching classic UI behavior. See https://github.com/microsoft/vscode/issues/325246
  */
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
 }
 
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+/* Ensure decoration color cascades to every part of the tab label. */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] a,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .label-description,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .monaco-highlighted-label {
+	color: inherit !important;
 }
 
 /*
