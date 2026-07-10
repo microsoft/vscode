@@ -51,7 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
-import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes } from './editorTypePicker.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -534,7 +534,8 @@ export class BreadcrumbsControl {
 		const previousWidth = wasHidden ? 0 : this._editorTypeNode.offsetWidth;
 
 		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
-		if (!available) {
+		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
+		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
 			this._editorTypeNode.classList.toggle('hidden', true);
 		} else {
 			const current = available.editors.find(editor => editor.id === available.currentId);
