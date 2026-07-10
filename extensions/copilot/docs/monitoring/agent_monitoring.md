@@ -179,7 +179,9 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 | `gen_ai.operation.name` | Required | `chat` |
 | `gen_ai.provider.name` | Required | `github` |
 | `gen_ai.request.model` | Required | `gpt-4o` |
-| `gen_ai.conversation.id` | Required | `a1b2c3d4-...` |
+| `gen_ai.conversation.id` | Session correlation (when a session is available) | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `gen_ai.request.max_tokens` | Always | `2048` |
 | `gen_ai.request.temperature` | When set | `0.1` |
 | `gen_ai.request.top_p` | When set | `0.95` |
@@ -208,6 +210,9 @@ Inline chat uses the same invocation shape, with `invoke_agent Inline Chat` as t
 |---|---|---|
 | `gen_ai.operation.name` | Required | `execute_tool` |
 | `gen_ai.tool.name` | Required | `readFile` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `gen_ai.tool.type` | Required | `function` or `extension` (MCP tools) |
 | `gen_ai.tool.call.id` | Recommended | `call_abc123` |
 | `gen_ai.tool.description` | When available | `Read the contents of a file` |
@@ -695,6 +700,9 @@ copilot-chat invoke_agent claude               [~33s]
 |---|---|---|
 | `gen_ai.operation.name` | Required | `execute_tool` |
 | `gen_ai.tool.name` | Required | `Edit` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `github.copilot.tool.parameters.edit_type` | Edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) | `create` \| `str_replace` \| `update` |
 | `github.copilot.tool.parameters.mcp_server_name_hash` | MCP tools | SHA-256 hex of server name |
 | `github.copilot.tool.parameters.mcp_tool_name` | MCP tools | `search_issues` |
@@ -708,6 +716,9 @@ copilot-chat invoke_agent claude               [~33s]
 | Attribute | Requirement | Example |
 |---|---|---|
 | `gen_ai.operation.name` | Required | `execute_hook` |
+| `gen_ai.conversation.id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.session_id` | Session correlation | `a1b2c3d4-...` |
+| `copilot_chat.chat_session_id` | Session correlation | VS Code chat session ID |
 | `copilot_chat.hook_type` | Required | `PreToolUse` |
 | `copilot_chat.hook_result_kind` | Always | `success` \| `error` \| `non_blocking_error` |
 | `github.copilot.hook.decision` | Always | `pass` \| `block` \| `non_blocking_error` |

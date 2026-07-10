@@ -50,7 +50,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -72,6 +72,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -431,7 +432,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
-		let glowDataArray: Uint8Array | undefined;
+		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
 		let lastGlowTarget: HTMLElement | undefined;
 		// Lock the glow target to whichever widget was focused when voice connected.
@@ -472,45 +473,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
-				let intensity: number;
-				if (!analyser) {
-					intensity = 0.3;
-				} else {
-					if (!glowDataArray || glowDataArray.length !== analyser.frequencyBinCount) {
-						glowDataArray = new Uint8Array(analyser.frequencyBinCount);
-					}
-					analyser.getByteFrequencyData(glowDataArray as Uint8Array<ArrayBuffer>);
-					let sum = 0;
-					for (let i = 0; i < glowDataArray.length; i++) {
-						sum += glowDataArray[i];
-					}
-					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
-				}
+				const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-				// Blue when listening (more active/flashy when transcript hidden), purple when speaking (subtle)
-				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
 				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
-				let borderAlpha: number;
-				let shadowSpread: number;
-				let shadowAlpha: number;
-				if (voiceState === 'listening' && transcriptHidden) {
-					// Flashy, audio-reactive glow while user is speaking (no transcript visible)
-					borderAlpha = 0.6 + intensity * 0.4;
-					shadowSpread = 6 + intensity * 20;
-					shadowAlpha = 0.25 + intensity * 0.55;
-				} else {
-					// Standard glow (transcript visible or TTS playback)
-					borderAlpha = 0.4 + intensity * 0.5;
-					shadowSpread = 4 + intensity * 12;
-					shadowAlpha = 0.15 + intensity * 0.35;
-				}
-				target.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				if (voiceState === 'listening' && transcriptHidden) {
-					// Double-layer glow for extra presence when listening without transcript
-					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), 0 0 ${shadowSpread * 2}px rgba(${rgb},${shadowAlpha * 0.3}), inset 0 0 ${shadowSpread * 0.5}px rgba(${rgb},${shadowAlpha * 0.4})`;
-				} else {
-					target.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
-				}
+				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
+				target.style.borderColor = borderColor;
+				target.style.boxShadow = boxShadow;
 				target.classList.add('voice-active');
 				target.classList.toggle('voice-listening', voiceState === 'listening');
 			};
@@ -549,23 +517,59 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		this._register({ dispose: () => stopGlowAnimation() });
 
+		// Voice transcript is per-session. The transcript is "owned" by the
+		// session the user is dictating into (the explicit target session, or the
+		// focused session when dictation began) and is only shown in that
+		// session's view. Switching focus to a different session hides the
+		// transcript here; switching while actively dictating also stops
+		// transcription so it isn't misrouted to the newly focused session.
+		let listeningSession: URI | undefined;
+		let ownerSession: URI | undefined;
 		this._register(autorun(reader => {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			if (!connected) {
+				listeningSession = undefined;
+				ownerSession = undefined;
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
-			// Don't show transcript from a different session in this widget
-			const targetSession = this.voiceSessionController.targetSession.read(reader);
-			const currentSession = this._currentSessionResource.read(reader);
-			if (targetSession && currentSession && !isEqual(targetSession, currentSession)) {
+			// Capture / maintain the session the current transcript belongs to.
+			if (voiceState === 'listening') {
+				if (!listeningSession) {
+					listeningSession = targetSession ?? currentSession;
+					ownerSession = listeningSession;
+				} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
+					// User switched to a different session while listening. Only
+					// stop when there's dictation in progress, so it isn't
+					// misrouted to the newly focused session. If nothing has been
+					// recorded yet (e.g. clicking "New Chat" while idly listening
+					// hands-free), keep listening and just follow the new session.
+					const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
+					if (activelyDictating) {
+						this.voiceSessionController.stopListening();
+						listeningSession = undefined;
+					} else {
+						listeningSession = currentSession;
+						ownerSession = currentSession;
+					}
+				}
+			} else {
+				// Allow the next dictation to re-capture the owning session.
+				listeningSession = undefined;
+			}
+
+			// Don't show a transcript that belongs to a different session here.
+			const effectiveOwner = targetSession ?? ownerSession;
+			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
 				transcriptOverlayNode.style.display = 'none';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
@@ -573,8 +577,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				const autoSendDelay = this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
-				if (voiceState === 'idle' && visible.length === 0 && showTranscript && autoSendDelay < 0) {
+				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
+				if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
@@ -1028,11 +1032,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * Returns `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService);
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService);
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1061,7 +1065,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const defaultType = getComputedDefaultSessionType(this.configurationService, this.chatSessionsService);
 		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
 			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
 		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)

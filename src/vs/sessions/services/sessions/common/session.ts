@@ -66,6 +66,21 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * An archived session is read-only: its interactive chats must hide their
+ * composer. `Hidden` chats are internal workers filtered out of the UI, so they
+ * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
+ * archived, the chat keeps its own interactivity.
+ */
+export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	return isArchived ? ChatInteractivity.ReadOnly : interactivity;
+}
+
 export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
@@ -382,6 +397,14 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * File changes produced by the chat's **last turn** only (as opposed to the
+	 * cumulative chat {@link changes}). Derived from the chat's live output
+	 * stream so consumers — e.g. the chat input status pills — can reflect just
+	 * what the most recent request produced. Providers that cannot determine
+	 * this omit the observable.
+	 */
+	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -476,14 +499,6 @@ export interface ISession {
 	 * cannot determine this report an empty array (or omit the observable).
 	 */
 	readonly externalChanges?: IObservable<readonly ISessionFile[]>;
-	/**
-	 * File changes produced by the session's **last turn** only (as opposed to
-	 * the cumulative session {@link changes}). Derived from the session's live
-	 * output stream so consumers — e.g. the chat input status pills — can reflect
-	 * just what the most recent request produced. Providers that cannot determine
-	 * this omit the observable.
-	 */
-	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;

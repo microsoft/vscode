@@ -316,6 +316,12 @@ suite('LayoutController (desktop)', () => {
 			harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 			'file tabs should reopen the Files container after browser hides it'
 		);
+
+		// A search tab (any non-changes/non-file editor) has no detail panel, so
+		// the chevron context must clear just like the browser tab does.
+		harness.activeEditorInput = store.add(new TestStubEditorInput(URI.parse('search-editor://test')));
+		harness.onDidActiveEditorChange.fire();
+		assert.strictEqual(isChangesOrFilesActive(), false, 'search target should clear the editor chevron context');
 	});
 
 	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
@@ -2102,25 +2108,30 @@ suite('LayoutController (desktop)', () => {
 		assert.deepStrictEqual(sidebarHiddenCalls(), []);
 	});
 
-	test('[D7 single-pane] contributes the Toggle Details command to the editor title', () => {
+	test('[D7 single-pane] contributes the Toggle Details command to the editor title layout cluster', () => {
 		createSinglePaneController();
 
-		const items = MenuRegistry.getMenuItems(MenuId.EditorTitle)
+		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
 
-		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor title');
+		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor title layout cluster');
 		const when = items[0].when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
 			order: items[0].order,
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
+			gatedOnChangesOrFilesTab: when.includes(SinglePaneDetailChangesOrFilesActiveContext.key),
 		}, {
 			icon: Codicon.listSelection.id,
-			order: 1000001,
+			// Conditional (hidden for tab types with no detail, e.g. browser and
+			// search), but keeps its trailing position after the always-present
+			// maximize (order 10) and hide-editor (order 20) items.
+			order: 30,
 			hasToggled: true,
 			gatedOnEditorArea: true,
+			gatedOnChangesOrFilesTab: true,
 		});
 	});
 

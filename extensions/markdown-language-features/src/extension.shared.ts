@@ -48,7 +48,7 @@ export function activateShared(
 
 	context.subscriptions.push(vscode.window.registerCustomEditorProvider(
 		MarkdownEditorProvider.viewType,
-		new MarkdownEditorProvider(context.extensionUri),
+		new MarkdownEditorProvider(context.extensionUri, context.globalState),
 		{
 			webviewOptions: { retainContextWhenHidden: true },
 			supportsMultipleEditorsPerDocument: true,

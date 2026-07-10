@@ -78,6 +78,9 @@ type ScenarioTurn =
 		kind: 'echo-last-message';
 	}
 	| {
+		kind: 'echo-last-tool-result';
+	}
+	| {
 		kind: 'user';
 		message: string;
 	};
@@ -101,6 +104,9 @@ type ModelScenarioTurn =
 	}
 	| {
 		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'echo-last-tool-result';
 	};
 
 /**
@@ -899,6 +905,22 @@ function resolveCurrentTurn(turns: ScenarioTurn[], messages: any[]): { turn: Mod
 	return { turn: modelTurns[idx], turnIndex: idx };
 }
 
+function findLastToolResult(items: any[]): any {
+	for (let i = items.length - 1; i >= 0; i--) {
+		const item = items[i];
+		if (item?.role === 'tool' || item?.type === 'function_call_output') {
+			return item;
+		}
+		if (Array.isArray(item?.content)) {
+			const toolResult = item.content.findLast((part: any) => part?.type === 'tool_result');
+			if (toolResult) {
+				return toolResult;
+			}
+		}
+	}
+	return undefined;
+}
+
 async function handleChatCompletions(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   chat/completions request body:`);
@@ -987,6 +1009,12 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1122,6 +1150,12 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		if (turn.kind === 'echo-last-message') {
 			const lastItem = input[input.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
 			await streamResponsesContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
@@ -1609,6 +1643,12 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
 		if (turn.kind === 'echo-last-message') {
 			const lastMsg = messages[messages.length - 1];
 			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-tool-result') {
+			const payload = '```json\n' + JSON.stringify(findLastToolResult(messages) ?? null, null, 2) + '\n```';
 			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}

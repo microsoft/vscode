@@ -15,6 +15,7 @@ export class EmptyFileEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.agentSessions.emptyFile';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.emptyFile';
+	static readonly ICON = Codicon.files;
 
 	override get resource(): URI | undefined {
 		return undefined;
@@ -37,7 +38,7 @@ export class EmptyFileEditorInput extends EditorInput {
 	}
 
 	override getIcon(): ThemeIcon {
-		return Codicon.files;
+		return EmptyFileEditorInput.ICON;
 	}
 
 	override getTitle(_verbosity?: Verbosity): string {

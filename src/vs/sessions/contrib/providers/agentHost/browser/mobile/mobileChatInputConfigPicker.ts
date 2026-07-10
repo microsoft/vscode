@@ -22,6 +22,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelProviderIcons.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
@@ -264,6 +265,9 @@ class MobileChatInputConfigPicker extends Disposable {
 		const currentModel = resolvedModelId
 			? ctx.modelItems.find(m => m.identifier === resolvedModelId)
 			: undefined;
+		if (currentModel) {
+			dom.append(this._triggerElement, renderIcon(getModelProviderIcon(currentModel)));
+		}
 		const labelText = currentModel?.metadata.name
 			?? localize('mobileChatInputConfigPicker.autoLabel', "Auto");
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.chat-input-picker-label'));

@@ -17,6 +17,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -51,8 +52,15 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-const singlePaneEditorTitleMaximizeOrder = 1000000;
-const singlePaneEditorTitleHideEditorOrder = 999999;
+// Single-pane "layout" actions (maximize/restore, hide editor, toggle details)
+// render in the editor-title *layout* cluster (MenuId.EditorTitleLayout), after
+// the editor-title actions and their separator — mirroring the classic layout.
+// The detail-panel toggle is conditional (hidden for tab types with no detail,
+// e.g. browser and search — see `singlePaneLayoutToggleDetailsOrder` in
+// `singlePaneResponsiveSidebarStrategy.ts`) and keeps its trailing position after
+// the always-present maximize/restore and hide chevron.
+const singlePaneLayoutMaximizeOrder = 10;
+const singlePaneLayoutHideEditorOrder = 20;
 
 // Keybinding scope for the single-pane maximize/restore toggle: active in the
 // main sessions window whenever the single-pane layout is on and the editor
@@ -102,9 +110,9 @@ class MaximizeMainEditorPartAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
+					id: MenuId.EditorTitleLayout,
 					group: 'navigation',
-					order: singlePaneEditorTitleMaximizeOrder,
+					order: singlePaneLayoutMaximizeOrder,
 					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
@@ -156,9 +164,9 @@ class RestoreMainEditorPartAction extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.EditorTitle,
+					id: MenuId.EditorTitleLayout,
 					group: 'navigation',
-					order: singlePaneEditorTitleMaximizeOrder,
+					order: singlePaneLayoutMaximizeOrder,
 					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel, MainEditorAreaVisibleContext)
 				},
 				{
@@ -197,9 +205,9 @@ class HideMainEditorPartAction extends Action2 {
 			icon: Codicon.chevronRight,
 			f1: false,
 			menu: {
-				id: MenuId.EditorTitle,
+				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneEditorTitleHideEditorOrder,
+				order: singlePaneLayoutHideEditorOrder,
 				when: ContextKeyExpr.and(
 					editorTitleActionsWhen,
 					singlePaneDetailPanel,
@@ -410,12 +418,17 @@ class AddFileAsContextAction extends Action2 {
 			icon: Codicon.attach,
 			f1: true,
 			precondition,
-			menu: {
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: 'navigation',
+				order: 100000,
+				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
+			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 100000, // towards the far right, mirroring Split Editor Right in the regular window
-				when: precondition
-			}
+				when: ContextKeyExpr.and(precondition, notSinglePaneDetailPanel)
+			}]
 		});
 	}
 

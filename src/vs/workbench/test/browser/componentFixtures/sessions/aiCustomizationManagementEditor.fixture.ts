@@ -123,6 +123,10 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 
 type FixtureAgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
+function mcpLifecycleNoop(): Promise<void> {
+	return Promise.resolve();
+}
+
 function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAgentHostMcpServer[] = []): IAgentHostCustomizationService {
 	return new class extends mock<IAgentHostCustomizationService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
@@ -220,6 +224,16 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			}));
 		}
 		override async listAgentInstructions() { return agentInstructions; }
+		override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken) {
+			return files.filter(f => f.type === type && f.storage === storage).map(f => ({
+				uri: f.uri,
+				storage: f.storage as PromptsStorage.local,
+				type: f.type,
+				name: f.name,
+				description: f.description,
+				extension: toExtensionInfo(f) as never,
+			}));
+		}
 		override async getCustomAgents() {
 			return files.filter(f => f.type === PromptsType.agent).map(a => ({
 				uri: a.uri, name: a.name ?? 'agent', description: a.description, storage: a.storage,
@@ -460,9 +474,9 @@ const mcpRuntimeServers = [
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
-	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
 interface IRenderEditorOptions {

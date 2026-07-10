@@ -23,7 +23,7 @@ import {
 } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFile, ISessionFileChange, ISessionWorkspace, SessionFileOperation, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
-import { createActiveSessionSubscriptionObs, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -58,12 +58,15 @@ export interface ISessionOutputObs {
 	 */
 	readonly externalFiles: IObservable<readonly ISessionFile[]>;
 	/**
-	 * File changes produced by the session's **last turn** only — the in-progress
-	 * turn of the most recently modified chat, or (when idle) that chat's last
-	 * completed turn. Used by the chat input status pills to reflect just what the
-	 * most recent request produced.
+	 * Returns the file changes produced by a specific chat's **last turn** only,
+	 * keyed by that chat's AHP chat URI (the default chat's
+	 * {@link buildDefaultChatUri}, or a peer chat's protocol resource). Reduces
+	 * that chat's last-turn edits into per-file {@link ISessionFileChange |
+	 * changes} (with diff stats), mirroring the "Last Turn Changes" changeset
+	 * without depending on it. Used by the chat input status pills to reflect
+	 * just what the chat's most recent request produced.
 	 */
-	readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]>;
+	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionFileChange[]>;
 }
 
 /**
@@ -77,9 +80,10 @@ export interface ISessionOutputObs {
  *   chats/turns so that a file first created and then edited is reported as
  *   {@link SessionFileOperation.Created} while a deleted file is removed; only
  *   files outside the workspace folders are kept.
- * - {@link ISessionOutputObs.lastTurnChanges}: the last turn's edits reduced per
- *   file into {@link ISessionFileChange | changes} (with diff stats), mirroring
- *   the "Last Turn Changes" changeset without depending on it.
+ * - {@link ISessionOutputObs.getLastTurnChanges}: given a chat's AHP URI, that
+ *   chat's last turn's edits reduced per file into {@link ISessionFileChange |
+ *   changes} (with diff stats), mirroring the "Last Turn Changes" changeset
+ *   without depending on it.
  *
  * Computation only happens for the active, non-archived session: archived
  * sessions never open a live chat-state subscription, so no parsing work is
@@ -129,17 +133,6 @@ export function createSessionOutputObs(
 		return [...uris.values()];
 	});
 
-	// The chat that holds the session's "last turn": the most recently modified
-	// chat (its in-progress turn, or last completed turn when idle). Mirrors the
-	// "Last Turn Changes" changeset's chat selection via the shared helper.
-	const mostRecentChatUriObs = derivedOpts<URI>({ equalsFn: isEqual }, reader => {
-		if (!enabledObs.read(reader)) {
-			return URI.parse(buildDefaultChatUri(sessionUri));
-		}
-		const sessionState = sessionStateObs.read(reader).read(reader);
-		return selectMostRecentChatUri(sessionState, sessionUri);
-	});
-
 	// One observable of parsed edits per chat, subscribing to that chat's state.
 	//
 	// Completed turns (`chatState.turns`) are immutable once finalized, so each
@@ -178,18 +171,18 @@ export function createSessionOutputObs(
 		return reduceSessionFiles(allEdits, folderRoots);
 	});
 
-	const lastTurnChanges = derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
-		const mostRecentChatUri = mostRecentChatUriObs.read(reader);
-		for (const chatEditsObs of editsPerChatObs.read(reader)) {
-			const chatEdits = chatEditsObs.read(reader);
-			if (isEqual(chatEdits.chatUri, mostRecentChatUri)) {
-				return reduceTurnChanges(chatEdits.lastTurnEdits);
+	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionFileChange[]> =>
+		derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
+			for (const chatEditsObs of editsPerChatObs.read(reader)) {
+				const chatEdits = chatEditsObs.read(reader);
+				if (isEqual(chatEdits.chatUri, chatUri)) {
+					return reduceTurnChanges(chatEdits.lastTurnEdits);
+				}
 			}
-		}
-		return [];
-	});
+			return [];
+		});
 
-	return { externalFiles, lastTurnChanges };
+	return { externalFiles, getLastTurnChanges };
 }
 
 /**

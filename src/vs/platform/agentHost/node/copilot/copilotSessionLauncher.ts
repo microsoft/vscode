@@ -66,6 +66,13 @@ type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']
 type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly pluginDirectories?: string[];
 	readonly remoteSession?: 'export';
+	/**
+	 * Opt the runtime into self-fetching enterprise managed settings at session
+	 * bootstrap. Declared locally until the published `@github/copilot-sdk` carries
+	 * it on `SessionConfigBase`; it is forwarded to `createSession` and read by the
+	 * runtime at runtime regardless of the published SDK's static type.
+	 */
+	readonly enableManagedSettings?: boolean;
 };
 
 /**
@@ -316,6 +323,20 @@ export async function resolveByokSessionConfig(
 	if (byokModels.length === 0) {
 		return {};
 	}
+	// Deduplicate by selection id (`vendor/id`). The same BYOK model can be
+	// reported more than once — e.g. when two renderer bridges are transiently
+	// serving during a window hand-off (continuing a chat into a new session) —
+	// and the runtime rejects a session config with duplicate BYOK model
+	// selection ids ("Duplicate BYOK model selection id ...").
+	const seenSelectionIds = new Set<string>();
+	byokModels = byokModels.filter(m => {
+		const selectionId = `${m.vendor}/${m.id}`;
+		if (seenSelectionIds.has(selectionId)) {
+			return false;
+		}
+		seenSelectionIds.add(selectionId);
+		return true;
+	});
 	// `startProxy` binds a local loopback listener — unlikely to fail, but it
 	// must never break session materialization (which fires the cross-window
 	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.
@@ -604,6 +625,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
+			// Opt the runtime into self-fetching enterprise managed settings
+			// (bypass-permissions policy) at session bootstrap. The runtime uses
+			// the session's gitHubToken to call /copilot_internal/managed_settings
+			// and enforces the result fail-closed before the first turn.
+			// Typed locally on CopilotSessionLaunchConfig pending the SDK type update.
+			enableManagedSettings: true,
 		};
 	}
 }

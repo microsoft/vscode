@@ -125,6 +125,17 @@ export interface ChangesetFile {
 	 */
 	edit: FileEdit;
 	/**
+	 * Whether the user has reviewed (a.k.a. "viewed") this file.
+	 *
+	 * Only meaningful when the owning agent advertises the `reviewChanges`
+	 * capability ({@link AgentCapabilities.reviewChanges}); such servers seed
+	 * the flag and both they and clients keep it current by dispatching
+	 * `changeset/filesReviewedChanged`. Omit (or set to `undefined`) when the
+	 * agent does not support the "review" experience — in that case clients
+	 * MUST NOT surface any reviewed/unreviewed affordance for this file.
+	 */
+	reviewed?: boolean;
+	/**
 	 * Server-defined opaque metadata, surfaced to operations and tooling
 	 * but not interpreted by the protocol.
 	 */

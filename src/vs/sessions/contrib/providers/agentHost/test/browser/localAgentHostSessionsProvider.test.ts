@@ -13,10 +13,10 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentHostEnabledSettingId, AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentInfo, type ChangesSummary, type Customization, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionWorkspaceless, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -48,7 +48,7 @@ import { GitHubPullRequestModel } from '../../../../github/browser/models/github
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../../github/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { IAgentHostEnablementService } from '../../../../../services/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -317,13 +317,13 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configurationService);
-	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: configurationService.getValue<boolean>(AgentHostEnabledSettingId) ?? false });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: options?.agentHostEnabled ?? true });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
 		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
@@ -1077,6 +1077,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('hydrated quick chat stays workspace-less after reload despite a scratch working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Regression #324581: a committed quick chat persisted into the startup
+		// cache carries a scratch cwd. The adapter's session-kind is fixed at
+		// construction from `_meta.workspaceless`, so the tag must survive the
+		// serialize/deserialize round-trip — otherwise the restored session
+		// leaks the scratch dir as a workspace folder.
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [
+			createSession('quick-cached', {
+				summary: 'Quick Chat',
+				workingDirectory: URI.file('/tmp/copilot-scratch/quick-cached'),
+				quickChat: true,
+			}),
+		]);
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+
+		const session = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'quick-cached');
+		assert.deepStrictEqual({
+			workspace: session?.workspace.get(),
+			isQuickChat: session?.isQuickChat?.get(),
+		}, {
+			workspace: undefined,
+			isQuickChat: true,
+		});
+	}));
+
 	test('reconciles hydrated sessions against the authoritative list, pruning stale entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [createSession('stale-1', { summary: 'Stale' })]);
@@ -1442,6 +1472,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	test('getMcpServers dispatches MCP lifecycle requests', async () => {
+		const provider = createProvider(disposables, agentHost);
+
+		fireSessionAdded(agentHost, 'mcp-lifecycle', { title: 'MCP Lifecycle' });
+		const session = provider.getSessions().find(s => s.title.get() === 'MCP Lifecycle');
+		assert.ok(session);
+
+		const fakeState: SessionState = {
+			provider: 'copilotcli',
+			title: 'MCP Lifecycle',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [{
+				type: CustomizationType.McpServer,
+				id: 'mcp://docs',
+				uri: 'mcp://docs',
+				name: 'Docs',
+				enabled: true,
+				state: { kind: McpServerStatus.Stopped },
+			}],
+		};
+		provider.getSessionConfig(session!.sessionId);
+		agentHost.setSessionState('mcp-lifecycle', 'copilotcli', fakeState);
+
+		const servers = provider.getMcpServers(session!.sessionId);
+		assert.strictEqual(servers.length, 1);
+		await servers[0].start();
+		await servers[0].stop();
+
+		const actions = agentHost.dispatchedActions.slice(-2);
+		assert.deepStrictEqual(actions.map(({ action }) => action.type), [
+			ActionType.SessionMcpServerStartRequested,
+			ActionType.SessionMcpServerStopRequested,
+		]);
+		assert.deepStrictEqual(actions.map(({ action }) => (action as { id: string }).id), ['mcp://docs', 'mcp://docs']);
+	});
+
 	test('getCustomAgents returns no agents when the session has no SessionState', () => {
 		const provider = createProvider(disposables, agentHost);
 
@@ -1650,21 +1719,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 	// ---- Quick chats (workspace-less sessions) -------
 
 	test('declares quick chat support from the initial agent host setting', () => {
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(AgentHostEnabledSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
-		assert.strictEqual(provider.supportsQuickChats, true);
-
-		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
-		fireConfigChange(configService, AgentHostEnabledSettingId);
-
+		const provider = createProvider(disposables, agentHost, undefined, { agentHostEnabled: true });
 		assert.strictEqual(provider.supportsQuickChats, true);
 	});
 
 	test('does not declare quick chat support when the agent host is disabled', () => {
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration(AgentHostEnabledSettingId, false);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const provider = createProvider(disposables, agentHost, undefined, { agentHostEnabled: false });
 		assert.strictEqual(provider.supportsQuickChats, false);
 	});
 
@@ -1947,6 +2007,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			seededImmediately: { isolation: 'folder', branch: 'main' },
 			forwardedToAgentHost: { isolation: 'folder', branch: 'main' },
+		});
+	});
+
+	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		assert.deepStrictEqual({
+			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+		}, {
+			seededImmediately: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			forwardedToAgentHost: { worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
 		});
 	});
 
@@ -3030,6 +3105,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
+	});
+
+	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {
+		// Regression: when the first send of a session type triggers a lengthy
+		// bring-up (e.g. the Claude SDK download) and a SECOND session of the
+		// same type is started and sent before it finishes, both sends park in
+		// `_waitForNewSession`. A committed backend session keeps the eager id
+		// its send created it with, so each send must graduate onto its OWN id.
+		// Matching purely by novelty + scheme would let the two waiters SWAP
+		// sessions — whichever materializes first is grabbed by the send that
+		// parked first, regardless of ownership — leaving the user on the wrong
+		// session. Here the SECOND session (B) materializes BEFORE the first
+		// (A), which is exactly the ordering that triggered the swap.
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const sessionTypeId = provider.sessionTypes[0].id;
+
+		const sessionA = provider.createNewSession(URI.parse('file:///home/user/a'), sessionTypeId);
+		const chatA = await provider.createNewChat(sessionA.sessionId);
+		const ownA = AgentSession.id(chatA.resource.toString());
+		const sessionB = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		const chatB = await provider.createNewChat(sessionB.sessionId);
+		const ownB = AgentSession.id(chatB.resource.toString());
+
+		// Start both sends; each parks in `_waitForNewSession` (listSessions is
+		// empty because neither session has materialized yet).
+		const sendA = provider.sendRequest(sessionA.sessionId, chatA.resource, { query: 'A' });
+		const sendB = provider.sendRequest(sessionB.sessionId, chatB.resource, { query: 'B' });
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
+
+		// The committed session keeps each send's own (eager) id. Materialize B
+		// FIRST, then A — the ordering that made A grab B's session.
+		fireSessionAdded(agentHost, ownB, { title: 'B' });
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
+		fireSessionAdded(agentHost, ownA, { title: 'A' });
+
+		const [committedA, committedB] = await Promise.all([sendA, sendB]);
+
+		assert.deepStrictEqual(
+			{ a: AgentSession.id(committedA.resource.toString()), b: AgentSession.id(committedB.resource.toString()) },
+			{ a: ownA, b: ownB },
+		);
 	});
 
 	test('sendRequest forwards resolved session config to chat service', async () => {

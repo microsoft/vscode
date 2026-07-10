@@ -8,6 +8,9 @@ import { $, append, Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,14 +28,26 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { shouldUseSinglePaneLayout, EditorHeaderPrimaryMenuId } from '../../../browser/parts/singlePaneEditorPart.js';
+import { Menus } from '../../../browser/menus.js';
+import { shouldUseSinglePaneLayout } from '../../../browser/parts/singlePaneEditorPart.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 
 const HEADER_HEIGHT = 35;
+
+/**
+ * Optimizes the embedded diffs for the narrow Agents window panel: in inline
+ * view this hides the original file's line-number column, removing the wide
+ * empty gutter that otherwise sits left of the modified line numbers. Unlike
+ * `compactMode` it keeps the full expandable hidden-region widgets.
+ */
+const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
+	hideOriginalLineNumbers: true,
+};
 
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
@@ -112,11 +127,33 @@ export class SessionChangesEditor extends EditorPane {
 		}
 
 		this.bodyContainer = append(root, $('.session-changes-editor-body'));
-		this.widget = this._register(scopedInstantiationService.createInstance(
+
+		// Create the widget in the editor-pane context (not the deeper scoped one)
+		// so its own multiDiffEditor* context keys (all-collapsed, render-side-by-side)
+		// are visible to the EditorTitle menu that drives the collapse/expand-all and
+		// inline-view toggle actions.
+		const paneInstantiationService = this._register(this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		this.widget = this._register(paneInstantiationService.createInstance(
 			MultiDiffEditorWidget,
 			this.bodyContainer,
-			scopedInstantiationService.createInstance(SessionChangesUIElementFactory),
+			paneInstantiationService.createInstance(SessionChangesUIElementFactory),
+			CHANGES_DIFF_EDITOR_OPTIONS,
 		));
+		this.widget.setRenderSideBySide(this.configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true);
+	}
+
+	toggleInlineView(): void {
+		this.widget?.toggleRenderSideBySide();
+	}
+
+	/**
+	 * Resolves the diff editor and code editor showing the given file, mirroring
+	 * {@link MultiDiffEditor.tryGetCodeEditor} so file-toolbar actions can operate
+	 * on this editor and the plain multi-diff editor uniformly.
+	 */
+	tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		return this.widget?.tryGetCodeEditor(resource);
 	}
 
 	/** Creates the classic (non-single-pane) internal header toolbars. */
@@ -125,7 +162,7 @@ export class SessionChangesEditor extends EditorPane {
 
 		// The Branch Changes picker + diff stats render as the leading header menu;
 		// their custom action view items resolve globally via IActionViewItemService.
-		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, EditorHeaderPrimaryMenuId, {
+		store.add(instantiationService.createInstance(MenuWorkbenchToolBar, left, Menus.SessionsEditorHeaderPrimary, {
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
@@ -160,6 +197,10 @@ export class SessionChangesEditor extends EditorPane {
 
 	collapseAllDiffs(): void {
 		this.viewModel?.collapseAll();
+	}
+
+	expandAllDiffs(): void {
+		this.viewModel?.expandAll();
 	}
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {

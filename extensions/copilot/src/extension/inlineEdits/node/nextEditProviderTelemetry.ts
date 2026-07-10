@@ -145,6 +145,11 @@ export interface INextEditProviderTelemetry extends ILlmNESTelemetry, IDiagnosti
 	readonly notebookCellLines: string | undefined;
 	readonly isActiveDocument?: boolean;
 	readonly isMultilineEdit?: boolean;
+	/**
+	 * Signed line distance from the cursor line to the suggested edit's range start line
+	 * (`rangeStartLine - cursorLine`, 0-based). Undefined for cross-document suggestions.
+	 */
+	readonly suggestionLineDistanceToCursor?: number;
 	readonly isEolDifferent?: boolean;
 	readonly isNextEditorVisible?: boolean;
 	readonly isNextEditorRangeVisible?: boolean;
@@ -492,6 +497,7 @@ export class NextEditProviderTelemetryBuilder extends Disposable {
 			pickedNES: this._nesTypePicked,
 			hadLlmNES: this._hadLlmNES,
 			isMultilineEdit: this._isMultilineEdit,
+			suggestionLineDistanceToCursor: this._suggestionLineDistanceToCursor,
 			isEolDifferent: this._isEolDifferent,
 			isActiveDocument: this._isActiveDocument,
 			isNextEditorVisible: this._isNextEditorVisible,
@@ -599,6 +605,17 @@ export class NextEditProviderTelemetryBuilder extends Disposable {
 	private _isMultilineEdit?: boolean;
 	public setIsMultilineEdit(isMultiLine: boolean): this {
 		this._isMultilineEdit = isMultiLine;
+		return this;
+	}
+
+	private _suggestionLineDistanceToCursor?: number;
+	/**
+	 * @param distance Signed line distance from the cursor line to the suggested edit's range
+	 * start line (`rangeStartLine - cursorLine`, 0-based). Pass `undefined` for cross-document
+	 * suggestions where the distance is not meaningful.
+	 */
+	public setSuggestionLineDistanceToCursor(distance: number | undefined): this {
+		this._suggestionLineDistanceToCursor = distance;
 		return this;
 	}
 
@@ -1026,6 +1043,7 @@ export class TelemetrySender implements IDisposable {
 			isActiveDocument,
 			isEolDifferent,
 			isMultilineEdit,
+			suggestionLineDistanceToCursor,
 			isNextEditorRangeVisible,
 			isNextEditorVisible,
 			acceptance,
@@ -1124,6 +1142,7 @@ export class TelemetrySender implements IDisposable {
 				"isNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document is a notebook", "isMeasurement": true },
 				"isNESForAnotherDoc": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES if for another document", "isMeasurement": true },
 				"isMultilineEdit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES is for a multiline edit", "isMeasurement": true },
+				"suggestionLineDistanceToCursor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Signed line distance from the cursor line to the suggested edit's range start line (rangeStartLine - cursorLine), 0-based; positive means the suggestion starts below the cursor, negative above, 0 on the same line. Uses the inline-completion request cursor position; undefined for cross-document suggestions.", "isMeasurement": true },
 				"isEolDifferent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES edit and original text have different end of lines", "isMeasurement": true },
 				"isNextEditorVisible": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the next editor is visible", "isMeasurement": true },
 				"isNextEditorRangeVisible": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the next editor range is visible", "isMeasurement": true },
@@ -1239,6 +1258,7 @@ export class TelemetrySender implements IDisposable {
 				isActiveDocument: this._boolToNum(isActiveDocument),
 				isEolDifferent: this._boolToNum(isEolDifferent),
 				isMultilineEdit: this._boolToNum(isMultilineEdit),
+				suggestionLineDistanceToCursor,
 				isNextEditorRangeVisible: this._boolToNum(isNextEditorRangeVisible),
 				isNextEditorVisible: this._boolToNum(isNextEditorVisible),
 				hasNotebookCellMarker: notebookCellMarkerCount > 0 ? 1 : 0,
