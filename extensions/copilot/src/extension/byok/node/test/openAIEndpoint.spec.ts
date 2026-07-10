@@ -438,6 +438,34 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(body.previous_response_id).toBeUndefined();
 			expect(body.store).toBe(false);
 		});
+
+		it('sends the full input and no previous_response_id when the pending marker is not a Responses id', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'capi_prev_123'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: false,
+			});
+
+			expect(body.previous_response_id).toBeUndefined();
+			// Input must not be truncated at the unusable marker
+			expect(JSON.stringify(body.input)).toContain('before marker');
+			expect(JSON.stringify(body.input)).toContain('after marker');
+		});
 	});
 
 	describe('reasoning effort forwarding', () => {

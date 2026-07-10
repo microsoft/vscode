@@ -1574,6 +1574,84 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 	});
 });
 
+describe('processResponseFromChatEndpoint store flag', () => {
+	async function runCompletedEvent(store?: boolean | null): Promise<{ markers: string[]; deltas: number }> {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+
+		const completedEvent = {
+			type: 'response.completed',
+			response: {
+				id: 'resp_store',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				...(store !== undefined ? { store } : {}),
+				usage: {
+					input_tokens: 11,
+					output_tokens: 7,
+					total_tokens: 18,
+					input_tokens_details: { cached_tokens: 0 },
+					output_tokens_details: { reasoning_tokens: 0 },
+				},
+				output: [
+					{
+						type: 'message',
+						content: [{ type: 'output_text', text: 'reply' }],
+					}
+				],
+			}
+		};
+
+		const response = createFakeStreamResponse(`data: ${JSON.stringify(completedEvent)}\n\n`);
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-store' }, {});
+
+		const markers: string[] = [];
+		let deltas = 0;
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async (_text, _unused, delta) => {
+				deltas++;
+				if (delta.statefulMarker !== undefined) {
+					markers.push(delta.statefulMarker);
+				}
+				return undefined;
+			},
+			telemetryData
+		);
+
+		for await (const _ of stream) {
+			// consume stream
+		}
+
+		accessor.dispose();
+		services.dispose();
+		return { markers, deltas };
+	}
+
+	it('omits the stateful marker when the response is not stored (store: false)', async () => {
+		const { markers, deltas } = await runCompletedEvent(false);
+		expect(deltas).toBeGreaterThan(0);
+		expect(markers).toEqual([]);
+	});
+
+	it('emits the stateful marker when the response is stored (store: true)', async () => {
+		const { markers } = await runCompletedEvent(true);
+		expect(markers).toEqual(['resp_store']);
+	});
+
+	it('emits the stateful marker when store is absent', async () => {
+		const { markers } = await runCompletedEvent(undefined);
+		expect(markers).toEqual(['resp_store']);
+	});
+});
+
 describe('summarizedAtRoundId and stateful marker interaction', () => {
 	it('skips stateful marker when summarizedAtRoundId differs from connection', () => {
 		const services = createPlatformServices();
