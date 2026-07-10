@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -29,7 +29,6 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
 import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
-import { CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../contrib/extensions/common/extensions.js';
 
 interface ICachedAccess {
 	authProvider: 'github' | 'microsoft';
@@ -278,6 +277,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this._register(this.authenticationService.onDidChangeSessions(e => {
 				if (e.providerId === 'microsoft') {
 					this.clearCachedAccess();
+					// Revoke the manifest that was authorized for the previous session before
+					// revalidating. Without this, the active status stays `Available`, and if the
+					// new session's validation hits a transient index/eligibility failure the catch
+					// paths preserve `Available` — leaking the prior account's authorization to the
+					// new (possibly ineligible) account.
+					this.update(null);
 					validate();
 				}
 			}));
@@ -288,6 +293,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		const validate = () => this.handleGitHubAccess(configuredServiceUrl, ++this.validationEpoch);
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
 			this.clearCachedAccess();
+			// Revoke the previously authorized manifest before revalidating (see the Microsoft
+			// path above) so a transient failure resolving the new account cannot preserve the
+			// old account's `Available` status.
+			this.update(null);
 			validate();
 		}));
 		return validate;
@@ -852,6 +861,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// fetch, rather than letting resource-URI discovery throw on a non-iterable
 				// `resources` outside this try/catch.
 				throw new Error('Service index response is not a valid extension gallery manifest.');
+			}
+
+			if (!extensionGalleryManifest.resources.every(resource => resource && typeof resource.id === 'string' && typeof resource.type === 'string')) {
+				// `resources` is an array but at least one entry is malformed (missing/non-string
+				// `id` or `type`). `getExtensionGalleryManifestResourceUri` calls `resource.type.split()`
+				// outside this fetch's try/catch during endpoint discovery, so an undefined `type`
+				// would throw there and reject initialization instead of being classified as a failed
+				// fetch. Reject here so the caller surfaces `Unreachable`.
+				throw new Error('Service index response contains malformed extension gallery resources.');
 			}
 
 			return extensionGalleryManifest;

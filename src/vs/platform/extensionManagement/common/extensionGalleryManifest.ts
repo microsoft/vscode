@@ -5,6 +5,15 @@
 
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RawContextKey } from '../../contextkey/common/contextkey.js';
+
+/**
+ * Context key exposing the effective Marketplace authentication provider (e.g. `github` or
+ * `microsoft`) for `when`-clause driven welcome content. Defined here in the platform layer so
+ * both the workbench service that sets it and the Extensions contribution that reads it can
+ * depend on it without a service-to-contribution dependency.
+ */
+export const CONTEXT_MARKETPLACE_AUTH_PROVIDER = new RawContextKey<string>('marketplaceAuthProvider', '');
 
 export const enum ExtensionGalleryResourceType {
 	ExtensionQueryService = 'ExtensionQueryService',

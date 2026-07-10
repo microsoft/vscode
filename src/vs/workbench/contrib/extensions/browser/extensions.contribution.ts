@@ -363,12 +363,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[ExtensionGalleryAuthProviderConfigKey]: {
 				type: 'string',
-				enum: product.enableExtensionGalleryEntraAuth ? ['github', 'microsoft'] : ['github'],
-				enumDescriptions: product.enableExtensionGalleryEntraAuth ? [
+				// The enum and its descriptions are intentionally NOT gated on
+				// `product.enableExtensionGalleryEntraAuth`: the policy metadata below always
+				// exports both enum descriptions, and the policy-artifact generator requires the
+				// schema `enum` and `enumDescriptions` to have equal length, so gating the enum
+				// would make a clean policy export invalid. The Entra product gate is enforced at
+				// runtime in `getEffectiveAuthProvider()` instead, and this setting is hidden
+				// (`included: false`), so listing `microsoft` here does not advertise it in the UI.
+				enum: ['github', 'microsoft'],
+				enumDescriptions: [
 					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
 					localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
-				] : [
-					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
 				],
 				description: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
 				default: '',

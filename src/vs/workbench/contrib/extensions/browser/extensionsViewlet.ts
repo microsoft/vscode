@@ -178,7 +178,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		});
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('access denied microsoft', "Your Microsoft account does not have access to the Extensions Marketplace. An Entra ID (work or school) account or Visual Studio Subscription is required. Please contact your administrator."),
+			content: localize('access denied microsoft', "Your Microsoft account does not have access to the Extensions Marketplace. Please contact your administrator."),
 			when: ContextKeyExpr.and(
 				CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied),
 				CONTEXT_MARKETPLACE_AUTH_PROVIDER.isEqualTo('microsoft')

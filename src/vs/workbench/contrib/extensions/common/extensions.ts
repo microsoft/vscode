@@ -268,7 +268,7 @@ export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServ
 export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Marketplace Eligibility Context Keys
-export const CONTEXT_MARKETPLACE_AUTH_PROVIDER = new RawContextKey<string>('marketplaceAuthProvider', '');
+export { CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

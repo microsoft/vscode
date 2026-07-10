@@ -464,6 +464,27 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
+	test('Microsoft provider — service index 200 with malformed resources → Unreachable (not a crash, not cached)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession()];
+		// `resources` is an array but an entry is missing `id`/`type`. Endpoint discovery calls
+		// `resource.type.split()` outside the fetch try/catch, so an undefined `type` would throw
+		// there and reject initialization. The response must instead be rejected as a failed
+		// fetch → Unreachable, and never cached.
+		requestHandler = (options) => {
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: true });
+			}
+			return mockResponse(200, { version: '1.0.0', resources: [{}] });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.ok(!storageData.has('marketplace.cachedAccess'));
+	});
+
 	test('Microsoft provider — auth-gated service index, token rejected (401) → RequiresSignIn (not cached)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession()];
