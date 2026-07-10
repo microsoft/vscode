@@ -108,6 +108,19 @@ export interface AgentCapabilities {
 	 * forking; set {@link MultipleChatsCapability.fork} to also allow forking.
 	 */
 	multipleChats?: MultipleChatsCapability;
+	/**
+	 * The agent supports a rich "review changes" experience: it tracks a
+	 * per-file reviewed (a.k.a. "viewed") flag on the files of its
+	 * {@link ChangesetFile | changeset files} and accepts client-dispatched
+	 * `changeset/filesReviewedChanged` actions, so the user can mark files
+	 * reviewed or unreviewed as they work through a diff.
+	 *
+	 * An empty object `{}` advertises support. When absent, clients MUST NOT
+	 * dispatch `changeset/filesReviewedChanged` and SHOULD NOT surface any
+	 * reviewed/unreviewed affordance; the server leaves
+	 * {@link ChangesetFile.reviewed} `undefined`.
+	 */
+	reviewChanges?: Record<string, never>;
 }
 
 /**
