@@ -109,7 +109,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		// on the next ``start_session`` / ``resume_session`` instead.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
-				e.affectsConfiguration('agents.voice.turn.autoEndMode') ||
 				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
 				e.affectsConfiguration('agents.voice.turn.stopPhrases')
 			) {
@@ -138,22 +137,29 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	/**
 	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
-	 * settings, normalizing each into the shape the backend expects.
+	 * settings, normalizing each into the shape the backend expects. The
+	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
+	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
+	 * and stop-phrase ending is enabled when at least one phrase is configured.
 	 */
 	private _getTurnConfig(): IVoiceTurnConfig {
 		const cfg = this._configurationService;
 
-		const modeRaw = cfg.getValue<string>('agents.voice.turn.autoEndMode');
-		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
-			modeRaw === 'vad' || modeRaw === 'phrase' || modeRaw === 'both' ? modeRaw : 'off';
-
 		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
-		const silence_ms = typeof silenceRaw === 'number' && silenceRaw > 0 ? Math.round(silenceRaw) : 800;
+		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
 
 		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
 		const stop_phrases = Array.isArray(phrasesRaw)
 			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
 			: [];
+		const phrasesEnabled = stop_phrases.length > 0;
+
+		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
+			silenceEnabled && phrasesEnabled ? 'both'
+				: silenceEnabled ? 'vad'
+					: phrasesEnabled ? 'phrase'
+						: 'off';
 
 		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
 	}

@@ -28,6 +28,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
@@ -489,37 +490,57 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.handsFree': {
 			type: 'boolean',
-			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by `agents.voice.turn.autoEndMode`."),
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
 			default: true,
-			scope: ConfigurationScope.APPLICATION,
-		},
-		'agents.voice.turn.autoEndMode': {
-			type: 'string',
-			enum: ['off', 'vad', 'phrase', 'both'],
-			markdownEnumDescriptions: [
-				nls.localize('agents.voice.turn.autoEndMode.off', "Never end the turn automatically; it ends only when you release (or, in toggle mode, tap again) push-to-talk."),
-				nls.localize('agents.voice.turn.autoEndMode.vad', "End the turn automatically after a period of trailing silence (see `agents.voice.turn.silenceMs`)."),
-				nls.localize('agents.voice.turn.autoEndMode.phrase', "End the turn automatically when a stop phrase is spoken (see `agents.voice.turn.stopPhrases`)."),
-				nls.localize('agents.voice.turn.autoEndMode.both', "End the turn automatically on either trailing silence or a spoken stop phrase."),
-			],
-			markdownDescription: nls.localize('agents.voice.turn.autoEndMode', "Controls whether and how the voice backend ends a held turn on its own. The backend is the single source of truth for turn-ending: `vad` ends on trailing silence (`agents.voice.turn.silenceMs`), `phrase` ends on a spoken stop phrase (`agents.voice.turn.stopPhrases`), `both` enables either, and `off` requires you to end the turn manually."),
-			default: 'vad',
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {
 			type: 'number',
-			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn. Applies only when `agents.voice.turn.autoEndMode` is `vad` or `both`; ignored otherwise. The backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth."),
+			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth.", '`#agents.voice.turn.stopPhrases#`'),
 			default: 800,
-			minimum: 200,
-			maximum: 5000,
+			anyOf: [
+				{
+					const: -1,
+					description: nls.localize('agents.voice.turn.silenceMs.disabled', "Do not end the turn on trailing silence."),
+				},
+				{
+					type: 'number',
+					minimum: 200,
+					maximum: 5000,
+				},
+			],
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.stopPhrases': {
 			type: 'array',
 			items: { type: 'string' },
-			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Applies only when `agents.voice.turn.autoEndMode` is `phrase` or `both`; ignored otherwise. The backend strips the matched phrase from the transcript before it reaches the agent."),
+			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent.", '`#agents.voice.turn.silenceMs#`'),
 			default: ['send it'],
 			scope: ConfigurationScope.APPLICATION,
 		},
 	}
 });
+
+// Migrate the removed `agents.voice.turn.autoEndMode` setting onto the two
+// settings that now govern turn-ending, preserving the previous behavior:
+// silence ending is disabled (`silenceMs: -1`) unless the old mode was `vad`
+// or `both`, and stop-phrase ending is disabled (`stopPhrases: []`) unless the
+// old mode was `phrase` or `both`.
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'agents.voice.turn.autoEndMode',
+		migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [['agents.voice.turn.autoEndMode', { value: undefined }]];
+			if (value === 'off' || value === 'vad' || value === 'phrase' || value === 'both') {
+				const silenceEnabled = value === 'vad' || value === 'both';
+				const phraseEnabled = value === 'phrase' || value === 'both';
+				if (!silenceEnabled) {
+					result.push(['agents.voice.turn.silenceMs', { value: -1 }]);
+				}
+				if (!phraseEnabled) {
+					result.push(['agents.voice.turn.stopPhrases', { value: [] }]);
+				}
+			}
+			return result;
+		}
+	}]);

@@ -3213,6 +3213,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
 
+	test('sendRequest rejects when the backend session never commits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const rejection = assert.rejects(
+			provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }),
+			/session was not committed/,
+		);
+
+		await timeout(0);
+		await timeout(30_000);
+		await rejection;
+		assert.deepStrictEqual(changes.map(change => ({
+			added: change.added.map(session => session.resource.toString()),
+			removed: change.removed.map(session => session.resource.toString()),
+		})), [
+			{ added: [session.resource.toString()], removed: [] },
+			{ added: [], removed: [session.resource.toString()] },
+		]);
+	}));
+
 	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {
 		// Regression: when the first send of a session type triggers a lengthy
 		// bring-up (e.g. the Claude SDK download) and a SECOND session of the

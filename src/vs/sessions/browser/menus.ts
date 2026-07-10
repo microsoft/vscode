@@ -47,4 +47,5 @@ export const Menus = {
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionHeaderMeta: new MenuId('SessionsSessionHeaderMeta'),
 	SessionHeaderContext: MenuId.SessionHeaderContext,
+	SessionItemContextMenu: MenuId.SessionItemContextMenu,
 } as const;

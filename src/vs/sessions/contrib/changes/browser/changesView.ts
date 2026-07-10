@@ -446,18 +446,21 @@ export class ChangesActionsBar extends Disposable {
 			updateVisibility();
 		}));
 	}
+
 }
 
 // --- Editor header menus (single-pane): the Changes editor declares
 // Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats, left) and
 // Menus.SessionsEditorHeaderSecondary (diff/code-review/view-mode actions, right), and
 // the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
-// hosted in the sessions title bar (Menus.TitleBarSessionMenu). The custom action view
-// items below are registered globally by menu id so the toolbars render them.
+// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
+// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
+// The custom action view items below are registered globally by menu id so the
+// header toolbars render them.
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -507,11 +510,6 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 				return undefined;
 			}
 			return instantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
-		}, onDidRegister.event));
-
-		// Create Pull Request button bar, hosted in the title bar (right, session actions area).
-		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
 		}, onDidRegister.event));
 
 		onDidRegister.fire();

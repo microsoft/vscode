@@ -84,7 +84,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextSession = fakeSession('s1');
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'do the thing', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 99);
+		await runner.runOnce(a, 'schedule', 99).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		assert.strictEqual(sessionsMgmt.calls[0].folderUri.toString(), FOLDER_A.toString());
@@ -106,9 +106,12 @@ suite('AutomationRunner', () => {
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'do the thing', schedule: hourly(), folderUri: FOLDER_A });
 		let settled = false;
-		const runPromise = runner.runOnce(a, 'schedule', 99).finally(() => settled = true);
+		const operation = runner.runOnce(a, 'schedule', 99);
+		let dispatched = false;
+		const dispatchPromise = operation.whenDispatched.finally(() => dispatched = true);
+		const runPromise = operation.whenCompleted.finally(() => settled = true);
 
-		await waitForState(service.runs, runs => runs[0]?.sessionResource !== undefined);
+		await dispatchPromise;
 		assert.deepStrictEqual(service.runs.get().map(run => ({
 			status: run.status,
 			sessionResource: run.sessionResource,
@@ -118,6 +121,7 @@ suite('AutomationRunner', () => {
 			sessionResource: 'vscode-chat-session://test/s1',
 			completedAt: undefined,
 		}]);
+		assert.strictEqual(dispatched, true);
 
 		status.set(SessionStatus.NeedsInput, undefined);
 		await Promise.resolve();
@@ -142,7 +146,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextSession = fakeSession('s1', status);
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		const runPromise = runner.runOnce(a, 'schedule', 1);
+		const runPromise = runner.runOnce(a, 'schedule', 1).whenCompleted;
 		await waitForState(service.runs, runs => runs[0]?.sessionResource !== undefined);
 
 		status.set(SessionStatus.Error, undefined);
@@ -172,7 +176,7 @@ suite('AutomationRunner', () => {
 			schedule: hourly(),
 			folderUri: FOLDER_B,
 		});
-		await runner.runOnce(a, 'schedule', 1);
+		await runner.runOnce(a, 'schedule', 1).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls[0].folderUri.toString(), FOLDER_B.toString());
 	});
@@ -183,7 +187,7 @@ suite('AutomationRunner', () => {
 
 		const longName = 'A'.repeat(150);
 		const a = await service.createAutomation({ name: longName, prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'manual', 1);
+		await runner.runOnce(a, 'manual', 1).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls[0].options.title, 'A'.repeat(100));
 	});
@@ -193,7 +197,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextError = new Error('provider offline');
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 1);
+		await runner.runOnce(a, 'schedule', 1).whenCompleted;
 
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
@@ -206,7 +210,7 @@ suite('AutomationRunner', () => {
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await service.recordRunStart(a.id, 'manual', 1);
-		await runner.runOnce(a, 'schedule', 2);
+		await runner.runOnce(a, 'schedule', 2).whenCompleted;
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
@@ -219,7 +223,7 @@ suite('AutomationRunner', () => {
 		cts.cancel();
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 1, cts.token);
+		await runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		const runs = service.runs.get();
@@ -238,7 +242,7 @@ suite('AutomationRunner', () => {
 		};
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 1, cts.token);
+		await runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		const runs = service.runs.get();
@@ -256,7 +260,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextSession = fakeSession('s-waiting', status);
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		const runPromise = runner.runOnce(a, 'schedule', 1, cts.token);
+		const runPromise = runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 		await waitForState(service.runs, runs => runs[0]?.sessionResource !== undefined);
 
 		cts.cancel();
@@ -282,7 +286,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextSession = fakeSession('s-timeout', status);
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		const runPromise = runner.runOnce(a, 'schedule', 1, cts.token);
+		const runPromise = runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 		const run = await waitForState(service.runs.map(runs => runs[0]), run => run?.sessionResource !== undefined);
 		await service.updateRun(run.id, {
 			status: 'failed',
@@ -307,7 +311,7 @@ suite('AutomationRunner', () => {
 		const { service, runner } = setup();
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 1, CancellationToken.None);
+		await runner.runOnce(a, 'schedule', 1, CancellationToken.None).whenCompleted;
 
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
@@ -327,7 +331,7 @@ suite('AutomationRunner', () => {
 			providerId: 'local-agent-host',
 			sessionTypeId: 'agent-host-copilotcli',
 		});
-		await runner.runOnce(a, 'schedule', 1);
+		await runner.runOnce(a, 'schedule', 1).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
@@ -353,7 +357,7 @@ suite('AutomationRunner', () => {
 			mode: 'agent',
 			permissionLevel: 'autopilot',
 		});
-		await runner.runOnce(a, 'schedule', 1);
+		await runner.runOnce(a, 'schedule', 1).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		assert.deepStrictEqual(sessionsMgmt.calls[0].createOptions, {
@@ -372,7 +376,7 @@ suite('AutomationRunner', () => {
 		sessionsMgmt.nextSession = fakeSession('s1');
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
-		await runner.runOnce(a, 'schedule', 1);
+		await runner.runOnce(a, 'schedule', 1).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
 		assert.strictEqual(sessionsMgmt.calls[0].createOptions, undefined);
@@ -384,7 +388,7 @@ suite('AutomationRunner', () => {
 		await service.deleteAutomation(a.id);
 		// The runner detects the deletion via getAutomation before attempting
 		// recordRunStart, bails early, and produces no run rows.
-		await runner.runOnce(a, 'manual', 1);
+		await runner.runOnce(a, 'manual', 1).whenCompleted;
 		assert.strictEqual(sessionsMgmt.calls.length, 0);
 		assert.deepStrictEqual(service.runs.get(), []);
 	});

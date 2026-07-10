@@ -3372,7 +3372,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (this._newSessions.get(newSession.sessionId) === newSession) {
 			this._newSessions.deleteAndDispose(newSession.sessionId);
 		}
-		return skeleton;
+		this._onDidChangeSessions.fire({ added: [], removed: [skeleton], changed: [] });
+		throw new Error(localize('sessionNotCommitted', "Agent host session was not committed."));
 	}
 
 	/** Localized error message when sendRequest is invoked without a connection. Subclasses can override. */

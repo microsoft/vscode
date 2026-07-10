@@ -82,7 +82,8 @@ export interface IAutomation {
 
 /**
  * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal only when that session completes or fails.
+ * is active or needs input, and becomes terminal when that session completes or
+ * fails, or when tracking is cancelled or times out while the session may remain active.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 

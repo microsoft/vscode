@@ -21,11 +21,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
@@ -124,7 +123,7 @@ registerAction2(OpenPullRequestAction);
 const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
+	SinglePaneLayoutEnabledContext
 );
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
@@ -143,9 +142,11 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 
 /**
  * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
- * in the single-pane title bar (right side — the session actions area). The custom action
- * view item is registered for {@link Menus.TitleBarSessionMenu} via IActionViewItemService
- * in changesView.ts. The bar hides itself when its underlying menu has no actions.
+ * in the single-pane editor tabs title (the editor-actions area of the docked tab bar).
+ * The custom action view item is provided by the Changes editor pane
+ * ({@link SessionChangesEditor.getActionViewItem}) when the Changes editor is active,
+ * so the anchor is gated on the same. The bar hides itself when its underlying menu has
+ * no actions.
  */
 class ChangesHeaderActionsAction extends Action2 {
 	constructor() {
@@ -154,13 +155,11 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 5,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+					singlePaneChangesEditorTitle,
 					SessionHasChangesContext
 				)
 			},

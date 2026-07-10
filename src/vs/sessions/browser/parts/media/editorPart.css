@@ -31,6 +31,17 @@
 	padding-right: 0;
 }
 
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .editor-actions {
+	flex: 0 999 auto;
+	min-width: 70px;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
 	display: block;
 	align-self: center;

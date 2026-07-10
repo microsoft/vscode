@@ -62,6 +62,7 @@ function createMockNotificationService(disposables: Pick<DisposableStore, 'add'>
 			return active;
 		},
 		handleMessageSent() { },
+		announceRendered() { },
 	};
 
 	return {
@@ -125,8 +126,30 @@ suite('ChatPromoNotificationContribution', () => {
 		const notification = notifService.getNotification();
 		assert.ok(notification, 'Expected a notification to be shown');
 		assert.ok(notification.message.toString().includes('20% off'));
-		assert.strictEqual(notification.actions.length, 1);
-		assert.ok(notification.actions[0].label.includes('GPT-5.5'));
+		assert.strictEqual(notification.actions.length, 0);
+	});
+
+	test('does not show notification for non-positive promo discounts', () => {
+		const notifService = createMockNotificationService(disposables);
+		const { service: lmService } = createMockLanguageModelsService([
+			{
+				identifier: 'copilot:zero-discount',
+				metadata: { name: 'Zero Discount', id: 'zero-discount', promo: { id: 'promo-zero', discountPercent: 0, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			},
+			{
+				identifier: 'copilot:negative-discount',
+				metadata: { name: 'Negative Discount', id: 'negative-discount', promo: { id: 'promo-negative', discountPercent: -10, endsAt: '2026-07-20T23:59:59Z', message: 'Featured model' } },
+			},
+		], disposables);
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		disposables.add(new ChatPromoNotificationContribution(
+			lmService,
+			notifService.service,
+			storageService,
+		));
+
+		assert.strictEqual(notifService.getNotification(), undefined);
 	});
 
 	test('does not show notification for already-dismissed promo', () => {
@@ -280,22 +303,21 @@ suite('ChatPromoNotificationContribution', () => {
 		// One notification per harness.
 		assert.strictEqual(notifService.getAllNotifications().length, 3);
 
-		// Each session only sees the promo for the model that belongs to it, and
-		// the "Use <model>" action switches to that harness's model.
+		// Each session only sees the promo for the model that belongs to it.
 		const local = notifService.getNotificationForSession('local');
 		assert.ok(local, 'Expected a local promo');
 		assert.ok(local.message.toString().includes('Local promo'));
-		assert.deepStrictEqual(local.actions[0].commandArgs, [{ modelIdentifier: 'local:gpt-5.5', notificationId: local.id }]);
+		assert.strictEqual(local.actions.length, 0);
 
 		const copilot = notifService.getNotificationForSession('copilotcli');
 		assert.ok(copilot, 'Expected a Copilot promo');
 		assert.ok(copilot.message.toString().includes('Copilot promo'));
-		assert.deepStrictEqual(copilot.actions[0].commandArgs, [{ modelIdentifier: 'copilot:claude', notificationId: copilot.id }]);
+		assert.strictEqual(copilot.actions.length, 0);
 
 		const codex = notifService.getNotificationForSession('openai-codex');
 		assert.ok(codex, 'Expected a Codex promo');
 		assert.ok(codex.message.toString().includes('Codex promo'));
-		assert.deepStrictEqual(codex.actions[0].commandArgs, [{ modelIdentifier: 'codex:o4', notificationId: codex.id }]);
+		assert.strictEqual(codex.actions.length, 0);
 	});
 
 	test('does not leak a harness promo into a different session type', () => {

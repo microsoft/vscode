@@ -10,11 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsSessionsWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../../common/sessionConfig.js';
 import { ChangesContextKeys } from '../../common/changes.js';
-import { SessionHasChangesContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
@@ -35,7 +34,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			group: '1_diff',
@@ -61,7 +60,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
@@ -95,7 +94,7 @@ suite('Changes View Actions', () => {
 			toggledOnSideBySide: toggledInfo?.condition.serialize() === EditorContextKeys.multiDiffEditorRenderSideBySide.serialize(),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'workbench.action.agentSessions.toggleInlineView',
@@ -125,7 +124,7 @@ suite('Changes View Actions', () => {
 			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			id: 'workbench.action.agentSessions.toggleInlineView',
@@ -154,7 +153,7 @@ suite('Changes View Actions', () => {
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 				hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-				hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+				hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 				hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 				hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
 			};
@@ -185,24 +184,30 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Create Pull Request anchor is contributed to the title bar session menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
+	test('Create Pull Request anchor is contributed to the editor tabs title menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CHANGES_HEADER_ACTIONS_ID);
 
-		assert.ok(item, 'expected the changes header actions anchor on the title bar session menu');
+		assert.ok(item, 'expected the changes header actions anchor on the editor tabs title menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
 			order: item.order,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-			hasSinglePaneConfigGate: when.includes(`config.${DOCK_DETAIL_PANEL_SETTING}`),
+			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
+			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
+			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
 		}, {
 			group: 'navigation',
 			order: 5,
 			hasSessionsWindowGate: true,
+			hasActiveEditorGate: true,
 			hasSinglePaneConfigGate: true,
+			hasAuxiliaryWindowGate: true,
+			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 		});
 	});
