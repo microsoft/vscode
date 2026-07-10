@@ -26,6 +26,8 @@ WINDOWS_RESERVED_NAMES = frozenset({
 	'PRN',
 	*(f'COM{index}' for index in range(1, 10)),
 	*(f'LPT{index}' for index in range(1, 10)),
+	*(f'COM{suffix}' for suffix in ('\u00b9', '\u00b2', '\u00b3')),
+	*(f'LPT{suffix}' for suffix in ('\u00b9', '\u00b2', '\u00b3')),
 })
 
 EOCD_SIGNATURE = b'PK\x05\x06'
