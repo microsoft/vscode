@@ -42,7 +42,6 @@ import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDele
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../workbench/common/contributions.js';
 import { IEditorFactoryRegistry, EditorExtensions, IEditorWillOpenEvent } from '../../workbench/common/editor.js';
-import { EditorInput } from '../../workbench/common/editor/editorInput.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
@@ -186,15 +185,6 @@ export interface IDockedEditorLayout {
 	 */
 	getDockedAuxiliaryBarWidth(): number;
 	setDockedAuxiliaryBarWidth(width: number): void;
-
-	/**
-	 * Sets a predicate deciding which editors, when opened while the editor area is
-	 * hidden, should NOT reveal it (their content lives in the detail panel, e.g. the
-	 * managed Changes and Files tabs). Lets contrib own the policy — including the
-	 * editor types involved — instead of the core workbench hardcoding type ids.
-	 * Returns a disposable that clears the predicate.
-	 */
-	setEditorRevealOnOpenExclusion(predicate: (editor: EditorInput) => boolean): IDisposable;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -370,7 +360,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	protected _editorPartAutoVisibilitySuppressionCount = 0;
 	protected _hasAppliedInitialEditorSplit = false;
-	private _editorRevealOnOpenExclusion: ((editor: EditorInput) => boolean) | undefined;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -1124,7 +1113,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// The managed empty Files tab is a placeholder that activates as a side
 		// effect of closing another tab (e.g. the Changes tab); it must never
 		// reveal a hidden editor. Real content (files, diffs, browser) still does.
-		this._register(this.editorService.onWillOpenEditor(e => this._handleWillOpenEditor(e)));
+		this._register(this.editorService.onWillOpenEditor(e => this.revealEditorOnOpen(e)));
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => this.handleDidCloseEditor()));
@@ -1157,20 +1146,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return true;
 	}
 
-	private _handleWillOpenEditor(e: IEditorWillOpenEvent): void {
+	protected revealEditorOnOpen(e: IEditorWillOpenEvent): void {
 		if (this._editorPartAutoVisibilitySuppressionCount > 0) {
 			return;
 		}
 
 		const group = this.editorGroupService.mainPart.groups.find(g => g.id === e.groupId);
 		if (!group) {
-			return;
-		}
-
-		// A contrib-provided policy decides which editors surface their content in
-		// the detail panel (e.g. the managed Changes and Files tabs) and so must not
-		// reveal the hidden editor area when opened.
-		if (this._editorRevealOnOpenExclusion?.(e.editor)) {
 			return;
 		}
 
@@ -1197,15 +1179,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 			disposed = true;
 			this._editorPartAutoVisibilitySuppressionCount--;
-		});
-	}
-
-	setEditorRevealOnOpenExclusion(predicate: (editor: EditorInput) => boolean): IDisposable {
-		this._editorRevealOnOpenExclusion = predicate;
-		return toDisposable(() => {
-			if (this._editorRevealOnOpenExclusion === predicate) {
-				this._editorRevealOnOpenExclusion = undefined;
-			}
 		});
 	}
 

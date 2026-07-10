@@ -2539,6 +2539,49 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
+	test('[single-pane] closes a non-restorable non-docked tab (e.g. untitled Search) when the editor area hides, without restoring it', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		// A dirty, non-restorable editor (like an untitled Search editor) opens
+		// between the managed tabs while the editor area is visible.
+		const searchResource = URI.parse('search-editor:/Untitled-1');
+		harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(searchResource, { dirty: true, nonRestorable: true })));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		// Hide the editor area: the non-docked tab closes even though it is dirty and
+		// cannot be captured; only the managed Files tab remains.
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await settle();
+
+		const closedSearch = harness.closedEditors.some(e => isEqual(e.resource!, searchResource));
+		const searchTabGone = !harness.activeGroupEditors.some(e => e.resource && isEqual(e.resource, searchResource));
+
+		// Show the editor area again: the non-restorable tab is NOT reopened.
+		harness.openedEditors = [];
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		assert.deepStrictEqual({
+			closedSearch,
+			searchTabGone,
+			filesTabKept: hasFilesTab(),
+			reopenedSearch: harness.openedEditors.some(e => isResourceEditorInput(e) && isEqual(e.resource, searchResource)),
+		}, {
+			closedSearch: true,
+			searchTabGone: true,
+			filesTabKept: true,
+			reopenedSearch: false,
+		});
+	});
+
 	test('[managed tabs / Change 2] does not re-ensure a managed tab after the user closes it', async () => {
 		createSinglePaneController({ activateAux: true });
 		await settle();

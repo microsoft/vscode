@@ -44,10 +44,11 @@ export function makeChange(filePath: string): ISessionFileChange {
 
 /** A minimal editor input for tests, identified only by its resource. */
 export class TestStubEditorInput extends EditorInput {
-	constructor(private readonly _resource: URI) { super(); }
+	constructor(private readonly _resource: URI, private readonly _options?: { readonly dirty?: boolean; readonly nonRestorable?: boolean }) { super(); }
 	override get typeId(): string { return 'test.stubEditor'; }
 	override get resource(): URI { return this._resource; }
-	override toUntyped(): IUntypedEditorInput { return { resource: this._resource }; }
+	override isDirty(): boolean { return this._options?.dirty ?? false; }
+	override toUntyped(): IUntypedEditorInput | undefined { return this._options?.nonRestorable ? undefined : { resource: this._resource }; }
 }
 
 export function makeSession(resource: URI, opts?: {
@@ -178,8 +179,6 @@ export interface ITestLayoutHarness {
 	setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	/** Value returned by the layout service's `isEditorRevealedExplicitly()` mock. */
 	editorRevealedExplicitly: boolean;
-	/** Predicate registered via `setEditorRevealOnOpenExclusion()` (managed editors that shouldn't reveal the editor area). */
-	editorRevealOnOpenExclusion: ((editor: EditorInput) => boolean) | undefined;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
 	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
@@ -271,7 +270,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		openedViews: [],
 		setPartHiddenCalls: [],
 		editorRevealedExplicitly: false,
-		editorRevealOnOpenExclusion: undefined,
 		editorPartAutoVisibilitySuppressionDepth: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
@@ -365,10 +363,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		suppressEditorPartAutoVisibility(): IDisposable {
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);
-		}
-		setEditorRevealOnOpenExclusion(predicate: (editor: EditorInput) => boolean): IDisposable {
-			harness.editorRevealOnOpenExclusion = predicate;
-			return toDisposable(() => { harness.editorRevealOnOpenExclusion = undefined; });
 		}
 		isEditorRevealedExplicitly(): boolean { return harness.editorRevealedExplicitly; }
 		revealEditorPartExplicitly(): void {

@@ -12,8 +12,15 @@ import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../bro
 import { Workbench } from '../../browser/workbench.js';
 import { DockedEditorSizeMemento, SinglePaneWorkbench } from '../../browser/singlePaneWorkbench.js';
 import { SinglePaneMainEditorPart } from '../../browser/parts/singlePaneEditorPart.js';
+import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 
 interface IViewSize { width: number; height: number }
+
+/** Minimal docked editor input for testing the single-pane reveal policy. */
+class TestDockedEditorInput extends DockedEditorInput {
+	override get typeId(): string { return 'test.dockedEditor'; }
+	override get resource(): undefined { return undefined; }
+}
 
 suite('Sessions - Workbench', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +41,8 @@ suite('Sessions - Workbench', () => {
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const loadPartVisibility = Reflect.get(Workbench.prototype, '_loadPartVisibility') as (this: IWorkbenchTestHarness, storageService: { get(): string | undefined; remove(): void }) => { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean };
 	const savePartVisibility = Reflect.get(Workbench.prototype, '_savePartVisibility') as (this: IWorkbenchTestHarness) => void;
-	const handleWillOpenEditor = Reflect.get(Workbench.prototype, '_handleWillOpenEditor') as (this: IWillOpenTestHarness, e: { groupId: number; editor: { typeId: string } }) => void;
+	const revealEditorOnOpen = Reflect.get(Workbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
+	const revealEditorOnOpenSinglePane = Reflect.get(SinglePaneWorkbench.prototype, 'revealEditorOnOpen') as (this: IWillOpenTestHarness, e: { groupId: number; editor: unknown }) => void;
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => { root: { data: readonly unknown[] } };
 	const savePartSizes = Reflect.get(Workbench.prototype, '_savePartSizes') as (this: ISavePartSizesTestHarness) => void;
 
@@ -576,8 +584,7 @@ suite('Sessions - Workbench', () => {
 
 	interface IWillOpenTestHarness {
 		_editorPartAutoVisibilitySuppressionCount: number;
-		_editorRevealOnOpenExclusion?: (editor: { typeId: string }) => boolean;
-		partVisibility: { editor: boolean };
+		partVisibility: { editor: boolean; auxiliaryBar: boolean };
 		editorGroupService: { mainPart: { groups: { id: number }[] } };
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		restoreAttachedEditorMaximizedState(): void;
@@ -587,12 +594,7 @@ suite('Sessions - Workbench', () => {
 		const setEditorHiddenCalls: { hidden: boolean; explicit?: boolean }[] = [];
 		const harness: IWillOpenTestHarness = {
 			_editorPartAutoVisibilitySuppressionCount: 0,
-			// Mirrors the predicate the single-pane layout controller registers for the
-			// managed Changes and Files tabs (their content lives in the detail panel).
-			_editorRevealOnOpenExclusion: editor =>
-				editor.typeId === 'workbench.editors.agentSessions.emptyFile' ||
-				editor.typeId === 'workbench.input.agentSessions.sessionChanges',
-			partVisibility: { editor: false },
+			partVisibility: { editor: false, auxiliaryBar: false },
 			editorGroupService: { mainPart: { groups: [{ id: 1 }] } },
 			setEditorHidden: (hidden, explicit) => setEditorHiddenCalls.push({ hidden, explicit }),
 			restoreAttachedEditorMaximizedState: () => { },
@@ -601,38 +603,65 @@ suite('Sessions - Workbench', () => {
 		return { harness, setEditorHiddenCalls };
 	}
 
-	test('[Scenario 5] does not reveal a hidden editor when the managed empty Files tab is activated', () => {
-		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false } });
+	test('[Scenario 5] base revealEditorOnOpen reveals a hidden editor on open', () => {
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: true } });
 
-		// Closing the Changes tab activates the managed empty Files placeholder.
-		handleWillOpenEditor.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.agentSessions.emptyFile' } });
-
-		assert.deepStrictEqual(setEditorHiddenCalls, []);
-	});
-
-	test('[Scenario 5] does not reveal a hidden editor when the managed Changes tab is activated', () => {
-		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false } });
-
-		// Clicking the Changes tab activates the managed Changes multi-diff editor.
-		handleWillOpenEditor.call(harness, { groupId: 1, editor: { typeId: 'workbench.input.agentSessions.sessionChanges' } });
-
-		assert.deepStrictEqual(setEditorHiddenCalls, []);
-	});
-
-	test('[Scenario 5] reveals a hidden editor when a real editor is opened', () => {
-		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false } });
-
-		handleWillOpenEditor.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
+		revealEditorOnOpen.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
 
 		assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
 	});
 
-	test('[Scenario 5] does not reveal when the open targets a non-main-part group', () => {
-		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false } });
+	test('[Scenario 5] base revealEditorOnOpen does not reveal when the open targets a non-main-part group', () => {
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness();
 
-		handleWillOpenEditor.call(harness, { groupId: 99, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
+		revealEditorOnOpen.call(harness, { groupId: 99, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
 
 		assert.deepStrictEqual(setEditorHiddenCalls, []);
+	});
+
+	test('[Scenario 5] base revealEditorOnOpen does not reveal while editor-part auto-visibility is suppressed', () => {
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ _editorPartAutoVisibilitySuppressionCount: 1 });
+
+		revealEditorOnOpen.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
+
+		assert.deepStrictEqual(setEditorHiddenCalls, []);
+	});
+
+	test('[Scenario 5] single-pane does not reveal a docked editor while the detail panel is open and the editor is closed', () => {
+		// Re-activating a docked-detail editor (closing a neighbouring tab, or
+		// clicking the tab) while the detail panel already shows its content must
+		// not reveal the closed editor area.
+		const dockedEditor = new TestDockedEditorInput();
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: true } });
+
+		try {
+			revealEditorOnOpenSinglePane.call(harness, { groupId: 1, editor: dockedEditor });
+			assert.deepStrictEqual(setEditorHiddenCalls, []);
+		} finally {
+			dockedEditor.dispose();
+		}
+	});
+
+	test('[Scenario 5] single-pane reveals a docked editor when the detail panel is closed', () => {
+		// With the whole side pane closed (detail panel hidden), opening a docked
+		// editor must reveal the editor area so its content becomes visible.
+		const dockedEditor = new TestDockedEditorInput();
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: false } });
+
+		try {
+			revealEditorOnOpenSinglePane.call(harness, { groupId: 1, editor: dockedEditor });
+			assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
+		} finally {
+			dockedEditor.dispose();
+		}
+	});
+
+	test('[Scenario 5] single-pane reveals a non-docked editor even while the detail panel is open', () => {
+		const { harness, setEditorHiddenCalls } = createWillOpenHarness({ partVisibility: { editor: false, auxiliaryBar: true } });
+
+		revealEditorOnOpenSinglePane.call(harness, { groupId: 1, editor: { typeId: 'workbench.editors.files.fileEditorInput' } });
+
+		assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
 	});
 
 	test('restores the docked editor node size when showing after hide', () => {

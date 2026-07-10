@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
+import { DockedEditorInput } from '../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from './dockedAuxiliaryBarController.js';
 import { SinglePaneMainEditorPart } from './parts/singlePaneEditorPart.js';
 import { EDITOR_PART_MINIMUM_WIDTH, SIDE_PANE_WIDTH_RATIO } from './parts/editorPartSizing.js';
@@ -56,6 +58,20 @@ export class SinglePaneWorkbench extends Workbench {
 
 	override get isSinglePaneLayoutEnabled(): boolean {
 		return true;
+	}
+
+	/**
+	 * A docked-detail editor (Changes/Files) renders its content in the docked
+	 * detail panel. While that panel is open and the editor area is closed,
+	 * re-activating such an editor (closing a neighbouring tab, or clicking the
+	 * tab) must not reveal the editor area. When the detail panel is closed the
+	 * base reveal still runs so the content becomes visible.
+	 */
+	protected override revealEditorOnOpen(e: IEditorWillOpenEvent): void {
+		if (e.editor instanceof DockedEditorInput && this.partVisibility.auxiliaryBar && !this.partVisibility.editor) {
+			return;
+		}
+		super.revealEditorOnOpen(e);
 	}
 
 	override getDockedAuxiliaryBarWidth(): number {
