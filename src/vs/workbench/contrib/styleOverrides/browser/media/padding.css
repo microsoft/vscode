@@ -126,8 +126,7 @@
 
 .style-override.monaco-workbench .chat-viewpane.has-sessions-control .agent-sessions-container {
 	.agent-sessions-title-container {
-		padding-left: 12px;
-		padding-right: 0;
+		padding: 0 0 4px 12px;
 	}
 }
 
