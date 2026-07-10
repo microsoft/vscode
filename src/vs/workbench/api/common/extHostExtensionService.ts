@@ -112,7 +112,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected readonly _globalRegistry: ExtensionDescriptionRegistry;
 	private readonly _storage: ExtHostStorage;
 	private readonly _secretState: ExtHostSecretState;
-	private readonly _storagePath: IExtensionStoragePaths;
+	protected readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<ExtensionPaths> | null;
 	private _realPathCache = new Map<string, Promise<string>>();
@@ -464,7 +464,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+	protected _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
 		const event = getTelemetryActivationEvent(extensionDescription, reason);
 		type ActivatePluginClassification = {
 			owner: 'jrieken';

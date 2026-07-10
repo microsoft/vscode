@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMessagePassingProtocol } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ProxyIdentifier, SerializableObjectWithBuffers } from '../../common/proxyIdentifier.js';
+import { ProxyIdentifier, SerializableObjectWithBuffers, getStringIdentifierForProxy } from '../../common/proxyIdentifier.js';
 import { RPCProtocol } from '../../common/rpcProtocol.js';
 
 suite('RPCProtocol', () => {
@@ -50,8 +50,8 @@ suite('RPCProtocol', () => {
 		a_protocol.setPair(b_protocol);
 		b_protocol.setPair(a_protocol);
 
-		const A = disposables.add(new RPCProtocol(a_protocol));
-		const B = disposables.add(new RPCProtocol(b_protocol));
+		const A = disposables.add(new RPCProtocol(a_protocol, { identifierCount: ProxyIdentifier.count, getStringIdentifier: getStringIdentifierForProxy }));
+		const B = disposables.add(new RPCProtocol(b_protocol, { identifierCount: ProxyIdentifier.count, getStringIdentifier: getStringIdentifierForProxy }));
 
 		const bIdentifier = new ProxyIdentifier<BClass>('bb');
 		const bInstance = new BClass();

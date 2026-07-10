@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ExtensionRunningLocationTracker } from '../../common/extensionRunningLocationTracker.js';
+import { ExtensionRunningLocationTracker, EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY } from '../../common/extensionRunningLocationTracker.js';
 import { ExtensionHostKind, IExtensionHostKindPicker } from '../../common/extensionHostKind.js';
 import { IExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
 import { IReadOnlyExtensionDescriptionRegistry } from '../../common/extensionDescriptionRegistry.js';
@@ -170,5 +170,125 @@ suite('ExtensionRunningLocationTracker - extensionAffinity', () => {
 
 		assert.ok(locA && locB, 'Both extensions should have running locations');
 		assert.strictEqual(locA!.affinity, locB!.affinity, 'One-way extensionAffinity should be sufficient to group extensions');
+	});
+});
+
+suite('ExtensionRunningLocationTracker - workerIsolated', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTracker(extensions: IExtensionDescription[], workerIsolatedIds: string[] = [], configuredAffinities: { [extensionId: string]: number } = {}): ExtensionRunningLocationTracker {
+		const registry: IReadOnlyExtensionDescriptionRegistry = {
+			getAllExtensionDescriptions: () => extensions,
+			getExtensionDescription: (id: string | ExtensionIdentifier) => extensions.find(e => e.identifier.value === (typeof id === 'string' ? id : id.value)),
+			getExtensionDescriptionByUUID: () => undefined,
+			getExtensionDescriptionByIdOrUUID: () => undefined,
+			containsActivationEvent: () => false,
+			containsExtension: () => false,
+			getExtensionDescriptionsForActivationEvent: () => [],
+		};
+
+		const extensionHostKindPicker: IExtensionHostKindPicker = {
+			pickExtensionHostKind: () => ExtensionHostKind.LocalProcess,
+		};
+
+		const environmentService = <IWorkbenchEnvironmentService>{
+			isExtensionDevelopment: false,
+			extensionDevelopmentKind: undefined,
+		};
+
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('extensions.experimental.affinity', configuredAffinities);
+		configurationService.setUserConfiguration(EXTENSIONS_WORKER_ISOLATED_CONFIGURATION_KEY, workerIsolatedIds);
+
+		const logService = new NullLogService();
+
+		const extensionManifestPropertiesService = {
+			getExtensionKind: () => ['workspace'],
+		} as unknown as IExtensionManifestPropertiesService;
+
+		return new ExtensionRunningLocationTracker(
+			registry,
+			extensionHostKindPicker,
+			environmentService,
+			configurationService,
+			logService,
+			extensionManifestPropertiesService
+		);
+	}
+
+	test('worker-isolated extensions get a dedicated affinity', () => {
+		const extA = createExtension('publisher.extA');
+		const extB = createExtension('publisher.extB');
+
+		const tracker = createTracker([extA, extB], ['publisher.extA']);
+		tracker.initializeRunningLocation([extA, extB], []);
+
+		const locA = tracker.getRunningLocation(extA.identifier);
+		const locB = tracker.getRunningLocation(extB.identifier);
+
+		assert.ok(locA && locB);
+		assert.notStrictEqual(locA!.affinity, locB!.affinity, 'Isolated extension should have a different affinity than non-isolated');
+		assert.ok(tracker.isWorkerIsolatedLocalProcessAffinity(locA!.affinity), 'Extension A affinity should be marked as worker-isolated');
+		assert.ok(!tracker.isWorkerIsolatedLocalProcessAffinity(locB!.affinity), 'Extension B affinity should NOT be marked as worker-isolated');
+	});
+
+	test('multiple worker-isolated extensions share the same isolated affinity', () => {
+		const extA = createExtension('publisher.extA');
+		const extB = createExtension('publisher.extB');
+		const extC = createExtension('publisher.extC');
+
+		const tracker = createTracker([extA, extB, extC], ['publisher.extA', 'publisher.extB']);
+		tracker.initializeRunningLocation([extA, extB, extC], []);
+
+		const locA = tracker.getRunningLocation(extA.identifier);
+		const locB = tracker.getRunningLocation(extB.identifier);
+		const locC = tracker.getRunningLocation(extC.identifier);
+
+		assert.ok(locA && locB && locC);
+		assert.strictEqual(locA!.affinity, locB!.affinity, 'Both isolated extensions should share the same affinity');
+		assert.notStrictEqual(locA!.affinity, locC!.affinity, 'Non-isolated extension should have a different affinity');
+	});
+
+	test('empty workerIsolated setting has no effect', () => {
+		const extA = createExtension('publisher.extA');
+		const extB = createExtension('publisher.extB');
+
+		const tracker = createTracker([extA, extB], []);
+		tracker.initializeRunningLocation([extA, extB], []);
+
+		const locA = tracker.getRunningLocation(extA.identifier);
+		const locB = tracker.getRunningLocation(extB.identifier);
+
+		assert.ok(locA && locB);
+		assert.strictEqual(locA!.affinity, 0);
+		assert.strictEqual(locB!.affinity, 0);
+		assert.ok(!tracker.isWorkerIsolatedLocalProcessAffinity(0));
+	});
+
+	test('workerIsolated with unknown extension ID is ignored', () => {
+		const extA = createExtension('publisher.extA');
+
+		const tracker = createTracker([extA], ['publisher.nonexistent']);
+		tracker.initializeRunningLocation([extA], []);
+
+		const locA = tracker.getRunningLocation(extA.identifier);
+		assert.ok(locA);
+		assert.strictEqual(locA!.affinity, 0);
+		assert.ok(!tracker.isWorkerIsolatedLocalProcessAffinity(0));
+	});
+
+	test('isWorkerIsolatedLocalProcessAffinity returns correct values', () => {
+		const extA = createExtension('publisher.extA');
+		const extB = createExtension('publisher.extB');
+
+		const tracker = createTracker([extA, extB], ['publisher.extA']);
+		tracker.initializeRunningLocation([extA, extB], []);
+
+		const locA = tracker.getRunningLocation(extA.identifier);
+		assert.ok(locA);
+		assert.ok(tracker.isWorkerIsolatedLocalProcessAffinity(locA!.affinity));
+		assert.ok(!tracker.isWorkerIsolatedLocalProcessAffinity(0));
+		assert.ok(!tracker.isWorkerIsolatedLocalProcessAffinity(999));
 	});
 });

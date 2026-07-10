@@ -7,13 +7,13 @@ import * as performance from '../../../base/common/performance.js';
 import type * as vscode from 'vscode';
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
 import { INodeModuleFactory, RequireInterceptor } from '../common/extHostRequireInterceptor.js';
-import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
+import { ActivatedExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
 import { connectProxyResolver } from './proxyResolver.js';
 import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { ExtHostDownloadService } from './extHostDownloadService.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtensionRuntime } from '../common/extHostTypes.js';
 import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/pfs.js';
@@ -24,6 +24,10 @@ import { assertType } from '../../../base/common/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { BidirectionalMap } from '../../../base/common/map.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { ExtensionActivationReason } from '../../../workbench/services/extensions/common/extensions.js';
+import { Worker } from 'worker_threads';
+import { WorkerExtensionHost } from '../../../workbench/services/extensions/node/workerIsolated/workerExtensionHost.js';
+import { WorkerExtHostSupervisorHost } from './workerExtHostSupervisorHost.js';
 const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
@@ -146,6 +150,63 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	readonly extensionRuntime = ExtensionRuntime.Node;
+
+	private _workerExtensionHost: WorkerExtensionHost | undefined;
+
+	protected override _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		if (this._isWorkerIsolatedExtension(extensionDescription)) {
+			return this._doActivateExtensionInWorker(extensionDescription, reason);
+		}
+		return super._doActivateExtension(extensionDescription, reason);
+	}
+
+	private _isWorkerIsolatedExtension(extensionDescription: IExtensionDescription): boolean {
+		const list = this._initData.workerIsolatedExtensions;
+		if (!list || list.length === 0) {
+			return false;
+		}
+		return list.some(entry => ExtensionIdentifier.equals(extensionDescription.identifier, entry));
+	}
+
+	private async _doActivateExtensionInWorker(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): Promise<ActivatedExtension> {
+		this._logService.info(`ExtHostExtensionService#_doActivateExtensionInWorker ${extensionDescription.identifier.value}`);
+
+		const workerExtensionHost = this._ensureWorkerInfrastructure();
+
+		await this._storagePath.whenReady;
+		const storagePath = this._storagePath.workspaceValue(extensionDescription)?.fsPath;
+		const globalStoragePath = this._storagePath.globalValue(extensionDescription).fsPath;
+		const logPath = URI.joinPath(this._initData.logsLocation, extensionDescription.identifier.value).fsPath;
+
+		const result = await workerExtensionHost.activate(
+			extensionDescription,
+			storagePath,
+			globalStoragePath,
+			logPath,
+			// Factory: create a proper host object for this worker via DI
+			(workerProxy) => this._instaService.createInstance(
+				WorkerExtHostSupervisorHost,
+				extensionDescription.identifier,
+				workerProxy,
+			),
+		);
+
+		return new ActivatedExtension(
+			false,
+			null,
+			new ExtensionActivationTimes(reason.startup, result.codeLoadingTime, result.activateCallTime, result.activateResolveTime),
+			{ activate: undefined, deactivate: () => result.deactivate() },
+			result.hasExports ? {} : undefined,
+			result.disposable,
+		);
+	}
+
+	private _ensureWorkerInfrastructure(): WorkerExtensionHost {
+		return this._workerExtensionHost ??= this._store.add(new WorkerExtensionHost(
+			(scriptPath) => new Worker(scriptPath),
+			this._logService,
+		));
+	}
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// make sure console.log calls make it to the render
