@@ -24,7 +24,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, PRIVATE_MARKETPLACE_SCOPE } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
@@ -363,10 +363,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[ExtensionGalleryAuthProviderConfigKey]: {
 				type: 'string',
-				enum: ['github', 'microsoft'],
-				enumDescriptions: [
+				enum: product.enableExtensionGalleryEntraAuth ? ['github', 'microsoft'] : ['github'],
+				enumDescriptions: product.enableExtensionGalleryEntraAuth ? [
 					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
 					localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
+				] : [
+					localize('extensions.gallery.authProvider.github', "Authenticate to the Extensions Marketplace using GitHub."),
 				],
 				description: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
 				default: '',
@@ -375,7 +377,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				policy: {
 					name: 'ExtensionGalleryAuthProvider',
 					category: PolicyCategory.Extensions,
-					minimumVersion: '1.99',
+					minimumVersion: '1.121',
 					localization: {
 						description: {
 							key: 'extensions.gallery.authProvider',
@@ -2160,13 +2162,14 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
 		const authProvider = configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey);
 
-		if (authProvider === 'microsoft') {
+		if (authProvider === 'microsoft' && productService.enableExtensionGalleryEntraAuth) {
 			const authenticationService = accessor.get(IAuthenticationService);
 			await authenticationService.createSession(
 				'microsoft',
-				[PRIVATE_MARKETPLACE_SCOPE]);
+				PRIVATE_MARKETPLACE_SCOPES);
 		} else {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND);

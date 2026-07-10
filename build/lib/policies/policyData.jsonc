@@ -177,7 +177,7 @@
             "key": "extensions.gallery.authProvider",
             "name": "ExtensionGalleryAuthProvider",
             "category": "Extensions",
-            "minimumVersion": "1.99",
+            "minimumVersion": "1.121",
             "localization": {
                 "description": {
                     "key": "extensions.gallery.authProvider",
