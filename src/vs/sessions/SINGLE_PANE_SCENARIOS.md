@@ -6,6 +6,11 @@ bar spanning the editor content and a docked detail panel).
 
 - The whole feature is gated behind the experimental setting **`sessions.layout.singlePaneDetailPanel`**
   (const `DOCK_DETAIL_PANEL_SETTING`), read **once at startup** — a window reload applies a change.
+  The setting is read only by `createSessionsWorkbench` (which selects the workbench/parts); the
+  resulting choice is published as `IAgentWorkbenchLayoutService.isSinglePaneLayoutEnabled` (read by
+  imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
+  `when` clauses). Features must gate on those — never read the setting or the context key directly
+  in imperative code.
 - When the setting is **OFF** (default), the Agents window renders exactly as before (auxiliary bar as
   its own grid column with its composite tab strip; the standard multi-diff Changes editor). Nothing in
   this document applies.
@@ -45,22 +50,27 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 A created session opens the side pane to **Editor only** (Changes editor, detail closed) by default; a Changes/file editor becoming active never force-opens the detail (the one exception is restoring the detail after a transient browser-tab hide). A new-session view opens to the **Files detail** (its editor content stays hidden by R1).
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
-**Changes** while the chat is full-width) gives it a comfortable **~even split** with the chat, so the
-editor content is readable beside the detail — never the collapsed detail-only width. This applies on
-**every** such reveal that has no user-chosen width to restore (not just the first in a window):
-hiding the editor collapses its grid node to the detail width and the grid caches that, so a later
-reveal — including in a different session — must re-apply the even split rather than restore the narrow
-cached width. A width the user **deliberately set** (captured on hide as `_dockedEditorSizeBeforeHide`)
-always takes precedence and is restored as-is.
+**Changes** while the chat is full-width) gives it a comfortable width of **60% of the full window width**
+(`SIDE_PANE_WIDTH_RATIO` in `parts/editorPartSizing.ts`) **the first time it is opened**, so the editor content is readable
+beside the detail — never the collapsed detail-only width. After that, side-pane sizes are **workbench-level,
+not per session**: the editor grid node width is owned by the workbench grid and persisted globally
+(`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including
+across **session switches** (switching sessions does not change the side-pane width) and across reloads.
+
+**Reload is flicker-free (workbench owns the geometry).** On reload the workbench restores the editor node
+width from its own persisted part-sizes (`workbench.sessions.partSizes`, consumed by
+`createDesktopGridDescriptor`), so the grid is painted at the correct size in a single pass. (At the
+workbench level, hiding the editor still collapses the grid node to the detail width and caches it, and a
+captured "Hide Editor" width `_dockedEditorSizeBeforeHide` takes precedence for the immediate re-show.)
 
 **Reopening after the sessions list is collapsed.** Closing the **whole** side pane collapses the editor
 grid node to `0px`, so its size at that moment is **not** a real user width — closing the whole pane
 therefore does **not** capture `_dockedEditorSizeBeforeHide` (and clears any stale sidebar-collapse grow
-snapshots). This matters when the **sessions list is collapsed**: reopening the side pane falls through to
-the **even split**, and because the collapsed list makes the sessions part span nearly the full width, half
-of it is a **comfortable** width — not the cramped/narrow node that a captured `0px` (or a stale
-pre-collapse snapshot) would otherwise restore. Only **Hide Editor** (detail stays visible, node stays
-visible at a real width) captures a width to restore later.
+snapshots). Reopening the side pane falls through to the last persisted width, or the **60%-of-window
+default** if none; because the default is computed from the full window width (not the remaining main area),
+it is a **comfortable** width — not the cramped/narrow node that a captured `0px` (or a stale pre-collapse
+snapshot) would otherwise restore. Only **Hide Editor** (detail stays visible, node stays visible at a real
+width) captures a width to restore later.
 
 ---
 
@@ -141,7 +151,7 @@ When the new-session composer is active (uncreated session, has a workspace, not
   already visible (an inherited-visible editor from the previous session) — where *real content* is a real
   file (`FileEditorInput`) or the integrated browser (`BrowserEditorInput`); the managed empty landing tab
   (`EmptyFileEditorInput`) and "no active editor" are **not** real content. Any **spurious reveal** (a
-  session-switch working-set restore, a layout race, the reveal-good-size even split) is **re-hidden** —
+  session-switch working-set restore, a layout race, the 60%-of-window split) is **re-hidden** —
   fixing the case where reopening a new session after visiting a created session left the editor open.
   Crucially, **switching to a managed tab (e.g. the Files placeholder) while the editor is already visible
   does NOT hide it** — only a visibility transition or entering the view does, so the user can keep the

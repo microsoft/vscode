@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -10,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
@@ -29,17 +30,33 @@ export class AutomationRunner implements IAutomationRunner {
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
-	async runOnce(
+	runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token: CancellationToken = CancellationToken.None,
+	): IAutomationRunOperation {
+		const dispatched = new DeferredPromise<void>();
+		return {
+			whenDispatched: dispatched.p,
+			whenCompleted: this._runOnce(automation, trigger, leaderWindowId, token, dispatched),
+		};
+	}
+
+	private async _runOnce(
+		automation: IAutomation,
+		trigger: AutomationRunTrigger,
+		leaderWindowId: number,
+		token: CancellationToken,
+		dispatched: DeferredPromise<void>,
 	): Promise<void> {
 		// Must not throw per IAutomationRunner contract. Unexpected errors are swallowed here.
 		try {
-			await this._runOnceInner(automation, trigger, leaderWindowId, token);
+			await this._runOnceInner(automation, trigger, leaderWindowId, token, dispatched);
 		} catch (err) {
 			this.logService.error(`[AutomationRunner] unexpected error in runOnce for ${automation.id}`, err);
+		} finally {
+			await dispatched.complete(undefined);
 		}
 	}
 
@@ -48,6 +65,7 @@ export class AutomationRunner implements IAutomationRunner {
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token: CancellationToken,
+		dispatched: DeferredPromise<void>,
 	): Promise<void> {
 		if (this.automationService.getActiveRunFor(automation.id)) {
 			this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
@@ -98,6 +116,7 @@ export class AutomationRunner implements IAutomationRunner {
 					sessionResource: session.resource.toString(),
 				});
 			}
+			await dispatched.complete(undefined);
 
 			if (token.isCancellationRequested) {
 				await this._markCancelled(runId, trigger, automation, startTimeMs);

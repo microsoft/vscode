@@ -73,6 +73,8 @@ The Tools section can browse the Marketplace in the core workbench, where extens
 
 Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
 
+Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:

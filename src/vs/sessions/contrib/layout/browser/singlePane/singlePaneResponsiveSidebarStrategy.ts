@@ -18,8 +18,7 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SinglePaneDetailChangesOrFilesActiveContext } from '../../../../common/contextkeys.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../../common/sessionConfig.js';
+import { SinglePaneDetailChangesOrFilesActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
@@ -160,7 +159,7 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
-							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true))
+							SinglePaneLayoutEnabledContext)
 					},
 					menu: {
 						id: MenuId.EditorTitleLayout,
@@ -172,7 +171,7 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
-							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+							SinglePaneLayoutEnabledContext,
 							MainEditorAreaVisibleContext,
 							SinglePaneDetailChangesOrFilesActiveContext)
 					}

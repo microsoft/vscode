@@ -149,13 +149,13 @@ export class AutomationSchedulerCore extends Disposable {
 		const perRunCts = new CancellationTokenSource(this._runCts.token);
 		try {
 			if (timeoutMs <= 0) {
-				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token);
+				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted;
 				return;
 			}
 
 			let timedOut = false;
 			await raceTimeout(
-				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token),
+				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token).whenCompleted,
 				timeoutMs,
 				() => {
 					timedOut = true;

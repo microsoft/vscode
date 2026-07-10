@@ -63,8 +63,9 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
+import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { EditorMaximizedContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { EditorMaximizedContext, IsPhoneLayoutContext, SinglePaneLayoutEnabledContext } from '../common/contextkeys.js';
 import {
 	NotificationsPosition,
 	NotificationsSettings,
@@ -139,9 +140,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/**
 	 * Whether the Agents window is using the single-pane (docked detail panel)
-	 * layout. Fixed at construction by the workbench subclass — `false` for the
-	 * classic/mobile workbench, `true` for {@link SinglePaneWorkbench}. Features
-	 * gate single-pane behaviour on this instead of reading the setting directly.
+	 * layout. Fixed at construction — `false` for the classic/mobile workbench,
+	 * `true` for {@link SinglePaneWorkbench}.
 	 */
 	readonly isSinglePaneLayoutEnabled: boolean;
 
@@ -378,7 +378,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	readonly openedDefaultEditors = false;
 
-	private _savedPartSizes: IPartSizesState = {};
+	protected _savedPartSizes: IPartSizesState = {};
 
 	//#endregion
 
@@ -531,6 +531,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this._register(autorun(reader => {
 					isPhoneLayoutCtx.set(this.layoutPolicy.viewportClass.read(reader) === 'phone');
 				}));
+
+				SinglePaneLayoutEnabledContext.bindTo(contextKeyService).set(this.isSinglePaneLayoutEnabled);
 
 				// Virtual keyboard tracking (visualViewport): publishes the
 				// keyboard height as an observable, mirrors it onto the
@@ -762,17 +764,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
-		// For visible parts, read the current grid view size. For hidden parts,
-		// fall back to the grid's cached visible size — i.e. the size the part
-		// had the last time it was shown — so that toggling visibility later
-		// restores the same dimensions.
-		const getSize = (view: ISerializableView, dimension: 'width' | 'height', visible: boolean): number | undefined => {
-			if (visible) {
-				return this.workbenchGrid.getViewSize(view)[dimension];
-			}
-			return this.workbenchGrid.getViewCachedVisibleSize(view);
-		};
-
 		// The editor-part grid node hosts the docked auxiliary bar in single-pane, so
 		// it is "visible" whenever the editor OR the detail is shown. Use the node's
 		// real visibility (not just `partVisibility.editor`) so a Detail-only session
@@ -781,15 +772,32 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// open via the width-based reveal-sync. Classic layout is unaffected
 		// (`_editorNodeVisible` returns `partVisibility.editor` there).
 		const editorNodeVisible = this._editorNodeVisible(this.partVisibility.editor, this.partVisibility.auxiliaryBar);
-		const editorGridWidth = getSize(this.editorPartView, 'width', editorNodeVisible);
-		const editorWidth = this._persistedEditorWidth(editorGridWidth);
+		const editorGridWidth = this._persistedGridViewSize(this.editorPartView, 'width', editorNodeVisible);
+		let editorWidth = this._persistedEditorWidth(editorGridWidth);
+
+		// A sub-minimum measurement is never a real user width: the editor may be
+		// hidden (single-pane returns the detail-only node minus the detail width,
+		// i.e. ~0), or the high-priority sessions part may have transiently squeezed
+		// the node below its minimum. Persisting it would rebuild the editor at its
+		// 300px minimum on reload and lose the last user-selected width. Preserve the
+		// last valid global width instead (or omit it so the default is used). The
+		// descriptor keeps the editor contribution at zero while the editor part is
+		// hidden, so keeping a valid width here is safe.
+		if (editorWidth === undefined || editorWidth < EDITOR_PART_MINIMUM_WIDTH) {
+			editorWidth = (this._savedPartSizes.editor !== undefined && this._savedPartSizes.editor >= EDITOR_PART_MINIMUM_WIDTH)
+				? this._savedPartSizes.editor
+				: undefined;
+		} else {
+			// Track the latest good width so a later shutdown-time squeeze falls back to it.
+			this._savedPartSizes = { ...this._savedPartSizes, editor: editorWidth };
+		}
 
 		const sizes: IPartSizesState = {
-			sidebar: getSize(this.sideBarPartView, 'width', this.partVisibility.sidebar),
-			auxiliaryBar: this._persistedAuxiliaryBarWidth(getSize(this.auxiliaryBarPartView, 'width', this.partVisibility.auxiliaryBar)),
-			sessions: getSize(this.sessionsPartView, 'width', this.partVisibility.sessions),
+			sidebar: this._persistedGridViewSize(this.sideBarPartView, 'width', this.partVisibility.sidebar),
+			auxiliaryBar: this._persistedGridViewSize(this.auxiliaryBarPartView, 'width', this.partVisibility.auxiliaryBar),
+			sessions: this._persistedGridViewSize(this.sessionsPartView, 'width', this.partVisibility.sessions),
 			editor: editorWidth,
-			panel: getSize(this.panelPartView, 'height', this.partVisibility.panel),
+			panel: this._persistedGridViewSize(this.panelPartView, 'height', this.partVisibility.panel),
 		};
 
 		this.storageService.store(Workbench._PART_SIZES_KEY, JSON.stringify(sizes), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -1281,12 +1289,22 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _restoreAuxiliaryBarWidth(_width: number): void { }
 
-	protected _persistedEditorWidth(editorGridWidth: number | undefined): number | undefined {
-		return editorGridWidth;
+	/**
+	 * Reads a part's size from the workbench grid for persistence. For visible
+	 * parts, the current view size; for hidden parts, the grid's cached visible
+	 * size (the size it had the last time it was shown) so toggling visibility
+	 * later restores the same dimensions. Overridden by the single-pane layout for
+	 * its docked auxiliary bar, which is not a grid view.
+	 */
+	protected _persistedGridViewSize(view: ISerializableView, dimension: 'width' | 'height', visible: boolean): number | undefined {
+		if (visible) {
+			return this.workbenchGrid.getViewSize(view)[dimension];
+		}
+		return this.workbenchGrid.getViewCachedVisibleSize(view);
 	}
 
-	protected _persistedAuxiliaryBarWidth(gridWidth: number | undefined): number | undefined {
-		return gridWidth;
+	protected _persistedEditorWidth(editorGridWidth: number | undefined): number | undefined {
+		return editorGridWidth;
 	}
 
 	protected _defaultSideBarSize(policySideBarSize: number): number {
@@ -1321,15 +1339,16 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _applyEditorVisibility(hidden: boolean): void {
 		const shouldApplyEvenSplit = !hidden && !this._hasAppliedInitialEditorSplit;
-		const mainAreaWidthBeforeReveal = shouldApplyEvenSplit
-			? this.workbenchGrid.getViewSize(this.sessionsPartView).width
-			: 0;
+
+		// Capture the main-area width (the sessions part occupies it fully while the
+		// editor is hidden) before revealing, so the even split can halve it.
+		const mainAreaWidth = this.workbenchGrid.getViewSize(this.sessionsPartView).width;
 
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 
 		if (shouldApplyEvenSplit) {
 			this._hasAppliedInitialEditorSplit = true;
-			this._applyEditorSplitSize(mainAreaWidthBeforeReveal);
+			this._applyEditorSplitSize(mainAreaWidth);
 		}
 	}
 
@@ -1529,7 +1548,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			?? (this.partVisibility.auxiliaryBar ? defaultAuxiliaryBarSize : Math.max(defaultAuxiliaryBarSize, 300));
 		const panelSize = this._savedPartSizes.panel
 			?? (this.partVisibility.panel ? sizes.panelSize : Math.max(sizes.panelSize, 250));
-		const editorSize = this._savedPartSizes.editor ?? 600;
+		// Fall back to a comfortable default when there is no saved editor width — or
+		// when a stale/corrupt sub-minimum value (e.g. a `0` persisted while the editor
+		// node was transiently squeezed to nothing by the high-priority sessions part)
+		// was stored. A plain `?? 600` would let `0` through and build the editor node at
+		// `0`, which the grid then clamps to its 300px minimum on every reload.
+		const savedEditorWidth = this._savedPartSizes.editor;
+		const editorSize = savedEditorWidth !== undefined && savedEditorWidth >= EDITOR_PART_MINIMUM_WIDTH ? savedEditorWidth : EDITOR_PART_DEFAULT_WIDTH;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
 		// Calculate right section width — when sidebar is hidden it takes no space
@@ -2070,16 +2095,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	/**
-	 * Sizes the editor part to half of the main area each time it is revealed
-	 * from a hidden state, so it opens as an even split with the sessions part
-	 * rather than at its minimum/restored width.
-	 *
-	 * @param mainAreaWidth The width of the sessions part captured *before* the
-	 * editor was revealed (i.e. the full main area width, since the editor was
-	 * hidden).
-	*/
+	 * Sizes the editor part when it is first revealed from a hidden state, so it
+	 * opens as a comfortable split with the sessions part rather than at its
+	 * minimum/restored width. The default grid layout splits the main area evenly;
+	 * layouts with different sizing (e.g. the single-pane side pane) override this.
+	 */
 	protected _applyEditorSplitSize(mainAreaWidth: number): void {
-		const targetEditorWidth = Math.max(300, Math.floor(mainAreaWidth / 2));
+		const targetEditorWidth = Math.max(EDITOR_PART_MINIMUM_WIDTH, Math.floor(mainAreaWidth / 2));
 		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
 		this.workbenchGrid.resizeView(this.editorPartView, {
 			width: targetEditorWidth,

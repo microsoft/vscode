@@ -558,12 +558,15 @@ Provider add notifications are authoritative upserts. A provisional `listSession
 
 ### Automation Run Lifecycle
 
-`AutomationRunner` records the committed session resource on the run row as soon
-as `createAndSendNewChatRequest` returns, then observes `ISession.status` until it
-reaches a terminal state. `InProgress`, `Untitled`, and `NeedsInput` all keep the
-automation run `running`; `Completed` completes the run and `Error` fails it.
-Scheduler cancellation also stops the observation and fails the run, so a timed
-out or disposed scheduler does not leave a live observable subscription behind.
+`AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves
+dispatch after recording the committed session resource on the run row, then
+observes `ISession.status` until it reaches a terminal state. `InProgress`,
+`Untitled`, and `NeedsInput` all keep the automation run `running`; `Completed`
+completes the run and `Error` fails it.
+Scheduler cancellation also stops the observation and fails the run. On timeout,
+the scheduler records the timeout failure before cancelling the observation, so
+neither path leaves a live observable subscription even though the session may
+remain active.
 
 ---
 

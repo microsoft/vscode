@@ -13,7 +13,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
-import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -48,13 +48,17 @@ class RecordingRunner implements IAutomationRunner {
 
 	readonly runs: RecordedRun[] = [];
 
-	async runOnce(
+	runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
 		_leaderWindowId: number,
 		_token?: CancellationToken,
-	): Promise<void> {
+	): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
+		return {
+			whenDispatched: Promise.resolve(),
+			whenCompleted: Promise.resolve(),
+		};
 	}
 }
 
@@ -288,8 +292,16 @@ suite('AutomationSchedulerCore', () => {
 			readonly hung = new DeferredPromise<void>();
 			calls = 0;
 			cancelObserved = false;
-			async runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
+			runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
 				this.calls++;
+				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
+				return {
+					whenDispatched: Promise.resolve(),
+					whenCompleted,
+				};
+			}
+
+			private async _run(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
 				if (this.calls === 1) {
 					hungAutomationId = automation.id;
 					await service.recordRunStart(automation.id, trigger, leaderWindowId);
