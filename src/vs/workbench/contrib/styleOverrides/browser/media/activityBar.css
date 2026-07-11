@@ -37,7 +37,10 @@
  * stay consistent across activity bar positions. See #325127.
  */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	/* Reset bottom/margin from activityaction.css so top+height center at 4px, matching hover. */
 	top: 4px;
+	bottom: auto;
+	margin: 0;
 	left: calc((var(--activity-bar-width, 32px) - 24px) / 2);
 	width: 24px;
 	height: 24px;
