@@ -750,6 +750,26 @@ export function getHandoffId(handoff: IHandOff): string {
 }
 
 /**
+ * Decides whether Autopilot may auto-fire `candidate` given the id of the
+ * handoff it auto-fired last (`previousAutoSentHandoffId`, `undefined` if
+ * none yet this session).
+ *
+ * Autopilot auto-submits a mode's `send: true` handoff as soon as a response
+ * completes (see `ChatWidget#renderChatSuggestNextWidget`), with no user
+ * turn in between. If a handoff chain cycles back on itself — agent A's
+ * auto-send handoff lands on agent B, whose response again offers that same
+ * handoff back to A — nothing else stops Autopilot from resubmitting it
+ * forever; each cycle is a fully completed, billed turn with no external
+ * signal that anything is wrong. Refusing to fire the *same* handoff twice
+ * in a row breaks that cycle while leaving legitimate multi-step chains
+ * (e.g. plan -> implement -> verify, a distinct handoff each time)
+ * completely unaffected.
+ */
+export function shouldAutoFireHandoff(candidate: IHandOff, previousAutoSentHandoffId: string | undefined): boolean {
+	return getHandoffId(candidate) !== previousAutoSentHandoffId;
+}
+
+/**
  * Describes a single handoff defined in a custom agent's `.agent.md` file.
  */
 export interface IHandoffInfo {
