@@ -9,10 +9,11 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
-import { WebviewDocumentRegistration, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
+import { WebviewDocumentRegistration, WebviewPortMappingRequest, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
 
 
 export class WebviewProtocolProvider implements IDisposable {
+	private static instance: WebviewProtocolProvider | undefined;
 	private static readonly documents = new Map<string, WebviewDocumentRegistration>();
 
 	private static validWebviewFilePaths = new Map<string, { readonly mime: string }>([
@@ -23,18 +24,23 @@ export class WebviewProtocolProvider implements IDisposable {
 	private readonly pendingResources = new Map<number, {
 		readonly resolve: (response: Response) => void;
 		readonly method: string;
+		readonly extensionId: string;
+		readonly webviewId: string;
 		controller: ReadableStreamDefaultController<Uint8Array> | undefined;
 	}>();
 	private nextRequestId = 1;
+	private readonly pendingPortMappings = new Map<number, (redirect: string | undefined) => void>();
 
 	constructor(
 		private readonly requestResource: (request: WebviewResourceRequest) => void,
 		private readonly cancelResource: (requestId: number) => void,
+		private readonly requestPortMapping: (request: WebviewPortMappingRequest) => void,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		// Register the protocol for loading webview html
 		const webviewHandler = this.handleWebviewRequest.bind(this);
 		protocol.handle(Schemas.vscodeWebview, webviewHandler);
+		WebviewProtocolProvider.instance = this;
 	}
 
 	dispose(): void {
@@ -45,6 +51,9 @@ export class WebviewProtocolProvider implements IDisposable {
 		}
 		this.pendingResources.clear();
 		WebviewProtocolProvider.documents.clear();
+		for (const resolve of this.pendingPortMappings.values()) { resolve(undefined); }
+		this.pendingPortMappings.clear();
+		if (WebviewProtocolProvider.instance === this) { WebviewProtocolProvider.instance = undefined; }
 	}
 
 	public registerWebviewDocument(document: WebviewDocumentRegistration): void {
@@ -56,6 +65,22 @@ export class WebviewProtocolProvider implements IDisposable {
 
 	public unregisterWebviewDocument(extensionId: string, webviewId: string): void {
 		WebviewProtocolProvider.documents.delete(this.documentKey(extensionId, webviewId));
+		for (const [requestId, pending] of this.pendingResources) {
+			if (pending.extensionId.toLowerCase() === extensionId.toLowerCase() && pending.webviewId === webviewId) {
+				this.pendingResources.delete(requestId);
+				pending.controller?.error(new Error('Webview disposed'));
+				pending.resolve(new Response(null, { status: 410 }));
+				this.cancelResource(requestId);
+			}
+		}
+	}
+
+	public unregisterWebviewWindow(windowId: number): void {
+		for (const document of [...WebviewProtocolProvider.documents.values()]) {
+			if (document.windowId === windowId) {
+				this.unregisterWebviewDocument(document.extensionId, document.webviewId);
+			}
+		}
 	}
 
 	public startResourceResponse(response: WebviewResourceResponse): void {
@@ -112,6 +137,45 @@ export class WebviewProtocolProvider implements IDisposable {
 			return undefined;
 		}
 		return this.documents.get(`${url.authority.toLowerCase()}\0${decodeURIComponent(match[1])}`);
+	}
+
+	public static getWebviewPortMapping(frameUrl: string, targetUrl: string): Promise<string | undefined> | undefined {
+		const instance = this.instance;
+		if (!instance) { return undefined; }
+		let frameUri: URI;
+		let target: URL;
+		try {
+			frameUri = URI.parse(frameUrl);
+			target = new URL(targetUrl);
+		} catch {
+			return undefined;
+		}
+		const document = this.getWebviewDocument(frameUri);
+		if (!document || !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
+			return undefined;
+		}
+		const route = `${Schemas.vscodeWebview}://${document.extensionId.toLowerCase()}/${encodeURIComponent(document.webviewId)}/`;
+		if (!frameUrl.startsWith(route)) {
+			return undefined;
+		}
+		return instance.requestPortMappingForDocument(document, target.origin);
+	}
+
+	private requestPortMappingForDocument(document: WebviewDocumentRegistration, origin: string): Promise<string | undefined> {
+		const requestId = this.nextRequestId++;
+		return new Promise(resolve => {
+			this.pendingPortMappings.set(requestId, resolve);
+			this.requestPortMapping({ requestId, extensionId: document.extensionId, webviewId: document.webviewId, origin });
+			setTimeout(() => this.resolvePortMapping(requestId, undefined), 10_000);
+		});
+	}
+
+	public resolvePortMapping(requestId: number, redirect: string | undefined): void {
+		const resolve = this.pendingPortMappings.get(requestId);
+		if (resolve) {
+			this.pendingPortMappings.delete(requestId);
+			resolve(redirect);
+		}
 	}
 
 	private documentKey(extensionId: string, webviewId: string): string {
@@ -179,7 +243,7 @@ export class WebviewProtocolProvider implements IDisposable {
 			});
 		}
 
-		const resource = this.decodeResourceUri(match[3]);
+		const resource = this.decodeResourceUri(match[3], uri.query);
 		if (!resource) {
 			return new Response(null, { status: 403 });
 		}
@@ -189,7 +253,13 @@ export class WebviewProtocolProvider implements IDisposable {
 		const requestId = this.nextRequestId++;
 		const range = this.parseRange(request.headers.get('range'));
 		return new Promise<Response>(resolve => {
-			this.pendingResources.set(requestId, { resolve, method: request.method, controller: undefined });
+			this.pendingResources.set(requestId, {
+				resolve,
+				method: request.method,
+				extensionId: document.extensionId,
+				webviewId: document.webviewId,
+				controller: undefined,
+			});
 			request.signal.addEventListener('abort', () => {
 				if (this.pendingResources.delete(requestId)) {
 					this.cancelResource(requestId);
@@ -220,7 +290,7 @@ export class WebviewProtocolProvider implements IDisposable {
 		return match ? Number(match[2]) - Number(match[1]) + 1 : 0;
 	}
 
-	private decodeResourceUri(value: string): URI | undefined {
+	private decodeResourceUri(value: string, query: string): URI | undefined {
 		try {
 			const slash = value.indexOf('/');
 			const encodedOrigin = slash < 0 ? value : value.slice(0, slash);
@@ -232,6 +302,7 @@ export class WebviewProtocolProvider implements IDisposable {
 				scheme: encodedOrigin.slice(0, plus),
 				authority: this.decodeAuthority(encodedOrigin.slice(plus + 1)),
 				path: slash < 0 ? '/' : value.slice(slash),
+				query,
 			});
 		} catch {
 			return undefined;

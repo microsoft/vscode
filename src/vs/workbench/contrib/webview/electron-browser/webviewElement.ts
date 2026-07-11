@@ -52,12 +52,17 @@ const singleIframeBootstrap = String.raw`(() => {
 		});
 	};
 
+	let lastStyleData;
 	const applyStyles = data => {
+		lastStyleData = data;
 		for (const [key, value] of Object.entries(data.styles || {})) {
 			document.documentElement.style.setProperty('--' + key, String(value));
 		}
-		document.body?.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light');
+		if (!document.body) { return; }
+		document.body?.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light', 'vscode-reduce-motion', 'vscode-using-screen-reader');
 		if (data.activeTheme) { document.body?.classList.add(data.activeTheme); }
+		if (data.reduceMotion) { document.body?.classList.add('vscode-reduce-motion'); }
+		if (data.screenReader) { document.body?.classList.add('vscode-using-screen-reader'); }
 		document.body?.setAttribute('data-vscode-theme-kind', data.activeTheme || '');
 		document.body?.setAttribute('data-vscode-theme-name', data.themeLabel || '');
 		document.body?.setAttribute('data-vscode-theme-id', data.themeId || '');
@@ -78,13 +83,16 @@ const singleIframeBootstrap = String.raw`(() => {
 
 	window.addEventListener('focus', () => post('did-focus'));
 	window.addEventListener('blur', () => post('did-blur'));
+	window.addEventListener('DOMContentLoaded', () => { if (lastStyleData) { applyStyles(lastStyleData); } });
 	window.addEventListener('scroll', () => post('did-scroll', { scrollYPercentage: document.body.scrollHeight ? scrollY / document.body.scrollHeight : 0 }), { passive: true });
 	window.addEventListener('wheel', event => post('did-scroll-wheel', { deltaMode: event.deltaMode, deltaX: event.deltaX, deltaY: event.deltaY, deltaZ: event.deltaZ }), { passive: true });
 	const keyData = event => ({ key: event.key, keyCode: event.keyCode, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, repeat: event.repeat, isTrusted: event.isTrusted });
 	window.addEventListener('keydown', event => post('did-keydown', keyData(event)));
 	window.addEventListener('keyup', event => post('did-keyup', keyData(event)));
-	window.addEventListener('dragenter', () => post('drag-start'));
-	window.addEventListener('dragover', event => post('drag', { shiftKey: event.shiftKey }));
+	const hasOnlyFiles = event => event.dataTransfer?.items.length && Array.from(event.dataTransfer.items).every(item => item.kind === 'file');
+	window.addEventListener('dragenter', event => { if (!event.defaultPrevented && !event.shiftKey && hasOnlyFiles(event)) { post('drag-start'); } });
+	window.addEventListener('dragover', event => { event.preventDefault(); if (hasOnlyFiles(event)) { post('drag', { shiftKey: event.shiftKey }); } });
+	window.addEventListener('drop', event => event.preventDefault());
 	window.addEventListener('contextmenu', event => post('did-context-menu', { clientX: event.clientX, clientY: event.clientY, context: {} }));
 	document.addEventListener('click', event => {
 		const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
@@ -159,6 +167,14 @@ export class ElectronWebviewElement extends WebviewElement {
 			if (request) {
 				this._directResourceRequests.delete(requestId);
 				request.dispose(true);
+			}
+		}));
+		this._register(this._webviewMainService.onDidRequestWebviewPortMapping(async request => {
+			if (this.useSingleIframe
+				&& request.extensionId.toLowerCase() === this.extension?.id.value.toLowerCase()
+				&& request.webviewId === this.resourceId) {
+				const redirect = await this.getDirectLocalhostRedirect(request.origin);
+				await this._webviewMainService.resolveWebviewPortMapping(request.requestId, redirect);
 			}
 		}));
 
@@ -361,6 +377,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		const document = new DOMParser().parseFromString(trustedSource as string, 'text/html');
 		const policies = document.querySelectorAll('meta[http-equiv="Content-Security-Policy" i]');
 		if (policies.length !== 1 || !policies[0].getAttribute('content')?.trim()) {
+			this.handleNoCspFound();
 			return {
 				html: '<!DOCTYPE html><html><body>Webview blocked: the experimental loader requires exactly one Content-Security-Policy meta tag.</body></html>',
 				csp: "default-src 'none'; style-src 'unsafe-inline'",

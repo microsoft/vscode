@@ -642,7 +642,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private _hasAlertedAboutMissingCsp = false;
-	private handleNoCspFound(): void {
+	protected handleNoCspFound(): void {
 		if (this._hasAlertedAboutMissingCsp) {
 			return;
 		}
@@ -970,14 +970,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private async localLocalhost(id: string, origin: string) {
-		const authority = this._environmentService.remoteAuthority;
-		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
+		const redirect = await this.getDirectLocalhostRedirect(origin);
 		return this._send('did-load-localhost', {
 			id,
 			origin,
 			location: redirect
 		});
+	}
+
+	protected async getDirectLocalhostRedirect(origin: string): Promise<string | undefined> {
+		const authority = this._environmentService.remoteAuthority;
+		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
+		return resolveAuthority ? this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 	}
 
 	public focus(): void {

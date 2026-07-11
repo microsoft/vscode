@@ -374,6 +374,13 @@ export class CodeApplication extends Disposable {
 
 		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+			if ((uri.scheme === Schemas.http || uri.scheme === Schemas.https) && details.frame) {
+				const portMapping = WebviewProtocolProvider.getWebviewPortMapping(details.frame.url, details.url);
+				if (portMapping) {
+					void portMapping.then(redirectURL => callback(redirectURL ? { redirectURL } : { cancel: false }));
+					return;
+				}
+			}
 			if (uri.scheme === Schemas.vscodeWebview) {
 				if (!isAllowedWebviewRequest(uri, details)) {
 					this.logService.error('Blocked vscode-webview request', details.url);
