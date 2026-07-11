@@ -1,0 +1,9 @@
+{
+  "rollouts": {},
+  "global_settings": {
+    "default_rollout_percentage": 100.0,
+    "enable_metrics": true,
+    "metrics_retention_days": 30,
+    "enable_rollback": false
+  }
+}
