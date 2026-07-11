@@ -62,11 +62,24 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	async readResources(): Promise<URI[]> {
-		return this.bufferToResources(await this.nativeHostService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
+		const internalBuffer = await this.nativeHostService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT);
+		const internalResources = this.bufferToResources(internalBuffer);
+		if (internalResources.length > 0) {
+			return internalResources;
+		}
+
+		const nativePaths = await this.nativeHostService.readClipboardFilePaths();
+		return nativePaths.map(path => URI.file(path));
 	}
 
 	async hasResources(): Promise<boolean> {
-		return this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
+		const hasInternal = await this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
+		if (hasInternal) {
+			return true;
+		}
+
+		const nativePaths = await this.nativeHostService.readClipboardFilePaths();
+		return nativePaths.length > 0;
 	}
 
 	private resourcesToBuffer(resources: URI[]): VSBuffer {

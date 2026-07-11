@@ -1028,6 +1028,59 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
+	async readClipboardFilePaths(windowId: number | undefined): Promise<string[]> {
+		const paths: string[] = [];
+		if (isWindows) {
+			const buffer = clipboard.readBuffer('FileNameW');
+			if (buffer.length === 0) {
+				return [];
+			}
+			const rawPath = buffer.toString('ucs2').replace(/\0+$/, '');
+			if (!rawPath) {
+				return [];
+			}
+			try {
+				paths.push(URI.file(rawPath).fsPath);
+			} catch (error) {
+				this.logService.trace(`[readClipboardFilePaths] failed to parse path: ${rawPath}`, error);
+			}
+			return paths;
+		}
+		if (isMacintosh) {
+			const rawURI = clipboard.read('public.file-url');
+			if (!rawURI) {
+				return [];
+			}
+			const trimmed = rawURI.trim();
+			try {
+				paths.push(URI.parse(trimmed).fsPath);
+			} catch (error) {
+				this.logService.trace(`[readClipboardFilePaths] failed to parse URI: ${trimmed}`, error);
+			}
+			return paths;
+		}
+		if (isLinux) {
+			const rawURI = clipboard.read('text/uri-list');
+			if (!rawURI) {
+				return [];
+			}
+			const lines = rawURI.split(/[\r\n]+/);
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed[0] === '#') {
+					continue;
+				}
+				try {
+					paths.push(URI.parse(trimmed).fsPath);
+				} catch (error) {
+					this.logService.trace(`[readClipboardFilePaths] failed to parse URI: ${trimmed}`, error);
+				}
+			}
+			return paths;
+		}
+		return [];
+	}
+
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
 		return clipboard.has(format, type);
 	}

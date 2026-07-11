@@ -183,6 +183,7 @@ export class TestNativeHostService implements INativeHostService {
 	async triggerPaste(options?: INativeHostOptions): Promise<void> { }
 	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
+	async readClipboardFilePaths(): Promise<string[]> { return []; }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 	async createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void> { }
