@@ -264,15 +264,15 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Hosts the shared {@link SessionTypePicker} inside the chat input's secondary
- * toolbar, in the slot previously occupied by the hardcoded harness chip. The
+ * Renders a dialog-owned picker into a chat input secondary-toolbar slot. The
  * picker instance is owned by the dialog (registered on its disposables); this
- * view item only renders it into the toolbar container.
+ * view item only injects the picker's DOM into the toolbar container via the
+ * supplied {@link renderPicker} callback.
  */
-class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
+class AutomationPickerActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
-		private readonly picker: MobileSessionTypePicker,
+		private readonly renderPicker: (container: HTMLElement) => void,
 		options?: IBaseActionViewItemOptions,
 	) {
 		super(undefined, action, options);
@@ -281,31 +281,7 @@ class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		DOM.clearNode(container);
-		this.picker.render(container);
-	}
-}
-
-/**
- * Hosts the dialog's {@link AutomationsWorkspacePicker} inside the chat input's
- * secondary toolbar. The picker instance is owned by the dialog; this view item
- * renders its trigger chip into the toolbar container. Adds `chat-input-picker-item`
- * so the trigger picks up the standard secondary-toolbar chip layout shared with
- * the neighboring pickers.
- */
-class AutomationWorkspacePickerActionViewItem extends BaseActionViewItem {
-	constructor(
-		action: IAction,
-		private readonly picker: AutomationsWorkspacePicker,
-		options?: IBaseActionViewItemOptions,
-	) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		DOM.clearNode(container);
-		container.classList.add('chat-input-picker-item');
-		this.picker.render(container);
+		this.renderPicker(container);
 	}
 }
 
@@ -551,10 +527,13 @@ export function renderForm(
 		sessionTypePickerDelegate: sessionTypeDelegate,
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationSessionTypePickerActionViewItem(action, sessionTypePicker, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), itemOptions);
 			}
 			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationWorkspacePickerActionViewItem(action, workspacePicker, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => {
+					container.classList.add('chat-input-picker-item');
+					workspacePicker.render(container);
+				}, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
