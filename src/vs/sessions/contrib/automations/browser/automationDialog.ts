@@ -94,6 +94,7 @@ interface IRenderFormHandle {
 
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
+const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
 class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
@@ -284,6 +285,32 @@ class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/**
+ * Hosts the dialog's {@link AutomationsWorkspacePicker} inside the chat input's
+ * secondary toolbar. The picker instance is owned by the dialog; this view item
+ * renders its trigger chip into the toolbar container. Adds `chat-input-picker-item`
+ * so the trigger picks up the standard secondary-toolbar chip layout shared with
+ * the neighboring pickers.
+ */
+class AutomationWorkspacePickerActionViewItem extends BaseActionViewItem {
+	private readonly _triggerDisposable = this._register(new MutableDisposable());
+
+	constructor(
+		action: IAction,
+		private readonly picker: AutomationsWorkspacePicker,
+		options?: IBaseActionViewItemOptions,
+	) {
+		super(undefined, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		DOM.clearNode(container);
+		container.classList.add('chat-input-picker-item');
+		this._triggerDisposable.value = this.picker.renderTrigger(container);
+	}
+}
+
 registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 	constructor() {
 		super({
@@ -295,6 +322,25 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: -1,
+				when: ChatContextKeys.inAutomationsDialog,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
+	constructor() {
+		super({
+			id: AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID,
+			title: localize2('automation.form.workspacePicker.action', "Automations Workspace Picker"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0,
 				when: ChatContextKeys.inAutomationsDialog,
 			}],
 		});
@@ -505,10 +551,12 @@ export function renderForm(
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
 		sessionTypePickerDelegate: sessionTypeDelegate,
-		workspacePickerInput: workspacePicker,
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationSessionTypePickerActionViewItem(action, sessionTypePicker, itemOptions);
+			}
+			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				return new AutomationWorkspacePickerActionViewItem(action, workspacePicker, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));
