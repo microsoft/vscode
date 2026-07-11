@@ -29,6 +29,13 @@ export interface ElectronWebviewResourceRoute {
 	readonly webviewId: string;
 }
 
+const webviewExtensionIdPattern = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
+
+export function normalizeWebviewExtensionId(extensionId: string): string | undefined {
+	const normalized = extensionId.toLowerCase();
+	return webviewExtensionIdPattern.test(normalized) ? normalized : undefined;
+}
+
 /**
  * Construct a uri that can load resources inside a webview
  *
@@ -56,10 +63,14 @@ export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo, elec
 	}
 
 	if (electronRoute) {
+		const extensionId = normalizeWebviewExtensionId(electronRoute.extensionId);
+		if (!extensionId) {
+			throw new Error(`Invalid extension id for webview route: ${electronRoute.extensionId}`);
+		}
 		return URI.from({
 			scheme: Schemas.vscodeWebview,
-			authority: electronRoute.extensionId.toLowerCase(),
-			path: `/${encodeURIComponent(electronRoute.webviewId)}/_vscode/resource/${resource.scheme}+${encodeAuthority(resource.authority)}${resource.path}`,
+			authority: extensionId,
+			path: `/${electronRoute.webviewId}/_vscode/resource/${resource.scheme}+${encodeAuthority(resource.authority)}${resource.path}`,
 			fragment: resource.fragment,
 			query: resource.query,
 		});

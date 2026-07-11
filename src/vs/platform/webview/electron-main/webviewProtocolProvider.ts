@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { protocol } from 'electron';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
-import { getWebviewContentMimeType } from '../common/mimeTypes.js';
-import { WebviewDocumentRegistration } from '../common/webviewManagerService.js';
+import { WebviewDocumentRegistration, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
 
 
 export class WebviewProtocolProvider implements IDisposable {
@@ -20,8 +20,16 @@ export class WebviewProtocolProvider implements IDisposable {
 		['/fake.html', { mime: 'text/html' }],
 		['/service-worker.js', { mime: 'application/javascript' }],
 	]);
+	private readonly pendingResources = new Map<number, {
+		readonly resolve: (response: Response) => void;
+		readonly method: string;
+		controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+	}>();
+	private nextRequestId = 1;
 
 	constructor(
+		private readonly requestResource: (request: WebviewResourceRequest) => void,
+		private readonly cancelResource: (requestId: number) => void,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		// Register the protocol for loading webview html
@@ -31,14 +39,71 @@ export class WebviewProtocolProvider implements IDisposable {
 
 	dispose(): void {
 		protocol.unhandle(Schemas.vscodeWebview);
+		for (const [requestId, pending] of this.pendingResources) {
+			pending.resolve(new Response(null, { status: 410 }));
+			this.cancelResource(requestId);
+		}
+		this.pendingResources.clear();
+		WebviewProtocolProvider.documents.clear();
 	}
 
 	public registerWebviewDocument(document: WebviewDocumentRegistration): void {
+		if (!/^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(document.extensionId.toLowerCase()) || !document.webviewId || document.webviewId.includes('/')) {
+			throw new Error('Invalid direct webview route');
+		}
 		WebviewProtocolProvider.documents.set(this.documentKey(document.extensionId, document.webviewId), document);
 	}
 
 	public unregisterWebviewDocument(extensionId: string, webviewId: string): void {
 		WebviewProtocolProvider.documents.delete(this.documentKey(extensionId, webviewId));
+	}
+
+	public startResourceResponse(response: WebviewResourceResponse): void {
+		const pending = this.pendingResources.get(response.requestId);
+		if (!pending) {
+			return;
+		}
+		const headers: Record<string, string> = {
+			'Access-Control-Allow-Origin': '*',
+			'Cross-Origin-Resource-Policy': 'cross-origin',
+			'X-Content-Type-Options': 'nosniff',
+		};
+		if (response.mime) { headers['Content-Type'] = response.mime; }
+		if (response.etag) { headers['ETag'] = response.etag; }
+		if (response.mtime !== undefined) { headers['Last-Modified'] = new Date(response.mtime).toUTCString(); }
+		if (response.range) { headers['Content-Range'] = response.range; headers['Accept-Ranges'] = 'bytes'; }
+		if (response.size !== undefined) { headers['Content-Length'] = String(response.range ? this.rangeLength(response.range) : response.size); }
+
+		if (pending.method === 'HEAD' || response.status === 304 || response.status >= 400) {
+			this.pendingResources.delete(response.requestId);
+			pending.resolve(new Response(null, { status: response.status, headers }));
+			return;
+		}
+		const body = new ReadableStream<Uint8Array>({
+			start: controller => pending.controller = controller,
+			cancel: () => {
+				this.pendingResources.delete(response.requestId);
+				this.cancelResource(response.requestId);
+			},
+		});
+		pending.resolve(new Response(body, { status: response.status, headers }));
+	}
+
+	public streamResourceResponse(requestId: number, data: VSBuffer): void {
+		this.pendingResources.get(requestId)?.controller?.enqueue(data.buffer);
+	}
+
+	public endResourceResponse(requestId: number, error?: boolean): void {
+		const pending = this.pendingResources.get(requestId);
+		if (!pending) {
+			return;
+		}
+		this.pendingResources.delete(requestId);
+		if (error) {
+			pending.controller?.error(new Error('Webview resource read failed'));
+		} else {
+			pending.controller?.close();
+		}
 	}
 
 	public static getWebviewDocument(url: URI): WebviewDocumentRegistration | undefined {
@@ -115,22 +180,44 @@ export class WebviewProtocolProvider implements IDisposable {
 		}
 
 		const resource = this.decodeResourceUri(match[3]);
-		if (!resource || !this.isAllowedResource(resource, document.roots)) {
+		if (!resource) {
 			return new Response(null, { status: 403 });
 		}
-		try {
-			const content = await this._fileService.readFile(resource);
-			return new Response(request.method === 'HEAD' ? null : content.value.buffer as ArrayBufferView<ArrayBuffer>, {
-				headers: {
-					'Content-Type': getWebviewContentMimeType(resource),
-					'Access-Control-Allow-Origin': '*',
-					'Cross-Origin-Resource-Policy': 'cross-origin',
-					'X-Content-Type-Options': 'nosniff',
-				}
-			});
-		} catch {
-			return new Response(null, { status: 404 });
+		if (this.pendingResources.size >= 128) {
+			return new Response(null, { status: 429 });
 		}
+		const requestId = this.nextRequestId++;
+		const range = this.parseRange(request.headers.get('range'));
+		return new Promise<Response>(resolve => {
+			this.pendingResources.set(requestId, { resolve, method: request.method, controller: undefined });
+			request.signal.addEventListener('abort', () => {
+				if (this.pendingResources.delete(requestId)) {
+					this.cancelResource(requestId);
+					resolve(new Response(null, { status: 499 }));
+				}
+			}, { once: true });
+			this.requestResource({
+				requestId,
+				extensionId: document.extensionId,
+				webviewId: document.webviewId,
+				method: request.method as 'GET' | 'HEAD',
+				uri: resource,
+				ifNoneMatch: request.headers.get('if-none-match') ?? undefined,
+				range,
+			});
+		});
+	}
+
+	private parseRange(value: string | null): { start: number; end?: number } | undefined {
+		if (!value) { return undefined; }
+		const match = /^bytes=(\d+)-(\d*)$/.exec(value);
+		if (!match) { return undefined; }
+		return { start: Number(match[1]), end: match[2] ? Number(match[2]) : undefined };
+	}
+
+	private rangeLength(value: string): number {
+		const match = /^bytes (\d+)-(\d+)\//.exec(value);
+		return match ? Number(match[2]) - Number(match[1]) + 1 : 0;
 	}
 
 	private decodeResourceUri(value: string): URI | undefined {
@@ -155,17 +242,4 @@ export class WebviewProtocolProvider implements IDisposable {
 		return authority.replace(/-([0-9a-f]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 	}
 
-	private isAllowedResource(resource: URI, roots: readonly UriComponents[]): boolean {
-		for (const rawRoot of roots) {
-			const root = URI.revive(rawRoot);
-			const normalizedRoot = root.path.endsWith('/') ? root.path : `${root.path}/`;
-			if (root.scheme === resource.scheme
-				&& root.authority === resource.authority
-				&& resource.path.startsWith(normalizedRoot)
-				&& !resource.path.split('/').includes('..')) {
-				return true;
-			}
-		}
-		return false;
-	}
 }

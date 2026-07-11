@@ -541,6 +541,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 
 			if (e.data.channel === 'webview-ready') {
+				if (!this.isValidWebviewReady(e.data.data)) {
+					return;
+				}
 				if (this._messagePort) {
 					return;
 				}
@@ -569,6 +572,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			}
 		}));
 	}
+
+	protected isValidWebviewReady(_data: unknown): boolean { return true; }
 
 	protected prepareForDirectNavigation(targetWindow: CodeWindow): void {
 		this._messagePort = undefined;
@@ -954,6 +959,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			status: 404,
 			path: uri.path,
 		});
+	}
+
+	protected loadDirectResource(uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken): Promise<WebviewResourceResponse.StreamResponse> {
+		return this._instantiationService.invokeFunction(loadLocalResource, uri, {
+			ifNoneMatch: options.ifNoneMatch,
+			roots: this._content.options.localResourceRoots || [],
+			range: options.range,
+		}, token);
 	}
 
 	private async localLocalhost(id: string, origin: string) {

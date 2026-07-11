@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Delayer } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { listenStream } from '../../../../base/common/stream.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -18,11 +22,12 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { FindInFrameOptions, IWebviewManagerService } from '../../../../platform/webview/common/webviewManagerService.js';
+import { FindInFrameOptions, IWebviewManagerService, WebviewResourceRequest } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
+import { WebviewResourceResponse } from '../browser/resourceLoading.js';
 import { WindowIgnoreMenuShortcutsManager } from './windowIgnoreMenuShortcutsManager.js';
 
 const singleIframeBootstrap = String.raw`(() => {
@@ -75,15 +80,35 @@ const singleIframeBootstrap = String.raw`(() => {
 	window.addEventListener('blur', () => post('did-blur'));
 	window.addEventListener('scroll', () => post('did-scroll', { scrollYPercentage: document.body.scrollHeight ? scrollY / document.body.scrollHeight : 0 }), { passive: true });
 	window.addEventListener('wheel', event => post('did-scroll-wheel', { deltaMode: event.deltaMode, deltaX: event.deltaX, deltaY: event.deltaY, deltaZ: event.deltaZ }), { passive: true });
+	const keyData = event => ({ key: event.key, keyCode: event.keyCode, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, repeat: event.repeat, isTrusted: event.isTrusted });
+	window.addEventListener('keydown', event => post('did-keydown', keyData(event)));
+	window.addEventListener('keyup', event => post('did-keyup', keyData(event)));
+	window.addEventListener('dragenter', () => post('drag-start'));
+	window.addEventListener('dragover', event => post('drag', { shiftKey: event.shiftKey }));
+	window.addEventListener('contextmenu', event => post('did-context-menu', { clientX: event.clientX, clientY: event.clientY, context: {} }));
 	document.addEventListener('click', event => {
 		const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
 		if (anchor) { event.preventDefault(); post('did-click-link', { uri: anchor.href }); }
 	});
 
-	parent.postMessage({ target, channel: 'webview-ready' }, parentOrigin, [channel.port2]);
+	parent.postMessage({ target, channel: 'webview-ready', data: { revision: Number(params.get('revision')), nonce: params.get('nonce') } }, parentOrigin, [channel.port2]);
 })();`;
 
-const singleIframeHtmlPolicy = createTrustedTypesPolicy('singleIframeWebview', { createHTML: value => value });
+const singleIframeDefaultStyles = `@layer vscode-default {
+	html { scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background); }
+	body { overscroll-behavior-x: none; background-color: transparent; color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); font-weight: var(--vscode-font-weight); font-size: var(--vscode-font-size); margin: 0; padding: 0 20px; }
+	img, video { max-width: 100%; max-height: 100%; }
+	a, a code { color: var(--vscode-textLink-foreground); }
+	a:hover { color: var(--vscode-textLink-activeForeground); }
+	a:focus, input:focus, select:focus, textarea:focus { outline: 1px solid -webkit-focus-ring-color; outline-offset: -1px; }
+	code { font-family: var(--monaco-monospace-font); color: var(--vscode-textPreformat-foreground); background-color: var(--vscode-textPreformat-background); padding: 1px 3px; border-radius: 4px; }
+	pre code { padding: 0; }
+}`;
+
+const singleIframeHtmlPolicy = createTrustedTypesPolicy('singleIframeWebview', {
+	createHTML: value => value,
+	createScript: value => value,
+});
 
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
@@ -99,8 +124,10 @@ export class ElectronWebviewElement extends WebviewElement {
 	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
 	private _directTargetWindow: CodeWindow | undefined;
 	private _directRevision = 0;
+	private _directNonce: string | undefined;
 	private _directContentKey: string | undefined;
 	private _directUpdate: Promise<void> = Promise.resolve();
+	private readonly _directResourceRequests = new Map<number, CancellationTokenSource>();
 
 	protected override get platform() { return 'electron'; }
 
@@ -126,6 +153,14 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
+		this._register(this._webviewMainService.onDidRequestWebviewResource(request => this.handleDirectResourceRequest(request)));
+		this._register(this._webviewMainService.onDidCancelWebviewResource(requestId => {
+			const request = this._directResourceRequests.get(requestId);
+			if (request) {
+				this._directResourceRequests.delete(requestId);
+				request.dispose(true);
+			}
+		}));
 
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
@@ -148,7 +183,75 @@ export class ElectronWebviewElement extends WebviewElement {
 		if (this.extension?.useSingleIframe && this.resourceId) {
 			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.resourceId);
 		}
+		for (const request of this._directResourceRequests.values()) {
+			request.dispose(true);
+		}
+		this._directResourceRequests.clear();
 		super.dispose();
+	}
+
+	private async handleDirectResourceRequest(request: WebviewResourceRequest): Promise<void> {
+		if (!this.useSingleIframe
+			|| request.extensionId.toLowerCase() !== this.extension?.id.value.toLowerCase()
+			|| request.webviewId !== this.resourceId) {
+			return;
+		}
+		const cts = new CancellationTokenSource();
+		this._directResourceRequests.set(request.requestId, cts);
+		let streaming = false;
+		const finish = () => {
+			if (this._directResourceRequests.delete(request.requestId)) {
+				cts.dispose();
+			}
+		};
+		try {
+			const result = await this.loadDirectResource(URI.revive(request.uri), {
+				ifNoneMatch: request.ifNoneMatch,
+				range: request.range,
+			}, cts.token);
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			switch (result.type) {
+				case WebviewResourceResponse.Type.Success: {
+					const requestedEnd = request.range?.end ?? result.size - 1;
+					const rangeEnd = Math.min(requestedEnd, result.size - 1);
+					await this._webviewMainService.startWebviewResourceResponse({
+						requestId: request.requestId,
+						status: request.range ? 206 : 200,
+						mime: result.mimeType,
+						etag: result.etag,
+						mtime: result.mtime,
+						size: result.size,
+						range: request.range ? `bytes ${request.range.start}-${rangeEnd}/${result.size}` : undefined,
+					});
+					if (request.method === 'HEAD') {
+						return;
+					}
+					streaming = true;
+					listenStream(result.stream, {
+						onData: data => void this._webviewMainService.streamWebviewResourceResponse(request.requestId, data),
+						onError: () => { void this._webviewMainService.endWebviewResourceResponse(request.requestId, true); finish(); },
+						onEnd: () => { void this._webviewMainService.endWebviewResourceResponse(request.requestId); finish(); },
+					}, cts.token);
+					return;
+				}
+				case WebviewResourceResponse.Type.NotModified:
+					await this._webviewMainService.startWebviewResourceResponse({ requestId: request.requestId, status: 304, mime: result.mimeType, etag: undefined, mtime: result.mtime, size: undefined, range: undefined });
+					return;
+				case WebviewResourceResponse.Type.AccessDenied:
+					await this._webviewMainService.startWebviewResourceResponse({ requestId: request.requestId, status: 401, mime: undefined, etag: undefined, mtime: undefined, size: undefined, range: undefined });
+					return;
+				default:
+					await this._webviewMainService.startWebviewResourceResponse({ requestId: request.requestId, status: 404, mime: undefined, etag: undefined, mtime: undefined, size: undefined, range: undefined });
+			}
+		} catch {
+			await this._webviewMainService.startWebviewResourceResponse({ requestId: request.requestId, status: 404, mime: undefined, etag: undefined, mtime: undefined, size: undefined, range: undefined });
+		} finally {
+			if (!streaming || cts.token.isCancellationRequested) {
+				finish();
+			}
+		}
 	}
 
 	public override reload(): void {
@@ -181,6 +284,14 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 	}
 
+	protected override isValidWebviewReady(data: unknown): boolean {
+		return !this.useSingleIframe
+			|| (typeof data === 'object'
+				&& data !== null
+				&& (data as { revision?: number }).revision === this._directRevision
+				&& (data as { nonce?: string }).nonce === this._directNonce);
+	}
+
 	private async updateDirectDocument(prepareForNavigation: boolean): Promise<void> {
 		const extensionId = this.extension?.id.value.toLowerCase();
 		const webviewId = this.resourceId;
@@ -202,6 +313,8 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._directUpdate = this._directUpdate.then(async () => {
 			const revision = ++this._directRevision;
+			const navigationNonce = generateUuid();
+			this._directNonce = navigationNonce;
 			const transformed = await this.transformDirectHtml(this.content.html, !!this.content.options.allowScripts);
 			if (revision !== this._directRevision) {
 				return;
@@ -233,6 +346,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			}
 			const query = new URLSearchParams({
 				revision: String(revision),
+				nonce: navigationNonce,
 				target: this.id,
 				parentOrigin: targetWindow.origin,
 			});
@@ -254,14 +368,20 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 		let csp = policies[0].getAttribute('content')!.trim();
 		policies[0].remove();
-		const hash = await this.bootstrapHash();
-		csp = this.addBootstrapHash(csp, hash);
+		const hash = await this.contentHash(singleIframeBootstrap);
+		const styleHash = await this.contentHash(singleIframeDefaultStyles);
+		csp = this.addHash(csp, 'script-src', hash);
+		csp = this.addHash(csp, 'style-src', styleHash);
 		if (!allowScripts) {
 			csp += `, script-src ${hash}; script-src-attr 'none'`;
 		}
 		const script = document.createElement('script');
-		script.textContent = singleIframeBootstrap;
+		script.text = (singleIframeHtmlPolicy?.createScript?.(singleIframeBootstrap) ?? singleIframeBootstrap) as string;
 		document.head.prepend(script);
+		const defaultStyles = document.createElement('style');
+		defaultStyles.id = '_defaultStyles';
+		defaultStyles.textContent = singleIframeDefaultStyles;
+		document.head.prepend(defaultStyles);
 		const state = document.createElement('meta');
 		state.name = 'vscode-webview-state';
 		state.content = this.content.state ? encodeURIComponent(this.content.state) : '';
@@ -270,20 +390,20 @@ export class ElectronWebviewElement extends WebviewElement {
 		return { html: `<!DOCTYPE html>\n${document.documentElement.outerHTML}`, csp };
 	}
 
-	private async bootstrapHash(): Promise<string> {
-		const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(singleIframeBootstrap)));
+	private async contentHash(value: string): Promise<string> {
+		const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
 		let binary = '';
 		for (const value of digest) { binary += String.fromCharCode(value); }
 		return `'sha256-${btoa(binary)}'`;
 	}
 
-	private addBootstrapHash(csp: string, hash: string): string {
+	private addHash(csp: string, directive: string, hash: string): string {
 		const directives = csp.split(';').map(value => value.trim()).filter(Boolean);
-		const scriptIndex = directives.findIndex(value => value.toLowerCase().startsWith('script-src '));
-		if (scriptIndex >= 0) {
-			directives[scriptIndex] += ` ${hash}`;
+		const index = directives.findIndex(value => value.toLowerCase().startsWith(`${directive} `));
+		if (index >= 0) {
+			directives[index] += ` ${hash}`;
 		} else {
-			directives.push(`script-src ${hash}`);
+			directives.push(`${directive} ${hash}`);
 		}
 		return directives.join('; ');
 	}

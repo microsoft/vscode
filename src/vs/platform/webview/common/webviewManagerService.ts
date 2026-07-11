@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -34,9 +35,14 @@ export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
 	readonly onFoundInFrame: Event<FoundInFrameResult>;
+	readonly onDidRequestWebviewResource: Event<WebviewResourceRequest>;
+	readonly onDidCancelWebviewResource: Event<number>;
 
 	registerWebviewDocument(document: WebviewDocumentRegistration): Promise<void>;
 	unregisterWebviewDocument(extensionId: string, webviewId: string): Promise<void>;
+	startWebviewResourceResponse(response: WebviewResourceResponse): Promise<void>;
+	streamWebviewResourceResponse(requestId: number, data: VSBuffer): Promise<void>;
+	endWebviewResourceResponse(requestId: number, error?: boolean): Promise<void>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
@@ -53,4 +59,24 @@ export interface WebviewDocumentRegistration {
 	readonly html: string;
 	readonly csp: string;
 	readonly roots: readonly UriComponents[];
+}
+
+export interface WebviewResourceRequest {
+	readonly requestId: number;
+	readonly extensionId: string;
+	readonly webviewId: string;
+	readonly method: 'GET' | 'HEAD';
+	readonly uri: UriComponents;
+	readonly ifNoneMatch: string | undefined;
+	readonly range: { readonly start: number; readonly end?: number } | undefined;
+}
+
+export interface WebviewResourceResponse {
+	readonly requestId: number;
+	readonly status: number;
+	readonly mime: string | undefined;
+	readonly etag: string | undefined;
+	readonly mtime: number | undefined;
+	readonly size: number | undefined;
+	readonly range: string | undefined;
 }

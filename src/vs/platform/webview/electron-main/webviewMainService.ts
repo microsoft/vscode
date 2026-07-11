@@ -6,7 +6,7 @@
 import { WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewDocumentRegistration, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewDocumentRegistration, WebviewResourceRequest, WebviewResourceResponse, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IFileService } from '../../files/common/files.js';
@@ -17,6 +17,10 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public readonly onFoundInFrame = this._onFoundInFrame.event;
+	private readonly _onDidRequestWebviewResource = this._register(new Emitter<WebviewResourceRequest>());
+	public readonly onDidRequestWebviewResource = this._onDidRequestWebviewResource.event;
+	private readonly _onDidCancelWebviewResource = this._register(new Emitter<number>());
+	public readonly onDidCancelWebviewResource = this._onDidCancelWebviewResource.event;
 	private readonly protocolProvider: WebviewProtocolProvider;
 
 	constructor(
@@ -24,7 +28,11 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService));
+		this.protocolProvider = this._register(new WebviewProtocolProvider(
+			request => this._onDidRequestWebviewResource.fire(request),
+			requestId => this._onDidCancelWebviewResource.fire(requestId),
+			fileService,
+		));
 	}
 
 	public async registerWebviewDocument(document: WebviewDocumentRegistration): Promise<void> {
@@ -33,6 +41,18 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	public async unregisterWebviewDocument(extensionId: string, webviewId: string): Promise<void> {
 		this.protocolProvider.unregisterWebviewDocument(extensionId, webviewId);
+	}
+
+	public async startWebviewResourceResponse(response: WebviewResourceResponse): Promise<void> {
+		this.protocolProvider.startResourceResponse(response);
+	}
+
+	public async streamWebviewResourceResponse(requestId: number, data: import('../../../base/common/buffer.js').VSBuffer): Promise<void> {
+		this.protocolProvider.streamResourceResponse(requestId, data);
+	}
+
+	public async endWebviewResourceResponse(requestId: number, error?: boolean): Promise<void> {
+		this.protocolProvider.endResourceResponse(requestId, error);
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {
