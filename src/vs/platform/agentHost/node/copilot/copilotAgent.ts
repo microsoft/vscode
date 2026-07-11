@@ -3710,7 +3710,7 @@ class SessionDiscoveredEntry extends Disposable {
 		super();
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
 		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
-		this._settled = this._queueRefresh(false);
+		this._settled = this._queueRefresh(false, 0);
 		this._register(this._discovery.onDidChange(() => {
 			this._settled = this._queueRefresh(true);
 		}));
@@ -3730,7 +3730,7 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._customizations;
 	}
 
-	private _queueRefresh(notify: boolean): Promise<void> {
+	private _queueRefresh(notify: boolean, delay = REFRESH_DEBOUNCE_MS): Promise<void> {
 		this._refreshPromise?.cancel();
 		this._refreshPromise = null;
 		this._pendingRefreshNotify = this._pendingRefreshNotify || notify;
@@ -3738,7 +3738,6 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._refreshDelayer.trigger(() => {
 			const shouldNotify = this._pendingRefreshNotify;
 			this._pendingRefreshNotify = false;
-
 			const refreshPromise = this._refreshPromise = createCancelablePromise(async token => {
 				const didRefresh = await this._refresh(token);
 				if (didRefresh && shouldNotify) {
@@ -3759,7 +3758,7 @@ class SessionDiscoveredEntry extends Disposable {
 				}
 				throw err;
 			});
-		});
+		}, delay);
 	}
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {

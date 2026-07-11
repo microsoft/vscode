@@ -21,13 +21,10 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IFormState, IValidationState, isAutomationDialogPopupTarget, renderForm, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
-const COPILOT_PROVIDER_ID = 'default-copilot';
 
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
@@ -48,7 +45,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
-		@IAutomationSessionTypeProvider private readonly sessionTypeProvider: IAutomationSessionTypeProvider,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -122,7 +118,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, this.sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 					getPrompt = handle.getPrompt;
 					getMode = handle.getMode;
 					getPermissionLevel = handle.getPermissionLevel;
@@ -165,8 +161,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					prompt,
 					schedule,
 					folderUri: state.folderUri,
-					providerId: state.providerId ?? COPILOT_PROVIDER_ID,
-					sessionTypeId: state.sessionTypeId ?? SessionType.CopilotCLI,
+					providerId: state.providerId ?? null,
+					sessionTypeId: state.sessionTypeId ?? null,
 					modelId: modelId ?? null,
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
@@ -182,8 +178,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				prompt,
 				schedule,
 				folderUri: state.folderUri,
-				providerId: state.providerId ?? COPILOT_PROVIDER_ID,
-				sessionTypeId: state.sessionTypeId ?? SessionType.CopilotCLI,
+				providerId: state.providerId,
+				sessionTypeId: state.sessionTypeId,
 				modelId,
 				mode,
 				permissionLevel,

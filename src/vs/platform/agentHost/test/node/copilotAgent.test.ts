@@ -20,7 +20,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IFileService } from '../../../files/common/files.js';
+import { IFileService, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -2176,6 +2176,45 @@ suite('CopilotAgent', () => {
 					name: 'AGENTS.md',
 					alwaysApply: true,
 				} satisfies RuleCustomization]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getSessionCustomizations starts initial discovery without debounce', async () => {
+			class StatTrackingFileSystemProvider extends InMemoryFileSystemProvider {
+				trackStats = false;
+				statCalls = 0;
+
+				override async stat(resource: URI): Promise<IStat> {
+					if (this.trackStats) {
+						this.statCalls++;
+					}
+					return super.stat(resource);
+				}
+			}
+
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			const provider = disposables.add(new StatTrackingFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.inMemory, provider));
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			await fileService.createFolder(workspace);
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'session-discovery-immediate');
+				await agent.createSession({ session, workingDirectory: workspace });
+
+				provider.trackStats = true;
+				const customizations = agent.getSessionCustomizations(session);
+				await timeout(50);
+
+				assert.ok(provider.statCalls > 0, 'expected discovery to start before the debounce interval');
+				await customizations;
 			} finally {
 				await disposeAgent(agent);
 			}

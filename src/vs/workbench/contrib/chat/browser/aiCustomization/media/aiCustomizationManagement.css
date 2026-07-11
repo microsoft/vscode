@@ -1937,12 +1937,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automations-list-widget .automations-row-disabled-badge {
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 400;
-	padding: 1px 6px;
-	border-radius: 3px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	font-style: italic;
+	color: var(--vscode-foreground);
 }
 
 .automations-list-widget .automations-row-meta {
@@ -2531,14 +2529,14 @@ body:has(.automation-dialog) .monaco-menu-container {
  *
  * Result: match the 11px base, neutralize the welcome-flow oversizing,
  * keep the Mode/Model color (`var(--vscode-icon-foreground)`), match
- * the chip metrics from `.chat-input-toolbar .chat-input-picker-item
- * .action-label` (chat.css:1822), and hide the chevron (Mode/Model
- * don't render one).
+ * the chip metrics from `.chat-secondary-toolbar .chat-input-picker-item
+ * .action-label` (chat.css:1728), and hide the chevron (the neighboring
+ * secondary-toolbar pickers don't render one).
  *
  * Scoped to `.automation-form-prompt-host` so the welcome view's
  * standalone workspace picker keeps its larger sizing.
  */
-.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+.automation-form-prompt-host .chat-secondary-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: 16px;
 	padding: 3px 6px;
 	font-size: 11px;
@@ -2546,22 +2544,22 @@ body:has(.automation-dialog) .monaco-menu-container {
 	color: var(--vscode-icon-foreground);
 }
 
-.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+.automation-form-prompt-host .chat-secondary-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
 	font-size: inherit;
 	line-height: inherit;
 }
 
-.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+.automation-form-prompt-host .chat-secondary-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
 	font-size: 12px;
 }
 
 /*
- * Mode and Model pickers in this toolbar don't render a dropdown
+ * The neighboring secondary-toolbar pickers don't render a dropdown
  * chevron. They are recognized as chips by their padding + hover. Hide
  * the chevron that `_renderTriggerLabel` always appends so the
  * workspace chip reads the same way.
  */
-.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+.automation-form-prompt-host .chat-secondary-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
 	display: none;
 }
 

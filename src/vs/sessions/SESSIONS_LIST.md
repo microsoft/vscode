@@ -164,7 +164,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
 | `SessionItemToolbar` | `SessionItemToolbarMenuId` | Inline toolbar on each session row (hover on desktop, always on mobile) | Primary actions like pin, archive. Group `navigation` for icons, other groups for overflow. |
-| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread. Groups: `0_pin`, `0_read`, `1_edit`. |
+| `SessionItemContextMenu` | `SessionItemContextMenuId` | Right-click context menu on session rows | Secondary actions like rename, mark read/unread, and "Open Pull Request" (in the `navigation`/open group, gated on `sessionHasPullRequest`). Groups: `navigation`, `0_pin`, `0_read`, `1_edit`. |
 
 ### Section Header Menu
 
@@ -224,6 +224,7 @@ Context keys available for `when` clauses when contributing to session list menu
 | `sessionItem.hasBranchName` | boolean | Whether the session has a git branch name |
 | `sessionType` | string | Session type ID (use to scope actions to specific providers) |
 | `sessionProviderId` | string | Provider ID |
+| `sessionHasPullRequest` | boolean | Whether the session is associated with a GitHub pull request |
 
 ### Per-Section
 

@@ -53,9 +53,34 @@ export interface IPreferredSessionType {
 	readonly sessionTypeId: string;
 }
 
+function pickEquals(a: IPreferredSessionType | undefined, b: IPreferredSessionType | undefined): boolean {
+	return a?.providerId === b?.providerId && a?.sessionTypeId === b?.sessionTypeId;
+}
+
 interface IStoredSessionTypePick {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
+}
+
+/** Default telemetry source used when the picker serves the New Session composer. */
+const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
+
+/**
+ * Configures how the picker behaves when reused outside the New Session
+ * composer (e.g. the automations dialog), where profile-wide persistence and
+ * new-chat telemetry would be incorrect side effects.
+ */
+export interface ISessionTypePickerOptions {
+	/**
+	 * When `false` (used e.g. by the automations dialog), an explicit pick is
+	 * never written to or cleared from the profile-wide
+	 * {@link STORAGE_KEY_LAST_SESSION_TYPE} preference, so picking a type here
+	 * cannot change the New Session default. The stored preference is still read
+	 * to seed a sensible initial default. Defaults to `true`.
+	 */
+	readonly persistSelection?: boolean;
+	/** Telemetry id/name reported on selection. Defaults to {@link DEFAULT_TELEMETRY_SOURCE}. */
+	readonly telemetrySource?: string;
 }
 
 /**
@@ -89,6 +114,16 @@ export class SessionTypePicker extends Disposable {
 	protected readonly _onDidSelectSessionType = this._register(new Emitter<IPickedSessionType | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
+	/**
+	 * Fires whenever the effective {@link selectedPick} changes for any reason:
+	 * an explicit user pick OR a recompute (e.g. a provider advertising its
+	 * session types late). Unlike {@link onDidSelectSessionType}, which only
+	 * covers explicit picks, this lets consumers that cache the pick stay in
+	 * sync when the displayed default shifts on its own.
+	 */
+	protected readonly _onDidChangeSelectedPick = this._register(new Emitter<IPreferredSessionType | undefined>());
+	readonly onDidChangeSelectedPick = this._onDidChangeSelectedPick.event;
+
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
 
@@ -109,6 +144,7 @@ export class SessionTypePicker extends Disposable {
 
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
+		private readonly _options: ISessionTypePickerOptions | undefined,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -143,8 +179,12 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected _recompute(): void {
 		this._folderSessionTypes = this._resolveFolderSessionTypes();
+		const previous = this._picked;
 		this._picked = this._computeCurrentPick();
 		this._updateTriggerLabel();
+		if (!pickEquals(previous, this._picked)) {
+			this._onDidChangeSelectedPick.fire(this._picked);
+		}
 	}
 
 	/**
@@ -405,9 +445,10 @@ export class SessionTypePicker extends Disposable {
 		const beforeLabel = this._folderSessionTypes.find(t => t.sessionType.id === beforeId)?.sessionType.label;
 		const afterLabel = this._folderSessionTypes.find(t => t.providerId === pick.providerId && t.sessionType.id === pick.sessionTypeId)?.sessionType.label;
 
+		const telemetrySource = this._options?.telemetrySource ?? DEFAULT_TELEMETRY_SOURCE;
 		reportNewChatPickerClosed(this.telemetryService, {
-			id: 'NewChatSessionTypePicker',
-			name: 'NewChatSessionTypePicker',
+			id: telemetrySource,
+			name: telemetrySource,
 			optionIdBefore: beforeId,
 			optionIdAfter: pick.sessionTypeId,
 			optionLabelBefore: beforeLabel,
@@ -424,10 +465,15 @@ export class SessionTypePicker extends Disposable {
 		const preferred = this._folderSessionTypes[0];
 		const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionType.id === pick.sessionTypeId;
 		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
-		if (isDefault) {
-			this._clearStoredPick(pick);
-		} else {
-			this._writeStoredPick(pick);
+		// profile-wide preference is gated so non-persisting callers (e.g. the
+		// automations dialog) can pick a type without changing the New Session default
+		this._picked = pick;
+		if (this._options?.persistSelection !== false) {
+			if (isDefault) {
+				this._clearStoredPick();
+			} else {
+				this._writeStoredPick(pick);
+			}
 		}
 		// Folder-driven callers have no session change to re-run the refresh autorun, so refresh the label here.
 		this._updateTriggerLabel();
@@ -435,6 +481,7 @@ export class SessionTypePicker extends Disposable {
 		// actually changed, to avoid unnecessary work.
 		if (visiblePickChanged) {
 			this._onDidSelectSessionType.fire(pick);
+			this._onDidChangeSelectedPick.fire(this._picked);
 		}
 	}
 
@@ -461,7 +508,6 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _writeStoredPick(pick: IPickedSessionType): void {
-		this._picked = pick;
 		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
 		this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
@@ -471,8 +517,7 @@ export class SessionTypePicker extends Disposable {
 	 * type). The display still reflects the in-memory pick, but consumers
 	 * reading {@link getUserPickedSessionType} fall back to the preferred type.
 	 */
-	private _clearStoredPick(pick: IPickedSessionType): void {
-		this._picked = pick;
+	private _clearStoredPick(): void {
 		this.storageService.remove(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 	}
 

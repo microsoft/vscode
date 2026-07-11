@@ -93,6 +93,9 @@ export class ChatInputNotificationWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		// Announce what this chat input actually renders, so session-scoped
+		// notifications are only spoken in a matching session (de-duped by the service).
+		this._notificationService.announceRendered(notification);
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			this._lastShownTelemetryData = undefined;

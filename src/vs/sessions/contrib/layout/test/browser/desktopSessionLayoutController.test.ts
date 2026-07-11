@@ -19,7 +19,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesTabMissingContext, SinglePaneDetailChangesOrFilesActiveContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -71,6 +71,13 @@ suite('LayoutController (desktop)', () => {
 	function createSinglePaneController(options: ICreateOptions = {}): TestSinglePaneController {
 		harness = createTestHarness(store, options);
 		return store.add(harness.instaService.createInstance(TestSinglePaneController));
+	}
+
+	/** A stub real file editor whose resource lives under the session's `/repo` workspace folder. */
+	function makeWorkspaceFileEditor(path: string = '/repo/package.json'): FileEditorInput {
+		const fileEditor = Object.create(FileEditorInput.prototype) as FileEditorInput;
+		Object.defineProperty(fileEditor, 'resource', { value: URI.file(path) });
+		return fileEditor;
 	}
 
 	teardown(() => store.clear());
@@ -280,20 +287,20 @@ suite('LayoutController (desktop)', () => {
 	test('[single-pane] restores the detail panel after a browser tab hides it', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
-		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
-		assert.strictEqual(isChangesOrFilesActive(), false, 'hidden target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'hidden target should clear the editor chevron context');
 
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
-		assert.strictEqual(isChangesOrFilesActive(), true, 'changes target should enable the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), true, 'changes target should enable the editor chevron context');
 
 		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
 		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
 
 		harness.activeEditorInput = browserEditor;
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), false, 'browser target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'browser target should clear the editor chevron context');
 		await timeout(0);
 
 		assert.ok(
@@ -305,7 +312,7 @@ suite('LayoutController (desktop)', () => {
 		harness.openedViewContainers = [];
 		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), true, 'files target should enable the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
 
 		assert.ok(
@@ -321,18 +328,18 @@ suite('LayoutController (desktop)', () => {
 		// the chevron context must clear just like the browser tab does.
 		harness.activeEditorInput = store.add(new TestStubEditorInput(URI.parse('search-editor://test')));
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), false, 'search target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'search target should clear the editor chevron context');
 	});
 
 	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
-		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
 		await timeout(0);
-		assert.strictEqual(isChangesOrFilesActive(), true, 'non-empty no-active-editor fallback should keep contextual detail active');
+		assert.strictEqual(hasDockedDetails(), true, 'non-empty no-active-editor fallback should keep contextual detail active');
 
 		harness.setPartHiddenCalls = [];
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
@@ -343,29 +350,29 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			isChangesOrFilesActive: isChangesOrFilesActive(),
+			hasDockedDetails: hasDockedDetails(),
 			hiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true).length,
 		}, {
-			isChangesOrFilesActive: false,
+			hasDockedDetails: false,
 			hiddenCalls: 1,
 		});
 
-		// A tab re-opens: the context key flips back on, but the detail is NOT
-		// force-revealed (a created session defaults to the editor with the detail closed).
+		// A real file tab re-opens: the context key flips back on, but the detail is
+		// NOT force-revealed (a created session defaults to the editor with the detail closed).
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
 		harness.editorGroupsHaveContent = true;
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = makeWorkspaceFileEditor();
 		harness.onDidEditorsChange.fire();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			isChangesOrFilesActive: isChangesOrFilesActive(),
+			hasDockedDetails: hasDockedDetails(),
 			reveals: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
 			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 		}, {
-			isChangesOrFilesActive: true,
+			hasDockedDetails: true,
 			reveals: 0,
 			openedFiles: false,
 		});
@@ -412,7 +419,7 @@ suite('LayoutController (desktop)', () => {
 		// A file tab becomes active: the detail must stay closed (no force-reveal).
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = makeWorkspaceFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -423,6 +430,65 @@ suite('LayoutController (desktop)', () => {
 			reveals: 0,
 			openedFiles: false,
 		});
+	});
+
+	test('[single-pane] reveals the Files detail when the empty Files placeholder becomes active', async () => {
+		const controller = createSinglePaneController({ activateAux: true });
+		await timeout(0);
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		// Detail closed (the created-session default) with the editor visible.
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		await timeout(0);
+
+		// The user opens the Files placeholder (it becomes the active editor): the
+		// Files detail is revealed and the Files container is opened.
+		harness.setPartHiddenCalls = [];
+		harness.openedViewContainers = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			reveals: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length > 0,
+			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+		}, {
+			reveals: true,
+			openedFiles: true,
+		});
+
+		// The user hides the detail: it must NOT be re-revealed while the
+		// placeholder stays active (the reveal is keyed on the active-editor change).
+		harness.setPartHiddenCalls = [];
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			0,
+			'hiding the detail while the placeholder is active must stick');
+
+		// A session-switch restore that makes the placeholder active must not reveal.
+		let releaseRestore!: () => void;
+		const restoreGate = new Promise<void>(resolve => { releaseRestore = resolve; });
+		controller.runWithRestore(() => restoreGate);
+		harness.setPartHiddenCalls = [];
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.onDidActiveEditorChange.fire();
+		releaseRestore();
+		await restoreGate;
+		await timeout(0);
+
+		assert.strictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
+			0,
+			'a restore-driven placeholder activation must not reveal the detail');
 	});
 
 	test('[per-session detail] does not force-reveal the detail on editor activation, during or after a restore', async () => {
@@ -439,7 +505,7 @@ suite('LayoutController (desktop)', () => {
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		await timeout(0);
 
-		// Hold a session-switch restore open. The restore makes the Files editor
+		// Hold a session-switch restore open. The restore makes a file editor
 		// active; that editor change must NOT reveal the detail.
 		let releaseRestore!: () => void;
 		const restoreGate = new Promise<void>(resolve => { releaseRestore = resolve; });
@@ -447,7 +513,7 @@ suite('LayoutController (desktop)', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = makeWorkspaceFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -463,7 +529,7 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = makeWorkspaceFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -568,7 +634,7 @@ suite('LayoutController (desktop)', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 		await timeout(0);
 
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
+		harness.activeEditorInput = makeWorkspaceFileEditor();
 		harness.onDidActiveEditorChange.fire();
 		harness.activeSessionObs.set(sessionA, undefined);
 		harness.visibleSessionsObs.set([sessionA], undefined);
@@ -2122,7 +2188,7 @@ suite('LayoutController (desktop)', () => {
 			order: items[0].order,
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
-			gatedOnChangesOrFilesTab: when.includes(SinglePaneDetailChangesOrFilesActiveContext.key),
+			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			icon: Codicon.listSelection.id,
 			// Conditional (hidden for tab types with no detail, e.g. browser and
@@ -2131,7 +2197,7 @@ suite('LayoutController (desktop)', () => {
 			order: 30,
 			hasToggled: true,
 			gatedOnEditorArea: true,
-			gatedOnChangesOrFilesTab: true,
+			gatedOnDockedDetails: true,
 		});
 	});
 
@@ -2536,6 +2602,49 @@ suite('LayoutController (desktop)', () => {
 			fileTabGone: true,
 			reopenedFile: true,
 			restoredAtOriginalIndex: true,
+		});
+	});
+
+	test('[single-pane] closes a non-restorable non-docked tab (e.g. untitled Search) when the editor area hides, without restoring it', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		// A dirty, non-restorable editor (like an untitled Search editor) opens
+		// between the managed tabs while the editor area is visible.
+		const searchResource = URI.parse('search-editor:/Untitled-1');
+		harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(searchResource, { dirty: true, nonRestorable: true })));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		// Hide the editor area: the non-docked tab closes even though it is dirty and
+		// cannot be captured; only the managed Files tab remains.
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await settle();
+
+		const closedSearch = harness.closedEditors.some(e => isEqual(e.resource!, searchResource));
+		const searchTabGone = !harness.activeGroupEditors.some(e => e.resource && isEqual(e.resource, searchResource));
+
+		// Show the editor area again: the non-restorable tab is NOT reopened.
+		harness.openedEditors = [];
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		assert.deepStrictEqual({
+			closedSearch,
+			searchTabGone,
+			filesTabKept: hasFilesTab(),
+			reopenedSearch: harness.openedEditors.some(e => isResourceEditorInput(e) && isEqual(e.resource, searchResource)),
+		}, {
+			closedSearch: true,
+			searchTabGone: true,
+			filesTabKept: true,
+			reopenedSearch: false,
 		});
 	});
 

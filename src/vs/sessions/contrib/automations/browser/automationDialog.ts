@@ -15,7 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -35,16 +35,16 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
+import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { isModeConsideredBuiltIn } from '../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
@@ -92,27 +92,10 @@ interface IRenderFormHandle {
 	readonly getModelId: () => string | undefined;
 }
 
+
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
+const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
-
-function createAutomationHarnessChip(): HTMLElement {
-	const harnessChip = $('span.automation-form-harness-chip');
-	DOM.append(harnessChip, renderIcon(Codicon.copilot));
-	DOM.append(harnessChip, $('span.automation-form-harness-label', undefined, localize('automation.form.harness', "Copilot CLI")));
-	return harnessChip;
-}
-
-class AutomationHarnessChipActionViewItem extends BaseActionViewItem {
-	constructor(action: IAction, options?: IBaseActionViewItemOptions) {
-		super(undefined, action, options);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		DOM.clearNode(container);
-		DOM.append(container, createAutomationHarnessChip());
-	}
-}
 
 class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private readonly renderDisposables = this._register(new DisposableStore());
@@ -280,6 +263,28 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	}
 }
 
+/**
+ * Renders a dialog-owned picker into a chat input secondary-toolbar slot. The
+ * picker instance is owned by the dialog (registered on its disposables); this
+ * view item only injects the picker's DOM into the toolbar container via the
+ * supplied {@link renderPicker} callback.
+ */
+class AutomationPickerActionViewItem extends BaseActionViewItem {
+	constructor(
+		action: IAction,
+		private readonly renderPicker: (container: HTMLElement) => void,
+		options?: IBaseActionViewItemOptions,
+	) {
+		super(undefined, action, options);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		DOM.clearNode(container);
+		this.renderPicker(container);
+	}
+}
+
 registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 	constructor() {
 		super({
@@ -291,6 +296,25 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: -1,
+				when: ChatContextKeys.inAutomationsDialog,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
+	constructor() {
+		super({
+			id: AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID,
+			title: localize2('automation.form.workspacePicker.action', "Automations Workspace Picker"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0,
 				when: ChatContextKeys.inAutomationsDialog,
 			}],
 		});
@@ -318,83 +342,6 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-/**
- * Two-way binding between the chat input's session-target chip and the form's
- * providerId + sessionTypeId fields.
- */
-function createSessionTypeBinder(
-	state: IFormState,
-	sessionTypeProvider: IAutomationSessionTypeProvider,
-	disposables: DisposableStore,
-): ISessionTypePickerDelegate & { setFolder(folder: URI | undefined): void } {
-	const onDidChange = disposables.add(new Emitter<AgentSessionTarget>());
-
-	const pickDefault = (available: readonly IAutomationSessionTypeChoice[]): IAutomationSessionTypeChoice | undefined => {
-		if (available.length === 0) {
-			return undefined;
-		}
-		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background)
-			?? available[0];
-	};
-
-	const validateOrDefault = (folder: URI | undefined): void => {
-		if (!folder) {
-			state.providerId = undefined;
-			state.sessionTypeId = undefined;
-			return;
-		}
-		const available = sessionTypeProvider.getSessionTypesForFolder(folder);
-		if (state.providerId && state.sessionTypeId) {
-			const match = available.find(c => c.providerId === state.providerId && c.sessionTypeId === state.sessionTypeId);
-			if (match) {
-				return;
-			}
-		}
-		const def = pickDefault(available);
-		state.providerId = def?.providerId;
-		state.sessionTypeId = def?.sessionTypeId;
-	};
-
-	validateOrDefault(state.folderUri);
-
-	return {
-		getActiveSessionProvider: () => state.sessionTypeId as AgentSessionTarget | undefined,
-		setActiveSessionProvider: (target: AgentSessionTarget) => {
-			// Safe against folder-change races: we read the current folderUri and
-			// validate target against it. If the folder changed while the picker was
-			// open, the old target won't match the new folder's available types.
-			if (!state.folderUri) {
-				return;
-			}
-			const available = sessionTypeProvider.getSessionTypesForFolder(state.folderUri);
-			const match = available.find(c => c.sessionTypeId === target);
-			if (!match) {
-				return;
-			}
-			state.providerId = match.providerId;
-			state.sessionTypeId = match.sessionTypeId;
-			onDidChange.fire(match.sessionTypeId as AgentSessionTarget);
-		},
-		onDidChangeActiveSessionProvider: onDidChange.event,
-		setFolder: (folder: URI | undefined) => {
-			validateOrDefault(folder);
-			if (state.sessionTypeId) {
-				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
-			}
-		},
-		isSessionTypeVisible: (type: AgentSessionTarget) => {
-			if (type !== AgentSessionProviders.Background) {
-				return false;
-			}
-			if (!state.folderUri) {
-				return true;
-			}
-			const available = sessionTypeProvider.getSessionTypesForFolder(state.folderUri);
-			return available.some(c => c.sessionTypeId === type);
-		},
-	};
-}
-
 export function renderForm(
 	form: HTMLElement,
 	state: IFormState,
@@ -409,7 +356,6 @@ export function renderForm(
 	layoutService: ILayoutService,
 	logService: ILogService,
 	productService: IProductService,
-	sessionTypeProvider: IAutomationSessionTypeProvider,
 	initialPrompt: string,
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
@@ -495,7 +441,37 @@ export function renderForm(
 		applyIntervalVisibility();
 	}));
 
-	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
+	// The picker is authoritative for the session type
+	const folderObs = observableValue<URI | undefined>('automationFolder', state.folderUri);
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker' }));
+	sessionTypePicker.setFolderSource(folderObs, {
+		initialPick: state.providerId && state.sessionTypeId
+			? { providerId: state.providerId, sessionTypeId: state.sessionTypeId }
+			: undefined,
+	});
+	// The dialog has no session, so the input part reads the active session type from the picker via this delegate.
+	const onDidChangeSessionType = disposables.add(new Emitter<AgentSessionTarget>());
+	const sessionTypeDelegate: ISessionTypePickerDelegate = {
+		getActiveSessionProvider: () => sessionTypePicker.selectedPick?.sessionTypeId as AgentSessionTarget | undefined,
+		onDidChangeActiveSessionProvider: onDidChangeSessionType.event,
+	};
+	const syncStateFromPicker = () => {
+		const pick = sessionTypePicker.selectedPick;
+		state.providerId = pick?.providerId;
+		state.sessionTypeId = pick?.sessionTypeId;
+		if (pick?.sessionTypeId) {
+			onDidChangeSessionType.fire(pick.sessionTypeId as AgentSessionTarget);
+		}
+	};
+	// Seed state from the picker's initial default (edit: saved type; create: folder default).
+	syncStateFromPicker();
+	// Covers both explicit user picks and recomputes (e.g. an agent host
+	// advertising its session types after the dialog opened), so the saved
+	// automation always matches the chip the picker displays.
+	disposables.add(sessionTypePicker.onDidChangeSelectedPick(() => {
+		syncStateFromPicker();
+		revalidate();
+	}));
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(AutomationsWorkspacePicker));
 
@@ -505,13 +481,16 @@ export function renderForm(
 
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
 		state.folderUri = uri;
-		sessionTypeBinder.setFolder(uri);
+		// Setting the folder recomputes the picker's default; onDidChangeSelectedPick
+		// mirrors any resulting pick change into state. revalidate() still runs here
+		// because folder validity can change even when the pick does not.
+		folderObs.set(uri, undefined);
 		revalidate();
 	}));
 
 	if (!state.folderUri && workspacePicker.selectedFolderUri) {
 		state.folderUri = workspacePicker.selectedFolderUri;
-		sessionTypeBinder.setFolder(state.folderUri);
+		folderObs.set(state.folderUri, undefined);
 	}
 
 	const promptRow = DOM.append(form, $('.automation-form-row'));
@@ -545,11 +524,16 @@ export function renderForm(
 		// reserve the default 24px margin and lay the editor out too narrow,
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
-		sessionTypePickerDelegate: sessionTypeBinder,
-		workspacePickerInput: workspacePicker,
+		sessionTypePickerDelegate: sessionTypeDelegate,
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationHarnessChipActionViewItem(action, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), itemOptions);
+			}
+			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => {
+					container.classList.add('chat-input-picker-item');
+					workspacePicker.render(container);
+				}, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));

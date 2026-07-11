@@ -441,7 +441,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	private _renderIsolationCheckbox(slot: HTMLElement, provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
 		const disabled = isReadOnly || isLoading;
-		const label = localize('agentHostSessionConfig.isolation.worktree', "Worktree");
+		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
 		slot.classList.add('sessions-chat-isolation-checkbox');
 		slot.classList.toggle('disabled', disabled);
 
