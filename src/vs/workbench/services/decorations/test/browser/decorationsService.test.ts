@@ -15,6 +15,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import * as DOM from '../../../../../base/browser/dom.js';
 
 suite('DecorationsService', function () {
 
@@ -94,6 +95,34 @@ suite('DecorationsService', function () {
 		assert.strictEqual(callCounter, 1);
 
 		reg.dispose();
+	});
+
+	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {
+
+		const uri = URI.parse('foo:bar');
+		const highPriority = service.registerDecorationsProvider({
+			label: 'High priority',
+			onDidChange: Event.None,
+			provideDecorations: () => ({ color: 'highPriorityColor', weight: 10 })
+		});
+		const lowPriority = service.registerDecorationsProvider({
+			label: 'Low priority',
+			onDidChange: Event.None,
+			provideDecorations: () => ({ color: 'lowPriorityColor', weight: 5 })
+		});
+
+		const decoration = service.getDecoration(uri, false)!;
+		const element = document.createElement('div');
+		element.className = decoration.labelClassName;
+		element.style.setProperty('--vscode-lowPriorityColor', '#ff0000');
+		document.body.appendChild(element);
+
+		assert.strictEqual(DOM.getWindow(element).getComputedStyle(element).color, 'rgb(255, 0, 0)');
+
+		element.remove();
+		decoration.dispose();
+		highPriority.dispose();
+		lowPriority.dispose();
 	});
 
 	test('Clear decorations on provider dispose', async function () {
