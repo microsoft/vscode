@@ -515,7 +515,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
 	}
 
-	async getResolvedValue<T>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T> {
+	async getResolvedValue<T extends string = string>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T> {
 		const raw = this.getValue<T>(section, overrides ?? {});
 		const schema = this.configurationRegistry.getConfigurationProperties()[section];
 

@@ -106,15 +106,15 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * directly for nested resolution.
 	 * If resolution fails for a variable the original un-substituted value is returned.
 	 *
-	 * Note: `T` should be `string` (or a supertype of `string`) for settings with
-	 * `supportsVariableSubstitution: true`. Non-string types (`T extends object | number | boolean`)
-	 * are returned directly from `getValue()` without any substitution regardless of the flag.
+	 * `T` is constrained to `string` because variable substitution only ever operates on
+	 * string values; settings with `supportsVariableSubstitution: true` should always be
+	 * schema-typed as `string`. Use `getValue()` for non-string settings.
 	 *
 	 * @param section   The dot-separated setting key.
 	 * @param folder    Workspace folder context used to resolve `${workspaceFolder}`.
 	 * @param overrides Language/resource overrides, same as `getValue()`.
 	 */
-	getResolvedValue<T>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T>;
+	getResolvedValue<T extends string = string>(section: string, folder?: IWorkspaceFolderData, overrides?: IConfigurationOverrides): Promise<T>;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
