@@ -94,6 +94,7 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
+import { WebviewProtocolProvider } from '../../platform/webview/electron-main/webviewProtocolProvider.js';
 import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
@@ -326,6 +327,30 @@ export class CodeApplication extends Disposable {
 		};
 
 		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
+			const directDocument = WebviewProtocolProvider.getWebviewDocument(uri);
+			if (directDocument) {
+				const frame = details.frame;
+				const owner = this.windowsMainService?.getWindowById(directDocument.windowId)?.win;
+				if (!frame || !owner) {
+					return false;
+				}
+				let belongsToOwner = false;
+				for (let current: WebFrameMain | null = frame; current; current = current.parent) {
+					if (current === owner.webContents.mainFrame) {
+						belongsToOwner = true;
+						break;
+					}
+				}
+				if (!belongsToOwner) {
+					return false;
+				}
+				const route = `${Schemas.vscodeWebview}://${directDocument.extensionId.toLowerCase()}/${encodeURIComponent(directDocument.webviewId)}/`;
+				const isInitialNavigation = frame === owner.webContents.mainFrame
+					|| frame.url === ''
+					|| frame.url === 'about:blank'
+					|| frame.url.startsWith(`${Schemas.vscodeFileResource}://`);
+				return isInitialNavigation || frame.url.startsWith(route);
+			}
 			if (uri.path !== '/index.html') {
 				return true; // Only restrict top level page of webviews: index.html
 			}

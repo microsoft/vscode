@@ -24,6 +24,11 @@ export const webviewRootResourceAuthority = `vscode-resource.${webviewResourceBa
 
 export const webviewGenericCspSource = `'self' https://*.${webviewResourceBaseHost}`;
 
+export interface ElectronWebviewResourceRoute {
+	readonly extensionId: string;
+	readonly webviewId: string;
+}
+
 /**
  * Construct a uri that can load resources inside a webview
  *
@@ -37,7 +42,7 @@ export const webviewGenericCspSource = `'self' https://*.${webviewResourceBaseHo
  * @param resource Uri of the resource to load.
  * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
-export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI {
+export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo, electronRoute?: ElectronWebviewResourceRoute): URI {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;
 	}
@@ -47,6 +52,16 @@ export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI
 			scheme: Schemas.vscodeRemote,
 			authority: remoteInfo.authority,
 			path: resource.path,
+		});
+	}
+
+	if (electronRoute) {
+		return URI.from({
+			scheme: Schemas.vscodeWebview,
+			authority: electronRoute.extensionId.toLowerCase(),
+			path: `/${encodeURIComponent(electronRoute.webviewId)}/_vscode/resource/${resource.scheme}+${encodeAuthority(resource.authority)}${resource.path}`,
+			fragment: resource.fragment,
+			query: resource.query,
 		});
 	}
 

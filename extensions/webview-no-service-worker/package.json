@@ -1,0 +1,36 @@
+{
+  "name": "webview-no-service-worker",
+  "displayName": "Webview Without Service Worker (Experimental)",
+  "description": "Manual test extension for the experimental single-iframe Electron webview loader.",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "enabledApiProposals": [
+    "webviewNoServiceWorker"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onCommand:webviewNoServiceWorker.open"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "webviewNoServiceWorker.open",
+        "title": "Open Single-Iframe Webview",
+        "category": "Developer"
+      }
+    ]
+  }
+}

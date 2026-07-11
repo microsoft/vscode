@@ -6,7 +6,7 @@
 import { WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewDocumentRegistration, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IFileService } from '../../files/common/files.js';
@@ -17,13 +17,22 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public readonly onFoundInFrame = this._onFoundInFrame.event;
+	private readonly protocolProvider: WebviewProtocolProvider;
 
 	constructor(
 		@IFileService fileService: IFileService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
-		this._register(new WebviewProtocolProvider(fileService));
+		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService));
+	}
+
+	public async registerWebviewDocument(document: WebviewDocumentRegistration): Promise<void> {
+		this.protocolProvider.registerWebviewDocument(document);
+	}
+
+	public async unregisterWebviewDocument(extensionId: string, webviewId: string): Promise<void> {
+		this.protocolProvider.unregisterWebviewDocument(extensionId, webviewId);
 	}
 
 	public async setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void> {

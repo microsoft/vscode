@@ -16,6 +16,7 @@ import { NullApiDeprecationService } from '../../common/extHostApiDeprecationSer
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { IWebviewContentOptions } from '../../common/extHost.protocol.js';
 import { ExtHostWebviews } from '../../common/extHostWebview.js';
+import { UIKind } from '../../../services/extensions/common/extensionHostProtocol.js';
 import { ExtHostWebviewPanels } from '../../common/extHostWebviewPanels.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
@@ -45,7 +46,7 @@ suite('ExtHostWebview', () => {
 		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, {
 			authority: remoteAuthority,
 			isRemote: !!remoteAuthority,
-		}, undefined, new NullLogService(), NullApiDeprecationService));
+		}, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -61,7 +62,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService));
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -221,6 +222,7 @@ suite('ExtHostWebview', () => {
 			const extHostWebviews = disposables.add(new ExtHostWebviews(
 				captureRpc,
 				{ authority: undefined, isRemote: false },
+				UIKind.Desktop,
 				workspace,
 				new NullLogService(),
 				NullApiDeprecationService));

@@ -1018,6 +1018,7 @@ export interface WebviewPanelShowOptions {
 export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents;
+	readonly useSingleIframe?: boolean;
 }
 
 export enum WebviewEditorCapabilities {
