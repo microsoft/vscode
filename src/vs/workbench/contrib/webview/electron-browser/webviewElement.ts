@@ -31,9 +31,9 @@ import { WebviewResourceResponse } from '../browser/resourceLoading.js';
 import { WindowIgnoreMenuShortcutsManager } from './windowIgnoreMenuShortcutsManager.js';
 
 const singleIframeBootstrap = String.raw`(() => {
-	const params = new URL(location.href).searchParams;
-	const target = params.get('target');
-	const parentOrigin = params.get('parentOrigin');
+	const bootstrapElement = document.querySelector('meta[name="vscode-webview-bootstrap"]');
+	const bootstrap = bootstrapElement?.content ? JSON.parse(decodeURIComponent(bootstrapElement.content)) : {};
+	bootstrapElement?.remove();
 	const channel = new MessageChannel();
 	let acquired = false;
 	const stateElement = document.querySelector('meta[name="vscode-webview-state"]');
@@ -99,7 +99,7 @@ const singleIframeBootstrap = String.raw`(() => {
 		if (anchor) { event.preventDefault(); post('did-click-link', { uri: anchor.href }); }
 	});
 
-	parent.postMessage({ target, channel: 'webview-ready', data: { revision: Number(params.get('revision')), nonce: params.get('nonce') } }, parentOrigin, [channel.port2]);
+	parent.postMessage({ target: bootstrap.target, channel: 'webview-ready', data: { generation: bootstrap.generation } }, '*', [channel.port2]);
 })();`;
 
 const singleIframeDefaultStyles = `@layer vscode-default {
@@ -131,8 +131,8 @@ export class ElectronWebviewElement extends WebviewElement {
 	private readonly _webviewMainService: IWebviewManagerService;
 	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
 	private _directTargetWindow: CodeWindow | undefined;
-	private _directRevision = 0;
-	private _directNonce: string | undefined;
+	private _directGeneration = 0;
+	private _directHandshakeId: string | undefined;
 	private _directContentKey: string | undefined;
 	private _directUpdate: Promise<void> = Promise.resolve();
 	private readonly _directResourceRequests = new Map<number, CancellationTokenSource>();
@@ -304,8 +304,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		return !this.useSingleIframe
 			|| (typeof data === 'object'
 				&& data !== null
-				&& (data as { revision?: number }).revision === this._directRevision
-				&& (data as { nonce?: string }).nonce === this._directNonce);
+				&& (data as { generation?: string }).generation === this._directHandshakeId);
 	}
 
 	private async updateDirectDocument(prepareForNavigation: boolean): Promise<void> {
@@ -328,23 +327,26 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._directContentKey = contentKey;
 
 		this._directUpdate = this._directUpdate.then(async () => {
-			const revision = ++this._directRevision;
-			const navigationNonce = generateUuid();
-			this._directNonce = navigationNonce;
-			const transformed = await this.transformDirectHtml(this.content.html, !!this.content.options.allowScripts);
-			if (revision !== this._directRevision) {
+			const generation = ++this._directGeneration;
+			const handshakeId = generateUuid();
+			this._directHandshakeId = handshakeId;
+			const transformed = await this.transformDirectHtml(this.content.html, !!this.content.options.allowScripts, {
+				target: this.id,
+				generation: handshakeId,
+			});
+			if (generation !== this._directGeneration) {
 				return;
 			}
 			await this._webviewMainService.registerWebviewDocument({
 				extensionId,
 				webviewId,
 				windowId: this.windowId!,
-				revision,
+				extensionLocation: this.extension?.location,
 				html: transformed.html,
 				csp: transformed.csp,
 				roots: this.content.options.localResourceRoots || [],
 			});
-			if (revision !== this._directRevision || !this.element) {
+			if (generation !== this._directGeneration || !this.element) {
 				return;
 			}
 
@@ -360,18 +362,12 @@ export class ElectronWebviewElement extends WebviewElement {
 				this.prepareForDirectNavigation(targetWindow);
 				this.style();
 			}
-			const query = new URLSearchParams({
-				revision: String(revision),
-				nonce: navigationNonce,
-				target: this.id,
-				parentOrigin: targetWindow.origin,
-			});
-			this.element.src = `${Schemas.vscodeWebview}://${extensionId}/${encodeURIComponent(webviewId)}/index.html?${query}`;
+			this.element.src = `${Schemas.vscodeWebview}://${extensionId}/${encodeURIComponent(webviewId)}/index.html`;
 		});
 		await this._directUpdate;
 	}
 
-	private async transformDirectHtml(html: string, allowScripts: boolean): Promise<{ html: string; csp: string }> {
+	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string }): Promise<{ html: string; csp: string }> {
 		const source = html || '<!DOCTYPE html><html><head></head><body></body></html>';
 		const trustedSource = singleIframeHtmlPolicy?.createHTML(source) ?? source;
 		const document = new DOMParser().parseFromString(trustedSource as string, 'text/html');
@@ -395,6 +391,10 @@ export class ElectronWebviewElement extends WebviewElement {
 		const script = document.createElement('script');
 		script.text = (singleIframeHtmlPolicy?.createScript?.(singleIframeBootstrap) ?? singleIframeBootstrap) as string;
 		document.head.prepend(script);
+		const bootstrap = document.createElement('meta');
+		bootstrap.name = 'vscode-webview-bootstrap';
+		bootstrap.content = encodeURIComponent(JSON.stringify(bootstrapData));
+		document.head.prepend(bootstrap);
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = singleIframeDefaultStyles;

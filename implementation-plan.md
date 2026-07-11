@@ -19,16 +19,16 @@
 ## Document and API loading
 
 - Enable the loader only when the proposal is granted and the UI client is Electron.
-- In the workbench renderer, transform dynamic `webview.html`, inject default styles and a static hashed bootstrap, extract its CSP, and register the revision with Electron main before navigation.
-- Navigate the single iframe directly to the registered document. Re-register and navigate on HTML changes, reject stale revisions, and queue messages while a new document handshakes.
+- In the workbench renderer, transform dynamic `webview.html`, inject default styles and a static hashed bootstrap, extract its CSP, and register the current document with Electron main before navigation.
+- Navigate the single iframe directly to the currently registered document at a stable, query-free URL. Re-register and navigate on HTML changes, and queue messages while a new document handshakes.
 - The bootstrap installs `acquireVsCodeApi`, owns a `MessageChannel`, preserves state and messaging semantics, and handles themes, focus, keyboard, drag/drop, links, and load events.
-- Validate the handshake with `event.source`, instance ID, document revision, and a per-navigation nonce rather than `event.origin`.
+- Validate the handshake with `event.source`, instance ID, and an injected per-navigation generation value rather than URL parameters or `event.origin`.
 
 ## Protocol and resources
 
 - In experimental mode, make `asWebviewUri` return resources below `vscode-webview://<extension-id>/<instance-id>/_vscode/resource/...`; preserve source paths, queries, and fragments. Keep HTTP(S) and legacy behavior unchanged.
 - Extend the existing Electron protocol handler to serve registered documents and authorized resources for `GET` and `HEAD` only.
-- Keep file reads in the workbench renderer so remote and virtual providers work. Bridge request metadata, streaming chunks, ranges, conditional headers, and cancellation between Electron main and the owning `ElectronWebviewElement`.
+- Load ordinary local files beneath the extension's own canonical directory directly in Electron main with `net.fetch`. Keep the renderer bridge for remote and virtual providers, additional resource roots, ranges, conditional requests, and fallback compatibility.
 - Preserve current status, MIME, ETag, range, media, and port-mapping behavior without Cache Storage.
 - Decode resource URIs once, reject malformed/traversal inputs, enforce `localResourceRoots`, and use canonical real paths where the provider supports them.
 
@@ -44,6 +44,6 @@
 - Leave legacy extensions, browser clients, internal webviews, and notebook renderers unchanged.
 - Treat origin-bound storage and service workers as unsupported in the opaque-origin experimental mode; persistent state uses the VS Code API.
 - Add a minimal built-in extension with one command, a panel, stylesheet, image, API message round trip, and persisted visible state.
-- Add unit coverage for gating, URL parsing, CSP transformation, registrations and ownership, revisions, cancellation, root containment, symlink escape, ranges, CORS, and headers.
+- Add unit coverage for gating, URL parsing, CSP transformation, registrations and ownership, document updates, cancellation, root containment, symlink escape, ranges, CORS, and headers.
 - Add Electron coverage for the single iframe, readable URL, opaque sandbox, API behavior, resources, remote/virtual providers, port mapping, cross-instance denial, absence of worker/cache activity, and legacy compatibility.
 - Begin with a feasibility check for opaque custom-protocol documents, response-header CSP, parent messaging, modules, fonts, media, and fetch. Do not reintroduce the second iframe or `allow-same-origin` if a Chromium limitation is found.
