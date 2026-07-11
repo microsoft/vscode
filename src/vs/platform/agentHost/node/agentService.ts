@@ -1819,9 +1819,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
-		if (action.type === ActionType.ChangesetFilesReviewChanged) {
-			return true;
-		}
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
