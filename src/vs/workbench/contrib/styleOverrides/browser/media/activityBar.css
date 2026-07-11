@@ -31,10 +31,17 @@
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
 
-/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+/*
+ * Compact side bar: match the top/bottom horizontal activity bar's 24×24 chip
+ * (see composite-bar rules below) so icon density and selected/hover affordances
+ * stay consistent across activity bar positions. See #325127.
+ */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	width: calc(var(--activity-bar-action-height, 32px) - 4px);
-	height: calc(var(--activity-bar-action-height, 32px) - 4px);
+	top: 4px;
+	left: calc((var(--activity-bar-width, 32px) - 24px) / 2);
+	width: 24px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /*
@@ -92,11 +99,28 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+/* Compact: same 24×24 hover chip as top/bottom (and as the compact active chip). */
 .style-override .activitybar.compact > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
-	left: 2px;
-	width: calc(var(--activity-bar-action-height, 32px) - 4px);
-	height: calc(var(--activity-bar-action-height, 32px) - 4px);
+	top: 4px;
+	bottom: auto;
+	margin: 0;
+	left: calc((var(--activity-bar-width, 32px) - 24px) / 2);
+	width: 24px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * Match horizontal activity bar item spacing (4px). The vertical action bar
+ * uses `display: inline-block` for `.actions-container`, so CSS `gap` is a no-op
+ * — switch compact side bars to a column flex layout so the gap applies.
+ */
+.style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar.vertical .actions-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	height: auto;
 }
 
 /*
