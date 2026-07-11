@@ -1265,6 +1265,160 @@ async def manage_blacklist(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# test-workbench_change start: CSV导入/清空名单
+@app.post("/admin/rollout/whitelist/clear")
+async def clear_whitelist(request: Request):
+    """清空白名单"""
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+    require_admin_auth(request)
+    try:
+        data = await request.json()
+        platform_quality = data.get('platform_quality')
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+        count = rollout_engine.clear_whitelist(platform_quality)
+        return {"status": "success", "message": f"已清空白名单 ({count} 个)", "count": count}
+    except Exception as e:
+        logger.error(f"清空白名单失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/blacklist/clear")
+async def clear_blacklist(request: Request):
+    """清空黑名单"""
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+    require_admin_auth(request)
+    try:
+        data = await request.json()
+        platform_quality = data.get('platform_quality')
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+        count = rollout_engine.clear_blacklist(platform_quality)
+        return {"status": "success", "message": f"已清空黑名单 ({count} 个)", "count": count}
+    except Exception as e:
+        logger.error(f"清空黑名单失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/whitelist/import")
+async def import_whitelist_csv(request: Request):
+    """
+    从CSV导入白名单（导入员工编号列）
+
+    Request Body (multipart/form-data):
+        file: CSV文件（制表符分隔）
+        platform_quality: 平台/质量级别
+    """
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+
+    require_admin_auth(request)
+
+    try:
+        form = await request.form()
+        file = form.get('file')
+        platform_quality = form.get('platform_quality')
+
+        if not file:
+            raise HTTPException(status_code=400, detail="缺少文件")
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+
+        content = await file.read()
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('gbk')
+
+        employee_ids = []
+        lines = text.strip().split('\n')
+        for i, line in enumerate(lines):
+            if i < 2:
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                employee_id = parts[3].strip()
+                if employee_id:
+                    employee_ids.append(employee_id)
+
+        if not employee_ids:
+            return {"status": "success", "message": "CSV中未找到有效的员工编号", "count": 0}
+
+        count = rollout_engine.add_to_whitelist_batch(platform_quality, employee_ids)
+
+        return {
+            "status": "success",
+            "message": f"成功导入 {count} 个员工编号到白名单",
+            "total": len(employee_ids),
+            "added": count
+        }
+
+    except Exception as e:
+        logger.error(f"导入白名单CSV失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/blacklist/import")
+async def import_blacklist_csv(request: Request):
+    """
+    从CSV导入黑名单（导入员工编号列）
+
+    Request Body (multipart/form-data):
+        file: CSV文件（制表符分隔）
+        platform_quality: 平台/质量级别
+    """
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+
+    require_admin_auth(request)
+
+    try:
+        form = await request.form()
+        file = form.get('file')
+        platform_quality = form.get('platform_quality')
+
+        if not file:
+            raise HTTPException(status_code=400, detail="缺少文件")
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+
+        content = await file.read()
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('gbk')
+
+        employee_ids = []
+        lines = text.strip().split('\n')
+        for i, line in enumerate(lines):
+            if i < 2:
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                employee_id = parts[3].strip()
+                if employee_id:
+                    employee_ids.append(employee_id)
+
+        if not employee_ids:
+            return {"status": "success", "message": "CSV中未找到有效的员工编号", "count": 0}
+
+        count = rollout_engine.add_to_blacklist_batch(platform_quality, employee_ids)
+
+        return {
+            "status": "success",
+            "message": f"成功导入 {count} 个员工编号到黑名单",
+            "total": len(employee_ids),
+            "added": count
+        }
+
+    except Exception as e:
+        logger.error(f"导入黑名单CSV失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+# test-workbench_change end
+
+
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
     """404 错误处理"""

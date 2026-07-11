@@ -533,6 +533,22 @@
                     <button class="btn btn-success" onclick="addToWhitelist()">
                         <span>➕</span> 添加到白名单
                     </button>
+                    <button class="btn btn-danger" onclick="clearWhitelist()">
+                        <span>🗑️</span> 删除所有
+                    </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <label>导入CSV文件（导入员工编号列）</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="whitelist-csv-file" accept=".csv" style="flex: 1; padding: 8px;">
+                        <button class="btn btn-info" onclick="importWhitelistCSV()">
+                            <span>📥</span> 导入
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        CSV格式：序号、用户名、账号ID、员工编号、部门（制表符分隔），仅导入员工编号列
+                    </p>
                 </div>
 
                 <div id="whitelist-container" style="margin-top: 20px;"></div>
@@ -564,6 +580,22 @@
                     <button class="btn btn-danger" onclick="addToBlacklist()">
                         <span>➕</span> 添加到黑名单
                     </button>
+                    <button class="btn btn-danger" onclick="clearBlacklist()">
+                        <span>🗑️</span> 删除所有
+                    </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <label>导入CSV文件（导入员工编号列）</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="blacklist-csv-file" accept=".csv" style="flex: 1; padding: 8px;">
+                        <button class="btn btn-info" onclick="importBlacklistCSV()">
+                            <span>📥</span> 导入
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        CSV格式：序号、用户名、账号ID、员工编号、部门（制表符分隔），仅导入员工编号列
+                    </p>
                 </div>
 
                 <div id="blacklist-container" style="margin-top: 20px;"></div>
@@ -1211,10 +1243,6 @@
 
         // 从白名单删除
         async function removeFromWhitelist(platform, ip) {
-            if (!confirm(`确定要从白名单中删除 ${ip} 吗？`)) {
-                return;
-            }
-
             try {
                 const data = await apiRequest('/admin/rollout/whitelist', 'POST', {
                     platform_quality: platform,
@@ -1261,10 +1289,6 @@
 
         // 从黑名单删除
         async function removeFromBlacklist(platform, ip) {
-            if (!confirm(`确定要从黑名单中删除 ${ip} 吗？`)) {
-                return;
-            }
-
             try {
                 const data = await apiRequest('/admin/rollout/blacklist', 'POST', {
                     platform_quality: platform,
@@ -1276,6 +1300,106 @@
                 loadBlacklist();
             } catch (error) {
                 // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 导入白名单CSV
+        async function importWhitelistCSV() {
+            const platform = document.getElementById('whitelist-platform').value;
+            const fileInput = document.getElementById('whitelist-csv-file');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showMessage('请选择CSV文件', 'error');
+                return;
+            }
+
+            const token = localStorage.getItem('admin_token');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('platform_quality', platform);
+
+            try {
+                const response = await fetch('/admin/rollout/whitelist/import', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '导入失败');
+
+                showMessage(`✅ ${data.message}`, 'success');
+                fileInput.value = '';
+                loadWhitelist();
+            } catch (error) {
+                showMessage(`导入失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清空白名单
+        async function clearWhitelist() {
+            const platform = document.getElementById('whitelist-platform').value;
+            const data = await apiRequest('/admin/rollout/whitelist/clear', 'POST', {
+                platform_quality: platform
+            });
+            showMessage(`✅ ${data.message}`, 'success');
+            loadWhitelist();
+        }
+
+        // 清空黑名单
+        async function clearBlacklist() {
+            const platform = document.getElementById('blacklist-platform').value;
+            const data = await apiRequest('/admin/rollout/blacklist/clear', 'POST', {
+                platform_quality: platform
+            });
+            showMessage(`✅ ${data.message}`, 'success');
+            loadBlacklist();
+        }
+
+        // 导入黑名单CSV
+        async function importBlacklistCSV() {
+            const platform = document.getElementById('blacklist-platform').value;
+            const fileInput = document.getElementById('blacklist-csv-file');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showMessage('请选择CSV文件', 'error');
+                return;
+            }
+
+            const token = localStorage.getItem('admin_token');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('platform_quality', platform);
+
+            try {
+                const response = await fetch('/admin/rollout/blacklist/import', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '导入失败');
+
+                showMessage(`✅ ${data.message}`, 'success');
+                fileInput.value = '';
+                loadBlacklist();
+            } catch (error) {
+                showMessage(`导入失败: ${error.message}`, 'error');
             }
         }
 
