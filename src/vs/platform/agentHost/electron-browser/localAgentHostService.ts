@@ -19,6 +19,8 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
+import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -72,6 +74,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
+	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
+	private readonly _initializeResult: ISettableObservable<InitializeResult | undefined> = observableValue('agentHostInitializeResult', undefined);
 
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
@@ -84,6 +88,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+	}
+
+	get initializeResult(): IObservable<InitializeResult | undefined> {
+		return this._initializeResult;
 	}
 
 	constructor(
@@ -175,6 +183,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
 		const client = store.add(new MessagePortClient(port, this.clientId));
 		registerAgentHostClientChannels(client, this._instantiationService, this._logService, this._ahpLogger, this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true);
+
+		// The in-process (local) transport does not perform the AHP `initialize`
+		// handshake, so synthesize a minimal InitializeResult carrying the only
+		// field meaningful to clients here: the terminal command prefix. It is
+		// hardcoded to match the host's `BANG_COMMAND_PREFIX` (`!`) — the local
+		// host runs the same bundled code, so there is no need for an extra RPC
+		// round-trip. Set before `complete(client)` so any session created
+		// afterwards observes it.
+		this._initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], terminalCommandPrefix: '!' }, undefined);
+
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
@@ -312,7 +330,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {
 		return this._completionTriggerCharactersOnce ??= this._proxy.getCompletionTriggerCharacters();
 	}
-	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}

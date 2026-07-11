@@ -348,6 +348,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('workbench.activityBar.location', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case LayoutSettings.MODERN_UI:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'mrleemurray';
+					comment: 'This is used to know if the experimental Modern UI Update is explicitly enabled or disabled by the user.';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('workbench.experimental.modernUI', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case AutoUpdateConfigurationKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';

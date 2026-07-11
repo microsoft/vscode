@@ -24,6 +24,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
 const changesEditorOptions: IEditorOptions = {
@@ -220,7 +221,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 	/** Whether the editor shows a workspace file (a file-system resource), excluding managed placeholders. */
 	private _isWorkspaceFileEditor(editor: EditorInput): boolean {
-		if (this._coordinator.isManagedEditor(editor)) {
+		if (editor instanceof DockedEditorInput) {
 			return false;
 		}
 		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });

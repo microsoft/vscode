@@ -15,7 +15,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -41,9 +40,9 @@ import { IListService, WorkbenchAsyncDataTree, WorkbenchDataTree, WorkbenchListF
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorResourceAccessor, DEFAULT_EDITOR_ASSOCIATION, IEditorPartOptions, SideBySideEditor, isDiffEditorInput } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorResolverService, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
@@ -52,7 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
-import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -530,53 +529,17 @@ export class BreadcrumbsControl {
 		return wasHidden !== this.isHidden();
 	}
 
-	/**
-	 * Determines the editors available for the active editor's resource. Returns `undefined` when
-	 * there is nothing meaningful to switch between: no resource, only the default text editor, or an
-	 * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
-	 */
-	private _getAvailableEditors(): { resource: URI; isDiffEditor: boolean; originalResource?: URI; modifiedResource?: URI; currentId: string; editors: RegisteredEditorInfo[] } | undefined {
-		const activeEditor = this._editorGroup.activeEditor;
-		const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			return undefined;
-		}
-		const editors = this._editorResolverService.getEditors(resource);
-		if (editors.length <= 1) {
-			return undefined;
-		}
-		const isDiffEditor = isDiffEditorInput(activeEditor);
-		return {
-			resource,
-			isDiffEditor,
-			originalResource: isDiffEditor ? activeEditor.original.resource : undefined,
-			modifiedResource: isDiffEditor ? activeEditor.modified.resource : undefined,
-			currentId: activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id,
-			editors
-		};
-	}
-
-	/**
-	 * The label to show for an editor type. In a diff context the default text editor is presented as
-	 * "Text Diff Editor" to match how it actually opens.
-	 */
-	private _editorTypeDisplayLabel(editor: RegisteredEditorInfo, isDiffEditor: boolean): string {
-		if (isDiffEditor && editor.id === DEFAULT_EDITOR_ASSOCIATION.id) {
-			return localize('textDiffEditor', "Text Diff Editor");
-		}
-		return editor.label;
-	}
-
 	private _updateEditorTypeControl(): void {
 		const wasHidden = this._editorTypeNode.classList.contains('hidden');
 		const previousWidth = wasHidden ? 0 : this._editorTypeNode.offsetWidth;
 
-		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? this._getAvailableEditors() : undefined;
-		if (!available) {
+		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
+		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
+		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
 			this._editorTypeNode.classList.toggle('hidden', true);
 		} else {
 			const current = available.editors.find(editor => editor.id === available.currentId);
-			const label = current ? this._editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
+			const label = current ? editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
 			this._editorTypeLabel.textContent = label;
 			this._editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
 			this._editorTypeNode.classList.toggle('hidden', false);
@@ -593,68 +556,11 @@ export class BreadcrumbsControl {
 	}
 
 	private _showEditorTypePicker(): void {
-		const available = this._getAvailableEditors();
+		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService);
 		if (!available) {
 			return;
 		}
-		const glob = `*${extUri.extname(available.resource)}`;
-		// Show the contributing extension in parentheses, but only for extension-provided editors.
-		// Built-in providers share this localized label, so their (redundant) source is omitted.
-		const builtinProviderLabel = localize('builtinProviderDisplayName', "Built-in");
-		const labelWithSource = (editor: RegisteredEditorInfo) => {
-			const label = this._editorTypeDisplayLabel(editor, available.isDiffEditor);
-			return editor.detail && editor.detail !== builtinProviderLabel
-				? localize('editorType.labelWithSource', "{0} - {1}", label, editor.detail)
-				: label;
-		};
-
-		// Reopen the active editor with the chosen editor type. The currently active type is checked.
-		const reopenActions: IAction[] = available.editors.map(editor => toAction({
-			id: editor.id,
-			label: labelWithSource(editor),
-			checked: editor.id === available.currentId,
-			run: () => this._commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id)
-		}));
-
-		// Persist the chosen editor as the default for this file type. For diffs this updates the
-		// specialized `workbench.diffEditorAssociations` setting instead of the general one. The
-		// currently configured default (if any) is checked.
-		const configuredDefault = this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor);
-		const setDefaultActions: IAction[] = available.editors.map(editor => toAction({
-			id: `setDefault.${editor.id}`,
-			label: labelWithSource(editor),
-			checked: editor.id === configuredDefault,
-			run: () => this._editorResolverService.updateUserAssociations(glob, editor.id, available.isDiffEditor)
-		}));
-		const setDefaultSubmenu = new SubmenuAction(
-			'breadcrumbs.editorType.setDefault',
-			available.isDiffEditor
-				? localize('editorType.setDefaultDiff', "Set Default (Diff Only) for '{0}'", glob)
-				: localize('editorType.setDefault', "Set Default for '{0}'", glob),
-			setDefaultActions
-		);
-
-		const actions: IAction[] = [...reopenActions, new Separator(), setDefaultSubmenu];
-
-		// For diffs, offer to open either side as a standalone editor.
-		if (available.isDiffEditor) {
-			actions.push(new Separator());
-			if (available.originalResource) {
-				actions.push(toAction({
-					id: 'breadcrumbs.editorType.openOriginal',
-					label: localize('editorType.openOriginal', "Open Original"),
-					run: () => this._editorService.openEditor({ resource: available.originalResource! })
-				}));
-			}
-			if (available.modifiedResource) {
-				actions.push(toAction({
-					id: 'breadcrumbs.editorType.openModified',
-					label: localize('editorType.openModified', "Open Modified"),
-					run: () => this._editorService.openEditor({ resource: available.modifiedResource! })
-				}));
-			}
-		}
-
+		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => this._editorTypeNode,
 			getActions: () => actions

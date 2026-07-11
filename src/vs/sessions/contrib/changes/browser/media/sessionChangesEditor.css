@@ -96,7 +96,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 0 var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: default;
@@ -251,7 +250,7 @@
 
 /* Compact the ChangesActionsBar buttons to 24px (2px shorter than the classic
  * 26px header buttons) so the changes-editor header stays compact without extra
- * header padding. Keyed off the bar's marker class. In the sessions title bar the
+ * header padding. Keyed off the bar's marker class. In the editor tabs title the
  * 20px override below (scoped to the toolbar action-item context) wins on
  * specificity, so this 24px baseline effectively applies to the classic internal
  * changes-editor header. */
@@ -262,8 +261,8 @@
 }
 
 /* The Create Pull Request bar is rendered as a toolbar action item
- * (`.action-item.changes-actions-bar` inside a `.monaco-action-bar`) in the sessions
- * title bar (session actions area), where the classic
+ * (`.action-item.changes-actions-bar` inside a `.monaco-action-bar`) in the editor
+ * tabs title (the editor-actions area of the docked tab bar), where the classic
  * `.session-changes-editor-header-right` normalization does not reach. Scope these to
  * the action-item context so the classic internal changes-editor header and the aux-bar
  * Changes view are left untouched. */
@@ -271,21 +270,47 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
+	min-width: 0;
 	/* Small breathing room so the button isn't flush against neighbouring toolbar icons. */
 	margin-left: var(--vscode-spacing-size20);
 	margin-right: var(--vscode-spacing-size20);
 }
 
-/* Render the button bar thinner so it sits comfortably in the title bar. Overrides the
- * default 24px ChangesActionsBar button height without affecting the classic internal
+/* Normalize the button bar height so it sits comfortably in the editor tabs title. Overrides the
+ * default ChangesActionsBar button height without affecting the classic internal
  * changes-editor header (which renders the bar on a plain div, not inside a
  * `.monaco-action-bar .action-item`). */
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button,
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
-	height: 20px;
-	min-height: 20px;
+	height: 26px;
+	min-height: 26px;
 	padding-top: 0;
 	padding-bottom: 0;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
+	display: flex;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	flex: 1 1 auto;
+	flex-wrap: wrap;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button-dropdown-separator,
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* The generic actionbar rule `.monaco-action-bar .action-item .codicon { width:
@@ -295,7 +320,8 @@
  * specificity than the base rule) so the buttons size to their own content. */
 .monaco-action-bar .action-item.changes-actions-bar .codicon {
 	width: auto;
-	height: auto;
+	height: 24px;
+	flex-shrink: 0;
 	color: var(--vscode-button-foreground) !important;
 }
 

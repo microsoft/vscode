@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -32,10 +33,11 @@ export const CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS = 'chat-input-picker-dropd
 export const CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION = 150;
 export const CHAT_INPUT_PICKER_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
 
-function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
 	return {
 		...listOptions,
 		className: [listOptions?.className, CHAT_INPUT_PICKER_DROPDOWN_CLASS].filter(Boolean).join(' '),
+		anchorPosition: AnchorPosition.ABOVE,
 		closeAnimation: listOptions?.closeAnimation ?? {
 			className: CHAT_INPUT_PICKER_DROPDOWN_CLOSING_CLASS,
 			duration: CHAT_INPUT_PICKER_CLOSE_ANIMATION_DURATION,

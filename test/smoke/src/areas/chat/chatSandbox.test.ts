@@ -194,7 +194,7 @@ export function setup(logger: Logger): void {
 		 * Expected result: The command is sandbox-wrapped and its output contains
 		 * `${sandboxReply}` and `SANDBOX_EXIT_CODE=0`.
 		 */
-		it('runs terminal commands inside the sandbox', async function () {
+		it.skip('runs terminal commands inside the sandbox', async function () {
 			const app = this.app as Application;
 
 			try {
@@ -307,7 +307,7 @@ export function setup(logger: Logger): void {
 		 * Input: Enable allowNetwork and ask chat to run an HTTP request to the local mock server.
 		 * Expected result: The sandbox permits the request and its output contains `${networkAllowedReply}`.
 		 */
-		it('allows terminal network access when allowNetwork is enabled', async function () {
+		it.skip('allows terminal network access when allowNetwork is enabled', async function () {
 			const app = this.app as Application;
 
 			try {

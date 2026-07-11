@@ -18,11 +18,14 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { localize } from '../../../../../nls.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 
 //#region Session Opener Registry
 
 export interface ISessionOpenerParticipant {
 	handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean>;
+	handleOpenSessionResource?(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<boolean>;
 }
 
 export interface ISessionOpenOptions {
@@ -52,6 +55,33 @@ class SessionOpenerRegistry {
 export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
+
+export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+
+	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		if (!participant.handleOpenSessionResource) {
+			continue;
+		}
+
+		try {
+			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSessionResource?.(accessor, resource, openOptions));
+			if (handled) {
+				return undefined;
+			}
+		} catch (error) {
+			logService.error(error);
+		}
+	}
+
+	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
+	if (!session) {
+		throw new Error(`Chat session not found: ${resource.toString()}`);
+	}
+
+	return instantiationService.invokeFunction(openSession, session, openOptions);
+}
 
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);

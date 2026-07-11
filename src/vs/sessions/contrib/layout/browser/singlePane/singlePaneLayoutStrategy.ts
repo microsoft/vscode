@@ -11,7 +11,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionViewState } from '../baseSessionLayoutController.js';
 
 /**
@@ -56,15 +55,11 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	/** Editors the controller itself is closing, so their close is not a user dismissal. */
 	readonly internallyClosingEditors = new Set<EditorInput>();
 
-	/** Non-managed editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
+	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
 	collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
 
 	constructor(private readonly _sessionChangesService: ISessionChangesService) {
 		super();
-	}
-
-	isManagedEditor(editor: EditorInput): boolean {
-		return editor instanceof EmptyFileEditorInput || this.getChangesEditorResource(editor) !== undefined;
 	}
 
 	getChangesEditorResource(editor: EditorInput): URI | undefined {

@@ -1937,12 +1937,10 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automations-list-widget .automations-row-disabled-badge {
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 400;
-	padding: 1px 6px;
-	border-radius: 3px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	font-style: italic;
+	color: var(--vscode-foreground);
 }
 
 .automations-list-widget .automations-row-meta {

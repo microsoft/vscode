@@ -24,6 +24,7 @@ import { ISessionChangesService, SessionChangesService } from './sessionChangesS
 import './changesActions.js';
 import './changesViewActions.js';
 import './checksActions.js';
+import './media/multiFileDiffEditor.css';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';

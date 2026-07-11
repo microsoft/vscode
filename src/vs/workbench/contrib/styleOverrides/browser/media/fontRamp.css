@@ -180,3 +180,25 @@
 .style-override.monaco-workbench .monaco-count-badge {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
+
+.style-override.monaco-workbench .agent-sessions-viewer {
+	.agent-session-section {
+		text-transform: none;
+	}
+
+	.agent-session-item .agent-session-details-row {
+		font-size: var(--vscode-agents-fontSize-label2);
+	}
+}
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control {
+	.agent-session-section {
+		padding-left: 12px;
+	}
+}
+
+.style-override.monaco-workbench .monaco-icon-label::after,
+.style-override.monaco-workbench .explorer-folders-view .explorer-item::after {
+	margin-right: 8px;
+	font-size: var(--vscode-fontSize-label2);
+}

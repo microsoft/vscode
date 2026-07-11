@@ -10,6 +10,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -25,6 +26,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
@@ -242,6 +244,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._renderConfigPickers();
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders());
+
+		// Re-render when the layout crosses the phone breakpoint so the
+		// isolation control swaps between the desktop checkbox and the
+		// phone chip (which routes to the unified repository sheet).
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
+				this._renderConfigPickers();
+			}
+		}));
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
@@ -320,6 +331,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
 			if (property === SessionConfigKey.Isolation) {
 				this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
+			}
+			// Isolation renders as a Worktree checkbox on desktop; the phone layout keeps the chip for the unified repo sheet.
+			if (property === SessionConfigKey.Isolation && this._shouldRenderIsolationAsCheckbox(schema)) {
+				this._renderIsolationCheckbox(slot, provider, session.sessionId, schema, value, isReadOnly, !isReadOnly && isLoading);
+				continue;
 			}
 			// `renderPickerTrigger`'s `disabled` flag means "read-only"
 			// (renders a `<span>` with `aria-readonly`). The resolving
@@ -409,6 +425,69 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? localize('agentHostSessionConfig.triggerAriaReadOnly', "{0}: {1}, Read-Only", schema.title, label)
 			: localize('agentHostSessionConfig.triggerAria', "{0}: {1}", schema.title, label));
 		applyAutoApproveTriggerStyles(trigger, property, value);
+	}
+
+	/**
+	 * Whether the isolation property should render as a checkbox
+	 * (Worktree on/off) rather than a dropdown. Only on non-phone
+	 * layouts and only when the schema offers both folder and worktree.
+	 */
+	protected _shouldRenderIsolationAsCheckbox(schema: SessionConfigPropertySchema): boolean {
+		return !isPhoneLayout(this._layoutService)
+			&& Array.isArray(schema.enum)
+			&& schema.enum.includes('worktree')
+			&& schema.enum.includes('folder');
+	}
+
+	private _renderIsolationCheckbox(slot: HTMLElement, provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
+		const disabled = isReadOnly || isLoading;
+		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
+		slot.classList.add('sessions-chat-isolation-checkbox');
+		slot.classList.toggle('disabled', disabled);
+
+		const row = dom.append(slot, dom.$('.action-label'));
+		const checkbox = this._renderDisposables.add(new Checkbox(label, value === 'worktree', { ...defaultCheckboxStyles, size: 14 }));
+		if (disabled) {
+			checkbox.disable();
+		}
+		dom.append(row, checkbox.domNode);
+		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
+		labelSpan.textContent = label;
+
+		const tooltip = schema.description ?? schema.title;
+		if (tooltip) {
+			this._renderDisposables.add(this._hoverService.setupDelayedHover(row, { content: tooltip }));
+		}
+
+		const applyValue = (checked: boolean) => {
+			const before = provider.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] ?? schema.default;
+			const nextValue = checked ? 'worktree' : 'folder';
+			reportNewChatPickerClosed(this._telemetryService, {
+				id: 'NewChatAgentHostSessionConfigPicker',
+				name: `NewChatAgentHostSessionConfigPicker.${SessionConfigKey.Isolation}`,
+				optionIdBefore: typeof before === 'string' ? before : undefined,
+				optionIdAfter: nextValue,
+				optionLabelBefore: typeof before === 'string' ? this._getLabel(schema, before) : undefined,
+				optionLabelAfter: this._getLabel(schema, nextValue),
+				isPII: false,
+			});
+			provider.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, nextValue).catch(() => { /* best-effort */ });
+		};
+
+		this._renderDisposables.add(checkbox.onChange(() => applyValue(checkbox.checked)));
+		if (!disabled) {
+			// Toggle from anywhere on the row so the visible hit target
+			// (padding + checkbox/label gap) matches the interactive one.
+			// The checkbox stops its own click from bubbling here.
+			this._renderDisposables.add(Gesture.addTarget(row));
+			for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+				this._renderDisposables.add(dom.addDisposableListener(row, eventType, e => {
+					dom.EventHelper.stop(e, true);
+					checkbox.checked = !checkbox.checked;
+					applyValue(checkbox.checked);
+				}));
+			}
+		}
 	}
 
 	protected async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {

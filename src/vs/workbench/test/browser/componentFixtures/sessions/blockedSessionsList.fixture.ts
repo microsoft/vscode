@@ -27,6 +27,7 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsList } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
+import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -225,6 +226,12 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
+			}());
+			// `SessionsFlatList`/`SessionItemRenderer` read the voice pending-response
+			// indicator state; stub it as always-empty for the fixture.
+			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
+				override hasPendingResponse() { return false; }
 			}());
 		},
 	});

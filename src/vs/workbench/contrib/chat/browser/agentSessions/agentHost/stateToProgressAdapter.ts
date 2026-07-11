@@ -19,12 +19,12 @@ import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/ag
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { isCreateChatTool, isCreateSessionTool, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
-import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -128,6 +128,39 @@ function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData
 		serverId: tc.contributor.customizationId,
 		channel: channelValue,
 	};
+}
+
+function getToolRawInput(tc: ToolCallState): unknown {
+	try {
+		return tc.status === ToolCallStatus.Streaming || !tc.toolInput ? {} : JSON.parse(tc.toolInput);
+	} catch {
+		return { input: tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput };
+	}
+}
+
+function buildMcpAppToolInputData(tc: ToolCallState, sessionResource: URI, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
+	const mcpAppData = getMcpAppData(tc, sessionResource);
+	if (!mcpAppData) {
+		return undefined;
+	}
+	return {
+		kind: 'input',
+		rawInput: existingRawInput ?? getToolRawInput(tc),
+		mcpAppData,
+	};
+}
+
+function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | undefined): boolean {
+	if (a?.kind !== b?.kind || a?.resourceUri !== b?.resourceUri) {
+		return false;
+	}
+	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
+		return a.serverId === b.serverId && a.channel === b.channel;
+	}
+	if (a?.kind === 'local' && b?.kind === 'local') {
+		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
+	}
+	return a === b;
 }
 
 /**
@@ -479,7 +512,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -489,6 +522,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
+		// A message runs as a terminal command when it starts with the host's
+		// advertised prefix and has a non-empty command after it (mirroring the
+		// host-side bang parser, where a lone `!` is forwarded to the agent).
+		const isTerminalRequest = isTerminalCommandPrompt(turn.message.text, terminalCommandPrefix);
 		history.push({
 			id: turn.id,
 			type: 'request',
@@ -498,6 +535,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			variableData,
 			...(isSystemInitiated ? {
 				isSystemInitiated: true,
+			} : {}),
+			...(isTerminalRequest ? {
+				isTerminalRequest: true,
 			} : {}),
 		});
 
@@ -855,18 +895,37 @@ function getTerminalInput(tc: ToolCallState): string | undefined {
 
 	return undefined;
 }
+
 function getTerminalOutput(tc: ToolCallState) {
-	// TODO: Revisit whether SDK shell tool output should continue coming from
-	// ToolResultContentType.Text, or from terminalComplete.preview when available.
-	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(isToolResultTextContent)?.text : undefined;
-	if (!text) {
+	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
 		return undefined;
 	}
+
+	const terminalComplete = tc.content?.find(isToolResultTerminalCompleteContent);
+
+	// Prefer the structured terminal snapshot. Text content is a compatibility
+	// fallback for older/restored results and can include legacy bookkeeping.
+	let text = terminalComplete?.preview;
+	if (text === undefined) {
+		const fallbackText = tc.content?.find(isToolResultTextContent)?.text;
+		text = fallbackText === undefined ? undefined : stripLegacyTerminalExitMarkers(fallbackText);
+	}
+	if (text === undefined || (!text && terminalComplete?.truncated !== true)) {
+		return undefined;
+	}
+
 	// The detached xterm used to render this output treats input as a raw TTY stream,
 	// so a lone `\n` only advances the row without resetting the column (producing a
 	// staircase). SDK terminal tools return plain text with `\n` line endings, so
 	// normalize to `\r\n` here. The replace is idempotent on already-CRLF input.
-	return { text: text.replace(/\r?\n/g, '\r\n') };
+	return {
+		text: text.replace(/\r?\n/g, '\r\n'),
+		...(terminalComplete?.truncated !== undefined ? { truncated: terminalComplete.truncated } : {}),
+	};
+}
+
+function stripLegacyTerminalExitMarkers(text: string): string {
+	return text.replace(/<shellId:[^>\r\n]*completed with exit code \d+>\s*$/i, '');
 }
 
 function isToolResultTextContent(content: ToolResultContent): content is Extract<ToolResultContent, { type: ToolResultContentType.Text }> {
@@ -1104,8 +1163,8 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (tc.status !== ToolCallStatus.Completed || !tc.success) {
 		return undefined;
 	}
-	const isChat = isCreateChatTool(tc.toolName);
-	if (!isCreateSessionTool(tc.toolName) && !isChat) {
+	const isSend = isSendMessageTool(tc.toolName);
+	if (!isCreateSessionTool(tc.toolName) && !isCreateChatTool(tc.toolName) && !isSend) {
 		return undefined;
 	}
 	const output = getToolOutputText(tc);
@@ -1115,24 +1174,29 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	if (!openLink || !backend) {
 		return undefined;
 	}
+	// A chat-scoped link (create_chat, or send_message targeting a specific chat)
+	// shows the conversation icon; a session-scoped link shows the agent icon.
+	const isChat = isCreateChatTool(tc.toolName) || (isSend && !!parseOpenSessionLinkChatId(openLink));
 	const label = createSessionTitleFromArgs(tc.toolInput) ?? (backend.path.replace(/^\//, '') || backend.toString());
 	return { kind: 'sessionCreated', openLink, label, isChat };
 }
 
 /**
- * Derives a session title for the "Open Session" button from the `create_session`
- * arguments — the prompt the session was started with, trimmed to one line.
+ * Derives a title for the "Open Session" button from a session tool's arguments —
+ * the `prompt` (create_session/create_chat) or `message` (send_message) it was
+ * started with, trimmed to one line.
  */
 function createSessionTitleFromArgs(toolInput: string | undefined): string | undefined {
 	if (!toolInput) {
 		return undefined;
 	}
 	try {
-		const args = JSON.parse(toolInput) as { prompt?: unknown };
-		if (typeof args.prompt !== 'string') {
+		const args = JSON.parse(toolInput) as { prompt?: unknown; message?: unknown };
+		const text = typeof args.prompt === 'string' ? args.prompt : (typeof args.message === 'string' ? args.message : undefined);
+		if (text === undefined) {
 			return undefined;
 		}
-		const firstLine = args.prompt.trim().split('\n')[0].trim();
+		const firstLine = text.trim().split('\n')[0].trim();
 		if (!firstLine) {
 			return undefined;
 		}
@@ -1194,12 +1258,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else {
 		toolSpecificData = buildSessionCreatedToolData(tc);
 		if (!toolSpecificData) {
-			const mcpAppData = getMcpAppData(tc, sessionResource);
-			if (mcpAppData) {
-				let rawInput: unknown;
-				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
-				toolSpecificData = { kind: 'input', rawInput, mcpAppData };
-			}
+			toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
 		}
 	}
 
@@ -1773,6 +1832,8 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		};
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
+	} else if (tc.status !== ToolCallStatus.Streaming) {
+		invocation.toolSpecificData = buildMcpAppToolInputData(tc, sessionResource);
 	}
 
 	return invocation;
@@ -1819,6 +1880,23 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
 			existing.toolSpecificData = { kind: 'subagent', isActive: existing.toolSpecificData.isActive, description, agentName, credits: existing.toolSpecificData.credits, modelName: existing.toolSpecificData.modelName, chatResource: existing.toolSpecificData.chatResource };
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
+
+	// Mount the MCP App once the tool starts running. The channel is present
+	// in `_meta.ui` from the first tool state (a tool cannot start until its
+	// MCP server is Ready), but confirmation-gated tools are created without
+	// `mcpAppData` (see `toolCallStateToInvocation`), so this is where the App
+	// first appears for them. `buildMcpAppToolInputData` returns `undefined`
+	// for non-MCP tools (search, terminal, …), so those fall through to the
+	// handling below.
+	const existingInput = existing.toolSpecificData?.kind === 'input' ? existing.toolSpecificData : undefined;
+	const nextInput = buildMcpAppToolInputData(tc, sessionResource, existingInput?.rawInput);
+	if (nextInput) {
+		if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, nextInput.mcpAppData)) {
+			existing.toolSpecificData = nextInput;
 			existing.notifyToolSpecificDataChanged();
 		}
 		return;
@@ -1947,15 +2025,17 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted) {
-		const mcpAppData = getMcpAppData(tc, backendSession);
-		if (mcpAppData) {
+		const mcpAppInput = buildMcpAppToolInputData(
+			tc,
+			backendSession,
+			invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData.rawInput : undefined,
+		);
+		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
-			let rawInput: unknown = existingInput?.rawInput;
-			if (rawInput === undefined) {
-				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
+			invocation.toolSpecificData = mcpAppInput;
+			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
+				invocation.notifyToolSpecificDataChanged();
 			}
-			invocation.toolSpecificData = { kind: 'input', rawInput, mcpAppData };
-			invocation.notifyToolSpecificDataChanged();
 		}
 	}
 
