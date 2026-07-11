@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, shouldAutoFireHandoff } from '../../common/chatModes.js';
+import { AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, shouldAutoFireHandoff } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -46,39 +46,50 @@ suite('shouldAutoFireHandoff', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('allows firing when nothing has been auto-fired yet', () => {
-		const handoff: IHandOff = { agent: 'agent', label: 'Start Implementation', prompt: 'go', send: true };
-		assert.strictEqual(shouldAutoFireHandoff(handoff, undefined), true);
+		assert.strictEqual(shouldAutoFireHandoff(0), true);
 	});
 
-	test('allows firing a different handoff than the one previously fired', () => {
-		const implement: IHandOff = { agent: 'agent', label: 'Start Implementation', prompt: 'go', send: true };
-		assert.strictEqual(shouldAutoFireHandoff(implement, getHandoffId({ agent: 'plan', label: 'Plan', prompt: '', send: true })), true);
+	test('allows firing up to and including the last attempt under the cap', () => {
+		for (let count = 0; count < AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS; count++) {
+			assert.strictEqual(shouldAutoFireHandoff(count), true, `count=${count} should still be allowed`);
+		}
 	});
 
-	test('blocks re-firing the exact same handoff that was just auto-fired (A -> A cycle)', () => {
-		const handoff: IHandOff = { agent: 'agent', label: 'Continue', prompt: 'keep going', send: true };
-		assert.strictEqual(shouldAutoFireHandoff(handoff, getHandoffId(handoff)), false);
+	test('blocks firing once the cap is reached', () => {
+		assert.strictEqual(shouldAutoFireHandoff(AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS), false);
 	});
 
-	test('blocks a two-hop cycle repeating (A -> B -> A -> B ...)', () => {
-		// Agent A auto-fires a handoff to B; B's response auto-fires the *same*
-		// handoff id back (e.g. both declare a "Continue" handoff to each other
-		// using an identical label) — this is the shape that caused an
-		// unattended Autopilot session to resubmit itself ~40 times.
-		const handoffToB: IHandOff = { agent: 'b', label: 'Continue', prompt: 'go', send: true };
-		let lastFired: string | undefined;
-
-		assert.strictEqual(shouldAutoFireHandoff(handoffToB, lastFired), true);
-		lastFired = getHandoffId(handoffToB);
-
-		// B's response offers the same handoff id straight back — must be suppressed.
-		assert.strictEqual(shouldAutoFireHandoff(handoffToB, lastFired), false);
+	test('stays blocked for counts beyond the cap (defensive — count should never overshoot in practice)', () => {
+		assert.strictEqual(shouldAutoFireHandoff(AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS + 1), false);
 	});
 
-	test('distinguishes handoffs to different agents with the same label', () => {
-		const toAgentA: IHandOff = { agent: 'a', label: 'Continue', prompt: '', send: true };
-		const toAgentB: IHandOff = { agent: 'b', label: 'Continue', prompt: '', send: true };
-		assert.strictEqual(shouldAutoFireHandoff(toAgentB, getHandoffId(toAgentA)), true);
+	test('the cap is reached the same way whether or not a cycle\'s handoff ids happen to match', () => {
+		// Plan's handoff to Implement is labeled "Implement"; Implement's
+		// handoff back to Plan is labeled "Review" — two entirely different
+		// handoff ids (getHandoffId is agent + label). An approach that
+		// detects loops by comparing identities across hops would never see
+		// these two as "the same handoff repeating" and would need a much
+		// more elaborate model to catch this shape at all. A plain
+		// consecutive-attempt count sidesteps the question entirely: it
+		// doesn't matter whether the ids match, only how many unattended
+		// auto-fires have happened in a row, so both a same-id cycle (A -> A)
+		// and a different-id cycle (A -> B -> A with distinct labels each
+		// way) are governed by the exact same cap.
+		const toImplement: IHandOff = { agent: 'implement', label: 'Implement', prompt: '', send: true };
+		const toPlan: IHandOff = { agent: 'plan', label: 'Review', prompt: '', send: true };
+		assert.notStrictEqual(getHandoffId(toImplement), getHandoffId(toPlan));
+
+		assert.strictEqual(shouldAutoFireHandoff(AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS - 1), true);
+		assert.strictEqual(shouldAutoFireHandoff(AUTOPILOT_MAX_CONSECUTIVE_AUTO_HANDOFFS), false);
+	});
+
+	test('a long but genuinely non-repeating chain that stays under the cap is never blocked', () => {
+		// plan -> implement -> verify: three distinct handoffs, well under the
+		// cap, and the chain naturally ends (verify's response offers no
+		// further send:true handoff) rather than continuing indefinitely.
+		for (let count = 0; count < 3; count++) {
+			assert.strictEqual(shouldAutoFireHandoff(count), true);
+		}
 	});
 });
 
