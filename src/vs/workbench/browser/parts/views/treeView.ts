@@ -1666,15 +1666,27 @@ class Aligner extends Disposable {
 			if (!parent.children) {
 				return false;
 			}
-			// Mirror the built-in file icon themable trees, where 'align-icons-and-twisties'
-			// is applied when the theme has file icons but no folder icons: a leaf item's
-			// icon may take the twistie's space, so that labels line up with collapsible
-			// siblings that render a bare twistie. Only when every collapsible sibling
-			// pairs its twistie with an icon or checkbox is the twistie space kept, so
-			// that icons line up in one column. Whether the *parent* has an icon must not
-			// influence the alignment of its children, and giving an icon to a collapsible
-			// sibling must not re-layout the level while other collapsible siblings still
-			// render a bare twistie (#307350).
+			// For file-system-like subtrees - a parent and all of its children are
+			// decorated with a resourceUri - defer to the icon theme exactly like the
+			// built-in Explorer tree does: align the icon with the twistie only when the
+			// theme provides file icons but no folder icons. This keeps the children of
+			// sibling folders aligned across the whole tree even when a folder has no
+			// collapsible sibling to infer alignment from (e.g. the "Minimal" theme,
+			// which has folder icons), avoiding an indentation mess between parallel
+			// file-system roots. Re-rendering on file icon theme changes (see the
+			// TreeRenderer's onDidFileIconThemeChange handler) keeps this live.
+			if (parent.resourceUri !== undefined && parent.children.every(c => c.resourceUri !== undefined)) {
+				return !this.themeService.getFileIconTheme().hasFolderIcons;
+			}
+			// Otherwise mirror the built-in file icon themable trees, where
+			// 'align-icons-and-twisties' is applied when the theme has file icons but no
+			// folder icons: a leaf item's icon may take the twistie's space, so that
+			// labels line up with collapsible siblings that render a bare twistie. Only
+			// when every collapsible sibling pairs its twistie with an icon or checkbox is
+			// the twistie space kept, so that icons line up in one column. Whether the
+			// *parent* has an icon must not influence the alignment of its children, and
+			// giving an icon to a collapsible sibling must not re-layout the level while
+			// other collapsible siblings still render a bare twistie (#307350).
 			const collapsibleSiblings = parent.children.filter(c => c.collapsibleState !== TreeItemCollapsibleState.None);
 			return collapsibleSiblings.length === 0 || collapsibleSiblings.some(c => !this.hasIconOrCheckbox(c));
 		} else {
