@@ -293,8 +293,6 @@ class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
  * the neighboring pickers.
  */
 class AutomationWorkspacePickerActionViewItem extends BaseActionViewItem {
-	private readonly _triggerDisposable = this._register(new MutableDisposable());
-
 	constructor(
 		action: IAction,
 		private readonly picker: AutomationsWorkspacePicker,
@@ -307,7 +305,7 @@ class AutomationWorkspacePickerActionViewItem extends BaseActionViewItem {
 		super.render(container);
 		DOM.clearNode(container);
 		container.classList.add('chat-input-picker-item');
-		this._triggerDisposable.value = this.picker.renderTrigger(container);
+		this.picker.render(container);
 	}
 }
 
