@@ -1132,7 +1132,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const hostService = accessor.get(IHostService);
 
 	const context = explorerService.getContext(false);
-	const hasNativeFilesToPaste = fileList !== undefined && fileList.length > 0;
+	const hasNativeFilesToPaste = fileList && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);

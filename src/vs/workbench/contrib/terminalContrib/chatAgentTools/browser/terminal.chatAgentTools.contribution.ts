@@ -151,6 +151,7 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 			if (
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ||
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork) ||
 				e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ||
 				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) ||
 				e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains) ||

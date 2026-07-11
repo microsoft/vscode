@@ -78,7 +78,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 
 		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 0 || state.summary.title) {
+		if (!state || state.turns.length !== 0 || state.title) {
 			return;
 		}
 
@@ -93,7 +93,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			false,
 			fallbackTitle,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}
@@ -144,7 +144,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			return;
 		}
 		const lastApplied = this._lastAppliedTitle.get(channel);
-		if (lastApplied === undefined || state.summary.title !== lastApplied) {
+		if (lastApplied === undefined || state.title !== lastApplied) {
 			return;
 		}
 		const context = this._buildFirstTurnContext(state.turns[0]);
@@ -161,7 +161,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			true,
 			lastApplied,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}
@@ -216,7 +216,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			true,
 			fallbackTitle,
 			apply,
-			() => this._stateManager.getSessionState(channel)?.summary.title === this._lastAppliedTitle.get(channel),
+			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
 			title => this._persistSessionFlag(channel, 'customTitle', title),
 		);
 	}

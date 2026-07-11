@@ -8,6 +8,58 @@
 	min-width: 0;
 }
 
+/*
+ * Intention label layout: when the model supplies an intention, the collapsed
+ * terminal-row header shows "<intention> <command>" as two flex cells on a
+ * single non-wrapping line. Each cell ellipsis-truncates and they split the
+ * available width equally when the content overflows the row.
+ */
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .chat-used-context-label {
+	width: 100%;
+	max-width: 100%;
+}
+
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button.monaco-icon-button {
+	width: fit-content;
+	max-width: 100%;
+	justify-content: flex-start;
+}
+
+.chat-terminal-thinking-collapsible.chat-terminal-has-intention .monaco-button-mdlabel {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-terminal-label-flex {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: baseline;
+	column-gap: 4px;
+	min-width: 0;
+	width: 100%;
+}
+
+.chat-terminal-label-flex > .chat-terminal-intention,
+.chat-terminal-label-flex > .chat-terminal-command {
+	/* Natural width so short content stays inline and adjacent; only shrink
+	 * (dividing the available space) once the row would overflow. */
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-terminal-label-flex > .chat-terminal-command > code {
+	white-space: nowrap;
+}
+
+.chat-terminal-label-flex > .chat-terminal-label-suffix {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
 .chat-terminal-progress-row > div:first-child {
 	display: none;
 }

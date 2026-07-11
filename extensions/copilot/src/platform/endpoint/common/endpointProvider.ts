@@ -19,6 +19,11 @@ export type CustomModel = {
 
 export type EndpointEditToolName = 'find-replace' | 'multi-find-replace' | 'apply-patch' | 'code-rewrite';
 
+export interface IChatModelRequestOptions {
+	temperature?: number | null;
+	top_p?: number | null;
+}
+
 const allEndpointEditToolNames: ReadonlySet<EndpointEditToolName> = new Set([
 	'find-replace',
 	'multi-find-replace',
@@ -97,11 +102,19 @@ export interface IModelTokenPrices {
 	long_context?: IModelTokenPriceTier;
 }
 
+export interface IModelPromo {
+	id: string;
+	discount_percent: number;
+	ends_at: string;
+	message: string;
+}
+
 export interface IModelBilling {
 	is_premium?: boolean;
 	multiplier?: number;
 	restricted_to?: string[];
 	token_prices?: IModelTokenPrices;
+	promo?: IModelPromo;
 }
 
 export interface IModelAPIResponse {
@@ -115,6 +128,7 @@ export interface IModelAPIResponse {
 	version: string;
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
+	warning_text?: Record<string, string>;
 	billing?: IModelBilling;
 	model_picker_price_category?: string;
 	model_picker_category?: string;
@@ -127,13 +141,14 @@ export type IChatModelInformation = IModelAPIResponse & {
 	capabilities: IChatModelCapabilities;
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
+	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
-	 * Chat Completions → top-level `reasoning_effort`).
+	 * Anthropic Messages API → `output_config.effort`, Chat Completions → top-level `reasoning_effort`).
 	 */
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {

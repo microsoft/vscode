@@ -83,6 +83,23 @@ export class SessionsLayoutPolicy extends Disposable {
 	/** Current viewport class derived from the most recent `update()` call. */
 	readonly viewportClass: IObservable<ViewportClass> = this._viewportClass;
 
+	/**
+	 * Whether the agents window uses the single-pane layout (editor spans the
+	 * detail panel as a docked auxiliary bar). Resolved once at startup from the
+	 * setting; toggling requires a window reload. Never active on phone (which
+	 * has its own mobile layout).
+	 */
+	private _singlePane = false;
+
+	get isSinglePane(): boolean {
+		return this._singlePane && this._viewportClass.get() !== 'phone';
+	}
+
+	/** Set once at startup (from the redesign setting) before the first layout. */
+	setSinglePane(value: boolean): void {
+		this._singlePane = value;
+	}
+
 	/** `true` when the viewport class is `phone`. */
 	readonly isPhoneLayout: IObservable<boolean> = derived(this, reader => {
 		return this._viewportClass.read(reader) === 'phone';

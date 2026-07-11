@@ -8,9 +8,11 @@ import { CAPIClient, RequestType, type CCAModel, type IExtensionInformation } fr
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
+import { parseCopilotTokenFields } from '../copilot/copilotTokenFields.js';
 
 // #region Types
 
@@ -92,6 +94,10 @@ interface ICopilotUserResponse {
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
+	readonly telemetryEndpoint?: string;
+	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
+	readonly apiEndpoint?: string;
 }
 
 /**
@@ -380,6 +386,20 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  *   and is not part of the Anthropic-shaped CAPI surface.
  * - Malformed JSON in an SSE `data:` line is logged and skipped, not thrown.
  */
+/**
+ * Restricted/enhanced telemetry context derived from a user's minted CAPI Copilot session token,
+ * mirroring what the Copilot extension reads off its `CopilotToken` (`rt` opt-in, `tid` tracking id)
+ * plus the CAPI `endpoints.telemetry` host.
+ */
+export interface IRestrictedTelemetryContext {
+	/** Whether the token opts into enhanced/restricted telemetry (the `rt=1` claim). */
+	readonly restrictedTelemetryEnabled: boolean;
+	/** The Copilot user tracking id (`tid` claim), or `undefined` when absent. */
+	readonly trackingId: string | undefined;
+	/** The CAPI `endpoints.telemetry` base URL, resolved only when enabled; `undefined` otherwise. */
+	readonly telemetryEndpoint: string | undefined;
+}
+
 export interface ICopilotApiService {
 
 	readonly _serviceBrand: undefined;
@@ -473,6 +493,25 @@ export interface ICopilotApiService {
 		request: ICopilotUtilityChatCompletionRequest,
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<string>;
+
+	/**
+	 * Resolve this user's restricted-telemetry context from the minted CAPI Copilot session token —
+	 * the `rt` opt-in and `tid` tracking id — plus the CAPI `endpoints.telemetry` host. The GitHub
+	 * token itself carries none of these claims; they live in the Copilot session token (minted via
+	 * `RequestType.CopilotToken`), exactly as the Copilot extension reads them off its `CopilotToken`.
+	 * The telemetry endpoint is resolved only when enabled, so public users incur no extra discovery.
+	 */
+	resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext>;
+
+	/**
+	 * Resolve the CAPI `endpoints.api` base URL discovered for this GitHub token
+	 * (or the loopback test override), or `undefined` when discovery hasn't run
+	 * or failed. The effective CAPI host varies by account (consumer
+	 * `api.githubcopilot.com` vs. Enterprise / proxy), so callers that need the
+	 * real host — e.g. to resolve the correct proxy — should prefer this over the
+	 * hardcoded default.
+	 */
+	resolveApiEndpoint(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -488,6 +527,7 @@ export class CopilotApiService implements ICopilotApiService {
 		fetchFn: FetchFunction | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 	) {
 		this._fetch = fetchFn ?? globalThis.fetch;
 	}
@@ -685,10 +725,13 @@ export class CopilotApiService implements ICopilotApiService {
 			buildType: this._productService.quality === 'stable' ? 'prod' : 'dev',
 		};
 
-		// The user-info endpoint is hosted on api.github.com for consumer accounts.
-		// For GitHub Enterprise the host changes, but we don't currently support
-		// GHE in the agent host — see CopilotAgent for the same assumption.
-		const userUrl = 'https://api.github.com/copilot_internal/user';
+		// Copilot endpoint discovery: GET `/copilot_internal/user` on the GitHub API
+		// host. For GitHub Enterprise the host is derived from `githubEnterpriseUri`
+		// (via the endpoint service); the response's `endpoints.api` then carries the
+		// enterprise CAPI base that CAPIClient routes through. Defaults to
+		// api.github.com when no enterprise URI is set. (GHE Cloud `*.ghe.com` is
+		// handled; GHE Server on-prem `/copilot_internal` routing is unverified.)
+		const userUrl = `${this._gitHubEndpointService.getApiBaseUri()}/copilot_internal/user`;
 
 		return { extensionInfo, userUrl };
 	}
@@ -799,16 +842,40 @@ export class CopilotApiService implements ICopilotApiService {
 	 * dispatched for token B.
 	 */
 	private _getClientForToken(githubToken: string): Promise<CAPIClient> {
+		return this._getEntryForToken(githubToken).then(entry => entry.capiClient);
+	}
+
+	/**
+	 * Resolve this user's restricted-telemetry context. Reads the `rt`/`tid` claims from the minted
+	 * CAPI Copilot session token (the GitHub token has neither), and resolves the CAPI
+	 * `endpoints.telemetry` host from the cached `/copilot_internal/user` discovery only when the
+	 * user is opted in, so public users pay no extra discovery call.
+	 */
+	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
+		const fields = parseCopilotTokenFields(await this._getCopilotToken(githubToken));
+		const restrictedTelemetryEnabled = fields.get('rt') === '1';
+		const trackingId = fields.get('tid');
+		const telemetryEndpoint = restrictedTelemetryEnabled
+			? (await this._getEntryForToken(githubToken)).telemetryEndpoint
+			: undefined;
+		return { restrictedTelemetryEnabled, trackingId, telemetryEndpoint };
+	}
+
+	async resolveApiEndpoint(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).apiEndpoint;
+	}
+
+	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
 		if (existing) {
 			return existing.then(entry => {
 				if (entry.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
-					return entry.capiClient;
+					return entry;
 				}
 				// Stale — evict and recurse to build a fresh entry.
 				this._clientsByToken.delete(githubToken);
-				return this._getClientForToken(githubToken);
+				return this._getEntryForToken(githubToken);
 			}).catch(err => {
 				// A previous failed build leaked into the cache; evict and rebuild.
 				this._clientsByToken.delete(githubToken);
@@ -824,7 +891,7 @@ export class CopilotApiService implements ICopilotApiService {
 			throw err;
 		});
 		this._clientsByToken.set(githubToken, pending);
-		return pending.then(entry => entry.capiClient);
+		return pending;
 	}
 
 	private _invalidateClientForToken(githubToken: string): void {
@@ -859,6 +926,7 @@ export class CopilotApiService implements ICopilotApiService {
 				return {
 					capiClient,
 					expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+					apiEndpoint: overrideApi,
 				};
 			}
 			this._logService.warn(`[CopilotApiService] Ignoring non-loopback CAPI URL override ${overrideApi}; falling back to normal endpoint discovery`);
@@ -882,7 +950,12 @@ export class CopilotApiService implements ICopilotApiService {
 
 		capiClient.updateDomains(
 			{ endpoints: envelope.endpoints ?? {}, sku: envelope.access_type_sku ?? '' },
-			undefined,
+			// Enterprise base URI (e.g. `https://acme.ghe.com`), or `undefined` for
+			// github.com. The package derives the GitHub API host (`api.<host>`) from
+			// this for `copilot_internal` endpoints - notably the Copilot session
+			// token mint (`/copilot_internal/v2/token`). Omitting it strands the mint
+			// on `api.github.com`, which 401s an enterprise token ("Bad credentials").
+			this._gitHubEndpointService.getEnterpriseUri(),
 		);
 
 		this._logService.debug('[CopilotApiService] CAPI endpoint discovered, api=', envelope.endpoints?.api);
@@ -890,6 +963,8 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			telemetryEndpoint: envelope.endpoints?.telemetry,
+			apiEndpoint: envelope.endpoints?.api,
 		};
 	}
 

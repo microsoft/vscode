@@ -148,6 +148,7 @@ jobs:
         displayName: "Generate ThirdPartyNotices (CG)"
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
+        retryCountOnTaskFailure: 3
         continueOnError: true
 
       # =========================================================================

@@ -41,7 +41,6 @@ import { ISessionFileChange } from '../../../services/sessions/common/session.js
 
 interface ICommentItemActions {
 	editAction: Action;
-	convertAction: Action | undefined;
 	removeAction: Action;
 	addReplyAction: Action;
 }
@@ -240,7 +239,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined!, addReplyAction: undefined! };
+			const itemActions: ICommentItemActions = { editAction: undefined!, removeAction: undefined!, addReplyAction: undefined! };
 
 			itemActions.addReplyAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.addReply',
@@ -260,16 +259,15 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			));
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
 
-			if (comment.canConvertToAgentFeedback) {
-				itemActions.convertAction = this._eventStore.add(new Action(
-					'agentFeedback.widget.convert',
-					nls.localize('convertComment', "Accept"),
-					ThemeIcon.asClassName(Codicon.check),
-					true,
-					() => this._convertToAgentFeedback(comment),
-				));
-				actionBar.push(itemActions.convertAction, { icon: true, label: false });
-			}
+			// Comments that can be accepted — either convertible PR review
+			// comments or `created` agent feedback — render their Accept /
+			// Remove affordances in the always-visible bottom button bar, so
+			// those actions are omitted from the hover toolbar to avoid a
+			// duplicate affordance. The convert ("Accept") action is never
+			// shown in the hover toolbar.
+			const showActionButtonsBar = comment.canConvertToAgentFeedback
+				|| (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
+
 			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
@@ -277,11 +275,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				true,
 				() => this._removeComment(comment),
 			));
-			// For created agent feedback the Remove action lives in the bottom
-			// button bar instead, so it's omitted from the hover toolbar to
-			// avoid a duplicate affordance.
-			const showRemoveInToolbar = !(comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
-			if (showRemoveInToolbar) {
+			if (!showActionButtonsBar) {
 				actionBar.push(itemActions.removeAction, { icon: true, label: false });
 			}
 
@@ -302,7 +296,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				item.appendChild(this._renderReplies(comment.replies));
 			}
 
-			if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created) {
+			if (showActionButtonsBar) {
 				this._renderActionButtons(comment, item);
 			}
 
@@ -411,8 +405,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	/**
 	 * Renders the Accept / Remove button bar shown at the bottom of a
-	 * `created` agent feedback comment. Clicking either button performs the
-	 * action and removes the bar.
+	 * `created` agent feedback comment or a PR review comment. Clicking either
+	 * button performs the action and removes the bar. For PR review comments
+	 * "Accept" converts the comment into agent feedback; for agent feedback it
+	 * marks the comment as accepted.
 	 */
 	private _renderActionButtons(comment: ISessionEditorComment, item: HTMLElement): void {
 		const buttonBar = $('div.agent-feedback-widget-actions-bar');
@@ -434,8 +430,16 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._editor.layoutOverlayWidget(this);
 		};
 
+		const isPRComment = comment.source === SessionEditorCommentSource.PRReview;
+		const acceptTooltip = isPRComment
+			? nls.localize('acceptPRFeedbackTooltip', "Share PR comment with agent")
+			: nls.localize('acceptAgentFeedbackTooltip', "Share comment with agent");
+		const deleteTooltip = isPRComment
+			? nls.localize('deletePRFeedbackTooltip', "Remove and mark as resolved on GitHub")
+			: nls.localize('deleteAgentFeedbackTooltip', "Remove agent comment");
+
 		const acceptButton = buttonStore.add(new Button(buttonBar, {
-			title: nls.localize('acceptFeedbackButton', "Accept"),
+			title: acceptTooltip,
 			buttonBackground: 'var(--vscode-charts-purple)',
 			buttonHoverBackground: 'color-mix(in srgb, var(--vscode-charts-purple) 85%, var(--vscode-foreground))',
 			buttonForeground: 'var(--vscode-button-foreground)',
@@ -443,20 +447,24 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}));
 		acceptButton.label = nls.localize('acceptFeedbackButton', "Accept");
 		buttonStore.add(acceptButton.onDidClick(() => {
-			this._acceptFeedback(comment);
+			if (comment.canConvertToAgentFeedback) {
+				this._convertToAgentFeedback(comment);
+			} else {
+				this._acceptFeedback(comment);
+			}
 			dismiss();
 		}));
 
-		const removeButton = buttonStore.add(new Button(buttonBar, {
-			title: nls.localize('removeFeedbackButton', "Remove"),
+		const deleteButton = buttonStore.add(new Button(buttonBar, {
+			title: deleteTooltip,
 			secondary: true,
 			buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
 			buttonSecondaryHoverBackground: 'var(--vscode-button-secondaryHoverBackground)',
 			buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
-			buttonSecondaryBorder: 'var(--vscode-button-border, var(--vscode-editorWidget-border, var(--vscode-widget-border)))',
+			buttonSecondaryBorder: 'var(--vscode-button-secondaryBorder)',
 		}));
-		removeButton.label = nls.localize('removeFeedbackButton', "Remove");
-		buttonStore.add(removeButton.onDidClick(() => {
+		deleteButton.label = nls.localize('deleteFeedbackButton', "Delete");
+		buttonStore.add(deleteButton.onDidClick(() => {
 			this._removeComment(comment);
 			dismiss();
 		}));
@@ -477,9 +485,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -538,9 +543,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Disable item actions while replying so the action bar doesn't conflict.
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -594,9 +596,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const cleanup = () => {
 			replyStore.dispose();
 			actions.editAction.enabled = true;
-			if (actions.convertAction) {
-				actions.convertAction.enabled = true;
-			}
 			actions.removeAction.enabled = true;
 			actions.addReplyAction.enabled = true;
 			this._activeReplyInputs.delete(comment.id);
@@ -696,9 +695,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Re-enable actions
 		actions.editAction.enabled = true;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = true;
-		}
 		actions.removeAction.enabled = true;
 		actions.addReplyAction.enabled = true;
 
@@ -1035,7 +1031,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
  * Groups feedback items and creates combined widgets for nearby items.
  * Widgets start collapsed and expand when navigated to.
  */
-class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
+export class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 

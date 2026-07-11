@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Event } from '../../../../base/common/event.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -15,7 +16,8 @@ import { ChangesetKind } from '../../common/changesetUri.js';
 
 const nullGitStateService = new class implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
-	async refreshSessionGitState(): Promise<ISessionGitState | undefined | null> { return undefined; }
+	readonly onDidRefreshSessionGitState = Event.None;
+	async refreshSessionGitState(): Promise<void> { }
 	async getSessionGitHubState(): Promise<ISessionGitHubState | undefined> { return undefined; }
 	async setSessionGitHubState(): Promise<void> { }
 	async attachSessionGitHubPullRequest(): Promise<void> { }
