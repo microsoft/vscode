@@ -157,6 +157,46 @@ export interface IChatSentiment {
 	registered?: boolean;
 }
 
+/**
+ * The inputs needed to decide whether Chat still requires the user to run setup
+ * (sign in / sign up / trust / enable) before it can service a request.
+ */
+export interface IChatSetupRequirement {
+	/** Whether the setup flow has been completed (any outcome). */
+	readonly completed: boolean;
+	/** Whether the chat extension is disabled for a reason other than trust. */
+	readonly disabled: boolean;
+	/** Whether the chat extension is disabled because the workspace is untrusted. */
+	readonly untrusted: boolean;
+	/** The user's last known or resolved entitlement. */
+	readonly entitlement: ChatEntitlement;
+	/** Whether anonymous (signed-out) Chat access is enabled. */
+	readonly anonymous: boolean;
+	/** Whether BYOK models are available. */
+	readonly hasByokModels: boolean;
+}
+
+/**
+ * Single source of truth for whether Chat still requires setup before it can
+ * service a request. Shared by the setup agent (which routes a sent message
+ * through setup) and the model picker (which surfaces a "Sign in to use Copilot"
+ * state instead of a misleading lone "Auto"). BYOK models and anonymous access
+ * intentionally satisfy the entitlement-based checks so those flows keep working.
+ */
+export function chatRequiresSetup(context: IChatSetupRequirement): boolean {
+	return (
+		(!context.completed && !context.hasByokModels) ||			// Setup not completed (unless BYOK models are available)
+		context.disabled ||											// Extension disabled: run setup to enable
+		context.untrusted ||										// Workspace untrusted: run setup to ask for trust
+		context.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
+		(
+			context.entitlement === ChatEntitlement.Unknown &&		// Entitlement unknown: run setup to sign in / sign up
+			!context.anonymous &&									// unless anonymous access is enabled
+			!context.hasByokModels									// unless BYOK models are available
+		)
+	);
+}
+
 export interface IChatEntitlementService {
 
 	_serviceBrand: undefined;
@@ -166,7 +206,6 @@ export interface IChatEntitlementService {
 	readonly entitlement: ChatEntitlement;
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
-	readonly previewFeaturesDisabled: boolean;
 	readonly clientByokEnabled: boolean;
 	readonly hasByokModels: boolean;
 
@@ -473,10 +512,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return this.context?.value.state.copilotTrackingId;
 	}
 
-	get previewFeaturesDisabled(): boolean {
-		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
-	}
-
 	get clientByokEnabled(): boolean {
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
 	}
@@ -762,6 +797,7 @@ export interface IQuotaSnapshot {
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
 	readonly quotaRemaining?: number;
+	readonly creditsUsed?: number;
 }
 
 export interface IRateLimitSnapshot {
@@ -819,6 +855,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+			const parsedCreditsUsed = rawQuotaSnapshot.credits_used !== undefined ? Number(rawQuotaSnapshot.credits_used) : undefined;
 
 			// Skip snapshots where the user has no allocated entitlement for this
 			// category (e.g. free tier premium_interactions with 0 credits). Under
@@ -837,6 +874,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isFinite(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
 				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isFinite(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
+				creditsUsed: parsedCreditsUsed !== undefined && Number.isFinite(parsedCreditsUsed) && parsedCreditsUsed >= 0 ? parsedCreditsUsed : undefined,
 			};
 
 			switch (quotaType) {

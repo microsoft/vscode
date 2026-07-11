@@ -134,8 +134,8 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 | `border: 1px solid …` (width) | `var(--vscode-strokeThickness)` for the 1px width |
 | `border-radius: 6px` | `var(--vscode-cornerRadius-medium)` (radius ramp) |
 | `padding: 8px 12px` (off-scale) | spacing ramp (`--vscode-spacing-size*`) |
-| `font-size: 14px` (arbitrary) | size ramp (`--vscode-bodyFontSize`, agents `--vscode-agents-fontSize-*`) |
-| `font-weight: 500` | agents `--vscode-agents-fontWeight-semiBold` (no 500) |
+| `font-size: 14px` (arbitrary) | size ramp (`--vscode-fontSize-*`, agents `--vscode-agents-fontSize-*`) |
+| `font-weight: 500` | `--vscode-fontWeight-semiBold` (agents `--vscode-agents-fontWeight-semiBold`; no 500) |
 | codicon `font-size: 14px` | `--vscode-codiconFontSize` (16) / `-compact` (12) |
 
 **Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.

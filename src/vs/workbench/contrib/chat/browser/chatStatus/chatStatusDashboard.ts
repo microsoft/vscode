@@ -102,11 +102,6 @@ export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
 
-	// Status entries surfaced elsewhere (e.g. chat-input pill) and skipped here.
-	private static readonly HIDDEN_ENTRY_IDS = new Set<string>([
-		'copilot.otelStatus',
-	]);
-
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
@@ -152,7 +147,7 @@ export class ChatStatusDashboard extends DomWidget {
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment ||
 			isPooledQuotaDepleted;
-		const contributedEntries = [...this.chatStatusItemService.getEntries()].filter(entry => !ChatStatusDashboard.HIDDEN_ENTRY_IDS.has(entry.id));
+		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||
@@ -244,19 +239,36 @@ export class ChatStatusDashboard extends DomWidget {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
+			const getIncludedDescription = () => {
+				if (isPooledQuotaDepleted) {
+					return {
+						compact: localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle),
+						default: localize('premiumLimitReached', "Organization limit reached.")
+					};
+				}
+
+				if (typeof premiumChat?.creditsUsed === 'number') {
+					return {
+						compact: localize('premiumCreditsUsedCompact', "{0} used", this.quotaCreditsFormatter.value.format(premiumChat.creditsUsed)),
+						default: localize('premiumCreditsUsed', "{0} used", this.quotaCreditsFormatter.value.format(premiumChat.creditsUsed))
+					};
+				}
+
+				return {
+					compact: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle),
+					default: localize('premiumIncluded', "Included with your organization's plan.")
+				};
+			};
+			const includedDescription = getIncludedDescription();
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
 			if (this.options?.compactQuotaLayout) {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
-					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
-					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
+				includedContainer.appendChild($('div.description', undefined, includedDescription.compact));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
-					? localize('premiumLimitReached', "Organization limit reached.")
-					: localize('premiumIncluded', "Included with your organization's plan.")));
+				includedContainer.appendChild($('div.description', undefined, includedDescription.default));
 			}
 		}
 

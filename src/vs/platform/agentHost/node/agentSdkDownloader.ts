@@ -8,10 +8,13 @@ import * as tar from 'tar';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
-import { detectLibc, type LibcFamily } from '../../../base/node/libc.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { detectLibcSync, type LibcFamily } from '../../../base/node/libc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -47,6 +50,12 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
 export interface IAgentSdkPackage {
 	/** Key under `product.agentSdks` — e.g. `'claude'`, `'codex'`. */
 	readonly id: string;
+	/**
+	 * Brand display name for user-facing progress, e.g. `'Claude'`, `'Codex'`.
+	 * The downloader puts this on {@link IAgentSdkDownloadProgress.displayName}
+	 * so clients can build a localized "Downloading {displayName} agent" label.
+	 */
+	readonly displayName: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
 	readonly devOverrideEnvVar: string;
 	/**
@@ -94,7 +103,7 @@ const SUPPORTED_ARCHES = new Set<string>(['x64', 'arm64']);
  */
 export function resolveSdkTarget(
 	pkg: Pick<IAgentSdkPackage, 'hasSeparateMuslLinuxPackage'>,
-	host: ISdkTargetHost = { platform: process.platform, arch: process.arch, libc: detectLibc() },
+	host: ISdkTargetHost = { platform: process.platform, arch: process.arch, libc: detectLibcSync() },
 ): string | undefined {
 	if (!SUPPORTED_PLATFORMS.has(host.platform) || !SUPPORTED_ARCHES.has(host.arch)) {
 		return undefined;
@@ -111,8 +120,45 @@ export function resolveSdkTarget(
 
 export const IAgentSdkDownloader = createDecorator<IAgentSdkDownloader>('agentSdkDownloader');
 
+/** Lifecycle phase of a single SDK download (downloader-internal). */
+export type AgentSdkDownloadPhase = 'started' | 'progress' | 'completed' | 'failed';
+
+/**
+ * A process-global download-progress sample fired on
+ * {@link IAgentSdkDownloader.onDidDownloadProgress}. The downloader owns the
+ * lifecycle: one `started`, throttled `progress` frames, then exactly one
+ * terminal `completed` / `failed` — all sharing a `downloadId`. Concurrent
+ * `loadSdkRoot` callers for the same tarball are deduped, so they observe one
+ * shared download (one `downloadId`).
+ */
+export interface IAgentSdkDownloadProgress {
+	/** Stable id for one download; coalesces frames and distinguishes concurrent fetches. */
+	readonly downloadId: string;
+	/** Package id, e.g. `'claude'` / `'codex'`. */
+	readonly packageId: string;
+	/** Brand display name, e.g. `'Claude'`. */
+	readonly displayName: string;
+	/** Lifecycle phase of this frame. */
+	readonly phase: AgentSdkDownloadPhase;
+	/** Bytes written so far. Monotonically non-decreasing within a `downloadId`. */
+	readonly receivedBytes: number;
+	/** Total bytes from `Content-Length`, or `undefined` when unknown (indeterminate). */
+	readonly totalBytes: number | undefined;
+	/** Short, non-localized failure reason; present only when `phase: 'failed'`. */
+	readonly error?: string;
+}
+
 export interface IAgentSdkDownloader {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fires while a tarball is being fetched (cold cache only): one `started`,
+	 * throttled `progress` samples, then one terminal `completed` / `failed`.
+	 * Never fires for dev-override or cache-hit resolutions (no bytes move).
+	 * Process-global so a single subscriber (the protocol server) can forward
+	 * progress to clients regardless of which session triggered the fetch.
+	 */
+	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress>;
 
 	/**
 	 * Returns the absolute path of the SDK root directory — the directory that
@@ -138,6 +184,20 @@ export interface IAgentSdkDownloader {
 	 * download.
 	 */
 	isAvailable(pkg: IAgentSdkPackage): boolean;
+
+	/**
+	 * True iff {@link loadSdkRoot} would resolve WITHOUT a network download —
+	 * the dev override is set, or a completed cache for the configured version
+	 * already exists on disk. False when product config is present but the
+	 * cache is cold (a fetch would be required), and false when neither an
+	 * override nor product config is configured.
+	 *
+	 * Performs at most a single sentinel `exists` check and never downloads.
+	 * Eager / background callers (e.g. a provider listing its sessions at
+	 * startup) use this to avoid kicking off a multi-second cold download
+	 * before the user has asked for anything.
+	 */
+	isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean>;
 }
 
 // #endregion
@@ -147,8 +207,30 @@ export interface IAgentSdkDownloader {
 /** How long a `loadSdkRoot` failure latches before we try again. */
 const LOAD_FAILURE_NEGATIVE_CACHE_MS = 30_000;
 
-export class AgentSdkDownloader implements IAgentSdkDownloader {
+/**
+ * Minimum gap between download-progress samples. A 70-95MB tarball over a fast
+ * link produces thousands of chunks; without throttling we'd flood the progress
+ * channel. ~250ms keeps the percentage visibly moving without spamming.
+ */
+const PROGRESS_EMIT_THROTTLE_MS = 250;
+
+/**
+ * Parses a `Content-Length` header into a positive integer byte count, or
+ * `undefined` when the header is absent, an array, or not a clean integer.
+ */
+function parseContentLength(header: string | string[] | undefined): number | undefined {
+	if (typeof header !== 'string' || !/^\d+$/.test(header)) {
+		return undefined;
+	}
+	const parsed = parseInt(header, 10);
+	return parsed > 0 ? parsed : undefined;
+}
+
+export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloader {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidDownloadProgress = this._register(new Emitter<IAgentSdkDownloadProgress>());
+	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress> = this._onDidDownloadProgress.event;
 
 	/**
 	 * In-flight downloads keyed by the destination `cacheDir` (which
@@ -180,13 +262,31 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		@IRequestService private readonly _requestService: IRequestService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
 		if (process.env[pkg.devOverrideEnvVar]) {
 			return true;
 		}
 		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
+	}
+
+	async isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean> {
+		if (process.env[pkg.devOverrideEnvVar]) {
+			return true;
+		}
+		const config = this._productService.agentSdks?.[pkg.id];
+		if (!config) {
+			return false;
+		}
+		const sdkTarget = resolveSdkTarget(pkg);
+		if (!sdkTarget) {
+			return false;
+		}
+		const sentinel = URI.joinPath(URI.file(this._cacheDir(pkg.id, config.version, sdkTarget)), '.complete');
+		return this._fileService.exists(sentinel);
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -310,9 +410,21 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		await this._delIgnoringMissing(tmpDirUri);
 		await this._fileService.createFolder(tmpDirUri);
 
+		// Fire the download lifecycle on the process-global event so a single
+		// subscriber (the protocol server) can forward it to clients. One
+		// `started`, throttled `progress` from `_fetch`, then a terminal frame.
+		const downloadId = generateUuid();
+		let lastReceived = 0;
+		let lastTotal: number | undefined;
+		this._fireProgress(pkg, downloadId, 'started', 0, undefined);
+
 		try {
 			const tarballPath = path.join(tmpDir, 'sdk.tgz');
-			await this._fetch(url, tarballPath, token);
+			await this._fetch(url, tarballPath, token, (receivedBytes, totalBytes) => {
+				lastReceived = receivedBytes;
+				lastTotal = totalBytes;
+				this._fireProgress(pkg, downloadId, 'progress', receivedBytes, totalBytes);
+			});
 			await this._extractTarGz(tarballPath, tmpDir);
 			await this._fileService.del(URI.file(tarballPath));
 
@@ -334,6 +446,7 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			} catch (err) {
 				if (await this._handleRenameLoser(err, sentinel, tmpDirUri)) {
 					this._logService.info(`[AgentSdkDownloader] ${pkg.id}: lost rename race, using existing cache`);
+					this._fireProgress(pkg, downloadId, 'completed', lastReceived, lastTotal);
 					return cacheDir;
 				}
 				throw err;
@@ -341,19 +454,42 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 
 			const elapsed = Math.round((Date.now() - start) / 1000);
 			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded in ${elapsed}s`);
+			this._fireProgress(pkg, downloadId, 'completed', lastTotal ?? lastReceived, lastTotal);
 			return cacheDir;
 		} catch (err) {
 			await this._delIgnoringMissing(tmpDirUri);
 			if (token.isCancellationRequested) {
+				this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, 'cancelled');
 				throw new CancellationError();
 			}
+			const message = err instanceof Error ? err.message : String(err);
+			this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, message);
 			throw new Error(
 				`Failed to download ${pkg.id} SDK from ${url} ` +
 				`(cache target: ${cacheDir}). ` +
 				`Set ${pkg.devOverrideEnvVar} to a local SDK root to bypass. ` +
-				`Cause: ${err instanceof Error ? err.message : String(err)}`,
+				`Cause: ${message}`,
 			);
 		}
+	}
+
+	private _fireProgress(
+		pkg: IAgentSdkPackage,
+		downloadId: string,
+		phase: AgentSdkDownloadPhase,
+		receivedBytes: number,
+		totalBytes: number | undefined,
+		error?: string,
+	): void {
+		this._onDidDownloadProgress.fire({
+			downloadId,
+			packageId: pkg.id,
+			displayName: pkg.displayName,
+			phase,
+			receivedBytes,
+			totalBytes,
+			...(error !== undefined ? { error } : {}),
+		});
 	}
 
 	private async _handleRenameLoser(
@@ -375,7 +511,12 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		return true;
 	}
 
-	private async _fetch(url: string, dest: string, token: CancellationToken): Promise<void> {
+	private async _fetch(
+		url: string,
+		dest: string,
+		token: CancellationToken,
+		onBytes?: (receivedBytes: number, totalBytes: number | undefined) => void,
+	): Promise<void> {
 		// Delegate to IRequestService (corporate proxy, strictSSL, kerberos,
 		// retries, redirect follow). `fs.createWriteStream` (not
 		// `IFileService.writeFile`) so that cancelling a multi-MB download
@@ -401,9 +542,31 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			throw new Error(`HTTP ${statusCode} fetching ${url}`);
 		}
 
+		// The CDN sends `Content-Length` for these static tarballs, which lets
+		// us report determinate percentage progress. A missing/garbled header
+		// degrades gracefully to an indeterminate (byte-count only) report.
+		const totalBytes = parseContentLength(context.res.headers['content-length']);
+
 		await new Promise<void>((resolve, reject) => {
 			const out = fs.createWriteStream(dest);
 			let settled = false;
+			// Throttle progress so a fast link doesn't fire thousands of
+			// samples. The first chunk always passes (lastEmit starts at 0)
+			// and 'end' forces a final sample, so consumers see a start and a
+			// 100% finish regardless of chunk timing.
+			let receivedBytes = 0;
+			let lastEmitTime = 0;
+			const emitBytes = (force: boolean) => {
+				if (!onBytes) {
+					return;
+				}
+				const now = Date.now();
+				if (!force && now - lastEmitTime < PROGRESS_EMIT_THROTTLE_MS) {
+					return;
+				}
+				lastEmitTime = now;
+				onBytes(receivedBytes, totalBytes);
+			};
 			const settleResolve = () => {
 				if (settled) { return; }
 				settled = true;
@@ -428,11 +591,16 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			// resume on 'drain'.
 			out.on('drain', () => context.stream.resume());
 			context.stream.on('data', chunk => {
+				receivedBytes += chunk.byteLength;
+				emitBytes(false);
 				if (!out.write(chunk.buffer)) {
 					context.stream.pause();
 				}
 			});
-			context.stream.on('end', () => out.end());
+			context.stream.on('end', () => {
+				emitBytes(true);
+				out.end();
+			});
 			context.stream.on('error', settleReject);
 		});
 	}

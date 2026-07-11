@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { TextDiffEditor } from './textDiffEditor.js';
 import { ActiveCompareEditorCanSwapContext, ActiveCustomEditorDiffCanToggleLayoutContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorResourceAccessor, IUntypedEditorInput, isDiffEditorInput, SideBySideEditor } from '../../../common/editor.js';
+import { IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { getActiveTextDiffEditor, IDiffEditorCommandsService } from './diffEditorCommandsService.js';
 
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
@@ -96,47 +94,8 @@ export function registerDiffEditorCommands(): void {
 	});
 
 
-	function getActiveTextDiffEditor(accessor: ServicesAccessor, args: unknown[]): TextDiffEditor | undefined {
-		const editorService = accessor.get(IEditorService);
-		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
-
-		for (const editor of [editorService.activeEditorPane, ...editorService.visibleEditorPanes]) {
-			if (editor instanceof TextDiffEditor && (!resource || editor.input instanceof DiffEditorInput && isEqual(editor.input.primary.resource, resource))) {
-				return editor;
-			}
-		}
-
-		return undefined;
-	}
-
-	function getActiveDiffModifiedResource(accessor: ServicesAccessor, args: unknown[]): URI | undefined {
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
-		const model = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
-		if (model) {
-			return model.uri;
-		}
-
-		const editorService = accessor.get(IEditorService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
-		if (ActiveCustomEditorDiffCanToggleLayoutContext.getValue(contextKeyService)) {
-			const activeCustomDiffModifiedResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			if (activeCustomDiffModifiedResource && (!resource || isEqual(activeCustomDiffModifiedResource, resource))) {
-				return activeCustomDiffModifiedResource;
-			}
-		}
-
-		for (const editor of [editorService.activeEditor, ...editorService.visibleEditors]) {
-			if (isDiffEditorInput(editor) && editor.modified.resource && (!resource || isEqual(editor.modified.resource, resource))) {
-				return editor.modified.resource;
-			}
-		}
-
-		return undefined;
-	}
-
 	function navigateInDiffEditor(accessor: ServicesAccessor, args: unknown[], next: boolean): void {
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor.get(IEditorService), args);
 
 		if (activeTextDiffEditor) {
 			activeTextDiffEditor.getControl()?.goToDiff(next ? 'next' : 'previous');
@@ -150,7 +109,7 @@ export function registerDiffEditorCommands(): void {
 	}
 
 	function focusInDiffEditor(accessor: ServicesAccessor, args: unknown[], mode: FocusTextDiffEditorMode): void {
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor.get(IEditorService), args);
 
 		if (activeTextDiffEditor) {
 			switch (mode) {
@@ -170,19 +129,9 @@ export function registerDiffEditorCommands(): void {
 		}
 	}
 
-	function toggleDiffSideBySide(accessor: ServicesAccessor, args: unknown[]): void {
-		const configService = accessor.get(ITextResourceConfigurationService);
-		const modifiedResource = getActiveDiffModifiedResource(accessor, args);
-		if (!modifiedResource) { return; }
-
-		const key = 'diffEditor.renderSideBySide';
-		const val = configService.getValue(modifiedResource, key);
-		configService.updateValue(modifiedResource, key, !val);
-	}
-
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor, args: unknown[]): void {
 		const configService = accessor.get(ITextResourceConfigurationService);
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor.get(IEditorService), args);
 
 		const m = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
 		if (!m) { return; }
@@ -195,7 +144,7 @@ export function registerDiffEditorCommands(): void {
 	async function swapDiffSides(accessor: ServicesAccessor, args: unknown[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
-		const diffEditor = getActiveTextDiffEditor(accessor, args);
+		const diffEditor = getActiveTextDiffEditor(editorService, args);
 		const activeGroup = diffEditor?.group;
 		const diffInput = diffEditor?.input;
 		if (!diffEditor || typeof activeGroup === 'undefined' || !(diffInput instanceof DiffEditorInput) || !diffInput.modified.resource) {
@@ -244,7 +193,7 @@ export function registerDiffEditorCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, ...args) => toggleDiffSideBySide(accessor, args)
+		handler: (accessor, ...args) => accessor.get(IDiffEditorCommandsService).toggleRenderSideBySide(args)
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({

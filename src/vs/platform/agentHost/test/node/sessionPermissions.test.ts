@@ -12,7 +12,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -23,6 +23,7 @@ suite('SessionPermissionManager', () => {
 
 	const disposables = new DisposableStore();
 	let manager: AgentHostStateManager;
+	let configService: AgentConfigurationService;
 	let permissions: SessionPermissionManager;
 
 	// Real (symlink-resolved) temp directories so that the symlink-resolution
@@ -38,8 +39,8 @@ suite('SessionPermissionManager', () => {
 			provider: 'copilot',
 			title: 't',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///project', displayName: 'Project' },
 			workingDirectory,
 		};
@@ -47,6 +48,10 @@ suite('SessionPermissionManager', () => {
 
 	function writeEvent(permissionPath: string): IToolApprovalEvent {
 		return { toolCallId: 'tc-1', session: URI.parse(sessionUri), permissionKind: 'write', permissionPath };
+	}
+
+	function shellEvent(commandLine: string): IToolApprovalEvent {
+		return { toolCallId: 'tc-shell', session: URI.parse(sessionUri), permissionKind: 'shell', toolInput: commandLine };
 	}
 
 	setup(async () => {
@@ -64,7 +69,7 @@ suite('SessionPermissionManager', () => {
 		outsideDir = realpathSync(mkdtempSync(join(baseTmp, 'sesperm-out-')));
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
+		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
 		permissions = disposables.add(new SessionPermissionManager(manager, configService, new NullLogService()));
 		await permissions.initialize();
 
@@ -142,5 +147,87 @@ suite('SessionPermissionManager', () => {
 			sessionUri,
 		);
 		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
+	});
+
+	test('auto-approves shell commands in default permission mode when terminal auto-approve is enabled', async () => {
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('uses forwarded terminal auto-approve rules as the source of truth over fallback defaults', async () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: {} });
+
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('respects forwarded terminal auto-approve deny rules in default permission mode', async () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { echo: false } });
+
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('respects forwarded terminal auto-approve allow rules in default permission mode', async () => {
+		configService.updateRootConfig({ [AgentHostTerminalAutoApproveRulesConfigKey]: { python: true } });
+
+		const result = await permissions.getAutoApproval(shellEvent('python script.py'), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('requires confirmation for shell commands in default permission mode when terminal auto-approve is disabled', async () => {
+		configService.updateRootConfig({
+			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,
+			[AgentHostTerminalAutoApproveRulesConfigKey]: { echo: true },
+		});
+
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('does not affect session bypass permission mode when terminal auto-approve is disabled', async () => {
+		configService.updateRootConfig({
+			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,
+			[AgentHostTerminalAutoApproveRulesConfigKey]: { echo: false },
+		});
+		manager.setSessionConfig(sessionUri, {
+			schema: platformSessionSchema.toProtocol(),
+			values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+		});
+
+		const result = await permissions.getAutoApproval(shellEvent('echo hello'), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
+	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+
+		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'anything.txt')), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
+	test('auto-approves shell commands when global auto-approve is enabled, even with terminal auto-approve disabled', async () => {
+		configService.updateRootConfig({
+			[AgentHostGlobalAutoApproveEnabledConfigKey]: true,
+			[AgentHostTerminalAutoApproveEnabledConfigKey]: false,
+		});
+
+		// A command that would otherwise require confirmation (terminal
+		// auto-approve disabled) is approved because global auto-approve is a
+		// superset that short-circuits before the per-kind checks.
+		const result = await permissions.getAutoApproval(shellEvent('rm -rf /tmp/whatever'), sessionUri);
+		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
+	});
+
+	test('global auto-approve is reported independently of the session permission picker', () => {
+		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), false);
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
+
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+
+		// The global setting is a superset of all settings but does not change the
+		// session's own approval level (the permissions picker stays at default).
+		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
+		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
 	});
 });

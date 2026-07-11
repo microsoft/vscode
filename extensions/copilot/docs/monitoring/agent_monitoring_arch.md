@@ -32,7 +32,7 @@ SDK Native (tracer B, same traceId):
   invoke_agent → chat → execute_tool → invoke_agent (subagent) → permission → ...
 
 Bridge: SDK Provider B → MultiSpanProcessor._spanProcessors.push(bridge)
-  → onEnd(ReadableSpan) → ICompletedSpanData + CHAT_SESSION_ID → IOTelService.injectCompletedSpan
+  → onEnd(ReadableSpan) → ICompletedSpanData + CHAT_SESSION_ID + gen_ai.conversation.id → IOTelService.injectCompletedSpan
   → onDidCompleteSpan → Debug Panel + File Logger
 ```
 
@@ -47,6 +47,16 @@ invoke_agent copilot (INTERNAL)          ← toolCallingLoop.ts
 ├── chat gpt-4o (CLIENT)                 ← chatMLFetcher.ts
 │   ├── execute_tool readFile (INTERNAL) ← toolsService.ts
 │   └── execute_tool runCommand (INTERNAL)
+├── chat gpt-4o (CLIENT)
+└── ...
+```
+
+#### Inline Chat
+
+```
+invoke_agent Inline Chat (INTERNAL)      ← inlineChatIntent.ts
+├── chat gpt-4o (CLIENT)                 ← chatMLFetcher.ts
+├── execute_tool apply_patch (INTERNAL)  ← toolsService.ts
 ├── chat gpt-4o (CLIENT)
 └── ...
 ```
@@ -147,6 +157,7 @@ src/extension/trajectory/vscode-node/
 | `chatMLFetcher.ts` | `chat` spans — all LLM API calls (foreground + Claude proxy) |
 | `anthropicProvider.ts`, `geminiNativeProvider.ts` | `chat` spans — BYOK provider requests |
 | `toolCallingLoop.ts` | `invoke_agent` spans — foreground agent orchestration |
+| `inlineChatIntent.ts` | `invoke_agent Inline Chat` spans — inline chat orchestration |
 | `toolsService.ts` | `execute_tool` spans — foreground tool invocations |
 | `chatHookService.ts` | `execute_hook` spans — foreground agent hooks |
 | `copilotcliSession.ts` | `invoke_agent copilotcli` wrapper span + traceparent propagation + hook event stash |
@@ -198,10 +209,13 @@ Both export to the same OTLP endpoint. Bridge processor sits on Provider B, forw
 
 `resolveOTelConfig()` implements layered precedence:
 
-1. `COPILOT_OTEL_*` env vars (highest)
-2. `OTEL_EXPORTER_OTLP_*` standard env vars
-3. VS Code settings (`github.copilot.chat.otel.*`)
-4. Defaults (lowest)
+1. Enterprise managed settings (policy) — highest; overrides env vars
+2. `COPILOT_OTEL_*` env vars
+3. `OTEL_EXPORTER_OTLP_*` standard env vars
+4. VS Code settings (`github.copilot.chat.otel.*`)
+5. Defaults (lowest)
+
+The OTLP wire protocol distinguishes `http/json` (default) from `http/protobuf`; `grpc` is selected by the gRPC exporter type.
 
 Kill switch: `telemetry.telemetryLevel === 'off'` → all OTel disabled.
 
@@ -211,6 +225,7 @@ The resolved config records *how* OTel was enabled in `OTelConfig.enabledVia` (u
 
 | `enabledVia` | Trigger |
 |---|---|
+| `policy` | Enterprise managed settings enable OTel (`telemetry.enabled` or a managed endpoint) |
 | `envVar` | `COPILOT_OTEL_ENABLED=true` |
 | `setting` | `github.copilot.chat.otel.enabled` is `true` |
 | `otlpEndpointEnvVar` | `OTEL_EXPORTER_OTLP_ENDPOINT` is set without an explicit enable |
@@ -379,6 +394,25 @@ return this._otel.startActiveSpan('invoke_agent child', { parentTraceContext: pa
 | `copilot_chat.*` | Extension-specific (legacy; several keys dual-emit alongside `github.copilot.*`) | `copilot_chat.session_id`, `copilot_chat.chat_session_id` |
 | `github.copilot.*` | Canonical Copilot namespace — extension-emitted enrichment (foreground agent, Claude agent, CLI bridge) + CLI SDK internal metrics | `github.copilot.agent.type`, `github.copilot.git.repository`, `github.copilot.tool.parameters.edit_type`, `github.copilot.hook.decision`, `github.copilot.cost`, `github.copilot.aiu` |
 | `claude_code.*` | Claude subprocess | `claude_code.token.usage`, `claude_code.cost.usage` |
+
+---
+
+## Session Correlation
+
+For **extension-emitted** spans (`invoke_agent`, `chat`, `execute_tool`, `execute_hook` produced by the foreground agent, Claude agent, BYOK providers, and `chatMLFetcher`), `gen_ai.conversation.id` carries the **VS Code chat session id** on every exported span, so a vendor-agnostic OTLP backend can group all spans of a session on the standard GenAI key without a traceId → root join. The vendor keys `copilot_chat.session_id` / `copilot_chat.chat_session_id` are dual-emitted for the Agent Debug Log and SQLite span store (`COALESCE(conversation_id, chat_session_id)`).
+
+Notes:
+- On `chat` spans, `gen_ai.conversation.id` holds the session id — **not** the per-turn request id. The request id lives on `gen_ai.response.id` / telemetry events.
+- `gen_ai.conversation.id` is only present when a session id is available; the foreground `chat`/tool/hook paths omit it when there is no active chat session, so downstream consumers must treat it as conditional.
+- BYOK `chat` spans (`anthropicProvider.ts`, `geminiNativeProvider.ts`) read the session id from the in-scope `CapturingToken.chatSessionId` and emit `gen_ai.conversation.id` + `copilot_chat.session_id` + `copilot_chat.chat_session_id`.
+- `embeddings` spans are intentionally not session-scoped and carry no session id.
+
+### Copilot CLI in-process (SDK-native spans)
+
+These spans are produced by the Copilot runtime SDK, not the extension, so there are **two independent export paths** with different correlation coverage:
+
+- **Debug panel copy** (via the bridge → `injectCompletedSpan` → `onDidCompleteSpan`): `copilotCliBridgeSpanProcessor.ts` injects `copilot_chat.chat_session_id` **and** `gen_ai.conversation.id` (session id) onto the copied span for any span that lacks them, keyed by a traceId → session map. This affects only the debug-panel / file-logger view.
+- **SDK's own OTLP export** (via the runtime's `BatchSpanProcessor`): the bridge **cannot** mutate these spans. Their `gen_ai.conversation.id` is whatever the runtime stamps — currently `invoke_agent` and `chat` (and `execute_tool` once [github/copilot-agent-runtime#12383](https://github.com/github/copilot-agent-runtime/pull/12383) lands). Closing this gap for other CLI child spans must happen in the runtime.
 
 ---
 

@@ -96,7 +96,7 @@ export function getAgentSessionProviderIcon(provider: AgentSessionTarget): Theme
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
-			return Codicon.copilot;
+			return Codicon.vm;
 		default:
 			return Codicon.extensions;
 	}
@@ -190,7 +190,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionTarget)
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Run a Copilot SDK agent in a dedicated process.';
+			return localize('chat.session.providerDescription.agentHostCopilot', "Run a Copilot SDK agent in the local agent host process.");
 		default:
 			return '';
 	}

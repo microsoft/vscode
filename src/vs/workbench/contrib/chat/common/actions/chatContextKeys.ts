@@ -66,6 +66,12 @@ export namespace ChatContextKeys {
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
 	export const lockedCodingAgentId = new RawContextKey<string>('lockedCodingAgentId', '', { type: 'string', description: localize('lockedCodingAgentId', "The agent ID when the chat widget is locked to a coding agent session.") });
 	/**
+	 * Widget-scoped: true when the chat shown in this widget is read-only (non-interactive),
+	 * e.g. an observable worker chat. Read-only chats hide the composer and do not offer
+	 * mutating actions such as Start Over or Restore Checkpoint.
+	 */
+	export const readOnly = new RawContextKey<boolean>('chatIsReadonly', false, { type: 'boolean', description: localize('chatIsReadonly', "True when the chat shown in the widget is read-only (non-interactive).") });
+	/**
 	 * Widget-scoped: true when this chat widget is locked to an Agent Host-backed chat session.
 	 */
 	export const chatIsAgentHostSession = new RawContextKey<boolean>('chatIsAgentHostSession', false, { type: 'boolean', description: localize('chatIsAgentHostSession', "True when the chat widget is locked to an Agent Host session.") });
@@ -102,6 +108,7 @@ export namespace ChatContextKeys {
 	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
 	export const inQuickChat = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });
 	export const inAgentSessionsWelcome = new RawContextKey<boolean>('inAgentSessionsWelcome', false, { type: 'boolean', description: localize('inAgentSessionsWelcome', "True when the chat input is within the agent sessions welcome page.") });
+	export const inAutomationsDialog = new RawContextKey<boolean>('inAutomationsDialog', false, { type: 'boolean', description: localize('inAutomationsDialog', "True when the chat input is within the automations dialog.") });
 	export const chatSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session.") });
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });

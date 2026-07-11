@@ -94,6 +94,7 @@ export interface ILlmNESTelemetry extends Partial<IStatelessNextEditTelemetry> {
 	readonly isFromCache: boolean;
 	readonly reusedRequest: ReusedRequestKind | undefined;
 	readonly subsequentEditOrder: number | undefined;
+	readonly sourcePatchIndex: number | undefined;
 	readonly activeDocumentOriginalLineCount: number | undefined;
 	readonly activeDocumentEditsCount: number | undefined;
 	readonly activeDocumentLanguageId: string | undefined;
@@ -144,6 +145,11 @@ export interface INextEditProviderTelemetry extends ILlmNESTelemetry, IDiagnosti
 	readonly notebookCellLines: string | undefined;
 	readonly isActiveDocument?: boolean;
 	readonly isMultilineEdit?: boolean;
+	/**
+	 * Signed line distance from the cursor line to the suggested edit's range start line
+	 * (`rangeStartLine - cursorLine`, 0-based). Undefined for cross-document suggestions.
+	 */
+	readonly suggestionLineDistanceToCursor?: number;
 	readonly isEolDifferent?: boolean;
 	readonly isNextEditorVisible?: boolean;
 	readonly isNextEditorRangeVisible?: boolean;
@@ -244,6 +250,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			isFromCache: this._isFromCache,
 			reusedRequest: this._reusedRequest,
 			subsequentEditOrder: this._subsequentEditOrder,
+			sourcePatchIndex: this._sourcePatchIndex,
 			documentsCount,
 			editsCount,
 			activeDocumentEditsCount,
@@ -351,6 +358,12 @@ export class LlmNESTelemetryBuilder extends Disposable {
 	private _subsequentEditOrder: number | undefined;
 	public setSubsequentEditOrder(subsequentEditOrder: number | undefined): this {
 		this._subsequentEditOrder = subsequentEditOrder;
+		return this;
+	}
+
+	private _sourcePatchIndex: number | undefined;
+	public setSourcePatchIndex(sourcePatchIndex: number | undefined): this {
+		this._sourcePatchIndex = sourcePatchIndex;
 		return this;
 	}
 
@@ -484,6 +497,7 @@ export class NextEditProviderTelemetryBuilder extends Disposable {
 			pickedNES: this._nesTypePicked,
 			hadLlmNES: this._hadLlmNES,
 			isMultilineEdit: this._isMultilineEdit,
+			suggestionLineDistanceToCursor: this._suggestionLineDistanceToCursor,
 			isEolDifferent: this._isEolDifferent,
 			isActiveDocument: this._isActiveDocument,
 			isNextEditorVisible: this._isNextEditorVisible,
@@ -591,6 +605,17 @@ export class NextEditProviderTelemetryBuilder extends Disposable {
 	private _isMultilineEdit?: boolean;
 	public setIsMultilineEdit(isMultiLine: boolean): this {
 		this._isMultilineEdit = isMultiLine;
+		return this;
+	}
+
+	private _suggestionLineDistanceToCursor?: number;
+	/**
+	 * @param distance Signed line distance from the cursor line to the suggested edit's range
+	 * start line (`rangeStartLine - cursorLine`, 0-based). Pass `undefined` for cross-document
+	 * suggestions where the distance is not meaningful.
+	 */
+	public setSuggestionLineDistanceToCursor(distance: number | undefined): this {
+		this._suggestionLineDistanceToCursor = distance;
 		return this;
 	}
 
@@ -1006,6 +1031,7 @@ export class TelemetrySender implements IDisposable {
 			isFromCache,
 			reusedRequest,
 			subsequentEditOrder,
+			sourcePatchIndex,
 			activeDocumentLanguageId,
 			activeDocumentOriginalLineCount,
 			nLinesOfCurrentFileInPrompt,
@@ -1017,6 +1043,7 @@ export class TelemetrySender implements IDisposable {
 			isActiveDocument,
 			isEolDifferent,
 			isMultilineEdit,
+			suggestionLineDistanceToCursor,
 			isNextEditorRangeVisible,
 			isNextEditorVisible,
 			acceptance,
@@ -1107,6 +1134,7 @@ export class TelemetrySender implements IDisposable {
 				"isFromCache": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the edit was provided from cache", "isMeasurement": true },
 				"reusedRequest": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the result was obtained by joining a pending request ('speculative' or 'async'), undefined for fresh requests and cache hits" },
 				"subsequentEditOrder": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Order of the subsequent edit", "isMeasurement": true },
+				"sourcePatchIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Zero-based index of the model-emitted patch this served edit originated from (diff-patch format). A single model patch can expand into multiple edits that share this index; undefined for formats without explicit patches.", "isMeasurement": true },
 				"activeDocumentOriginalLineCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of lines in the active document before shortening", "isMeasurement": true },
 				"activeDocumentNLinesInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of lines in the active document included in prompt", "isMeasurement": true },
 				"wasPreviouslyRejected": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the edit was previously rejected", "isMeasurement": true },
@@ -1114,6 +1142,7 @@ export class TelemetrySender implements IDisposable {
 				"isNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the document is a notebook", "isMeasurement": true },
 				"isNESForAnotherDoc": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES if for another document", "isMeasurement": true },
 				"isMultilineEdit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES is for a multiline edit", "isMeasurement": true },
+				"suggestionLineDistanceToCursor": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Signed line distance from the cursor line to the suggested edit's range start line (rangeStartLine - cursorLine), 0-based; positive means the suggestion starts below the cursor, negative above, 0 on the same line. Uses the inline-completion request cursor position; undefined for cross-document suggestions.", "isMeasurement": true },
 				"isEolDifferent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the NES edit and original text have different end of lines", "isMeasurement": true },
 				"isNextEditorVisible": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the next editor is visible", "isMeasurement": true },
 				"isNextEditorRangeVisible": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the next editor range is visible", "isMeasurement": true },
@@ -1131,7 +1160,20 @@ export class TelemetrySender implements IDisposable {
 				"promptLineCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of lines in the prompt", "isMeasurement": true },
 				"promptCharCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of characters in the prompt", "isMeasurement": true },
 				"nDiffsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of diffs included in the prompt", "isMeasurement": true },
-				"diffTokensInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens consumed by diffs in the prompt", "isMeasurement": true },
+				"promptSectionTokensSystemPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the system prompt section", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensRecentlyViewed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the recently-viewed code snippets section of the user prompt", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSubsectionTokensRecentlyViewedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the recently-viewed/edited files (from xtab history) subsection of the recently-viewed section; does not sum exactly to promptSectionTokensRecentlyViewed because of the section tags and inter-snippet newline glue", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSubsectionTokensLanguageContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the language-context snippets subsection of the recently-viewed section (Snippet-kind items from the language server; distinct from the related-information traits section)", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSubsectionTokensNeighborFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the neighbor (similar) files subsection of the recently-viewed section", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensCurrentFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the current-file section of the user prompt", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensLintErrors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the lint-errors section of the user prompt", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensEditHistory": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the rendered edit-diff-history section of the user prompt (including its section tags)", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensAreaAroundCodeToEdit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the area-around-code-to-edit section of the user prompt (0 when absent for the strategy)", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensCursorLocation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the cursor-location section of the user prompt (0 when absent for the strategy)", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensRelatedInformation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the related-information (language traits) section of the user prompt", "isMeasurement": true, "owner": "ulugbekna" },
+				"promptSectionTokensPostScript": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the post-script section of the user prompt", "isMeasurement": true, "owner": "ulugbekna" },
+				"userPromptOverheadTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of user-prompt formatting glue not attributed to a section (joining newlines, backtick fences, trim); userPromptTotalTokens minus the sum of the section counts", "isMeasurement": true, "owner": "ulugbekna" },
+				"userPromptTotalTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Approximate (char/4) token count of the whole trimmed user prompt (summary total, not a section)", "isMeasurement": true, "owner": "ulugbekna" },
 				"nNeighborSnippetsComputed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of neighbor (similar files) snippets computed before budget filtering", "isMeasurement": true },
 				"nNeighborSnippetsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of neighbor (similar files) snippets actually included in the prompt", "isMeasurement": true },
 				"neighborSnippetIndicesInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "JSON-encoded array of original input indices (ascending) of neighbor snippets included in the prompt" },
@@ -1206,6 +1248,7 @@ export class TelemetrySender implements IDisposable {
 				nextEditProviderDuration,
 				isFromCache: this._boolToNum(isFromCache),
 				subsequentEditOrder,
+				sourcePatchIndex,
 				activeDocumentOriginalLineCount,
 				activeDocumentNLinesInPrompt: nLinesOfCurrentFileInPrompt,
 				wasPreviouslyRejected: this._boolToNum(wasPreviouslyRejected),
@@ -1215,6 +1258,7 @@ export class TelemetrySender implements IDisposable {
 				isActiveDocument: this._boolToNum(isActiveDocument),
 				isEolDifferent: this._boolToNum(isEolDifferent),
 				isMultilineEdit: this._boolToNum(isMultilineEdit),
+				suggestionLineDistanceToCursor,
 				isNextEditorRangeVisible: this._boolToNum(isNextEditorRangeVisible),
 				isNextEditorVisible: this._boolToNum(isNextEditorVisible),
 				hasNotebookCellMarker: notebookCellMarkerCount > 0 ? 1 : 0,
@@ -1257,7 +1301,20 @@ export class TelemetrySender implements IDisposable {
 				nextCursorLineDistance: telemetry.nextCursorPrediction?.nextCursorLineDistance,
 				xtabUserHappinessScore,
 				nDiffsInPrompt: telemetry.nDiffsInPrompt,
-				diffTokensInPrompt: telemetry.diffTokensInPrompt,
+				promptSectionTokensSystemPrompt: telemetry.promptSectionTokens?.systemPrompt,
+				promptSectionTokensRecentlyViewed: telemetry.promptSectionTokens?.recentlyViewed,
+				promptSubsectionTokensRecentlyViewedFiles: telemetry.promptSectionTokens?.recentlyViewedSubsections.recentlyViewedFiles,
+				promptSubsectionTokensLanguageContext: telemetry.promptSectionTokens?.recentlyViewedSubsections.languageContext,
+				promptSubsectionTokensNeighborFiles: telemetry.promptSectionTokens?.recentlyViewedSubsections.neighborFiles,
+				promptSectionTokensCurrentFile: telemetry.promptSectionTokens?.currentFile,
+				promptSectionTokensLintErrors: telemetry.promptSectionTokens?.lintErrors,
+				promptSectionTokensEditHistory: telemetry.promptSectionTokens?.editHistory,
+				promptSectionTokensAreaAroundCodeToEdit: telemetry.promptSectionTokens?.areaAroundCodeToEdit,
+				promptSectionTokensCursorLocation: telemetry.promptSectionTokens?.cursorLocation,
+				promptSectionTokensRelatedInformation: telemetry.promptSectionTokens?.relatedInformation,
+				promptSectionTokensPostScript: telemetry.promptSectionTokens?.postScript,
+				userPromptOverheadTokens: telemetry.promptSectionTokens?.overhead,
+				userPromptTotalTokens: telemetry.promptSectionTokens?.userPromptTotal,
 				nNeighborSnippetsComputed: telemetry.nNeighborSnippetsComputed,
 				nNeighborSnippetsInPrompt: telemetry.nNeighborSnippetsInPrompt,
 			}

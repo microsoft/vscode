@@ -878,6 +878,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return connection.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
@@ -887,6 +890,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			sanitized,
 			connection,
 		));
+
+		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
+		const syncProvider = agentRegistration.syncProvider;
+
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
 			(customization, clientId) => {
@@ -900,11 +907,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					icon: Codicon.trash,
 					run: () => pluginController.removeConfiguredPlugin(customization),
 				}];
-			}
+			},
+			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)
 		));
-
-		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType));
-		const syncProvider = agentRegistration.syncProvider;
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));

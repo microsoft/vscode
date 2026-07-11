@@ -86,7 +86,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						referenceName,
 						{
 							icon: Codicon.mcp,
-							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
+							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label),
+							deprecated: true,
 						}
 					));
 

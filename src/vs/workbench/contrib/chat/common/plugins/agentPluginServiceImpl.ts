@@ -9,9 +9,8 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
@@ -51,10 +50,10 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
 import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
+import { AgentPluginCollisionEnablementModel, getAgentPluginPolicyId, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy } from './agentPluginEnablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
+import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
-import { type IMarketplaceReference } from './marketplaceReference.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
 export { shellQuotePluginRootInCommand, resolveMcpServersMap, convertBareEnvVarsToVsCodeSyntax } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -102,16 +101,15 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	) {
 		super();
 
-		this.enablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
+		const baseEnablementModel = this._register(new EnablementModel('agentPlugins.enablement', storageService));
 
 		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
 
-		const discoveries: IAgentPluginDiscovery[] = [];
-		for (const descriptor of agentPluginDiscoveryRegistry.getAll()) {
-			const discovery = instantiationService.createInstance(descriptor);
+		const discoveries: IAgentPluginDiscoveryWithPriority[] = [];
+		for (const registration of agentPluginDiscoveryRegistry.getAll()) {
+			const discovery = instantiationService.createInstance(registration.descriptor);
 			this._register(discovery);
-			discoveries.push(discovery);
-			discovery.start(this.enablementModel);
+			discoveries.push({ discovery, priority: registration.priority, order: registration.order });
 		}
 
 		// Policy-driven enforcement, applied after discovery so that enterprise
@@ -122,11 +120,33 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
 		);
 
+		const collisionGroups = derived(reader => {
+			if (!pluginsEnabled.read(reader)) {
+				return new Map<string, readonly string[]>();
+			}
+			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
+			if (!discoveredPlugins) {
+				return new Map<string, readonly string[]>();
+			}
+			const policy = enabledPluginsPolicy.read(reader);
+			return getCanonicalAgentPluginCollisionGroups(discoveredPlugins, plugin => isAgentPluginBlockedByPolicy(plugin, policy));
+		});
+
+		this.enablementModel = new AgentPluginCollisionEnablementModel(baseEnablementModel, collisionGroups);
+
+		for (const { discovery } of discoveries) {
+			discovery.start(this.enablementModel);
+		}
+
 		this.plugins = derived(read => {
 			if (!pluginsEnabled.read(read)) {
 				return [];
 			}
-			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
+			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, read);
+			if (!discoveredPlugins) {
+				return [];
+			}
+			return getSortedAgentPlugins(discoveredPlugins);
 		});
 
 		// Mark policy-blocked plugins rather than hiding them: a blocked plugin
@@ -137,60 +157,32 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			const policy = enabledPluginsPolicy.read(reader);
 			transaction(tx => {
 				for (const plugin of plugins) {
-					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, logService), tx);
+					const blocked = isAgentPluginBlockedByPolicy(plugin, policy);
+					if (setPolicyBlocked(plugin, blocked, tx) && blocked) {
+						logService.debug(`[AgentPluginService] Plugin '${getAgentPluginPolicyId(plugin) ?? plugin.uri.toString()}' blocked — disabled by ChatEnabledPlugins policy`);
+					}
 				}
 			});
 		}));
 	}
+}
 
-	/**
-	 * Determines whether a plugin is blocked by enterprise policy:
-	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
-	 *   is set, only plugins whose ID appears with value `true` are allowed.
-	 *
-	 * Marketplace trust (`chat.plugins.strictMarketplaces`) is enforced at
-	 * install time only, already-installed plugins are not
-	 * retroactively unloaded.
-	 *
-	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
-	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
-	 * concerns outside the enterprise enforcement boundary.
-	 */
-	private _isBlockedByPolicy(
-		plugin: IAgentPlugin,
-		enabledPluginsPolicy: Record<string, boolean> | undefined,
-		logService: ILogService,
-	): boolean {
-		const identity = getPolicyIdentity(plugin);
-		if (!identity) {
-			return false;
+interface IAgentPluginDiscoveryWithPriority {
+	readonly discovery: IAgentPluginDiscovery;
+	readonly priority: AgentPluginDiscoveryPriority;
+	readonly order: number;
+}
+
+function readDiscoveredAgentPlugins(discoveries: readonly IAgentPluginDiscoveryWithPriority[], reader: IReader): readonly IDiscoveredAgentPlugins[] | undefined {
+	const result: IDiscoveredAgentPlugins[] = [];
+	for (const { discovery, priority, order } of discoveries) {
+		const plugins = discovery.plugins.read(reader);
+		if (!plugins) {
+			return undefined;
 		}
-		const pluginId = `${identity.name}@${identity.marketplace}`;
-		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
-			if (enabledPluginsPolicy[pluginId] !== true) {
-				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
-				return true;
-			}
-		}
-		return false;
+		result.push({ plugins, priority, order });
 	}
-
-	private _dedupeAndSort(plugins: readonly IAgentPlugin[]): readonly IAgentPlugin[] {
-		const unique: IAgentPlugin[] = [];
-		const seen = new ResourceSet();
-
-		for (const plugin of plugins) {
-			if (seen.has(plugin.uri)) {
-				continue;
-			}
-
-			seen.add(plugin.uri);
-			unique.push(plugin);
-		}
-
-		unique.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
-		return unique;
-	}
+	return result;
 }
 
 /**
@@ -207,53 +199,16 @@ interface PluginEntry extends IAgentPlugin {
  * for any {@link IAgentPlugin}; entries without a settable observable (e.g. test
  * doubles) are ignored.
  */
-function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): void {
+function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): boolean {
 	const obs = plugin.policyBlocked as ISettableObservable<boolean> | undefined;
 	if (obs && typeof obs.set === 'function') {
+		if (obs.get() === blocked) {
+			return false;
+		}
 		obs.set(blocked, tx);
+		return true;
 	}
-}
-
-/**
- * The policy-relevant identity of a plugin, used to gate against
- * `chat.plugins.enabledPlugins` and `chat.plugins.strictMarketplaces`. Returns
- * `undefined` for plugins that aren't subject to enterprise policy (e.g.
- * user-configured filesystem entries, extension-contributed plugins).
- */
-interface IPolicyIdentity {
-	readonly name: string;
-	readonly marketplace: string;
-	readonly marketplaceReference?: IMarketplaceReference;
-}
-
-/** Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by `_resolveEnterprisePluginId`. */
-const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
-
-function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
-	const m = plugin.fromMarketplace;
-	if (m) {
-		return { name: m.name, marketplace: m.marketplace, marketplaceReference: m.marketplaceReference };
-	}
-	// Copilot-CLI-installed plugins live at `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
-	// We honor enterprise policy for those by deriving the identity from the install path,
-	// using the same convention as `_resolveEnterprisePluginId`. The reserved `_direct` bucket
-	// means "not from a marketplace" and is therefore not gated.
-	if (plugin.uri.scheme !== 'file') {
-		return undefined;
-	}
-	const idx = plugin.uri.path.indexOf(COPILOT_CLI_INSTALL_PATH_FRAGMENT);
-	if (idx === -1) {
-		return undefined;
-	}
-	const segments = plugin.uri.path.slice(idx + COPILOT_CLI_INSTALL_PATH_FRAGMENT.length).split('/').filter(s => s.length > 0);
-	if (segments.length !== 2) {
-		return undefined;
-	}
-	const [marketplace, name] = segments;
-	if (marketplace === '_direct') {
-		return undefined;
-	}
-	return { name, marketplace };
+	return false;
 }
 
 /**
@@ -294,8 +249,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 	private readonly _pluginEntries = new Map<string, { plugin: PluginEntry; store: DisposableStore; format: IPluginFormatConfig }>();
 
-	private readonly _plugins = observableValue<readonly IAgentPlugin[]>('discoveredAgentPlugins', []);
-	public readonly plugins: IObservable<readonly IAgentPlugin[]> = this._plugins;
+	private readonly _plugins = observableValue<readonly IAgentPlugin[] | undefined>('discoveredAgentPlugins', undefined);
+	public readonly plugins: IObservable<readonly IAgentPlugin[] | undefined> = this._plugins;
 
 	private _discoverVersion = 0;
 	protected _enablementModel!: IEnablementModel;
@@ -434,7 +389,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			'hooks',
 			paths => this._readHooksFromPaths(uri, paths, format),
 			async section => {
-				const userHome = (await this._pathService.userHome()).fsPath;
+				const userHome = await this._pathService.userHome();
 				const workspaceRoot = resolveWorkspaceRoot(uri, this._workspaceContextService);
 				return toAgentPluginHooks(format.parseHooks(manifestUri, section, uri, workspaceRoot, userHome));
 			},
@@ -499,7 +454,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	 * JSON is used.
 	 */
 	private async _readHooksFromPaths(pluginUri: URI, paths: readonly URI[], format: IPluginFormatConfig): Promise<readonly IAgentPluginHook[]> {
-		const userHome = (await this._pathService.userHome()).fsPath;
+		const userHome = await this._pathService.userHome();
 		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
 		for (const hookPath of paths) {
 			const json = await this._readJsonFile(hookPath);
@@ -1114,6 +1069,8 @@ export class ExtensionAgentPluginDiscovery extends AbstractAgentPluginDiscovery 
 			this._rebuildWhenKeys();
 			scheduler.schedule();
 		});
+
+		scheduler.schedule();
 	}
 
 	private _rebuildWhenKeys(): void {

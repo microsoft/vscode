@@ -27,9 +27,9 @@ jobs:
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: |
           set -e
@@ -53,6 +53,8 @@ jobs:
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
+
+      - template: ../common/apply-sdk-canary.yml@self
 
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
@@ -93,7 +95,7 @@ jobs:
           done
         workingDirectory: build
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -109,7 +111,7 @@ jobs:
           SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
         env:
           VSCODE_ARCH: $(VSCODE_ARCH)
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Download vscode sysroots
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -135,7 +137,7 @@ jobs:
           VSCODE_ARCH: $(VSCODE_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

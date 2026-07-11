@@ -34,8 +34,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -82,28 +84,20 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function isAutoApprovePolicyRestricted(configurationService: IConfigurationService): boolean {
-	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-}
-
-function normalizeConfigValue(property: string, value: string, policyRestricted: boolean): string {
-	// Assisted, Bypass, and (legacy) Autopilot all auto-approve at least some
-	// tool calls, so clamp anything but Default when policy disables auto-approve.
-	if (property === SessionConfigKey.AutoApprove && policyRestricted && value !== 'default') {
-		return 'default';
-	}
-	return value;
-}
-
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => ({
-		kind: ActionListItemKind.Action,
-		label: item.label,
-		detail: item.description,
-		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, checked: isSelectedValue(currentValue, item.value) },
-	}));
+	return items.map(item => {
+		const disabled = policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot');
+		const hover = getConfigPickerItemHover(property, item, disabled);
+		return {
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			detail: item.description,
+			group: { title: '', icon: getConfigIcon(property, item.value) },
+			disabled,
+			...(hover ? { hover: { content: hover } } : {}),
+			item: { ...item, checked: isSelectedValue(currentValue, item.value) },
+		};
+	});
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -111,6 +105,48 @@ function isSelectedValue(currentValue: unknown | undefined, itemValue: string): 
 		return currentValue === (itemValue === 'true');
 	}
 	return itemValue === currentValue;
+}
+
+function getAutoApproveHover(value: unknown | undefined, fallback: string | undefined): string {
+	switch (value) {
+		case ChatPermissionLevel.Default:
+			return localize('agentHostChatInputPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
+		case ChatPermissionLevel.AutoApprove:
+			return localize('agentHostChatInputPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+		case ChatPermissionLevel.Autopilot:
+			return localize('agentHostChatInputPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
+	}
+	return fallback ?? localize('agentHostChatInputPicker.approvalsHover', "Controls whether the agent asks before running tools in this session.");
+}
+
+function getEnumValueDescription(schema: SessionConfigPropertySchema, value: unknown | undefined): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const index = schema.enum?.indexOf(value) ?? -1;
+	return index >= 0 ? schema.enumDescriptions?.[index] : undefined;
+}
+
+export function getConfigPickerTriggerHover(property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): string {
+	if (property !== SessionConfigKey.AutoApprove) {
+		return schema.description ?? schema.title;
+	}
+
+	const hover = getAutoApproveHover(value, getEnumValueDescription(schema, value));
+	if (isReadOnly) {
+		return localize('agentHostChatInputPicker.approvalsLevelHoverReadOnly', "{0} Read-only.", hover);
+	}
+	return hover;
+}
+
+export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | undefined {
+	if (disabled) {
+		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by enterprise policy");
+	}
+	if (property === SessionConfigKey.AutoApprove) {
+		return getAutoApproveHover(item.value, item.description);
+	}
+	return undefined;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -154,7 +190,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 	if (!schema.enum.includes('default')) {
 		return false;
 	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
 }
 
 /**
@@ -165,6 +201,11 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
  *
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
+ *
+ * `WorktreeBranchPrefix` likewise has no chip: it is a carrier value seeded by
+ * the client (from `git.branchPrefix`) and consumed by the agent for worktree
+ * isolation, never edited by the user. Including it here keeps the generic lane
+ * from surfacing it as a chip in the chat input.
  */
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
@@ -172,6 +213,8 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
+	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 ]);
 
@@ -391,7 +434,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
-		const tooltip = ctx.schema.description ?? ctx.schema.title;
+		const tooltip = getConfigPickerTriggerHover(this._property, ctx.schema, ctx.value, isReadOnly);
 		if (tooltip) {
 			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 		}
@@ -540,8 +583,8 @@ export class AgentHostChatInputPicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostChatInputPicker.ariaLabel', "{0} Picker", ctx.schema.title),
 			},
 			actionItems.length > FILTER_THRESHOLD || ctx.schema.enumDynamic
-				? { showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") }
-				: undefined,
+				? withChatInputPickerMotion({ showFilter: true, filterPlaceholder: localize('agentHostChatInputPicker.filter', "Filter...") })
+				: withChatInputPickerMotion(undefined),
 		);
 	}
 
@@ -570,8 +613,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}
 		return (schema.enum ?? []).map((value, index) => ({
-			value,
-			label: schema.enumLabels?.[index] ?? value,
+			value: String(value),
+			label: schema.enumLabels?.[index] ?? String(value),
 			description: schema.enumDescriptions?.[index],
 		}));
 	}
@@ -583,12 +626,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.summary.workingDirectory;
+			const cwd = state.workingDirectory;
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
 			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+			?? this._newSessionFolderService.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
@@ -634,7 +678,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const ctx = this._readContext();
 		const normalizedValue = ctx?.schema.type === 'boolean'
 			? value === 'true'
-			: normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+			: normalizeSessionConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
 		const partial = { [this._property]: normalizedValue };
 		const nextConfig = { ...(this._readCurrentValues() ?? {}), ...partial };
 
