@@ -108,14 +108,14 @@ class DecorationRule {
 			this._createIconCSSRule(icon, color, element);
 		} else {
 			if (letters.length) {
-				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(color)};`, element);
+				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${color};`, element);
 			}
 
 			// bubble badge
 			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
+				`content: "\uea71"; color: ${color}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
 		}

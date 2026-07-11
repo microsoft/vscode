@@ -99,28 +99,37 @@ suite('DecorationsService', function () {
 
 	test('Falls back to lower-weight decoration color when a theme color is undefined', function () {
 
-		const uri = URI.parse('foo:bar');
+		const uri = URI.parse('foo:/folder/file');
+		const parentUri = URI.parse('foo:/folder/');
 		const highPriority = service.registerDecorationsProvider({
 			label: 'High priority',
 			onDidChange: Event.None,
-			provideDecorations: () => ({ color: 'highPriorityColor', weight: 10 })
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'highPriorityColor', weight: 10, letter: 'H', bubble: true } : undefined
 		});
 		const lowPriority = service.registerDecorationsProvider({
 			label: 'Low priority',
 			onDidChange: Event.None,
-			provideDecorations: () => ({ color: 'lowPriorityColor', weight: 5 })
+			provideDecorations: resource => resource.toString() === uri.toString() ? { color: 'lowPriorityColor', weight: 5, letter: 'L', bubble: true } : undefined
 		});
 
 		const decoration = service.getDecoration(uri, false)!;
-		const element = document.createElement('div');
-		element.className = decoration.labelClassName;
-		element.style.setProperty('--vscode-lowPriorityColor', '#ff0000');
-		document.body.appendChild(element);
+		const bubbleDecoration = service.getDecoration(parentUri, true)!;
+		for (const [className, pseudoElement] of [
+			[decoration.labelClassName, undefined],
+			[decoration.badgeClassName, '::after'],
+			[bubbleDecoration.badgeClassName, '::after']
+		] as const) {
+			const element = document.createElement('div');
+			element.className = className;
+			element.style.setProperty('--vscode-lowPriorityColor', '#ff0000');
+			document.body.appendChild(element);
 
-		assert.strictEqual(DOM.getWindow(element).getComputedStyle(element).color, 'rgb(255, 0, 0)');
+			assert.strictEqual(DOM.getWindow(element).getComputedStyle(element, pseudoElement).color, 'rgb(255, 0, 0)');
+			element.remove();
+		}
 
-		element.remove();
 		decoration.dispose();
+		bubbleDecoration.dispose();
 		highPriority.dispose();
 		lowPriority.dispose();
 	});
