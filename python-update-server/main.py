@@ -13,6 +13,8 @@ import json
 import hashlib
 import logging
 import glob
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
@@ -51,11 +53,12 @@ logger = logging.getLogger(__name__)
 # 配置
 CONFIG = {
     'HOST': os.getenv('HOST', '0.0.0.0'),
-    'PORT': int(os.getenv('PORT', 8001)),
-    'BASE_URL': os.getenv('BASE_URL', 'http://127.0.0.1:8001'),
-    'PACKAGES_DIR': os.getenv('PACKAGES_DIR', './python-update-server/packages'),
+    'PORT': int(os.getenv('PORT', 8002)),
+    'BASE_URL': os.getenv('BASE_URL', 'http://127.0.0.1:8002'),#根据实际部署的服务器进行修改
+    'PACKAGES_DIR': os.getenv('PACKAGES_DIR', './packages'),
     'MAX_UPLOAD_SIZE': 5 * 1024 * 1024 * 1024,  # 5GB
     'ADMIN_PASSWORD_MD5': os.getenv('ADMIN_PASSWORD_MD5', '0192023a7bbd73250516f069df18b500'),  # 默认: admin123
+    'RELEASENOTES_DIR': os.getenv('RELEASENOTES_DIR', './releasenotes'),
 }
 
 # 打印配置信息（调试用）
@@ -294,66 +297,74 @@ def scan_packages_directory() -> Dict[str, Any]:
         else:
             logger.warning("未生成任何版本配置")
 
-        # test-workbench_change: 扫描 backup 目录获取旧版本信息
-        backup_dir = packages_dir / 'backup'
-        if backup_dir.exists():
-            logger.info("扫描 backup 目录...")
+        # test-workbench_change: 扫描所有 backup / backup_* 目录获取历史版本信息
+        backup_dirs = [packages_dir / 'backup'] + sorted(
+            [d for d in packages_dir.iterdir() if d.is_dir() and d.name.startswith('backup_')],
+            key=lambda d: d.name, reverse=True
+        )
+        for backup_dir in backup_dirs:
+            if not backup_dir.exists():
+                continue
+            logger.info(f"扫描备份目录: {backup_dir.name}")
             backup_product_json = backup_dir / 'product.json'
 
-            if backup_product_json.exists():
-                try:
-                    with open(backup_product_json, 'r', encoding='utf-8') as f:
-                        backup_product_info = json.load(f)
+            if not backup_product_json.exists():
+                logger.info(f"  {backup_dir.name} 中未找到 product.json，跳过")
+                continue
 
-                    backup_commit = backup_product_info.get('commit', '')
-                    backup_version = backup_product_info.get('version', '')
-                    backup_quality = backup_product_info.get('quality', 'stable')
+            try:
+                with open(backup_product_json, 'r', encoding='utf-8') as f:
+                    backup_product_info = json.load(f)
 
-                    if backup_commit and backup_version:
-                        logger.info(f"从 backup/product.json 读取: version={backup_version}, commit={backup_commit}")
+                backup_commit = backup_product_info.get('commit', '')
+                backup_version = backup_product_info.get('version', '')
+                backup_quality = backup_product_info.get('quality', 'stable')
 
-                        # 扫描 backup 目录中的安装包
-                        backup_files: List[Path] = []
-                        for ext in extensions:
-                            backup_files.extend(backup_dir.glob(ext))
+                if not backup_commit or not backup_version:
+                    logger.warning(f"  {backup_dir.name}/product.json 缺少必要字段")
+                    continue
 
-                        backup_files = [f for f in backup_files if f.name != 'product.json']
+                logger.info(f"  {backup_dir.name}: version={backup_version}, commit={backup_commit}")
 
-                        if backup_files:
-                            logger.info(f"找到 {len(backup_files)} 个备份安装包")
+                # 扫描备份目录中的安装包
+                backup_files: List[Path] = []
+                for ext in extensions:
+                    backup_files.extend(backup_dir.glob(ext))
 
-                            for file_path in backup_files:
-                                filename = file_path.name
-                                platform = detect_platform_from_filename(filename)
+                backup_files = [f for f in backup_files if f.name != 'product.json']
 
-                                if not platform:
-                                    continue
+                if not backup_files:
+                    logger.warning(f"  {backup_dir.name} 中未找到安装包文件")
+                    continue
 
-                                file_hash = calculate_file_hash(file_path)
-                                backup_key = f"{platform}/{backup_quality}/backup"
+                logger.info(f"  找到 {len(backup_files)} 个备份安装包")
 
-                                versions_config[backup_key] = {
-                                    'version': backup_version,
-                                    'commit': backup_commit,
-                                    'filename': f"backup/{filename}",
-                                    'hash': file_hash,
-                                    'supportsFastUpdate': True,
-                                    'fileSize': file_path.stat().st_size,
-                                    'lastModified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
-                                    'is_backup': True
-                                }
+                for file_path in backup_files:
+                    filename = file_path.name
+                    platform = detect_platform_from_filename(filename)
+                    if not platform:
+                        continue
 
-                                logger.info(f"  → 备份版本: {backup_key}: {filename}")
-                        else:
-                            logger.warning("backup 目录中未找到安装包文件")
-                    else:
-                        logger.warning(f"backup/product.json 缺少必要字段")
-                except Exception as e:
-                    logger.error(f"读取 backup/product.json 失败: {e}")
-            else:
-                logger.info("backup 目录中未找到 product.json")
-        else:
-            logger.info("未找到 backup 目录")
+                    file_hash = calculate_file_hash(file_path)
+                    # 使用 backup/ 前缀（兼容现有下载逻辑）或 backup_dir.name 前缀
+                    prefix = backup_dir.name  # e.g. "backup" or "backup_v1.2.3"
+                    backup_key = f"{platform}/{backup_quality}/{prefix}"
+
+                    versions_config[backup_key] = {
+                        'version': backup_version,
+                        'commit': backup_commit,
+                        'filename': f"{prefix}/{filename}",
+                        'hash': file_hash,
+                        'supportsFastUpdate': True,
+                        'fileSize': file_path.stat().st_size,
+                        'lastModified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
+                        'is_backup': True,
+                        'backup_dir': prefix
+                    }
+
+                    logger.info(f"  → 备份版本: {backup_key}: {filename} ({prefix})")
+            except Exception as e:
+                logger.error(f"读取 {backup_dir.name}/product.json 失败: {e}")
         # test-workbench_change end
 
         return versions_config
@@ -435,13 +446,13 @@ def extract_client_id(request: Request) -> Tuple[str, str]:
     """
     # 优先从请求头获取工号
     employee_id = request.headers.get('X-Employee-ID')
-    
+
     if employee_id:
         # 使用工号作为客户端标识
         client_identifier = f"employee:{employee_id}"
         client_id = hashlib.sha256(client_identifier.encode()).hexdigest()[:16]
         return client_identifier, client_id
-    
+
     # 如果没有工号，使用 IP 地址
     client_ip = request.client.host if request.client else "unknown"
 
@@ -590,36 +601,76 @@ async def download_file(filename: str, request: Request):
     下载安装包（支持 backup 目录）
 
     Args:
-        filename: 文件名（可能包含 backup/ 前缀）
+        filename: 文件名（可能包含 backup/ 或 stable/ 前缀）
     """
     logger.info(f"下载请求: {filename}")
 
-    # test-workbench_change: 支持 backup 目录
-    # 检查是否是 backup 目录的文件
-    if filename.startswith('backup/'):
-        # 移除 backup/ 前缀，获取实际文件名
-        actual_filename = filename[7:]  # 去掉 "backup/"
-        file_path = Path(CONFIG['PACKAGES_DIR']) / 'backup' / actual_filename
-        logger.info(f"  → 从 backup 目录下载: {actual_filename}")
+    # test-workbench_change: 支持 stable/ 固定版本下载地址
+    packages_dir = Path(CONFIG['PACKAGES_DIR'])
+
+    if filename.startswith('stable/'):
+        actual_filename = filename[7:]  # 去掉 "stable/"
+        logger.info(f"  → 稳定版本下载: {actual_filename}")
+
+        config_path = packages_dir / "stable-config.json"
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                if config.get('type') == 'backup' and config.get('backup_dir'):
+                    file_path = packages_dir / config['backup_dir'] / actual_filename
+                    logger.info(f"  → 稳定版本指向备份: {config['backup_dir']}/{actual_filename}")
+                else:
+                    file_path = packages_dir / actual_filename
+                    logger.info(f"  → 稳定版本指向当前: {actual_filename}")
+            except Exception as e:
+                logger.error(f"读取 stable-config.json 失败: {e}")
+                file_path = packages_dir / actual_filename
+        else:
+            file_path = packages_dir / actual_filename
+            logger.info(f"  → 稳定版本未配置，使用当前: {actual_filename}")
+
+        # 文件不存在时尝试同目录下第一个 .exe
+        if not file_path.exists() or not file_path.is_file():
+            parent_dir = file_path.parent
+            exe_files = list(parent_dir.glob("*.exe"))
+            if exe_files:
+                file_path = exe_files[0]
+                logger.info(f"  → 未找到 {actual_filename}，使用 {file_path.name}")
+            else:
+                logger.warning(f"  → 文件不存在: {file_path}")
+                raise HTTPException(status_code=404, detail="文件不存在")
     else:
-        file_path = Path(CONFIG['PACKAGES_DIR']) / filename
-    # test-workbench_change end
+        # 检查是否是 backup_xxx/ 或 backup/ 目录的文件
+        backup_match = None
+        for d in packages_dir.iterdir():
+            if d.is_dir() and (d.name == 'backup' or d.name.startswith('backup_')):
+                if filename.startswith(d.name + '/'):
+                    backup_match = d
+                    break
 
-    # 安全检查：防止路径遍历攻击
-    if '..' in filename:
-        logger.warning(f"  → 非法文件名（包含 ..）: {filename}")
-        raise HTTPException(status_code=403, detail="非法的文件名")
+        if backup_match:
+            actual_filename = filename[len(backup_match.name) + 1:]  # 去掉 "backup_xxx/"
+            file_path = backup_match / actual_filename
+            logger.info(f"  → 从 {backup_match.name} 目录下载: {actual_filename}")
+        else:
+            file_path = packages_dir / filename
 
-    # 检查文件是否存在
-    if not file_path.exists() or not file_path.is_file():
-        logger.warning(f"  → 文件不存在: {file_path}")
-        raise HTTPException(status_code=404, detail="文件不存在")
+        # 安全检查：防止路径遍历攻击
+        if '..' in filename:
+            logger.warning(f"  → 非法文件名（包含 ..）: {filename}")
+            raise HTTPException(status_code=403, detail="非法的文件名")
 
-    # 检查文件扩展名（安全限制）
-    allowed_extensions = {'.exe', '.dmg', '.deb', '.rpm', '.appimage', '.zip', '.tar.gz'}
-    if file_path.suffix.lower() not in allowed_extensions:
-        logger.warning(f"  → 不允许的文件类型: {file_path.suffix}")
-        raise HTTPException(status_code=403, detail="不允许的文件类型")
+        # 检查文件是否存在
+        if not file_path.exists() or not file_path.is_file():
+            logger.warning(f"  → 文件不存在: {file_path}")
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        # 检查文件扩展名（安全限制）
+        allowed_extensions = {'.exe', '.dmg', '.deb', '.rpm', '.appimage', '.zip', '.tar.gz'}
+        if file_path.suffix.lower() not in allowed_extensions:
+            logger.warning(f"  → 不允许的文件类型: {file_path.suffix}")
+            raise HTTPException(status_code=403, detail="不允许的文件类型")
 
     logger.info(f"  → 开始传输: {file_path.name} ({file_path.stat().st_size} bytes)")
 
@@ -1120,7 +1171,7 @@ async def get_client_id(request: Request, ip: Optional[str] = None, employee_id:
     """
     client_identifier = None
     identifier_type = None
-    
+
     # 优先使用提供的工号
     if employee_id:
         client_identifier = f"employee:{employee_id}"
@@ -1138,12 +1189,12 @@ async def get_client_id(request: Request, ip: Optional[str] = None, employee_id:
         else:
             # 使用请求者的 IP
             client_ip = request.client.host if request.client else "unknown"
-            
+
             # 尝试从 X-Forwarded-For 获取真实 IP
             forwarded_for = request.headers.get('X-Forwarded-For')
             if forwarded_for:
                 client_ip = forwarded_for.split(',')[0].strip()
-            
+
             client_identifier = f"ip:{client_ip}"
             identifier_type = "ip"
 
@@ -1263,6 +1314,160 @@ async def manage_blacklist(request: Request):
     except Exception as e:
         logger.error(f"管理黑名单失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# test-workbench_change start: CSV导入/清空名单
+@app.post("/admin/rollout/whitelist/clear")
+async def clear_whitelist(request: Request):
+    """清空白名单"""
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+    require_admin_auth(request)
+    try:
+        data = await request.json()
+        platform_quality = data.get('platform_quality')
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+        count = rollout_engine.clear_whitelist(platform_quality)
+        return {"status": "success", "message": f"已清空白名单 ({count} 个)", "count": count}
+    except Exception as e:
+        logger.error(f"清空白名单失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/blacklist/clear")
+async def clear_blacklist(request: Request):
+    """清空黑名单"""
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+    require_admin_auth(request)
+    try:
+        data = await request.json()
+        platform_quality = data.get('platform_quality')
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+        count = rollout_engine.clear_blacklist(platform_quality)
+        return {"status": "success", "message": f"已清空黑名单 ({count} 个)", "count": count}
+    except Exception as e:
+        logger.error(f"清空黑名单失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/whitelist/import")
+async def import_whitelist_csv(request: Request):
+    """
+    从CSV导入白名单（导入员工编号列）
+
+    Request Body (multipart/form-data):
+        file: CSV文件（制表符分隔）
+        platform_quality: 平台/质量级别
+    """
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+
+    require_admin_auth(request)
+
+    try:
+        form = await request.form()
+        file = form.get('file')
+        platform_quality = form.get('platform_quality')
+
+        if not file:
+            raise HTTPException(status_code=400, detail="缺少文件")
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+
+        content = await file.read()
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('gbk')
+
+        employee_ids = []
+        lines = text.strip().split('\n')
+        for i, line in enumerate(lines):
+            if i < 2:
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                employee_id = parts[3].strip()
+                if employee_id:
+                    employee_ids.append(employee_id)
+
+        if not employee_ids:
+            return {"status": "success", "message": "CSV中未找到有效的员工编号", "count": 0}
+
+        count = rollout_engine.add_to_whitelist_batch(platform_quality, employee_ids)
+
+        return {
+            "status": "success",
+            "message": f"成功导入 {count} 个员工编号到白名单",
+            "total": len(employee_ids),
+            "added": count
+        }
+
+    except Exception as e:
+        logger.error(f"导入白名单CSV失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/rollout/blacklist/import")
+async def import_blacklist_csv(request: Request):
+    """
+    从CSV导入黑名单（导入员工编号列）
+
+    Request Body (multipart/form-data):
+        file: CSV文件（制表符分隔）
+        platform_quality: 平台/质量级别
+    """
+    if not rollout_engine:
+        raise HTTPException(status_code=500, detail="灰度发布引擎未初始化")
+
+    require_admin_auth(request)
+
+    try:
+        form = await request.form()
+        file = form.get('file')
+        platform_quality = form.get('platform_quality')
+
+        if not file:
+            raise HTTPException(status_code=400, detail="缺少文件")
+        if not platform_quality:
+            raise HTTPException(status_code=400, detail="缺少 platform_quality")
+
+        content = await file.read()
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('gbk')
+
+        employee_ids = []
+        lines = text.strip().split('\n')
+        for i, line in enumerate(lines):
+            if i < 2:
+                continue
+            parts = line.strip().split('\t')
+            if len(parts) >= 4:
+                employee_id = parts[3].strip()
+                if employee_id:
+                    employee_ids.append(employee_id)
+
+        if not employee_ids:
+            return {"status": "success", "message": "CSV中未找到有效的员工编号", "count": 0}
+
+        count = rollout_engine.add_to_blacklist_batch(platform_quality, employee_ids)
+
+        return {
+            "status": "success",
+            "message": f"成功导入 {count} 个员工编号到黑名单",
+            "total": len(employee_ids),
+            "added": count
+        }
+
+    except Exception as e:
+        logger.error(f"导入黑名单CSV失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+# test-workbench_change end
 
 
 @app.exception_handler(404)
@@ -1424,11 +1629,31 @@ async def upload_package(
         if not product_file.filename.endswith('.json'):
             raise HTTPException(status_code=400, detail="product_file 必须是 .json 文件")
 
+        # 0. 读取当前版本信息（用于备份目录命名）
+        old_version = ""
+        current_product_path = packages_dir / "product.json"
+        if current_product_path.exists():
+            try:
+                with open(current_product_path, 'r', encoding='utf-8') as f:
+                    old_product_info = json.load(f)
+                old_version = old_product_info.get('gitVersion', '')
+            except Exception:
+                pass
+
         # 1. 处理现有的 backup 目录
         if backup_dir.exists():
-            # 重命名现有 backup 目录，添加时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            old_backup_dir = packages_dir / f"backup_{timestamp}"
+            if old_version:
+                # 使用版本号命名备份目录，替换可能导致路径问题的字符
+                version_suffix = old_version.replace('/', '_').replace(' ', '_')
+                old_backup_dir = packages_dir / f"backup_{version_suffix}"
+                # 避免重名冲突
+                counter = 1
+                while old_backup_dir.exists():
+                    old_backup_dir = packages_dir / f"backup_{version_suffix}_{counter}"
+                    counter += 1
+            else:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                old_backup_dir = packages_dir / f"backup_{timestamp}"
             backup_dir.rename(old_backup_dir)
             logger.info(f"已将旧备份目录重命名为: {old_backup_dir}")
 
@@ -1507,12 +1732,372 @@ async def upload_package(
 # test-workbench_change end
 
 
+# ============================================================================
+# 版本管理 API
+# ============================================================================
+
+@app.get("/admin/versions/list")
+async def list_versions(request: Request):
+    """
+    列出所有版本（当前版本 + 历史备份版本）
+
+    Returns:
+    {
+        "versions": [...],
+        "count": N
+    }
+    """
+    require_admin_auth(request)
+
+    try:
+        packages_dir = Path(CONFIG['PACKAGES_DIR'])
+        versions = []
+
+        # 当前版本
+        current_product = packages_dir / "product.json"
+        if current_product.exists():
+            try:
+                with open(current_product, 'r', encoding='utf-8') as f:
+                    info = json.load(f)
+                exe_files = [f.name for f in packages_dir.iterdir()
+                             if f.is_file() and f.suffix in ('.exe', '.dmg', '.deb', '.rpm') and f.name != 'product.json']
+                versions.append({
+                    "type": "current",
+                    "dir_name": "packages",
+                    "gitVersion": info.get('gitVersion', ''),
+                    "commit": info.get('commit', ''),
+                    "date": info.get('date', ''),
+                    "quality": info.get('quality', 'stable'),
+                    "files": exe_files,
+                    "path": str(packages_dir)
+                })
+            except Exception as e:
+                logger.error(f"读取当前 product.json 失败: {e}")
+
+        # 历史备份版本
+        backup_dirs = sorted(
+            [d for d in packages_dir.iterdir() if d.is_dir() and (d.name == 'backup' or d.name.startswith('backup_'))],
+            key=lambda d: d.name, reverse=True
+        )
+        for backup_dir in backup_dirs:
+            product_json = backup_dir / "product.json"
+            if not product_json.exists():
+                continue
+            try:
+                with open(product_json, 'r', encoding='utf-8') as f:
+                    info = json.load(f)
+                exe_files = [f.name for f in backup_dir.iterdir()
+                             if f.is_file() and f.suffix in ('.exe', '.dmg', '.deb', '.rpm') and f.name != 'product.json']
+                versions.append({
+                    "type": "backup",
+                    "dir_name": backup_dir.name,
+                    "gitVersion": info.get('gitVersion', ''),
+                    "commit": info.get('commit', ''),
+                    "date": info.get('date', ''),
+                    "quality": info.get('quality', 'stable'),
+                    "files": exe_files,
+                    "path": str(backup_dir)
+                })
+            except Exception as e:
+                logger.error(f"读取 {backup_dir.name}/product.json 失败: {e}")
+
+        return {
+            "versions": versions,
+            "count": len(versions)
+        }
+
+    except Exception as e:
+        logger.error(f"获取版本列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/versions/set-stable")
+async def set_stable_version(request: Request):
+    """
+    设置稳定版本指向
+
+    Request Body:
+    {
+        "type": "current",           // "current" 或 "backup"
+        "backup_dir": "backup_v1.2.3"  // 当 type=backup 时指定目录名
+    }
+
+    说明：
+    - type=current: /download/stable/TestAgentStudio.exe 指向 packages/ 下的文件
+    - type=backup:  /download/stable/TestAgentStudio.exe 指向 packages/{backup_dir}/ 下的文件
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        stable_type = data.get('type', 'current')
+        backup_dir_name = data.get('backup_dir', '')
+
+        packages_dir = Path(CONFIG['PACKAGES_DIR'])
+        config_path = packages_dir / "stable-config.json"
+
+        if stable_type == 'current':
+            config = {
+                "type": "current",
+                "backup_dir": None,
+                "updated_at": datetime.now().isoformat(),
+                "description": "当前最新版本"
+            }
+        elif stable_type == 'backup':
+            if not backup_dir_name:
+                raise HTTPException(status_code=400, detail="type=backup 时必须指定 backup_dir")
+            target_dir = packages_dir / backup_dir_name
+            if not target_dir.exists() or not target_dir.is_dir():
+                raise HTTPException(status_code=400, detail=f"备份目录不存在: {backup_dir_name}")
+
+            # 读取版本信息用于描述
+            product_json = target_dir / "product.json"
+            version_desc = backup_dir_name
+            if product_json.exists():
+                try:
+                    with open(product_json, 'r', encoding='utf-8') as f:
+                        info = json.load(f)
+                    version_desc = info.get('gitVersion', backup_dir_name)
+                except Exception:
+                    pass
+
+            config = {
+                "type": "backup",
+                "backup_dir": backup_dir_name,
+                "updated_at": datetime.now().isoformat(),
+                "description": f"备份版本: {version_desc}"
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的 type: {stable_type}")
+
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"稳定版本已设置为: {config['description']}")
+
+        return {
+            "status": "success",
+            "message": f"稳定版本已设置为: {config['description']}",
+            "config": config
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"设置稳定版本失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/versions/stable-status")
+async def get_stable_version_status(request: Request):
+    """
+    查询当前稳定版本指向
+    """
+    try:
+        packages_dir = Path(CONFIG['PACKAGES_DIR'])
+        config_path = packages_dir / "stable-config.json"
+
+        if not config_path.exists():
+            return {
+                "configured": False,
+                "type": "current",
+                "backup_dir": None,
+                "description": "使用当前最新版本（默认）",
+                "updated_at": None,
+                "effective_path": str(packages_dir)
+            }
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        # 计算有效路径
+        if config.get('type') == 'backup' and config.get('backup_dir'):
+            effective_path = str(packages_dir / config['backup_dir'])
+        else:
+            effective_path = str(packages_dir)
+
+        return {
+            "configured": True,
+            "type": config.get('type', 'current'),
+            "backup_dir": config.get('backup_dir'),
+            "description": config.get('description', ''),
+            "updated_at": config.get('updated_at'),
+            "effective_path": effective_path
+        }
+
+    except Exception as e:
+        logger.error(f"查询稳定版本状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# 版本公告管理 API
+# ============================================================================
+
+RELEASENOTES_DIR = Path(CONFIG['RELEASENOTES_DIR'])
+
+
+@app.get("/admin/releasenotes/list")
+async def list_releasenotes(request: Request):
+    """
+    列出版本公告目录下的所有第一层目录（即版本目录）
+
+    Returns:
+    {
+        "directories": ["v1_1", "v1_2", ...],
+        "count": N,
+        "path": "releasenotes"
+    }
+    """
+    require_admin_auth(request)
+
+    try:
+        if not RELEASENOTES_DIR.exists():
+            return {"directories": [], "count": 0, "path": str(RELEASENOTES_DIR)}
+
+        directories = sorted([
+            d.name for d in RELEASENOTES_DIR.iterdir()
+            if d.is_dir() and not d.name.startswith('.')
+        ])
+
+        return {
+            "directories": directories,
+            "count": len(directories),
+            "path": str(RELEASENOTES_DIR)
+        }
+
+    except Exception as e:
+        logger.error(f"列出版本公告目录失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/releasenotes/pull")
+async def pull_releasenotes(request: Request):
+    """
+    在版本公告目录中执行 git pull 拉取最新内容
+
+    Returns:
+    {
+        "status": "success",
+        "message": "git pull 执行结果",
+        "output": "..."
+    }
+    """
+    require_admin_auth(request)
+
+    try:
+        # 确保目录存在
+        RELEASENOTES_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 执行 git pull
+        result = subprocess.run(
+            ['git', 'pull'],
+            cwd=str(RELEASENOTES_DIR),
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        output = result.stdout + result.stderr
+
+        if result.returncode == 0:
+            logger.info(f"git pull 成功: {output[:200]}")
+            return {
+                "status": "success",
+                "message": "版本公告已更新",
+                "output": output.strip()
+            }
+        else:
+            logger.warning(f"git pull 失败: {output[:200]}")
+            return {
+                "status": "error",
+                "message": "git pull 执行失败，请检查目录是否为 git 仓库",
+                "output": output.strip()
+            }
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="git pull 超时")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="未找到 git 命令，请确保已安装 git")
+    except Exception as e:
+        logger.error(f"git pull 失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/releasenotes/publish")
+async def publish_releasenote(request: Request):
+    """
+    发布指定版本公告，将目录下所有内容拷贝到 /usr/share/nginx/html
+
+    Request Body:
+    {
+        "version": "v1_1"
+    }
+
+    Returns:
+    {
+        "status": "success",
+        "message": "发布成功",
+        "files": [...]
+    }
+    """
+    require_admin_auth(request)
+
+    try:
+        data = await request.json()
+        version = data.get('version')
+
+        if not version:
+            raise HTTPException(status_code=400, detail="缺少 version 字段")
+
+        # 安全检查：防止路径遍历
+        if '..' in version or '/' in version or '\\' in version:
+            raise HTTPException(status_code=400, detail="非法的版本名称")
+
+        source_dir = RELEASENOTES_DIR / version
+        if not source_dir.exists() or not source_dir.is_dir():
+            raise HTTPException(status_code=404, detail=f"版本目录不存在: {version}")
+
+        # 目标目录
+        target_dir = Path('/usr/share/nginx/html')
+
+        # 拷贝目录下所有内容
+        copied_files = []
+        for item in source_dir.iterdir():
+            dest = target_dir / item.name
+            if item.is_dir():
+                # 使用 copytree 拷贝子目录（如 img/）
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(item, dest)
+                copied_files.append(item.name + '/')
+            else:
+                shutil.copy2(item, dest)
+                copied_files.append(item.name)
+
+        logger.info(f"版本公告 {version} 已发布到 {target_dir}")
+
+        return {
+            "status": "success",
+            "message": f"版本公告 {version} 已发布到 {target_dir}",
+            "target": str(target_dir),
+            "files": copied_files
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"发布版本公告失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
     """404 错误处理"""
+    detail = exc.detail if exc.detail else "资源不存在"
     return JSONResponse(
         status_code=404,
-        content={"detail": "资源不存在"}
+        content={"detail": detail}
     )
 
 

@@ -353,6 +353,8 @@
             <button class="tab" onclick="switchTab('upload')">📤 上传更新</button>
             <button class="tab" onclick="switchTab('whitelist')">✅ 白名单</button>
             <button class="tab" onclick="switchTab('blacklist')">🚫 黑名单</button>
+            <button class="tab" onclick="switchTab('versions')">📋 版本管理</button>
+            <button class="tab" onclick="switchTab('releasenotes')">📢 版本公告</button>
         </div>
 
         <!-- 发布状态 Tab -->
@@ -533,6 +535,22 @@
                     <button class="btn btn-success" onclick="addToWhitelist()">
                         <span>➕</span> 添加到白名单
                     </button>
+                    <button class="btn btn-danger" onclick="clearWhitelist()">
+                        <span>🗑️</span> 删除所有
+                    </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <label>导入CSV文件（导入员工编号列）</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="whitelist-csv-file" accept=".csv" style="flex: 1; padding: 8px;">
+                        <button class="btn btn-info" onclick="importWhitelistCSV()">
+                            <span>📥</span> 导入
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        CSV格式：序号、用户名、账号ID、员工编号、部门（制表符分隔），仅导入员工编号列
+                    </p>
                 </div>
 
                 <div id="whitelist-container" style="margin-top: 20px;"></div>
@@ -564,9 +582,84 @@
                     <button class="btn btn-danger" onclick="addToBlacklist()">
                         <span>➕</span> 添加到黑名单
                     </button>
+                    <button class="btn btn-danger" onclick="clearBlacklist()">
+                        <span>🗑️</span> 删除所有
+                    </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                    <label>导入CSV文件（导入员工编号列）</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="file" id="blacklist-csv-file" accept=".csv" style="flex: 1; padding: 8px;">
+                        <button class="btn btn-info" onclick="importBlacklistCSV()">
+                            <span>📥</span> 导入
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        CSV格式：序号、用户名、账号ID、员工编号、部门（制表符分隔），仅导入员工编号列
+                    </p>
                 </div>
 
                 <div id="blacklist-container" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- 版本管理 Tab -->
+        <div id="versions-tab" class="tab-content">
+            <div class="controls">
+                <h2>
+                    📋 版本管理
+                    <button class="btn btn-info refresh-btn" onclick="loadVersions()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+
+                <div class="form-group">
+                    <label>稳定版本配置</label>
+                    <div id="stable-status-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 15px;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>所有版本列表</label>
+                    <div id="versions-list-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 版本公告管理 Tab -->
+        <div id="releasenotes-tab" class="tab-content">
+            <div class="controls">
+                <h2>
+                    📢 版本公告管理
+                    <button class="btn btn-info refresh-btn" onclick="loadReleaseNotes()">
+                        <span>🔄</span> 刷新
+                    </button>
+                </h2>
+
+                <div class="form-group">
+                    <label>操作</label>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="pullReleaseNotes()">
+                            <span>📥</span> 拉取版本公告 (git pull)
+                        </button>
+                    </div>
+                    <p style="color: #666; font-size: 0.85em; margin-top: 5px;">
+                        从 git 仓库拉取最新版本公告内容
+                    </p>
+                </div>
+
+                <div id="pull-result" style="margin-bottom: 20px; display: none;"></div>
+
+                <div class="form-group">
+                    <label>版本目录列表</label>
+                    <div id="releasenotes-list-display" style="background: #f5f5f5; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+                        <p style="color: #999; margin: 0;">加载中...</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -588,11 +681,16 @@
             document.getElementById(`${tabName}-tab`).classList.add('active');
             event.target.classList.add('active');
 
-            // 切换到白名单或黑名单 Tab 时自动加载列表
+            // 切换到白名单、黑名单、版本管理 Tab 时自动加载
             if (tabName === 'whitelist') {
                 loadWhitelist();
             } else if (tabName === 'blacklist') {
                 loadBlacklist();
+            } else if (tabName === 'versions') {
+                loadVersions();
+                loadStableStatus();
+            } else if (tabName === 'releasenotes') {
+                loadReleaseNotes();
             }
         }
 
@@ -1211,10 +1309,6 @@
 
         // 从白名单删除
         async function removeFromWhitelist(platform, ip) {
-            if (!confirm(`确定要从白名单中删除 ${ip} 吗？`)) {
-                return;
-            }
-
             try {
                 const data = await apiRequest('/admin/rollout/whitelist', 'POST', {
                     platform_quality: platform,
@@ -1261,10 +1355,6 @@
 
         // 从黑名单删除
         async function removeFromBlacklist(platform, ip) {
-            if (!confirm(`确定要从黑名单中删除 ${ip} 吗？`)) {
-                return;
-            }
-
             try {
                 const data = await apiRequest('/admin/rollout/blacklist', 'POST', {
                     platform_quality: platform,
@@ -1276,6 +1366,106 @@
                 loadBlacklist();
             } catch (error) {
                 // 错误已在 apiRequest 中处理
+            }
+        }
+
+        // 导入白名单CSV
+        async function importWhitelistCSV() {
+            const platform = document.getElementById('whitelist-platform').value;
+            const fileInput = document.getElementById('whitelist-csv-file');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showMessage('请选择CSV文件', 'error');
+                return;
+            }
+
+            const token = localStorage.getItem('admin_token');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('platform_quality', platform);
+
+            try {
+                const response = await fetch('/admin/rollout/whitelist/import', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '导入失败');
+
+                showMessage(`✅ ${data.message}`, 'success');
+                fileInput.value = '';
+                loadWhitelist();
+            } catch (error) {
+                showMessage(`导入失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清空白名单
+        async function clearWhitelist() {
+            const platform = document.getElementById('whitelist-platform').value;
+            const data = await apiRequest('/admin/rollout/whitelist/clear', 'POST', {
+                platform_quality: platform
+            });
+            showMessage(`✅ ${data.message}`, 'success');
+            loadWhitelist();
+        }
+
+        // 清空黑名单
+        async function clearBlacklist() {
+            const platform = document.getElementById('blacklist-platform').value;
+            const data = await apiRequest('/admin/rollout/blacklist/clear', 'POST', {
+                platform_quality: platform
+            });
+            showMessage(`✅ ${data.message}`, 'success');
+            loadBlacklist();
+        }
+
+        // 导入黑名单CSV
+        async function importBlacklistCSV() {
+            const platform = document.getElementById('blacklist-platform').value;
+            const fileInput = document.getElementById('blacklist-csv-file');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showMessage('请选择CSV文件', 'error');
+                return;
+            }
+
+            const token = localStorage.getItem('admin_token');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('platform_quality', platform);
+
+            try {
+                const response = await fetch('/admin/rollout/blacklist/import', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (response.status === 401) {
+                    localStorage.removeItem('admin_token');
+                    alert('登录已过期，请重新登录');
+                    window.location.href = '/static/login.html';
+                    return;
+                }
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || '导入失败');
+
+                showMessage(`✅ ${data.message}`, 'success');
+                fileInput.value = '';
+                loadBlacklist();
+            } catch (error) {
+                showMessage(`导入失败: ${error.message}`, 'error');
             }
         }
 
@@ -1325,6 +1515,256 @@
             // 自动加载回滚状态
             loadRollbackStatus();
         });
+
+        // ============================================================
+        // 版本管理
+        // ============================================================
+
+        // 加载版本列表
+        async function loadVersions() {
+            const display = document.getElementById('versions-list-display');
+            try {
+                const data = await apiRequest('/admin/versions/list', 'GET');
+
+                if (!data.versions || data.versions.length === 0) {
+                    display.innerHTML = '<p style="color: #999; margin: 0;">暂无版本信息</p>';
+                    return;
+                }
+
+                let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+
+                for (const ver of data.versions) {
+                    const isCurrent = ver.type === 'current';
+                    const badge = isCurrent
+                        ? '<span class="badge badge-success">当前版本</span>'
+                        : '<span class="badge badge-info">历史备份</span>';
+
+                    const borderColor = isCurrent ? '#4caf50' : '#2196f3';
+                    const bgColor = isCurrent ? '#f1f8e9' : '#fafafa';
+
+                    html += `
+                        <div style="
+                            padding: 15px;
+                            background: ${bgColor};
+                            border-left: 4px solid ${borderColor};
+                            border-radius: 6px;
+                        ">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <strong style="font-size: 16px;">${ver.gitVersion || 'N/A'}</strong>
+                                    ${badge}
+                                </div>
+                                <button class="btn btn-primary" style="padding: 6px 14px; font-size: 12px;"
+                                    onclick="setStableVersion('${ver.type}', '${isCurrent ? '' : ver.dir_name}')">
+                                    ⭐ 设为稳定版本
+                                </button>
+                            </div>
+                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.9em;">
+                                <span style="color: #666;">Commit:</span>
+                                <span style="font-family: monospace; color: #1976d2;">${ver.commit ? ver.commit.substring(0, 16) : 'N/A'}</span>
+                                <span style="color: #666;">目录:</span>
+                                <span style="font-family: monospace;">${ver.dir_name}</span>
+                                <span style="color: #666;">文件:</span>
+                                <span>${ver.files.length > 0 ? ver.files.join(', ') : '无'}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                display.innerHTML = html;
+
+            } catch (error) {
+                display.innerHTML = `<p style="color: #f44336; margin: 0;">❌ 加载失败: ${error.message}</p>`;
+            }
+        }
+
+        // 加载稳定版本状态
+        async function loadStableStatus() {
+            const display = document.getElementById('stable-status-display');
+            try {
+                const data = await apiRequest('/admin/versions/stable-status', 'GET');
+
+                const typeBadge = data.type === 'current'
+                    ? '<span class="badge badge-success">最新版本</span>'
+                    : '<span class="badge badge-warning">备份版本</span>';
+
+                display.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-weight: bold;">当前稳定版本指向:</span>
+                        ${typeBadge}
+                    </div>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.9em;">
+                        <span style="color: #666;">描述:</span>
+                        <span>${data.description || 'N/A'}</span>
+                        <span style="color: #666;">有效路径:</span>
+                        <span style="font-family: monospace;">${data.effective_path || 'N/A'}</span>
+                    </div>
+                `;
+            } catch (error) {
+                display.innerHTML = `<p style="color: #f44336; margin: 0;">❌ 加载失败: ${error.message}</p>`;
+            }
+        }
+
+        // 设置稳定版本
+        async function setStableVersion(type, backupDir) {
+            const desc = type === 'current' ? '当前最新版本' : `备份版本: ${backupDir}`;
+
+            if (!confirm(`确定要将稳定版本指向 ${desc} 吗？\n\n/download/stable/TestAgentStudio.exe 将指向此版本。`)) {
+                return;
+            }
+
+            try {
+                const body = {
+                    type: type
+                };
+
+                if (type === 'backup' && backupDir) {
+                    body.backup_dir = backupDir;
+                }
+
+                const data = await apiRequest('/admin/versions/set-stable', 'POST', body);
+
+                showMessage(`✅ ${data.message}`, 'success');
+                loadVersions();
+                loadStableStatus();
+            } catch (error) {
+                showMessage(`设置失败: ${error.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // 版本公告管理
+        // ============================================================
+
+        // 加载版本公告列表
+        async function loadReleaseNotes() {
+            const display = document.getElementById('releasenotes-list-display');
+            display.innerHTML = '<p style="color: #999; margin: 0;">加载中...</p>';
+
+            try {
+                const data = await apiRequest('/admin/releasenotes/list', 'GET');
+
+                if (data.directories.length === 0) {
+                    display.innerHTML = '<p style="color: #999; margin: 0;">暂无版本公告目录，请先拉取</p>';
+                    return;
+                }
+
+                let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+
+                data.directories.forEach(dir => {
+                    html += `
+                        <div style="
+                            padding: 15px;
+                            background: #f1f8e9;
+                            border-left: 4px solid #4caf50;
+                            border-radius: 6px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        ">
+                            <div>
+                                <strong style="font-size: 15px; color: #333;">📁 ${dir}</strong>
+                            </div>
+                            <button class="btn btn-primary" style="padding: 8px 18px; font-size: 13px;"
+                                onclick="publishReleaseNote('${dir}')">
+                                📤 发布到 nginx
+                            </button>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                display.innerHTML = html;
+
+            } catch (error) {
+                display.innerHTML = `<p style="color: #f44336; margin: 0;">❌ 加载失败: ${error.message}</p>`;
+            }
+        }
+
+        // 拉取版本公告
+        async function pullReleaseNotes() {
+            const btn = event.target;
+            const pullResult = document.getElementById('pull-result');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> 正在拉取...';
+
+            pullResult.style.display = 'block';
+            pullResult.innerHTML = `
+                <div style="padding: 15px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #2196f3;">
+                    <p style="margin: 0; color: #1976d2;">⏳ 正在执行 git pull，请稍候...</p>
+                </div>
+            `;
+
+            try {
+                const data = await apiRequest('/admin/releasenotes/pull', 'POST');
+
+                if (data.status === 'success') {
+                    pullResult.innerHTML = `
+                        <div style="padding: 15px; background: #f1f8e9; border-radius: 4px; border-left: 3px solid #4caf50;">
+                            <p style="margin: 0 0 8px 0; color: #388e3c;"><strong>✅ ${data.message}</strong></p>
+                            <pre style="margin: 0; font-size: 12px; color: #555; white-space: pre-wrap; word-break: break-all;">${data.output || ''}</pre>
+                        </div>
+                    `;
+                    showMessage('✅ 版本公告已更新', 'success');
+                } else {
+                    pullResult.innerHTML = `
+                        <div style="padding: 15px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #ff9800;">
+                            <p style="margin: 0 0 8px 0; color: #e65100;"><strong>⚠️ ${data.message}</strong></p>
+                            <pre style="margin: 0; font-size: 12px; color: #555; white-space: pre-wrap; word-break: break-all;">${data.output || ''}</pre>
+                        </div>
+                    `;
+                }
+
+                // 刷新目录列表
+                loadReleaseNotes();
+
+            } catch (error) {
+                pullResult.innerHTML = `
+                    <div style="padding: 15px; background: #ffebee; border-radius: 4px; border-left: 3px solid #f44336;">
+                        <p style="margin: 0; color: #c62828;">❌ 拉取失败: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>📥</span> 拉取版本公告 (git pull)';
+            }
+        }
+
+        // 发布版本公告
+        async function publishReleaseNote(version) {
+            if (!confirm(`确定要发布版本公告 "${version}" 到 nginx 吗？\n\n将把 ${version}/ 目录下所有内容拷贝到 /usr/share/nginx/html/`)) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest('/admin/releasenotes/publish', 'POST', {
+                    version: version
+                });
+
+                const filesList = data.files ? data.files.join(', ') : '';
+                showMessage(`✅ ${data.message} (文件: ${filesList})`, 'success');
+
+                // 显示发布结果详情
+                const display = document.getElementById('releasenotes-list-display');
+                const resultHtml = `
+                    <div style="padding: 15px; background: #f1f8e9; border-radius: 4px; border-left: 3px solid #4caf50; margin-bottom: 15px;">
+                        <p style="margin: 0 0 8px 0; color: #388e3c;"><strong>✅ 发布成功</strong></p>
+                        <p style="margin: 4px 0; font-size: 13px; color: #555;">目标: ${data.target}</p>
+                        <p style="margin: 4px 0; font-size: 13px; color: #555;">文件: ${filesList}</p>
+                    </div>
+                `;
+                // Prepend the result to the display
+                display.insertAdjacentHTML('afterbegin', resultHtml);
+
+                // Refresh the list
+                loadReleaseNotes();
+
+            } catch (error) {
+                showMessage(`发布失败: ${error.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

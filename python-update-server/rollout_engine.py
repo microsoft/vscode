@@ -401,6 +401,66 @@ class RolloutStrategyEngine:
         logger.info(f"添加到黑名单: {client_ip} -> {platform_quality}")
         return True
 
+    def add_to_whitelist_batch(self, platform_quality: str, items: List[str]) -> int:
+        """批量添加到白名单"""
+        config = self.get_config(platform_quality)
+        if not config:
+            return 0
+
+        count = 0
+        for item in items:
+            item = item.strip()
+            if item and item not in config.whitelist:
+                config.whitelist.add(item)
+                count += 1
+
+        if count > 0:
+            self.set_config(platform_quality, config)
+            logger.info(f"批量添加到白名单: {count} 个 -> {platform_quality}")
+
+        return count
+
+    def add_to_blacklist_batch(self, platform_quality: str, items: List[str]) -> int:
+        """批量添加到黑名单"""
+        config = self.get_config(platform_quality)
+        if not config:
+            return 0
+
+        count = 0
+        for item in items:
+            item = item.strip()
+            if item and item not in config.blacklist:
+                config.blacklist.add(item)
+                count += 1
+
+        if count > 0:
+            self.set_config(platform_quality, config)
+            logger.info(f"批量添加到黑名单: {count} 个 -> {platform_quality}")
+
+        return count
+
+    def clear_whitelist(self, platform_quality: str) -> int:
+        """清空白名单"""
+        config = self.get_config(platform_quality)
+        if not config:
+            return 0
+        count = len(config.whitelist)
+        config.whitelist.clear()
+        self.set_config(platform_quality, config)
+        logger.info(f"清空白名单: {count} 个 -> {platform_quality}")
+        return count
+
+    def clear_blacklist(self, platform_quality: str) -> int:
+        """清空黑名单"""
+        config = self.get_config(platform_quality)
+        if not config:
+            return 0
+        count = len(config.blacklist)
+        config.blacklist.clear()
+        self.set_config(platform_quality, config)
+        logger.info(f"清空黑名单: {count} 个 -> {platform_quality}")
+        return count
+
     def remove_from_whitelist(self, platform_quality: str, client_ip: str) -> bool:
         """从白名单移除（使用 IP 地址）"""
         config = self.get_config(platform_quality)
