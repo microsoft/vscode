@@ -314,7 +314,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					this.setContentAnimationEnabled(false);
 				}
 			};
-			this._register(dom.addDisposableListener(animationContainer, 'transitionend', finishActiveToggleAnimation));
+this._register(dom.addDisposableListener(animationContainer, 'transitionend', finishActiveToggleAnimation));
+			this._register(dom.addDisposableListener(animationContainer, 'transitioncancel', finishActiveToggleAnimation));
 		}
 
 		// Anchor the `MenuId.ChatSubagentContent` menu in the subagent header so
