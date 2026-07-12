@@ -6,14 +6,17 @@
 import { expect, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../../platform/inlineEdits/common/dataTypes/edit';
+import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { DEFAULT_OPTIONS, IncludeLineNumbersOption, PromptOptions, RecentFileClippingStrategy } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IXtabHistoryEditEntry, IXtabHistoryVisibleRangesEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
 import { splitLines } from '../../../../util/vs/base/common/strings';
 import { StringEdit } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
+import { Uri } from '../../../../vscodeTypes';
 import { LineRange0Based } from '../../common/lineRange';
-import { appendNeighborFileSnippets, buildCodeSnippetsUsingPagedClipping, computeFocalPageCost, historyEntriesToCodeSnippet, selectFocalRangesWithinSpanCap } from '../../common/recentFilesForPrompt';
+import { appendLanguageContextSnippets, appendNeighborFileSnippets, buildCodeSnippetsUsingPagedClipping, computeFocalPageCost, historyEntriesToCodeSnippet, selectFocalRangesWithinSpanCap } from '../../common/recentFilesForPrompt';
 import { INeighborFileSnippet } from '../../common/similarFilesContextService';
 
 function nLines(n: number): StringText {
@@ -828,6 +831,39 @@ suite('historyEntriesToCodeSnippet', () => {
 	});
 });
 
+suite('appendLanguageContextSnippets', () => {
+
+	test('does not add line numbers without a source range', () => {
+		const languageContext: LanguageContextResponse = {
+			start: 0,
+			end: 0,
+			items: [{
+				context: {
+					kind: ContextKind.Snippet,
+					priority: 1,
+					uri: Uri.parse('file:///src/context.ts'),
+					value: 'first line\nsecond line',
+				},
+				timeStamp: 0,
+				onTimeout: false,
+			}],
+		};
+		const snippets: string[] = [];
+
+		appendLanguageContextSnippets(languageContext, snippets, 100, computeTokens);
+
+		expect(snippets).toMatchInlineSnapshot(`
+			[
+			  "<|recently_viewed_code_snippet|>
+			code_snippet_file_path: /src/context.ts
+			first line
+			second line
+			<|/recently_viewed_code_snippet|>",
+			]
+		`);
+	});
+});
+
 suite('appendNeighborFileSnippets', () => {
 
 	function makeNeighbor(uri: string, snippet: string, startLine: number, score = 0.5): INeighborFileSnippet {
@@ -835,7 +871,7 @@ suite('appendNeighborFileSnippets', () => {
 		return { uri, relativePath: uri, snippet, lineRange: new LineRange0Based(startLine, startLine + lineCount), score };
 	}
 
-	test('appends snippets formatted like recent files', () => {
+	test('uses the original source line range when adding line numbers', () => {
 		const snippets: string[] = [];
 		const docsInPrompt = new Set<DocumentId>();
 		appendNeighborFileSnippets(
@@ -856,6 +892,27 @@ suite('appendNeighborFileSnippets', () => {
 			]
 		`);
 		expect(docsInPrompt.has(DocumentId.create('file:///src/n1.ts'))).toBe(true);
+	});
+
+	test('uses the original source line range without spacing after line numbers', () => {
+		const snippets: string[] = [];
+		appendNeighborFileSnippets(
+			[makeNeighbor('file:///src/n1.ts', 'a\nb', 12)],
+			snippets,
+			new Set<DocumentId>(),
+			/*tokenBudget*/ 100,
+			computeTokens,
+			IncludeLineNumbersOption.WithoutSpace,
+		);
+		expect(snippets).toMatchInlineSnapshot(`
+			[
+			  "<|recently_viewed_code_snippet|>
+			code_snippet_file_path: /src/n1.ts
+			12|a
+			13|b
+			<|/recently_viewed_code_snippet|>",
+			]
+		`);
 	});
 
 	test('skips oversize snippets but keeps trying smaller ones', () => {

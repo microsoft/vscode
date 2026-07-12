@@ -100,11 +100,6 @@ export class MenuId {
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
-	/**
-	 * Menu whose actions populate the editor tab bar's "+" (Add Tab) dropdown.
-	 * The button is rendered by core and is shown only when this menu has actions.
-	 */
-	static readonly EditorTabsBarAddTab = new MenuId('EditorTabsBarAddTab');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');

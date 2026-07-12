@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
-import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
+import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, isActiveTaskState, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
 import { CloudAgentBackend, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
@@ -1594,7 +1594,12 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// updatePullRequestToolbarContext (active-response settle, follow-up, PR creation).
 		this._activeToolbarTaskId = taskId;
 		this.setPullRequestToolbarContext(taskContent);
-		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
+		// Only stream a live response when the task itself is still running. A terminally-failed
+		// task (e.g. "Failed to launch agent") can leave its latest turn's session state stuck at
+		// `in_progress`/`queued`; without the task-level guard the streamer would poll forever and
+		// the view would show a perpetual "Session is in progress…" spinner.
+		const activeResponseCallback = isActiveTaskState(taskContent.task.state)
+			&& latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
 			? this._createTaskStreamCallback(taskId, { mode: 'current', seedEventIds: new Set(events.map(e => e.id)) })
 			: undefined;
 

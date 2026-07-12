@@ -8,7 +8,7 @@ import { $, Dimension, clearNode } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
-import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorTabsControl } from './editorTabsControl.js';
 import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
 import { SingleEditorTabsControl } from './singleEditorTabsControl.js';
@@ -48,6 +48,7 @@ export class EditorTitleControl extends Themable {
 		private readonly groupsView: IEditorGroupsView,
 		private readonly groupView: IEditorGroupView,
 		private readonly model: IReadonlyEditorGroupModel,
+		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -72,7 +73,7 @@ export class EditorTitleControl extends Themable {
 				break;
 		}
 
-		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
+		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds);
 		return this.editorTabsControlDisposable.add(control);
 	}
 
@@ -91,6 +92,7 @@ export class EditorTitleControl extends Themable {
 			showDecorationColors: false,
 			showPlaceholder: true,
 			dragEditor: false,
+			showEditorTypePicker: true,
 		}));
 
 		// Breadcrumbs enablement & visibility change have an impact on layout

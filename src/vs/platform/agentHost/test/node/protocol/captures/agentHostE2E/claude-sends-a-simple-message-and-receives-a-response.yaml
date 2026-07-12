@@ -1,0 +1,15 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Say exactly "hello" and nothing else
+    response:
+      content: hello
+      stopReason: end_turn
+      usage:
+        inputTokens: 2426
+        outputTokens: 4

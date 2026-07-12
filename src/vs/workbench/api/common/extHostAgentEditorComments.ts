@@ -16,24 +16,32 @@ class ExtHostAgentEditorCommentsProvider implements vscode.AgentEditorCommentsPr
 	private _comments: readonly vscode.AgentEditorComment[] = [];
 	get comments(): readonly vscode.AgentEditorComment[] { return this._comments; }
 
+	private _acceptsComments = false;
+	get acceptsComments(): boolean { return this._acceptsComments; }
+
 	constructor(
 		private readonly handle: number,
 		private readonly proxy: MainThreadAgentEditorCommentsShape,
 		private readonly onDispose: (handle: number) => void
 	) { }
 
-	$acceptComments(comments: IAgentEditorCommentDto[]): void {
+	$acceptComments(comments: IAgentEditorCommentDto[], acceptsComments: boolean): void {
 		this._comments = comments.map(comment => Object.freeze({
 			id: comment.id,
 			range: typeConvert.Range.to(comment.range),
 			body: comment.body,
 			author: comment.author,
 		} satisfies vscode.AgentEditorComment));
+		this._acceptsComments = acceptsComments;
 		this._onDidChange.fire();
 	}
 
 	addComment(range: vscode.Range, body: string): void {
 		this.proxy.$addComment(this.handle, typeConvert.Range.from(range), body);
+	}
+
+	deleteComment(id: string): void {
+		this.proxy.$deleteComment(this.handle, id);
 	}
 
 	dispose(): void {
@@ -61,7 +69,7 @@ export class ExtHostAgentEditorComments implements ExtHostAgentEditorCommentsSha
 		return provider;
 	}
 
-	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[]): void {
-		this.providers.get(handle)?.$acceptComments(comments);
+	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void {
+		this.providers.get(handle)?.$acceptComments(comments, acceptsComments);
 	}
 }

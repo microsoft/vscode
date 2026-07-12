@@ -85,6 +85,7 @@ export class BlockedSessionsList extends Disposable {
 			onSessionOpen: options.onSessionOpen,
 			approvalModel: options.approvalModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
+			toolbarActions: false,
 		}));
 
 		this._register(this._list.onDidChangeContentHeight(() => {

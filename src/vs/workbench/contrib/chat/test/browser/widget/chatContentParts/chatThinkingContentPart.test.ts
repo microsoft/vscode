@@ -14,8 +14,9 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, getToolInvocationIcon, maybePickFunWorkingMessage } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
-import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IEditSessionDiffStats } from '../../../../common/editing/chatEditingService.js';
@@ -198,7 +199,19 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), true, 'Should be collapsed by default');
+			const animationContainer = part.domNode.querySelector('.chat-collapsible-content-animation');
+			const animationContent = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner');
+			assert.deepStrictEqual({
+				collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+				hasAnimationContainer: !!animationContainer,
+				animationEnabled: part.domNode.classList.contains('chat-collapsible-content-animated'),
+				contentIsInert: animationContent?.inert,
+			}, {
+				collapsed: true,
+				hasAnimationContainer: true,
+				animationEnabled: true,
+				contentIsInert: true,
+			});
 		});
 
 		test('should have chat-thinking-box class', () => {
@@ -285,6 +298,33 @@ suite('ChatThinkingContentPart', () => {
 			// Now content should be rendered
 			const contentList = part.domNode.querySelector('.chat-used-context-list');
 			assert.ok(contentList, 'Content should be rendered after expanding');
+		});
+
+		test('user toggle event bubbles from the collapse button', () => {
+			const content = createThinkingPart('**Thinking content to render**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const ancestor = mainWindow.document.createElement('div');
+			ancestor.appendChild(part.domNode);
+			mainWindow.document.body.appendChild(ancestor);
+			disposables.add(toDisposable(() => ancestor.remove()));
+
+			let toggleCount = 0;
+			const listener = () => toggleCount++;
+			ancestor.addEventListener(ChatCollapsibleContentPart.userToggleEvent, listener);
+			disposables.add(toDisposable(() => ancestor.removeEventListener(ChatCollapsibleContentPart.userToggleEvent, listener)));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.click();
+
+			assert.strictEqual(toggleCount, 1);
 		});
 	});
 
@@ -401,6 +441,8 @@ suite('ChatThinkingContentPart', () => {
 
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'),
 				'Should have fixed mode class');
+			assert.strictEqual(part.domNode.querySelector('.chat-collapsible-content-animation'), null,
+				'Fixed scrolling mode should not animate its content container');
 		});
 
 		test('should init content early (eager rendering)', () => {
@@ -441,6 +483,106 @@ suite('ChatThinkingContentPart', () => {
 
 			const scrollable = part.domNode.querySelector('.monaco-scrollable-element');
 			assert.ok(scrollable, 'Should have scrollable container');
+		});
+
+		test('should collapse without animation when streaming completes', async () => {
+			const content = createThinkingPart('**Content with scrolling**');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.appendItem(() => {
+				const tool = $('div.test-completed-tool');
+				tool.textContent = 'Completed tool';
+				return { domNode: tool };
+			}, 'test-tool');
+
+			const contentList = part.domNode.querySelector<HTMLElement>('.chat-thinking-collapsible');
+			assert.ok(contentList);
+			Object.defineProperty(contentList, 'scrollHeight', { configurable: true, value: 400 });
+
+			part.finalizeTitleIfDefault();
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			const scrollable = part.domNode.querySelector<HTMLElement>('.monaco-scrollable-element');
+			const completedHeight = scrollable?.style.maxHeight;
+			const completionAnimationEnabled = part.domNode.classList.contains('chat-thinking-fixed-mode-animated');
+			button.click();
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const verticalScrollbar = part.domNode.querySelector('.scrollbar.vertical');
+			assert.deepStrictEqual({
+				completedHeight,
+				completionAnimationEnabled,
+				userAnimationEnabled: part.domNode.classList.contains('chat-thinking-fixed-mode-animated'),
+				expandedHeight: scrollable?.style.maxHeight,
+				scrollbarIsInvisible: verticalScrollbar?.classList.contains('invisible'),
+				toolIsVisible: !!part.domNode.querySelector('.test-completed-tool'),
+			}, {
+				completedHeight: '0px',
+				completionAnimationEnabled: false,
+				userAnimationEnabled: true,
+				expandedHeight: '400px',
+				scrollbarIsInvisible: true,
+				toolIsVisible: true,
+			});
+		});
+
+		test('should animate the first expansion and subsequent collapse of restored content', async () => {
+			const content = createThinkingPart('**Restored content**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.appendItem(() => {
+				const tool = $('div.test-restored-tool');
+				tool.textContent = 'Restored tool';
+				return { domNode: tool };
+			}, 'restored-tool');
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.click();
+
+			const contentList = part.domNode.querySelector<HTMLElement>('.chat-thinking-collapsible');
+			const scrollable = part.domNode.querySelector<HTMLElement>('.monaco-scrollable-element');
+			assert.ok(contentList);
+			assert.ok(scrollable);
+			Object.defineProperty(contentList, 'scrollHeight', { configurable: true, value: 400 });
+			const initialExpandedHeight = scrollable.style.maxHeight;
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const expandedHeight = scrollable.style.maxHeight;
+
+			button.click();
+
+			assert.deepStrictEqual({
+				initialExpandedHeight,
+				expandedHeight,
+				collapsedHeight: scrollable.style.maxHeight,
+				collapsedInert: scrollable.inert,
+			}, {
+				initialExpandedHeight: '0px',
+				expandedHeight: '400px',
+				collapsedHeight: '0px',
+				collapsedInert: true,
+			});
 		});
 	});
 
@@ -502,6 +644,122 @@ suite('ChatThinkingContentPart', () => {
 
 			// The part should track these titles for finalization
 			assert.ok(part.domNode, 'Part should still be valid');
+		});
+
+		test('should restore the descriptive title after expand and collapse', () => {
+			const content = createThinkingPart('**Read chatListRenderer.ts, lines 2230 to 2270**\nInspect grouping logic');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+
+			button.click();
+			part.updateThinking(createThinkingPart('**Read**\nInspect grouping logic', content.id));
+			button.click();
+
+			assert.strictEqual(button.textContent, 'Thinking: Read chatListRenderer.ts, lines 2230 to 2270');
+		});
+	});
+
+	suite('Thinking group identity', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('distinguishes reasoning from grouped tool content', () => {
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				createThinkingPart('**Reviewed the implementation**'),
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			assert.deepStrictEqual({
+				hasReasoning: part.hasReasoningContent(),
+				hasGroupedItems: part.hasGroupedItems(),
+			}, {
+				hasReasoning: true,
+				hasGroupedItems: false,
+			});
+
+			part.appendItem(() => ({ domNode: $('div.test-tool-item') }), 'test-tool');
+
+			assert.strictEqual(part.hasGroupedItems(), true);
+		});
+
+		test('adds elapsed time to finalized reasoning-only headers', () => {
+			const content = createThinkingPart('**Reviewed the implementation**');
+			content.reasoningDurationMs = 1200;
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.finalizeTitleIfDefault();
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			button?.click();
+			button?.click();
+
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				labelHasDuration: /^Reviewed the implementation - \d+s$/.test(part.domNode.querySelector('.monaco-button')?.textContent ?? ''),
+				ariaLabelHasDuration: /^Reviewed the implementation - \d+s$/.test(button?.ariaLabel ?? ''),
+			}, {
+				generatedTitle: 'Reviewed the implementation',
+				labelHasDuration: true,
+				ariaLabelHasDuration: true,
+			});
+		});
+
+		test('restores the persisted duration when reasoning content is rehydrated', () => {
+			const content = createThinkingPart('**Reviewed the implementation**');
+			content.reasoningDurationMs = 2300;
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				createMockRenderContext(false),
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.finalizeTitleIfDefault();
+
+			assert.strictEqual(part.domNode.querySelector('.monaco-button')?.textContent, 'Reviewed the implementation - 3s');
+		});
+
+		test('does not show zero or unknown reasoning duration', () => {
+			const titles = [undefined, 0].map(reasoningDurationMs => {
+				const content = createThinkingPart('**Reviewed the implementation**');
+				content.reasoningDurationMs = reasoningDurationMs;
+				const part = store.add(instantiationService.createInstance(
+					ChatThinkingContentPart,
+					content,
+					createMockRenderContext(false),
+					mockMarkdownRenderer,
+					true
+				));
+				part.finalizeTitleIfDefault();
+				return part.domNode.querySelector('.monaco-button')?.textContent;
+			});
+
+			assert.deepStrictEqual(titles, ['Reviewed the implementation', 'Reviewed the implementation']);
 		});
 	});
 
@@ -1096,6 +1354,7 @@ suite('ChatThinkingContentPart', () => {
 			// The button should now show a check icon
 			const iconElement = part.domNode.querySelector('.codicon-check');
 			assert.ok(iconElement, 'Should have check icon after finalization');
+			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animated'), 'Should enable content animation after finalization');
 		});
 
 		test('finalizeTitleIfDefault should retain initial thinking title', () => {
@@ -1558,6 +1817,50 @@ suite('ChatThinkingContentPart', () => {
 				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
 			}, {
 				editPillParent: true,
+				thinkingWrapperRemoved: true,
+			});
+		});
+
+		test('finalizeTitleIfDefault should promote an external edit beside a hidden tool invocation', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			const originalParent = $('div.original-parent');
+			const hiddenToolInvocationPart = $('div.chat-tool-invocation-part');
+			hiddenToolInvocationPart.style.display = 'none';
+			originalParent.append(hiddenToolInvocationPart, part.domNode);
+			mainWindow.document.body.appendChild(originalParent);
+			disposables.add(toDisposable(() => originalParent.remove()));
+
+			(part.domNode.querySelector('.monaco-button') as HTMLElement)?.click();
+
+			const editPill = $('div.chat-codeblock-pill-container');
+			editPill.textContent = 'Edited package.json';
+			const externalEdit: IChatExternalEdit = {
+				kind: 'externalEdit',
+				uri: URI.file('/workspace/package.json'),
+				editKind: 'edit',
+			};
+			part.appendItem(() => ({ domNode: editPill }), 'external-edit', externalEdit, originalParent);
+
+			const thinkingWrapper = editPill.parentElement;
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				editPillParent: editPill.parentElement === originalParent,
+				hiddenToolChildCount: hiddenToolInvocationPart.childElementCount,
+				thinkingWrapperRemoved: !thinkingWrapper?.parentElement,
+			}, {
+				editPillParent: true,
+				hiddenToolChildCount: 0,
 				thinkingWrapperRemoved: true,
 			});
 		});

@@ -1,0 +1,48 @@
+# SDK canary integration (no-op unless VSCODE_SDK_CANARY_VERSION is set).
+# Overrides @github/copilot-sdk / @github/copilot to a version published to the
+# private feed and refreshes the lockfile so the node_modules cache key below
+# misses and `npm ci` installs the canary. Authenticates to the feed first so
+# the override's lockfile refresh can resolve the canary — the standard
+# npmAuthenticate runs only after the cache-key step. Mirrors common/agent-sdk-produce.yml.
+# See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+
+parameters:
+  - name: windows
+    type: boolean
+    default: false
+
+steps:
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: |
+          npm config set registry $env:NPM_REGISTRY
+          Write-Host "##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['VSCODE_SDK_CANARY_VERSION'], ''))
+        displayName: SDK canary — set registry for auth
+  - ${{ else }}:
+      - script: |
+          set -e
+          npm config set registry "$NPM_REGISTRY"
+          echo "##vso[task.setvariable variable=SDK_CANARY_NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['VSCODE_SDK_CANARY_VERSION'], ''))
+        displayName: SDK canary — set registry for auth
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(SDK_CANARY_NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['VSCODE_SDK_CANARY_VERSION'], ''))
+    displayName: SDK canary — authenticate feed
+
+  - ${{ if eq(parameters.windows, true) }}:
+      - powershell: node build/azure-pipelines/common/apply-sdk-canary-override.ts
+        condition: and(succeeded(), ne(variables['VSCODE_SDK_CANARY_VERSION'], ''))
+        env:
+          VSCODE_SDK_CANARY_VERSION: $(VSCODE_SDK_CANARY_VERSION)
+          VSCODE_CLI_CANARY_VERSION: $(VSCODE_CLI_CANARY_VERSION)
+        displayName: Apply SDK canary override
+  - ${{ else }}:
+      - script: node build/azure-pipelines/common/apply-sdk-canary-override.ts
+        condition: and(succeeded(), ne(variables['VSCODE_SDK_CANARY_VERSION'], ''))
+        env:
+          VSCODE_SDK_CANARY_VERSION: $(VSCODE_SDK_CANARY_VERSION)
+          VSCODE_CLI_CANARY_VERSION: $(VSCODE_CLI_CANARY_VERSION)
+        displayName: Apply SDK canary override

@@ -23,18 +23,20 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
+import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { CustomizationType, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -69,13 +71,16 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
@@ -87,6 +92,7 @@ import { convertBufferToScreenshotVariable } from '../../../browser/attachments/
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -119,6 +125,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._authenticationPending.set(pending, undefined);
 	}
 
+	override readonly initializeResult = constObservable(undefined);
+
 	// Track live subscriptions so fireAction can route to them. A subscription
 	// may hold a SessionState (for session channels) or a ChatState (for the
 	// per-session default chat channel).
@@ -130,6 +138,46 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+
+	// ---- Pending→error subscription support (repro for #5242) --------------
+	// Models a subscription that is first observed *pending* (value === undefined)
+	// and later transitions to an error via the real `BaseAgentSubscription.setError`
+	// semantics: it fires `onDidError` but NOT `onDidChange`. This is the exact
+	// shape that strands an awaiter which only listens to `onDidChange`.
+	private readonly _pendingErrorSubs = new Map<string, { onDidChange: Emitter<unknown>; onDidError: Emitter<Error>; error: Error | undefined }>();
+
+	/** Register a subscription for `resource` that starts pending (no snapshot, no error). */
+	public makePendingErrorSub(resource: string): void {
+		this._pendingErrorSubs.set(resource, { onDidChange: new Emitter<unknown>(), onDidError: new Emitter<Error>(), error: undefined });
+	}
+
+	/**
+	 * Transition a registered pending subscription to error, mirroring real
+	 * `setError`: set the error value and fire `onDidError` only (never
+	 * `onDidChange`). Then clear the pending registration and seed healthy
+	 * session state so a subsequent re-subscribe succeeds (models the race
+	 * finally resolving once the backend registers the session).
+	 */
+	public firePendingSubError(resource: string, err: Error): void {
+		const entry = this._pendingErrorSubs.get(resource);
+		if (!entry) {
+			throw new Error(`No pending-error sub registered for ${resource}`);
+		}
+		entry.error = err;
+		entry.onDidError.fire(err);
+		this._pendingErrorSubs.delete(resource);
+	}
+
+	private _buildPendingErrorSub<T>(entry: { onDidChange: Emitter<unknown>; onDidError: Emitter<Error>; error: Error | undefined }): IAgentSubscription<T> {
+		return {
+			get value() { return entry.error as T | Error | undefined; },
+			get verifiedValue() { return undefined; },
+			onDidChange: entry.onDidChange.event as Event<T>,
+			onDidError: entry.onDidError.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+	}
 
 	/**
 	 * If set, the next {@link createSession} call seeds the session summary's
@@ -255,6 +303,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const resourceStr = resource.toString();
+		const pendingEntry = this._pendingErrorSubs.get(resourceStr);
+		if (pendingEntry) {
+			return { object: this._buildPendingErrorSub<T>(pendingEntry), dispose: () => { } };
+		}
 		const emitter = new Emitter<T>();
 		const onWillApply = new Emitter<ActionEnvelope>();
 		const onDidApply = new Emitter<ActionEnvelope>();
@@ -324,6 +376,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		};
 	}
 	override getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		const pendingEntry = this._pendingErrorSubs.get(resource.toString());
+		if (pendingEntry) {
+			return this._buildPendingErrorSub<T>(pendingEntry);
+		}
 		const entry = this._liveSubscriptions.get(resource.toString());
 		if (!entry) {
 			return undefined;
@@ -538,7 +594,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -642,6 +698,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...languageModelToolsServiceOverride,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: true });
+	instantiationService.stub(IProgressService, { withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => task({ report: () => { } }) });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
 	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0 };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
@@ -716,7 +774,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
-	instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
+	instantiationService.stub(IAgentHostCustomizationService, customizationServiceOverride ?? new NullAgentHostCustomizationService());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
 		get: () => undefined,
@@ -726,6 +784,11 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+	instantiationService.stub(IAgentHostImportConversationStore, {
+		set: () => { },
+		take: () => undefined,
+		rename: () => { },
+	} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
 	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService)));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByType = new Map<string, IObservable<readonly ClientPluginCustomization[]>>();
@@ -751,6 +814,9 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 					onDidChange: Event.None,
 					isDisabled: () => false,
 					setDisabled: () => { },
+				},
+				bundler: new class extends mock<SyncedCustomizationBundler>() {
+					override getOrigin() { return undefined; }
 				},
 				dispose: () => inner.dispose(),
 			};
@@ -778,8 +844,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -797,10 +863,10 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService };
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
-		requestId: 'req-1',
+		requestId: overrides.requestId ?? 'req-1',
 		agentId: overrides.agentId ?? 'agent-host-copilot',
 		message: overrides.message ?? 'Hello',
 		variables: overrides.variables ?? { variables: [] },
@@ -968,6 +1034,43 @@ suite('AgentHostChatContribution', () => {
 			const { chatAgentService } = createContribution(disposables);
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+		});
+	});
+
+	// ---- Download progress notification (editor window) -----------------
+
+	suite('download progress', () => {
+
+		function createWithProgressRecorder(isSessionsWindow: boolean) {
+			// AI features must be enabled (AIDisabled === false) or the download
+			// progress handler suppresses the notification; the default config
+			// stub returns `true` for every key, so override just this one.
+			const services = createTestServices(disposables, undefined, undefined, undefined, undefined, isSessionsWindow, undefined, { [ChatConfiguration.AIDisabled]: false });
+			const openedTitles: (string | undefined)[] = [];
+			services.instantiationService.stub(IProgressService, {
+				withProgress: <R,>(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => {
+					openedTitles.push(options.title);
+					return task({ report: () => { } });
+				},
+			});
+			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
+			return { agentHostService: services.agentHostService, openedTitles };
+		}
+
+		test('editor window renders SDK download progress from root/progress notifications', () => {
+			const { agentHostService, openedTitles } = createWithProgressRecorder(false);
+
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+
+			assert.deepStrictEqual(openedTitles, ['Downloading Claude agent']);
+		});
+
+		test('sessions window does not render download progress via the chat contribution', () => {
+			const { agentHostService, openedTitles } = createWithProgressRecorder(true);
+
+			agentHostService.fireNotification({ type: 'root/progress', channel: 'ahp-root://root', progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' });
+
+			assert.strictEqual(openedTitles.length, 0);
 		});
 	});
 
@@ -2537,6 +2640,51 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Recovered']);
+		}));
+
+		test('recovers when session subscription errors AFTER being observed pending (repro #5242 hang)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Regression for the agent-host-copilotcli session-subscribe race
+			// (issue #5242): the client observes the session subscription while
+			// it is still pending (value === undefined), then the subscribe
+			// resolves to `-32603 Session not found on backend`, which flips the
+			// subscription into an error state via `setError` — firing
+			// `onDidError` but NOT `onDidChange`. A hydration await that listens
+			// only to `onDidChange` never wakes and the turn hangs for the full
+			// harness timeout. The handler must instead settle on the error and
+			// recover (create-and-subscribe), not park forever.
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-then-error-race' });
+			const backendSession = AgentSession.uri('copilot', 'pending-then-error-race');
+			const { agentHostService, chatAgentService } = createContribution(disposables, {
+				provisionalServiceOverride: {
+					get: resource => resource.toString() === sessionResource.toString() ? backendSession : undefined,
+				},
+			});
+			// The session's subscription is observed *pending* — no snapshot yet.
+			agentHostService.makePendingErrorSub(backendSession.toString());
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			// Let the handler reach the hydration await on the pending subscription.
+			await timeout(10);
+
+			// The subscribe now fails: flip to error (fires onDidError only, like real setError).
+			agentHostService.firePendingSubError(backendSession.toString(), new Error(`Session not found on backend: ${backendSession.toString()}`));
+			await timeout(10);
+
+			// The handler must have progressed past the hydration await and started
+			// the turn. On the buggy (onDidChange-only) await this dispatch never
+			// happens — the turn hangs — and this assertion fails.
+			const dispatch = agentHostService.turnActions[0];
+			assert.ok(dispatch, 'turn must start after the subscription errors; handler hung waiting on onDidChange (issue #5242)');
+			const action = dispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
 		}));
 
 		test('rejects generic contributed-chat untitled resource', async () => {
@@ -4885,6 +5033,52 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('browser view variable becomes a model-readable browser attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const browserUri = URI.from({ scheme: 'vscode-browser', path: '/page-1' });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'inspect this page',
+				variables: {
+					variables: [
+						upcastPartial({
+							kind: 'browserView',
+							id: browserUri.toString(),
+							name: 'Example page',
+							value: browserUri,
+							browserId: 'page-1',
+							modelDescription: 'Browser page: Example. The pageId is "page-1".',
+						}),
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.message.attachments, [{
+				type: MessageAttachmentKind.Simple,
+				label: 'Example page',
+				modelRepresentation: 'Browser page: Example. The pageId is "page-1".',
+				displayKind: BrowserViewAttachmentDisplayKind,
+				_meta: { [BrowserViewAttachmentMetadataKey]: { browserId: 'page-1', browserUri: browserUri.toString() } },
+			}]);
+
+			const replayedVariables = messageAttachmentsToVariableData(turnAction.message.attachments, 'test')?.variables;
+			assert.strictEqual(replayedVariables?.length, 1);
+			assert.strictEqual(replayedVariables?.[0].value?.toString(), browserUri.toString());
+			assert.deepStrictEqual({ ...replayedVariables?.[0], value: undefined }, {
+				kind: 'browserView',
+				id: browserUri.toString(),
+				name: 'Example page',
+				value: undefined,
+				browserId: 'page-1',
+				modelDescription: 'Browser page: Example. The pageId is "page-1".',
+				_meta: { [BrowserViewAttachmentMetadataKey]: { browserId: 'page-1', browserUri: browserUri.toString() } },
+			});
+		}));
+
 		test('preserves _meta from variable entry on outgoing attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -5905,7 +6099,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);
-			instantiationService.stub(IConfigurationService, { getValue: () => false });
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: false });
 
 			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 			// Contribution should exist but not have registered any agents
@@ -7699,6 +7893,145 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
 		});
+	});
+
+	// ---- MCP auth prompt dedupe (per conversation) ----------------------
+
+	suite('mcp auth prompt', () => {
+
+		// A customization service whose MCP server statuses and change events the
+		// test drives directly, so the handler's reconcile pass — which prunes a
+		// server from the per-conversation surfaced set once it reaches Ready —
+		// can be exercised deterministically.
+		class TestMcpCustomizationService extends NullAgentHostCustomizationService {
+			private readonly _onDidChange = new Emitter<void>();
+			override readonly onDidChangeCustomizations = this._onDidChange.event;
+			mcpServers: readonly IAgentHostMcpServer[] = [];
+			override getMcpServers(): readonly IAgentHostMcpServer[] {
+				return this.mcpServers;
+			}
+			fireChange(): void {
+				this._onDidChange.fire();
+			}
+			dispose(): void {
+				this._onDidChange.dispose();
+			}
+		}
+
+		// An MCP server customization stuck in the auth-required state. Empty
+		// `authorization_servers` keeps the auto-grant probe off the network so it
+		// resolves to "not authenticated" and the server stays pending.
+		const authRequiredCustomization = () => ({
+			type: CustomizationType.McpServer,
+			id: 'mcp-1',
+			name: 'GitHub MCP',
+			enabled: true,
+			uri: URI.parse('https://example.com/mcp'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://example.com/mcp', authorization_servers: [] },
+				requiredScopes: ['read:user'],
+			},
+		});
+
+		// Runs one turn on `resource` to completion, optionally pushing session
+		// customizations mid-turn, and returns the auth-prompt parts emitted.
+		async function runTurn(
+			sessionHandler: AgentHostSessionHandler,
+			agentHostService: MockAgentHostService,
+			chatAgentService: MockChatAgentService,
+			resource: URI,
+			seq: { v: number },
+			opts?: { customizations?: unknown[] },
+		): Promise<IChatMcpAuthenticationRequired[]> {
+			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Hello', sessionResource: resource, requestId: `turn-${seq.v}` }),
+				parts => collected.push(parts),
+				[],
+				CancellationToken.None,
+			);
+			await timeout(10);
+
+			const dispatch = agentHostService.turnActions[agentHostService.turnActions.length - 1];
+			const turnId = (dispatch.action as ITurnStartedAction).turnId;
+			// Echo turnStarted to clear the pending write-ahead entry.
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: seq.v++, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+
+			if (opts?.customizations) {
+				const sessionChannel = parseDefaultChatUri(dispatch.channel.toString())!;
+				agentHostService.fireAction({
+					channel: sessionChannel,
+					action: { type: ActionType.SessionCustomizationsChanged, customizations: opts.customizations } as unknown as SessionAction,
+					serverSeq: seq.v++,
+					origin: undefined,
+				});
+			}
+			// Let the async auto-grant filter resolve and the prompt part emit.
+			await timeout(50);
+
+			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
+
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId } as ChatAction, serverSeq: seq.v++, origin: undefined });
+			await turnPromise;
+			return promptParts;
+		}
+
+		test('surfaces an unauthenticated server once, then suppresses it on the next turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-1' });
+			const seq = { v: 1 };
+
+			// Turn 1: server needs auth → the prompt surfaces it.
+			const turn1 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+			assert.deepStrictEqual(turn1.flatMap(p => p.servers.get().map(s => s.name)), ['GitHub MCP']);
+
+			// Turn 2: still needs auth, but was already prompted → no new prompt.
+			const turn2 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+			assert.deepStrictEqual(turn2.flatMap(p => p.servers.get()), []);
+		}));
+
+		test('re-surfaces a server that reaches Ready and then needs auth again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const customizationService = disposables.add(new TestMcpCustomizationService());
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-2' });
+			const seq = { v: 1 };
+
+			const turn1 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+			const serverId = turn1[0].servers.get()[0].id;
+
+			// Server authenticates and reaches Ready → reconcile clears suppression.
+			customizationService.mcpServers = [upcastPartial<IAgentHostMcpServer>({ id: serverId, status: McpServerStatus.Ready })];
+			customizationService.fireChange();
+
+			// Turn 2: auth is required again → the prompt surfaces once more.
+			const turn2 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+			assert.deepStrictEqual(turn2.flatMap(p => p.servers.get().map(s => s.name)), ['GitHub MCP']);
+		}));
+
+		test('keeps a server suppressed when it leaves auth-required without reaching Ready', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const customizationService = disposables.add(new TestMcpCustomizationService());
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-3' });
+			const seq = { v: 1 };
+
+			const turn1 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+			const serverId = turn1[0].servers.get()[0].id;
+
+			// Server transitions to a non-ready state (error) → it was not actioned,
+			// so it stays suppressed.
+			customizationService.mcpServers = [upcastPartial<IAgentHostMcpServer>({ id: serverId, status: McpServerStatus.Error })];
+			customizationService.fireChange();
+
+			const turn2 = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+			assert.deepStrictEqual(turn2.flatMap(p => p.servers.get()), []);
+		}));
 	});
 
 	// ---- Chat input completions delegation -----------------------------

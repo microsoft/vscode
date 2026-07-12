@@ -53,6 +53,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolComplete ??= this._sdkEvent('tool.execution_complete');
 	}
 
+	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
+	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
+		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');

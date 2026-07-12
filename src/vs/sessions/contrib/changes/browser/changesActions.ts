@@ -15,15 +15,19 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ActiveEditorContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorPane } from '../../../../workbench/common/editor.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
+import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
@@ -31,14 +35,8 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { isEqual } from '../../../../base/common/resources.js';
-
-/**
- * Command id of the {@link ViewAllChangesAction}. Opens the session's multi-file
- * diff editor. Exported so other session surfaces (e.g. the chat input pills)
- * can trigger the same "View Changes" behavior without duplicating the id.
- */
-export const VIEW_SESSION_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.viewChanges';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 
 // --- View All Changes action
 
@@ -58,7 +56,7 @@ class ViewAllChangesAction extends Action2 {
 				id: Menus.SessionHeaderMeta,
 				group: 'navigation',
 				order: 0,
-				when: SessionHasChangesContext
+				when: ContextKeyExpr.and(SessionHasChangesContext, IsQuickChatSessionContext.negate())
 			},
 		});
 	}
@@ -94,6 +92,141 @@ class ViewAllChangesAction extends Action2 {
 	}
 }
 registerAction2(ViewAllChangesAction);
+
+// --- Open File action (per-file toolbar in the single-pane session changes editor)
+
+/**
+ * Opens the file shown in a diff row of the Agents window's single-pane session
+ * Changes editor ({@link SessionChangesEditor}) as a regular editor. The workbench
+ * {@link GoToFileAction} only appears for the generic {@link MultiDiffEditor}, so
+ * the custom single-pane editor needs its own entry in the per-file toolbar. It is
+ * scoped to the {@link SessionChangesEditor} rather than the shared
+ * `changes-multi-diff-source` scheme so it does not duplicate the workbench action
+ * when the same changes are shown in the generic multi-file diff editor.
+ */
+class OpenChangedFileAction extends Action2 {
+
+	static readonly ID = 'workbench.agentSessions.changes.openFile';
+
+	constructor() {
+		super({
+			id: OpenChangedFileAction.ID,
+			title: localize2('agentSessions.changes.openFile', 'Open File'),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: {
+				id: MenuId.MultiDiffEditorFileToolbar,
+				when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+				group: 'navigation',
+				order: 22,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resource = args[0];
+		if (!(resource instanceof URI)) {
+			return;
+		}
+
+		await accessor.get(IEditorService).openEditor({ resource });
+	}
+}
+registerAction2(OpenChangedFileAction);
+
+// --- Expand Full File action (per-file toolbar in the session changes multi-diff editor)
+
+/**
+ * Resolves the {@link DiffEditorWidget} showing `resource` in the active Changes
+ * multi-diff editor. The Changes editor opens either as the docked
+ * {@link SessionChangesEditor} or, in the non-docked layout, as a plain
+ * {@link MultiDiffEditor}; both expose `tryGetCodeEditor`, so the expand/collapse
+ * actions work in either mode.
+ */
+function getChangesDiffEditor(pane: IEditorPane | undefined, resource: URI): DiffEditorWidget | undefined {
+	const codeEditor = pane instanceof SessionChangesEditor || pane instanceof MultiDiffEditor
+		? pane.tryGetCodeEditor(resource)
+		: undefined;
+	return codeEditor?.diffEditor instanceof DiffEditorWidget ? codeEditor.diffEditor : undefined;
+}
+
+/**
+ * Reveals all hidden unchanged regions for the file shown in a diff row of the
+ * Agents window's Changes editor, showing the whole file at once (a per-file
+ * counterpart to the per-region reveal controls).
+ */
+class ExpandFullFileAction extends Action2 {
+
+	static readonly ID = 'workbench.agentSessions.changes.expandFullFile';
+
+	constructor() {
+		super({
+			id: ExpandFullFileAction.ID,
+			title: localize2('agentSessions.changes.expandFullFile', 'Expand Full File'),
+			icon: Codicon.unfold,
+			f1: false,
+			menu: {
+				id: MenuId.MultiDiffEditorFileToolbar,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown.toNegated()),
+				group: 'navigation',
+				order: 21,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resource = args[0];
+		if (!(resource instanceof URI)) {
+			return;
+		}
+
+		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.showAllUnchangedRegions();
+	}
+}
+registerAction2(ExpandFullFileAction);
+
+// --- Collapse Unchanged Regions action (per-file toolbar in the session changes multi-diff editor)
+
+/**
+ * Collapses all unchanged regions for the file shown in a diff row of the Agents
+ * window's Changes editor, hiding the unchanged context so only the changes are
+ * shown. The symmetric counterpart of {@link ExpandFullFileAction}: the two
+ * occupy the same toolbar slot and swap based on whether the file is fully
+ * expanded.
+ */
+class CollapseUnchangedRegionsAction extends Action2 {
+
+	static readonly ID = 'workbench.agentSessions.changes.collapseUnchangedRegions';
+
+	constructor() {
+		super({
+			id: CollapseUnchangedRegionsAction.ID,
+			title: localize2('agentSessions.changes.collapseUnchangedRegions', 'Collapse Unchanged Regions'),
+			icon: Codicon.fold,
+			f1: false,
+			menu: {
+				id: MenuId.MultiDiffEditorFileToolbar,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+					EditorContextKeys.multiDiffEditorItemAllUnchangedRegionsShown),
+				group: 'navigation',
+				order: 21,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const resource = args[0];
+		if (!(resource instanceof URI)) {
+			return;
+		}
+
+		getChangesDiffEditor(accessor.get(IEditorService).activeEditorPane, resource)?.collapseAllUnchangedRegions();
+	}
+}
+registerAction2(CollapseUnchangedRegionsAction);
 
 // --- View All Changes action view item (session header diff stats)
 
@@ -318,58 +451,26 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							toggled: ContextKeyExpr.in(
 								SessionChangesFileResourceContext.key,
 								SessionChangesReviewedFilesContext.key),
-							menu: {
-								id: MenuId.MultiDiffEditorFileToolbar,
-								// This is a temporary solution until the agent host protocol
-								// adds support to specify operations for each individual file
-								when: operation.group === 'review'
-									? operation.id === 'mark-as-reviewed'
-										? ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.notIn(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-										: ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.in(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-									: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
+							menu: [{
+								id: MenuId.AgentsChangeInlineToolbar,
 								group: 'navigation',
 								order: 100
-							}
+							},
+							{
+								id: MenuId.MultiDiffEditorFileToolbar,
+								group: 'navigation',
+								order: 100
+							}]
 						});
 					}
 
 					async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-						const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-
-						if (args.length === 0 || !(args[0] instanceof URI)) {
+						// The Changes view provides the resource as the third argument (uses a
+						// custom action runner) while the multi-file diff editor provides the
+						// resource as the first argument.
+						const resource = args.length === 3 ? args[2] : args[0];
+						if (!resource || !(resource instanceof URI)) {
 							return;
-						}
-
-						const resource = args[0];
-
-						// Optimistic update the state
-						if (operation.id === 'mark-as-reviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles, resource.toString()], undefined);
-
-							// Collapse multi-file diff editor item
-							if (activeEditorPane instanceof MultiDiffEditor) {
-								const viewModel = activeEditorPane.viewModel;
-								const item = viewModel?.items.read(undefined)
-									.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
-
-								if (item) {
-									viewModel!.collapse(item);
-								}
-							}
-						} else if (operation.id === 'mark-as-unreviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles.filter(f => f !== resource.toString())], undefined);
 						}
 
 						await changeset?.invokeOperation(operation.id, {

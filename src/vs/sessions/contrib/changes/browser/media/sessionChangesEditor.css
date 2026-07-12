@@ -96,16 +96,22 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	padding: 0;
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: default;
 }
 
+/* `SinglePaneChangesDiffStatsActionItem` renders inside a `.monaco-action-bar`, whose
+ * items get a hover/active background by default — which would make this passive
+ * "N files +X -Y" status label look like a clickable button. It is non-interactive
+ * (clicks are swallowed), so remove that background. Scoped to the rich label's marker
+ * class and matched at the same specificity as the core toolbar hover rule so it wins
+ * the cascade. (The closed-editor variant uses the base item without this class, so it
+ * keeps the normal clickable hover.) */
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:hover:not(.disabled),
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:active,
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich .action-label:active:not(.disabled),
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-item.changes-diff-stats-action-rich.active .action-label {
 	background-color: transparent;
-	outline: none;
 }
 
 /* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
@@ -123,7 +129,7 @@
 }
 
 .changes-diff-stats-action-rich .changes-diff-stats-files {
-	color: var(--vscode-foreground);
+	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
@@ -244,39 +250,67 @@
 
 /* Compact the ChangesActionsBar buttons to 24px (2px shorter than the classic
  * 26px header buttons) so the changes-editor header stays compact without extra
- * header padding. Keyed off the bar's marker class so it applies in both the
- * classic internal header and the single-pane editor-group header (where the
- * classic `.session-changes-editor-header-right` normalization does not reach,
- * leaving default 28px dropdown / 24px text buttons). */
+ * header padding. Keyed off the bar's marker class. In the editor tabs title the
+ * 20px override below (scoped to the toolbar action-item context) wins on
+ * specificity, so this 24px baseline effectively applies to the classic internal
+ * changes-editor header. */
 .changes-actions-bar .monaco-button,
 .changes-actions-bar .monaco-button-dropdown {
 	height: 24px;
 	box-sizing: border-box;
 }
 
-/* Single-pane editor-group header: this bar is rendered as a toolbar action item
- * (`.action-item.changes-actions-bar` inside a `.monaco-action-bar`), where the
- * classic `.session-changes-editor-header-right` normalization does not reach.
- * Scope these to the action-item context so the classic internal changes-editor
- * header and the aux-bar Changes view are left untouched. */
+/* The Create Pull Request bar is rendered as a toolbar action item
+ * (`.action-item.changes-actions-bar` inside a `.monaco-action-bar`) in the editor
+ * tabs title (the editor-actions area of the docked tab bar), where the classic
+ * `.session-changes-editor-header-right` normalization does not reach. Scope these to
+ * the action-item context so the classic internal changes-editor header and the aux-bar
+ * Changes view are left untouched. */
 .monaco-action-bar .action-item.changes-actions-bar {
 	display: flex;
-	flex-direction: row;
-	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: flex-start;
 	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	/* Small breathing room so the button isn't flush against neighbouring toolbar icons. */
+	margin-left: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
 }
 
-/* Primary split-button grows to fill; the trailing secondary icons stay natural size. */
-.monaco-action-bar .action-item.changes-actions-bar > .monaco-button-dropdown {
-	flex: 1 1 auto;
-	min-width: 0;
+/* Normalize the button bar height so it sits comfortably in the editor tabs title. Overrides the
+ * default ChangesActionsBar button height without affecting the classic internal
+ * changes-editor header (which renders the bar on a plain div, not inside a
+ * `.monaco-action-bar .action-item`). */
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button,
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
+	height: 26px;
+	min-height: 26px;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
-.monaco-action-bar .action-item.changes-actions-bar > .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
-	flex: 1 1 auto;
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
+	display: flex;
 	min-width: 0;
+	max-width: 100%;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	flex: 1 1 auto;
+	flex-wrap: wrap;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button-dropdown-separator,
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* The generic actionbar rule `.monaco-action-bar .action-item .codicon { width:
@@ -286,7 +320,9 @@
  * specificity than the base rule) so the buttons size to their own content. */
 .monaco-action-bar .action-item.changes-actions-bar .codicon {
 	width: auto;
-	height: auto;
+	height: 24px;
+	flex-shrink: 0;
+	color: var(--vscode-button-foreground) !important;
 }
 
 .session-changes-editor-body {

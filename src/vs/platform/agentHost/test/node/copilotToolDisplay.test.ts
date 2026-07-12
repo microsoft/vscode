@@ -250,6 +250,38 @@ suite('getPermissionDisplay — read permission display', () => {
 	});
 });
 
+suite('getPermissionDisplay — write permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes creating a file from editing one', () => {
+		const request = {
+			kind: 'write',
+			fileName: '/repo/project/package.json',
+		} as ITypedPermissionRequest;
+
+		assert.deepStrictEqual({
+			create: getPermissionDisplay(request, URI.file('/repo/project'), true),
+			edit: getPermissionDisplay(request, URI.file('/repo/project'), false),
+		}, {
+			create: {
+				confirmationTitle: 'Create file?',
+				invocationMessage: { markdown: 'Creating [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
+			edit: {
+				confirmationTitle: 'Write file?',
+				invocationMessage: { markdown: 'Editing [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
+		});
+	});
+});
+
 suite('view tool — view_range display', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

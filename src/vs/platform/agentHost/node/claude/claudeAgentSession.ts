@@ -34,7 +34,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
@@ -594,6 +594,13 @@ export class ClaudeAgentSession extends Disposable {
 	/** True once {@link materialize} has installed the SDK pipeline. */
 	get isPipelineReady(): boolean { return this._pipeline !== undefined; }
 
+	/**
+	 * Whether this chat currently has a turn in flight or queued. False when
+	 * provisional (no pipeline) or idle between turns. Used by non-destructive
+	 * idle release to avoid disconnecting mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return this._pipeline?.hasActiveTurn ?? false; }
+
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
 
@@ -1014,6 +1021,37 @@ export class ClaudeAgentSession extends Disposable {
 		// {@link _enrichSignalWithMcpContributor}).
 		this._lastCustomizations = result;
 		return result;
+	}
+
+	async startMcpServer(id: string): Promise<void> {
+		const serverName = await this._resolveMcpServerName(id);
+		if (!serverName) {
+			this._logService.warn(`[Claude:${this.sessionId}] Cannot start unknown MCP server customization ${id}`);
+			return;
+		}
+		const handled = await this._requirePipeline().startMcpServer(serverName);
+		if (!handled) {
+			await this._rebindForSyncedState();
+		}
+		this._onDidCustomizationsChange.fire();
+	}
+
+	async stopMcpServer(id: string): Promise<void> {
+		const serverName = await this._resolveMcpServerName(id);
+		if (!serverName) {
+			this._logService.warn(`[Claude:${this.sessionId}] Cannot stop unknown MCP server customization ${id}`);
+			return;
+		}
+		const handled = await this._requirePipeline().stopMcpServer(serverName);
+		if (!handled) {
+			this._logService.warn(`[Claude:${this.sessionId}] MCP server stop is not supported by the current SDK`);
+			return;
+		}
+		this._onDidCustomizationsChange.fire();
+	}
+
+	private async _resolveMcpServerName(id: string): Promise<string | undefined> {
+		return findMcpServerName(this._lastCustomizations, id) ?? findMcpServerName(await this.getSessionCustomizations(), id);
 	}
 
 	// #endregion

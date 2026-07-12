@@ -24,6 +24,7 @@ interface IQuotaConfig {
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
+	creditsUsed?: number;
 }
 
 function createEntitlementService(opts: {
@@ -312,6 +313,17 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+	});
+
+	test('Enterprise Managed — PRU with credits used: shows consumed credits', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 127 },
+			completions: { percentRemaining: 100, unlimited: true },
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['127 used']);
 	});
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
