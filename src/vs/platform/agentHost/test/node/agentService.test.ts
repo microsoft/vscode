@@ -22,7 +22,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -38,6 +38,7 @@ import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -143,6 +144,44 @@ suite('AgentService (node dispatcher)', () => {
 			const duplicate = new MockAgent('copilot');
 			disposables.add(toDisposable(() => duplicate.dispose()));
 			assert.throws(() => service.registerProvider(duplicate), /already registered/);
+		});
+
+		test('aggregates and deduplicates network diagnostics endpoints', async () => {
+			const providerA: IAgent = copilotAgent;
+			providerA.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'First', url: 'https://example.com' },
+				{ name: 'Other', url: 'https://other.example.com' },
+			];
+			providerA.getNetworkDiagnosticsAccount = async () => 'octocat';
+			const providerB = new MockAgent('other');
+			disposables.add(toDisposable(() => providerB.dispose()));
+			const providerBContract: IAgent = providerB;
+			providerBContract.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'Duplicate', url: 'https://example.com/' },
+			];
+			const failingProvider = new MockAgent('failing');
+			disposables.add(toDisposable(() => failingProvider.dispose()));
+			const failingProviderContract: IAgent = failingProvider;
+			failingProviderContract.getNetworkDiagnosticsEndpoints = async () => { throw new Error('unavailable'); };
+			const diagnostics: INetworkDiagnosticsService = {
+				_serviceBrand: undefined,
+				getInfo: async (endpoints, account) => ({ version: 'test', os: 'test', arch: 'test', account, proxySettings: {}, proxyEnv: {}, endpoints }),
+				fetch: async url => ({ url }),
+			};
+			service.setNetworkDiagnosticsService(diagnostics);
+			service.registerProvider(providerA);
+			service.registerProvider(providerB);
+			service.registerProvider(failingProvider);
+
+			const info = await service.getNetworkDiagnosticsInfo();
+
+			assert.deepStrictEqual({ account: info.account, endpoints: info.endpoints }, {
+				account: 'octocat',
+				endpoints: [
+					{ name: 'First', url: 'https://example.com' },
+					{ name: 'Other', url: 'https://other.example.com' },
+				],
+			});
 		});
 
 		test('maps progress events to protocol actions via onDidAction', async () => {

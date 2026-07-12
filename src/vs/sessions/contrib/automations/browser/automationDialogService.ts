@@ -6,7 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -85,8 +85,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			localize('automation.dialog.cancel', "Cancel"),
 		];
 
+		const activeContainer = this.layoutService.activeContainer;
 		const dialog = disposables.add(new Dialog(
-			this.layoutService.activeContainer,
+			activeContainer,
 			title,
 			buttonLabels,
 			createWorkbenchDialogOptions({
@@ -128,6 +129,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				},
 			}, this.keybindingService, this.layoutService, this.hostService),
 		));
+
+		activeContainer.classList.add('automation-dialog-open');
+		disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
 
 		try {
 			const result = await dialog.show();

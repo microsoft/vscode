@@ -177,6 +177,14 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+					// Wrap long lines in response code blocks so command/tool output pasted
+					// by the agent stays compact instead of overflowing horizontally.
+					// `wrappingIndent: 'none'` makes wrapped continuations start at column 1
+					// instead of inheriting the source line's indentation. Without it, monaco's
+					// default (`'same'`) injects the leading indent as real whitespace at every
+					// wrap boundary, which corrupts the rendered text's DOM `textContent`
+					// (splitting tokens mid-word) and breaks smoke tests that read it.
+					codeBlockRenderOptions: { editorOptions: { wordWrap: 'on', wrappingIndent: 'none' } },
 				},
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
