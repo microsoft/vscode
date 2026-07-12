@@ -528,6 +528,7 @@ export class ChatListWidget extends Disposable {
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
+			this.cancelUserToggleScrollRestoration();
 			this.setScrollLock(true);
 			this.scrollToEnd();
 		}));
@@ -576,11 +577,7 @@ export class ChatListWidget extends Disposable {
 			}
 		}));
 		this._register(dom.addDisposableListener(this._container, dom.EventType.WHEEL, () => this.cancelUserToggleScrollRestoration()));
-		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_DOWN, e => {
-			if (dom.isHTMLElement(e.target) && e.target.closest('.scrollbar.vertical')) {
-				this.cancelUserToggleScrollRestoration();
-			}
-		}));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_DOWN, () => this.cancelUserToggleScrollRestoration()));
 		this._register(dom.addDisposableListener(this._container, dom.EventType.KEY_DOWN, e => {
 			const keyCode = new StandardKeyboardEvent(e).keyCode;
 			if (keyCode === KeyCode.UpArrow

@@ -31,6 +31,8 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 
 suite('ChatSubagentContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -232,6 +234,9 @@ suite('ChatSubagentContentPart', () => {
 			showManagedHover: () => { }
 		};
 		instantiationService.stub(IHoverService, mockHoverService);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
 
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
@@ -347,6 +352,23 @@ suite('ChatSubagentContentPart', () => {
 				expandedInert: false,
 				expandedChevronExpanded: true,
 			});
+		});
+
+		test('should restore the streaming preview when an animation is canceled', async () => {
+			const part = createPart(createMockToolInvocation(), createMockRenderContext(false));
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			const button = getCollapseButton(part);
+			assert.ok(animationContainer);
+			assert.ok(button);
+
+			button.click();
+			animationContainer.getAnimations = () => [];
+			const transitionCancel = new mainWindow.Event('transitioncancel');
+			Object.defineProperty(transitionCancel, 'propertyName', { value: 'grid-template-rows' });
+			animationContainer.dispatchEvent(transitionCancel);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.strictEqual(part.domNode.classList.contains('chat-collapsible-content-animated'), false);
 		});
 
 		test('should shimmer for an in-progress subagent even when the response is complete', () => {

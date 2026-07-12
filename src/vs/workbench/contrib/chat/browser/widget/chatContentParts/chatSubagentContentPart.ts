@@ -16,6 +16,7 @@ import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -273,6 +274,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, isDefaultDescription, agentName, prompt, modelName, credits } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
@@ -300,21 +302,22 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
 		const animationContainer = this.contentAnimationContainer;
 		if (animationContainer) {
+			const pendingAnimationCleanup = this._register(new MutableDisposable<IDisposable>());
 			this._register(dom.addDisposableListener(node, ChatCollapsibleContentPart.userToggleEvent, e => {
 				if (e.target === node
 					&& this.isActive
-					&& !node.closest('.monaco-reduce-motion')
-					&& !dom.getWindow(node).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					&& !this.accessibilityService.isMotionReduced()) {
 					this.setContentAnimationEnabled(true);
 					animationContainer.getBoundingClientRect();
 				}
 			}));
 			const finishActiveToggleAnimation = (e: TransitionEvent) => {
 				if (this.isActive && e.target === animationContainer && e.propertyName === 'grid-template-rows') {
+					pendingAnimationCleanup.clear();
 					this.setContentAnimationEnabled(false);
 				}
 			};
-this._register(dom.addDisposableListener(animationContainer, 'transitionend', finishActiveToggleAnimation));
+			this._register(dom.addDisposableListener(animationContainer, 'transitionend', finishActiveToggleAnimation));
 			this._register(dom.addDisposableListener(animationContainer, 'transitioncancel', finishActiveToggleAnimation));
 		}
 
