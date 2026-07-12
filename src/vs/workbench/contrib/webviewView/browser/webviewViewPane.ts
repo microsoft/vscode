@@ -27,7 +27,7 @@ import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, Web
 import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
 import { IWebviewViewService, WebviewView } from './webviewViewService.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const storageKeys = {
@@ -166,13 +166,20 @@ export class WebviewViewPane extends ViewPane {
 		this._activated = true;
 
 		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
+		const extensionDescription = this.extensionId
+			? this.extensionService.extensions.find(extension => ExtensionIdentifier.equals(extension.identifier, this.extensionId))
+			: undefined;
 		const webview = this.webviewService.createWebviewOverlay({
 			origin,
 			providedViewType: this.id,
 			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
-			extension: this.extensionId ? { id: this.extensionId } : undefined
+			extension: extensionDescription ? {
+				id: extensionDescription.identifier,
+				location: extensionDescription.extensionLocation,
+				useSingleIframe: isProposedApiEnabled(extensionDescription, 'webviewNoServiceWorker')
+			} : this.extensionId ? { id: this.extensionId } : undefined
 		});
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
