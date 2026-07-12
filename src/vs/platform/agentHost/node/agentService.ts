@@ -931,6 +931,16 @@ export class AgentService extends Disposable implements IAgentService {
 			if (initialCustomizations && initialCustomizations.length > 0) {
 				state.customizations = [...initialCustomizations];
 			}
+
+			// Refine the placeholder title into one generated from the imported
+			// conversation, mirroring forks. Imports seed pre-existing turns, so
+			// the normal first-message title generation never fires; without this
+			// the session would keep showing the raw first-message clip while
+			// sibling sessions show clean generated titles — making imports look
+			// like a different kind of session.
+			if (importedTurns.length > 0) {
+				this._sideEffects.generateForkedTitle(summary.resource, undefined, importedTurns, importedTitle);
+			}
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
@@ -1199,19 +1209,22 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Derives a title for an imported session from its first user turn (imports
-	 * seed pre-existing turns, so the normal first-message title generation
-	 * never fires). Falls back to a generic label for an empty import.
+	 * Derives a placeholder title for an imported session from its first user
+	 * turn (imports seed pre-existing turns, so the normal first-message title
+	 * generation never fires). Deliberately unprefixed: an imported session is a
+	 * continuation of the source chat, not a distinct kind of session, so it
+	 * should read like any other. The placeholder is later refined into a
+	 * generated title (see the `importConversation` branch in `createSession`),
+	 * but a neutral non-empty fallback is kept so the session still reads like a
+	 * normal chat when generation is unavailable or fails.
 	 */
 	private _buildImportedTitle(turns: readonly Turn[]): string {
-		const importedPrefix = localize('agentHost.importedTitlePrefix', "Imported: ");
 		const firstText = turns.find(t => t.message?.text?.trim())?.message.text.trim();
 		if (!firstText) {
-			return localize('agentHost.importedSessionFallback', "Imported Session");
+			return localize('agentHost.importedSessionFallback', "New Session");
 		}
 		const MAX = 60;
-		const clipped = firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
-		return `${importedPrefix}${clipped}`;
+		return firstText.length > MAX ? `${firstText.slice(0, MAX)}...` : firstText;
 	}
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; workingDirectory?: URI }, title: string): SessionSummary {
