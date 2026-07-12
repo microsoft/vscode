@@ -73,7 +73,7 @@ const singleIframeBootstrap = String.raw`(() => {
 		switch (name) {
 			case 'content': state = args.state; document.title = args.title || ''; break;
 			case 'styles': applyStyles(args); break;
-			case 'message': window.dispatchEvent(new MessageEvent('message', { data: args.message })); break;
+			case 'message': window.dispatchEvent(new MessageEvent('message', { data: args.message, origin: window.location.origin, source: window, ports: event.ports })); break;
 			case 'focus': window.focus(); break;
 			case 'execCommand': document.execCommand(args); break;
 			case 'initial-scroll-position': window.scrollTo(0, document.body.scrollHeight * args); break;
