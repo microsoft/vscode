@@ -515,7 +515,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._loadExtensionContext(extensionDescription, extensionInternalStore)
 		]).then(values => {
 			performance.mark(`code/extHost/willActivateExtension/${extensionDescription.identifier.value}`);
-			return AbstractExtHostExtensionService._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], extensionInternalStore, activationTimesBuilder);
+			return this._callActivate(this._logService, extensionDescription.identifier, values[0], values[1], extensionInternalStore, activationTimesBuilder);
 		}).then((activatedExtension) => {
 			performance.mark(`code/extHost/didActivateExtension/${extensionDescription.identifier.value}`);
 			return activatedExtension;
@@ -594,6 +594,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				}
 			});
 		});
+	}
+
+	protected _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, extensionInternalStore: IDisposable, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
+		return AbstractExtHostExtensionService._callActivate(logService, extensionId, extensionModule, context, extensionInternalStore, activationTimesBuilder);
 	}
 
 	private static _callActivate(logService: ILogService, extensionId: ExtensionIdentifier, extensionModule: IExtensionModule, context: vscode.ExtensionContext, extensionInternalStore: IDisposable, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<ActivatedExtension> {
