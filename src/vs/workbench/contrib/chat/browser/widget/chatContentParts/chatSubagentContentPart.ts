@@ -298,6 +298,24 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
+		const animationContainer = this.contentAnimationContainer;
+		if (animationContainer) {
+			this._register(dom.addDisposableListener(node, ChatCollapsibleContentPart.userToggleEvent, e => {
+				if (e.target === node
+					&& this.isActive
+					&& !node.closest('.monaco-reduce-motion')
+					&& !dom.getWindow(node).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					this.setContentAnimationEnabled(true);
+					animationContainer.getBoundingClientRect();
+				}
+			}));
+			const finishActiveToggleAnimation = (e: TransitionEvent) => {
+				if (this.isActive && e.target === animationContainer && e.propertyName === 'grid-template-rows') {
+					this.setContentAnimationEnabled(false);
+				}
+			};
+			this._register(dom.addDisposableListener(animationContainer, 'transitionend', finishActiveToggleAnimation));
+		}
 
 		// Anchor the `MenuId.ChatSubagentContent` menu in the subagent header so
 		// the Agents window can contribute an "Open Subagent" pill to reveal the

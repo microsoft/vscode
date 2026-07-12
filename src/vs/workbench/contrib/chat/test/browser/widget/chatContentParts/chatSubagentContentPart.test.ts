@@ -13,6 +13,7 @@ import { BaseObservable } from '../../../../../../../base/common/observableInter
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
@@ -302,7 +303,7 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-subagent-part'), 'Should have chat-subagent-part class');
 			assert.ok(part.domNode.classList.contains('chat-thinking-fixed-mode'), 'Should have chat-thinking-fixed-mode class');
 			assert.ok(part.domNode.classList.contains('chat-collapsible-content-animatable'), 'Should prepare expandable content for animation');
-			assert.strictEqual(part.domNode.classList.contains('chat-collapsible-content-animated'), false, 'Should not animate while streaming');
+			assert.strictEqual(part.domNode.classList.contains('chat-collapsible-content-animated'), false, 'Should preserve the collapsed streaming preview at rest');
 		});
 
 		test('should keep collapsed animated content out of keyboard navigation', () => {
@@ -310,9 +311,11 @@ suite('ChatSubagentContentPart', () => {
 			const context = createMockRenderContext(false);
 
 			const part = createPart(toolInvocation, context);
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
 			const animationContent = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner');
 			const chevron = part.domNode.querySelector('.chat-collapsible-hover-chevron');
 			const button = getCollapseButton(part);
+			assert.ok(animationContainer);
 			assert.ok(animationContent);
 			assert.ok(chevron);
 			assert.ok(button);
@@ -320,15 +323,27 @@ suite('ChatSubagentContentPart', () => {
 			const collapsedInert = animationContent.inert;
 			const collapsedChevronExpanded = chevron.classList.contains('expanded');
 			button.click();
+			const animationEnabledDuringToggle = part.domNode.classList.contains('chat-collapsible-content-animated');
+			const transitionEnd = new mainWindow.Event('transitionend');
+			Object.defineProperty(transitionEnd, 'propertyName', { value: 'grid-template-rows' });
+			animationContainer.dispatchEvent(transitionEnd);
+			const animationEnabledAfterToggle = part.domNode.classList.contains('chat-collapsible-content-animated');
+			animationContent.dispatchEvent(new mainWindow.CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 
 			assert.deepStrictEqual({
 				collapsedInert,
 				collapsedChevronExpanded,
+				animationEnabledDuringToggle,
+				animationEnabledAfterToggle,
+				nestedToggleIgnored: !part.domNode.classList.contains('chat-collapsible-content-animated'),
 				expandedInert: animationContent.inert,
 				expandedChevronExpanded: chevron.classList.contains('expanded'),
 			}, {
 				collapsedInert: true,
 				collapsedChevronExpanded: false,
+				animationEnabledDuringToggle: true,
+				animationEnabledAfterToggle: false,
+				nestedToggleIgnored: true,
 				expandedInert: false,
 				expandedChevronExpanded: true,
 			});
