@@ -434,13 +434,13 @@
 }
 
 /* Keep terminal status color when selected/focused in the tabs list. */
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label,
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label::after {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .terminal-tabs-entry.has-error-status .monaco-icon-label::after {
 	color: var(--vscode-list-errorForeground) !important;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label,
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label::after {
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label,
+.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .terminal-tabs-entry.has-warning-status .monaco-icon-label::after {
 	color: var(--vscode-list-warningForeground) !important;
 }
 
