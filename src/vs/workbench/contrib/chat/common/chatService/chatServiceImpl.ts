@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -31,31 +32,52 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatDebugService } from '../chatDebugService.js';
-import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
+import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService } from '../chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
-import { LocalChatSessionUri } from '../model/chatUri.js';
-import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
-import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
+import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
+import { ComputeAutomaticInstructions } from '../promptSyntax/computeAutomaticInstructions.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
+import { ChatMode } from '../chatModes.js';
 
 const serializedChatKey = 'interactive.sessions';
+
+/**
+ * True when the user has typed text or attached non-trivial context to the input
+ * but not yet sent it. Used to decide whether an external session needs metadata
+ * persisted on dispose so the draft survives switching sessions.
+ */
+function hasDraftInput(model: ChatModel): boolean {
+	const state = model.inputModel.state.get();
+	if (!state) {
+		return false;
+	}
+	if (state.inputText.trim().length > 0) {
+		return true;
+	}
+	return state.attachments.length > 0;
+}
 
 class CancellableRequest implements IDisposable {
 	private readonly _yieldRequested: ISettableObservable<boolean> = observableValue(this, false);
@@ -64,9 +86,12 @@ class CancellableRequest implements IDisposable {
 		return this._yieldRequested;
 	}
 
+
 	constructor(
 		public readonly cancellationTokenSource: CancellationTokenSource,
 		public requestId: string | undefined,
+		public readonly responseCompletePromise: Promise<void> | undefined,
+		public sendOptions: IChatSendRequestOptions | undefined,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService
 	) { }
 
@@ -94,12 +119,63 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
+const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
+const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
+
+/**
+ * Fill in the picker selections (`selectedModel`, `mode`) that `stateToApply` is missing, using
+ * the session's previously `savedState`.
+ *
+ * `stateToApply` is the input state about to be applied to the session being restored (an
+ * agent-host transferred draft, or the saved draft as a fallback). `savedState` is the session's
+ * own previously saved input state. At cold restore `stateToApply` can lose these two picker
+ * selections, so take them from `savedState`:
+ * - `selectedModel`: `stateToApply` leaves it undefined when the model is not registered yet (the
+ *   agent-host model list has not loaded). `savedState` keeps the full model (id + capabilities),
+ *   so use it. The input part re-validates it against the live model list and re-resolves it once
+ *   the list loads, so a genuinely stale/wrong model is still dropped safely.
+ * - `mode`: `stateToApply` falls back to the default Agent when it did not capture the user's
+ *   custom agent. Prefer the custom agent from `savedState`, but only promote it OVER the plain
+ *   default Agent — never override a different explicit mode.
+ */
+export function backfillRestoredPickerState(
+	stateToApply: ISerializableChatModelInputState | undefined,
+	savedState: ISerializableChatModelInputState | undefined,
+	defaultAgentModeId: string,
+): ISerializableChatModelInputState | undefined {
+	if (!stateToApply || !savedState) {
+		return stateToApply;
+	}
+	const selectedModel = stateToApply.selectedModel ?? savedState.selectedModel;
+	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
+		? savedState.mode
+		: stateToApply.mode;
+	if (selectedModel === stateToApply.selectedModel && mode === stateToApply.mode) {
+		return stateToApply;
+	}
+	return { ...stateToApply, selectedModel, mode };
+}
+
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
 
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private readonly _queuedRequestDeferreds = new Map<string, DeferredPromise<ChatSendResult>>();
+
+	/**
+	 * In-flight untitled→real materializations, keyed by the original untitled
+	 * chat session resource. A first send to an untitled contributed session
+	 * stores the promise that resolves to the newly minted real resource (or
+	 * `undefined` on failure). A concurrent second send for the same untitled
+	 * resource awaits this instead of materializing a second real session.
+	 *
+	 * The committed (settled) untitled→real mapping is owned by
+	 * {@link IChatSessionsService} (published via `setMaterializedSessionResource`
+	 * and read via `getMaterializedSessionResource`); this map only tracks the
+	 * transient in-flight serialization.
+	 */
+	private readonly _inFlightUntitledMaterializations = new ResourceMap<Promise<URI | undefined>>();
 	private _saveModelsEnabled = true;
 
 	private _transferredSessionResource: URI | undefined;
@@ -115,10 +191,10 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>());
+	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
@@ -141,10 +217,6 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
-	}
-
-	public get edits2Enabled(): boolean {
-		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
 	}
 
 	private get isEmptyWindow(): boolean {
@@ -179,18 +251,27 @@ export class ChatService extends Disposable implements IChatService {
 				if (localSessionId && this.shouldStoreSession(model)) {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) without title, deleting from storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.deleteSession(localSessionId);
 					} else if (this._saveModelsEnabled) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && model.getRequests().length > 0) {
+				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
+					// External sessions: persist metadata when there are requests, OR when the
+					// user has typed/attached unsent input we need to restore on next open.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
 		}));
 		this._register(this._sessionModels.onDidDisposeModel(model => {
+			clearChatMarks(model.sessionResource);
 			this.chatDebugService.endSession(model.sessionResource);
-			this._onDidDisposeSession.fire({ sessionResource: [model.sessionResource], reason: 'cleared' });
+			// Drop the forward untitled→real mapping for this session so it stops
+			// re-targeting late sends. The inverse alias is intentionally retained.
+			this.chatSessionService.clearMaterializedSessionResource(model.sessionResource);
+			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'cleared' });
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -202,8 +283,6 @@ export class ChatService extends Disposable implements IChatService {
 			this.trace('constructor', `Transferred session ${transferredData}`);
 			this._transferredSessionResource = transferredData;
 		}
-
-		this.reviveSessionsWithEdits();
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 
@@ -246,10 +325,19 @@ export class ChatService extends Disposable implements IChatService {
 		const liveLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
-		this._chatSessionStore.storeSessions(liveLocalChats);
-
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+
+		// Synchronously update the index for all live sessions and flush it to
+		// storage. This is critical because `onWillSaveState` is synchronous —
+		// after this handler returns the storage service flushes its databases.
+		// The async file-write work kicked off below may complete after the
+		// flush, but the index must be up-to-date before the flush happens so
+		// that sessions are discoverable after a reload.
+		this._chatSessionStore.updateAndFlushIndexSync(liveLocalChats, liveNonLocalChats);
+
+		// Kick off async file writes for session data.
+		this._chatSessionStore.storeSessions(liveLocalChats);
 		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
 	}
 
@@ -257,6 +345,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Only persist local sessions from chat that are not imported.
 	 */
 	private shouldStoreSession(session: ChatModel): boolean {
+		if (session.isDeleted) {
+			return false;
+		}
 		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
 			return false;
 		}
@@ -274,7 +365,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void {
 		this._onDidReceiveQuestionCarouselAnswer.fire({ requestId, resolveId, answers });
 	}
 
@@ -346,36 +437,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
-	 * todo@connor4312 This will be cleaned up with the globalization of edits.
-	 */
-	private async reviveSessionsWithEdits(): Promise<void> {
-		const idx = await this._chatSessionStore.getIndex();
-		await Promise.all(Object.values(idx).map(async session => {
-			if (!session.hasPendingEdits) {
-				return;
-			}
-
-			let sessionResource: URI;
-			// Non-local sessions store the full uri as the sessionId, so try parsing that first
-			if (session.sessionId.includes(':')) {
-				try {
-					sessionResource = URI.parse(session.sessionId, true);
-				} catch {
-					// Noop
-				}
-			}
-			sessionResource ??= LocalChatSessionUri.forSession(session.sessionId);
-
-			const sessionRef = await this.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
-			if (sessionRef?.object.editingSession) {
-				await chatEditingSessionIsReady(sessionRef.object.editingSession);
-				// the session will hold a self-reference as long as there are modified files
-				sessionRef.dispose();
-			}
-		}));
-	}
-
-	/**
 	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
@@ -395,18 +456,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
-			.map(async (session): Promise<IChatDetail> => {
-				const title = session.title || localize('newChat', "New Chat");
-				return {
-					sessionResource: session.sessionResource,
-					title,
-					lastMessageDate: session.lastMessageDate,
-					timing: session.timing,
-					isActive: true,
-					stats: await awaitStatsForSession(session),
-					lastResponseState: session.lastRequest?.response?.state ?? ResponseModelState.Pending,
-				};
-			}));
+			.map(chatModelToChatDetail));
 	}
 
 	/**
@@ -419,10 +469,12 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				const { workingDirectory: workingDirectoryStr, ...rest } = entry;
 				return ({
-					...entry,
+					...rest,
 					sessionResource,
 					isActive: this._sessionModels.has(sessionResource),
+					workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 				});
 			});
 	}
@@ -431,10 +483,12 @@ export class ChatService extends Disposable implements IChatService {
 		const index = await this._chatSessionStore.getIndex();
 		const metadata: IChatSessionEntryMetadata | undefined = index[sessionResource.toString()];
 		if (metadata) {
+			const { workingDirectory: workingDirectoryStr, ...rest } = metadata;
 			return {
-				...metadata,
+				...rest,
 				sessionResource,
 				isActive: this._sessionModels.has(sessionResource),
+				workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 			};
 		}
 
@@ -442,12 +496,16 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private shouldBeInHistory(entry: ChatModel): boolean {
-		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
+		return !entry.isImported && !entry.isDeleted && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
 		await this._chatSessionStore.deleteSession(this.toLocalSessionId(sessionResource));
-		this._onDidDisposeSession.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+		const model = this._sessionModels.get(sessionResource);
+		if (model) {
+			model.markDeleted();
+		}
+		this._onDidDisposeSession.fire({ sessionResources: [sessionResource], reason: 'cleared' });
 	}
 
 	async clearAllHistoryEntries(): Promise<void> {
@@ -463,7 +521,7 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource,
 			canUseTools: options?.canUseTools ?? true,
 			disableBackgroundKeepAlive: options?.disableBackgroundKeepAlive
-		});
+		}, options?.debugOwner ?? 'ChatService#startNewLocalSession');
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
@@ -515,13 +573,17 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionResource);
 	}
 
-	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined {
-		return this._sessionModels.acquireExisting(sessionResource);
+	acquireExistingSession(sessionResource: URI, debugOwner?: string): IChatModelReference | undefined {
+		return this._sessionModels.acquireExisting(sessionResource, debugOwner ?? 'ChatService#acquireExistingSession');
 	}
 
-	private async acquireOrRestoreLocalSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
+	getChatModelReferenceDebugInfo() {
+		return this._sessionModels.getReferenceDebugSnapshot();
+	}
+
+	private async acquireOrRestoreLocalSession(sessionResource: URI, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		this.trace('acquireOrRestoreSession', `${sessionResource}`);
-		const existingRef = this.acquireExistingSession(sessionResource);
+		const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 		if (existingRef) {
 			return existingRef;
 		}
@@ -546,7 +608,7 @@ export class ChatService extends Disposable implements IChatService {
 			location: sessionData.value.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
-		});
+		}, debugOwner ?? 'ChatService#acquireOrRestoreLocalSession');
 
 		return sessionRef;
 	}
@@ -563,7 +625,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.title;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
@@ -571,56 +633,126 @@ export class ChatService extends Disposable implements IChatService {
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
-		});
+		}, debugOwner ?? 'ChatService#loadSessionFromData');
 	}
 
-	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
-			return this.acquireOrRestoreLocalSession(sessionResource);
+	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
+		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
+			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		} else {
-			return this.loadRemoteSession(sessionResource, location, token);
+			return this.loadRemoteSession(sessionResource, location, token, debugOwner);
 		}
 	}
 
-	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		await this.chatSessionService.canResolveChatSession(sessionResource);
-
-		// Check if session already exists
+	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
+		// Check if session already exists before resolving the provider,
+		// so we can return a cached model even if the provider was unregistered.
 		{
-			const existingRef = this.acquireExistingSession(sessionResource);
+			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
 				return existingRef;
 			}
+		}
+
+		if (!await this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource))) {
+			return undefined;
 		}
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
 
 		// Make sure we haven't created this in the meantime
 		{
-			const existingRef = this.acquireExistingSession(sessionResource);
+			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
-				providedSession.dispose();
 				return existingRef;
 			}
 		}
+		const chatSessionType = getChatSessionType(sessionResource);
+		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
+		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
+		const storedPermissionLevel = storedMetadata?.permissionLevel;
+		const storedInputState = storedMetadata?.inputState;
+		let initialData: ISerializedChatDataReference | undefined = undefined;
+		let historySelectedModel: string | undefined = undefined;
+		let historyDerivedModel: ISerializableChatModelInputState['selectedModel'] = undefined;
+		if ((modelId || agentUri)) {
+			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
+			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
+			// The session request history only tells us which model id was last used, not the
+			// user's per-model configuration (e.g. thinking effort, context window). Preserve that
+			// configuration from the persisted draft when it refers to the same model, so reopening
+			// the session restores the full model config and not just the bare model id. Older drafts
+			// stored the configuration as a sibling of `selectedModel` (legacy top-level field) rather
+			// than nested within it, so fall back to that for backwards compatibility.
+			const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
+				?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
+			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
+				? storedModelConfiguration
+				: undefined;
+			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata, modelConfiguration } : undefined;
+			historySelectedModel = selectedModel?.identifier;
+			historyDerivedModel = selectedModel;
+			// This is used to initialize the state of the chat input box, with the selected model, mode, etc
+			initialData = {
+				serializer: new ChatSessionOperationLog(),
+				value: {
+					creationDate: Date.now(),
+					initialLocation: undefined,
+					customTitle: undefined,
+					requests: [],
+					responderUsername: '',
+					sessionId: '',
+					version: 3,
+					inputState: {
+						attachments: [],
+						contrib: {},
+						inputText: '',
+						mode,
+						selectedModel: selectedModel,
+						selections: [],
+						permissionLevel: storedPermissionLevel,
+					},
+					pendingRequests: undefined,
+					repoData: undefined
+				}
+			};
+		}
 
-		const chatSessionType = sessionResource.scheme;
-
-		// Contributed sessions do not use UI tools
+		// Contributed sessions do not use UI tools.
+		// Prefer (in order): a transferred draft, the persisted draft from metadata,
+		// otherwise let the constructor fall back to initialData.value.inputState.
+		// When restoring the persisted draft we keep the unsent text/selections/mode but
+		// deliberately drop its persisted selectedModel identifier (it can be stale or belong
+		// to a different model pool) in favour of the model derived from the session's request
+		// history. The user's per-model configuration (thinking effort, context window) is
+		// carried over onto that history-derived model above when the ids match. When no
+		// history model is available the model is left undefined so the input part resolves
+		// it via its own selection logic.
+		const restoredDraft: ISerializableChatModelInputState | undefined = storedInputState
+			? { ...storedInputState, selectedModel: historyDerivedModel }
+			: undefined;
+		// At cold restore the agent-host transferred draft can drop the user's per-session picker
+		// selections (model/mode); restore them from the session's own saved `storedInputState`
+		// (see {@link backfillRestoredPickerState}).
+		const stateToApply = providedSession.transferredState?.inputState ?? restoredDraft;
+		const inputState = backfillRestoredPickerState(stateToApply, storedInputState, ChatMode.Agent.id);
 		const modelRef = this._sessionModels.acquireOrCreate({
-			initialData: undefined,
+			initialData,
 			location,
 			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
-			inputState: providedSession.transferredState?.inputState,
-		});
+			inputState,
+		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
-		modelRef.object.setContributedChatSession({
-			chatSessionResource: sessionResource,
-			chatSessionType,
-			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
-		});
+		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);
+
+		// Restore permission level from metadata even when initialData was not constructed
+		// and no inputState carried it through.
+		if (storedPermissionLevel && !initialData && !storedInputState) {
+			modelRef.object.inputModel.setState({ permissionLevel: storedPermissionLevel });
+		}
 
 		if (providedSession.title) {
 			modelRef.object.setCustomTitle(providedSession.title);
@@ -633,6 +765,36 @@ export class ChatService extends Disposable implements IChatService {
 			providedSession.dispose();
 		}));
 
+		const isAgentHostSession = isAgentHostTarget(chatSessionType);
+		const requestParser = isAgentHostSession ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
+		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
+			if (requestParser) {
+				try {
+					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
+					const parsed = requestParser.parseChatRequestWithReferences(
+						EMPTY_REFERENCES,
+						EMPTY_TOOL_ENABLEMENT_MAP,
+						text,
+						location,
+						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities },
+					);
+					if (parsed.parts.length > 0) {
+						return parsed;
+					}
+				} catch (e) {
+					this.logService.warn(`ChatService#loadRemoteSession: failed to re-parse historical prompt for ${chatSessionType}`, e);
+				}
+			}
+			return {
+				text,
+				parts: [new ChatRequestTextPart(
+					new OffsetRange(0, text.length),
+					{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: text.length + 1 },
+					text
+				)]
+			};
+		};
+
 		let lastRequest: ChatRequestModel | undefined;
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
@@ -641,23 +803,22 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				const requestText = message.prompt;
-
-				const parsedRequest: IParsedChatRequest = {
-					text: requestText,
-					parts: [new ChatRequestTextPart(
-						new OffsetRange(0, requestText.length),
-						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-						requestText
-					)]
-				};
 				const agent =
 					message.participant
 						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
 						: this.chatAgentService.getAgent(chatSessionType);
+				const parsedRequest = parseAgentHostHistoryPrompt(requestText, agent);
+				const modeInfo = message.modeInstructions ? {
+					kind: ChatModeKind.Agent,
+					isBuiltin: message.modeInstructions.isBuiltin ?? false,
+					modeInstructions: message.modeInstructions,
+					telemetryModeId: 'custom',
+					applyCodeBlockSuggestionId: undefined,
+				} satisfies IChatRequestModeInfo : undefined;
 				lastRequest = model.addRequest(parsedRequest,
 					message.variableData ?? { variables: [] },
 					0, // attempt
-					undefined,
+					modeInfo,
 					agent,
 					undefined, // slashCommand
 					undefined, // confirmation
@@ -666,7 +827,11 @@ export class ChatService extends Disposable implements IChatService {
 					false, // Do not treat as requests completed, else edit pills won't show.
 					message.modelId,
 					undefined,
-					message.id
+					message.id,
+					message.isSystemInitiated,
+					message.systemInitiatedLabel,
+					undefined, // terminalExecutionId
+					message.isTerminalRequest
 				);
 			} else {
 				// response
@@ -674,43 +839,96 @@ export class ChatService extends Disposable implements IChatService {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
 					}
+					if (lastRequest.response && (message.details || message.errorDetails)) {
+						lastRequest.response.setResult({
+							...(message.details ? { details: message.details } : {}),
+							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
+						});
+					}
 				}
 			}
 		}
 
-		if (providedSession.isCompleteObs?.get()) {
-			lastRequest?.response?.complete();
-		}
+		// Set up progress streaming and cancellation for contributed sessions.
+		// This handles both the initial in-flight response (from session load)
+		// and any subsequent server-initiated turns (e.g. consumed queued messages).
+		const hasProgressStreaming = providedSession.progressObs && providedSession.interruptActiveResponseCallback;
+		if (hasProgressStreaming) {
+			let lastProgressLength = 0;
 
-		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
-			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
 			const cancellationListener = disposables.add(new MutableDisposable());
-
 			const createCancellationListener = (token: CancellationToken) => {
 				return token.onCancellationRequested(() => {
 					providedSession.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
 						if (!userConfirmedInterruption) {
-							// User cancelled the interruption
-							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-							this._pendingRequests.set(model.sessionResource, newCancellationRequest);
-							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
-							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
+							trackNewCancellableRequest();
 						}
 					});
 				});
 			};
 
-			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
+			const trackNewCancellableRequest = () => {
+				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
+				this._pendingRequests.set(model.sessionResource, cancellableRequest);
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
+				cancellationListener.value = createCancellationListener(cancellableRequest.cancellationTokenSource.token);
+			};
 
-			let lastProgressLength = 0;
+			const ensureCancellationTracking = () => {
+				if (!this._pendingRequests.has(model.sessionResource)) {
+					trackNewCancellableRequest();
+				}
+			};
+
+			if (lastRequest && !providedSession.isCompleteObs?.get()) {
+				trackNewCancellableRequest();
+			}
+
+			// Handle server-initiated requests (e.g. consumed queued messages).
+			if (providedSession.onDidStartServerRequest) {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
+					// Complete any in-flight request
+					if (lastRequest?.response && !lastRequest.response.isComplete) {
+						lastRequest.response.complete();
+					}
+
+					// Create a new request in the model
+					const agent = this.chatAgentService.getAgent(chatSessionType);
+					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
+					lastRequest = model.addRequest(parsedRequest,
+						variableData ?? { variables: [] },
+						0, // attempt
+						undefined, // modeInfo
+						agent,
+						undefined, // slashCommand
+						undefined, // confirmation
+						undefined, // locationData
+						undefined, // attachments
+						undefined, // isCompleteAddedRequest
+						undefined, // modelId
+						undefined, // userSelectedTools
+						undefined, // id
+						isSystemInitiated,
+						systemInitiatedLabel,
+						undefined, // terminalExecutionId
+						isTerminalRequest
+					);
+
+					// Reset progress tracking for the new turn
+					lastProgressLength = 0;
+
+					// Ensure cancellation tracking is active
+					ensureCancellationTracking();
+				}));
+			}
+
+			// Single autorun that streams progress for whichever request is current.
 			disposables.add(autorun(reader => {
 				const progressArray = providedSession.progressObs?.read(reader) ?? [];
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 
 				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
+				if (lastRequest && progressArray.length > lastProgressLength) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
@@ -719,13 +937,18 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				// Handle completion
-				if (isComplete) {
-					lastRequest.response?.complete();
+				if (isComplete && lastRequest) {
+					this._pendingRequests.deleteAndDispose(model.sessionResource);
 					cancellationListener.clear();
+					lastRequest.response?.complete();
 				}
 			}));
 		} else {
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession' });
+			if (providedSession.isCompleteObs?.get()) {
+				lastRequest?.response?.complete();
+			}
+
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
@@ -734,15 +957,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		return modelRef;
-	}
-
-	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
-		const model = this._sessionModels.get(sessionResource);
-		if (!model) {
-			return;
-		}
-		const { contributedChatSession } = model;
-		return contributedChatSession;
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
@@ -785,6 +999,9 @@ export class ChatService extends Disposable implements IChatService {
 			attachedContext: options.attachedContext,
 			modelId: options.userSelectedModelId,
 			userSelectedTools: options.userSelectedTools?.get(),
+			isSystemInitiated: options.isSystemInitiated,
+			systemInitiatedLabel: options.systemInitiatedLabel,
+			terminalExecutionId: options.terminalExecutionId,
 		});
 
 		const deferred = new DeferredPromise<ChatSendResult>();
@@ -803,15 +1020,42 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-
-		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
+		const hasExplicitFileOrImageAttachment = [...(options?.attachedContext ?? []), ...(options?.resolvedVariables ?? [])].some(isExplicitFileOrImageVariableEntry);
+		if (!request.trim() && !hasExplicitFileOrImageAttachment && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return { kind: 'rejected', reason: 'Empty message' };
 		}
 
-		const model = this._sessionModels.get(sessionResource);
+		let newSessionResource: URI | undefined;
+
+		// A late send may arrive on a stale untitled resource after it already
+		// materialized into a real session but before the UI swapped to the real
+		// resource. Re-target to the real resource so we don't materialize a
+		// second session, and report it as a new session so the caller swaps its
+		// UI from the untitled resource to the real one (mirroring the first send).
+		const materializedReal = this.chatSessionService.getMaterializedSessionResource(sessionResource);
+		if (materializedReal) {
+			sessionResource = materializedReal;
+			newSessionResource = materializedReal;
+		}
+
+		let model = this._sessionModels.get(sessionResource);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
+		}
+
+		// Internally blank widgets use special sessions with an untitled- path.
+		// We do not want these leaking out to the rest of code. On the first
+		// send, convert the untitled session into a real session (idempotent
+		// and serialized per untitled resource — see
+		// `_materializeUntitledSession`) before processing the request.
+		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
+			const materialized = await this._materializeUntitledSession(sessionResource, request, options, model);
+			if (materialized) {
+				model = materialized.model;
+				sessionResource = materialized.sessionResource;
+				newSessionResource = materialized.newSessionResource;
+			}
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -841,7 +1085,11 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind);
+		if (!defaultAgent) {
+			this.logService.warn('sendRequest', `No default agent for location ${location}`);
+			return { kind: 'rejected', reason: 'No default agent available' };
+		}
 
 		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
 		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
@@ -851,6 +1099,7 @@ export class ChatService extends Disposable implements IChatService {
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
 			kind: 'sent',
+			newSessionResource,
 			data: {
 				...this._sendRequestAsync(model, sessionResource, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
 				agent,
@@ -859,23 +1108,134 @@ export class ChatService extends Disposable implements IChatService {
 		};
 	}
 
+	/**
+	 * Converts an untitled contributed chat session into its real session on the
+	 * first send and returns the real model/resource so the caller can re-target
+	 * the request. Serialized per untitled resource: a first send stores an
+	 * in-flight promise, and a concurrent second send awaits it and converges on
+	 * the same real session (where the caller's pending-request check then rejects
+	 * the duplicate) instead of minting a second real session.
+	 *
+	 * Returns `undefined` when no conversion happened — either there is no
+	 * `newChatSessionItem` handler / the handler declined, or a concurrent
+	 * materialization failed — in which case the caller keeps using the untitled
+	 * session (the original behavior).
+	 */
+	private async _materializeUntitledSession(untitledResource: URI, request: string, options: IChatSendRequestOptions | undefined, untitledModel: ChatModel): Promise<{ model: ChatModel; sessionResource: URI; newSessionResource: URI } | undefined> {
+		const inFlight = this._inFlightUntitledMaterializations.get(untitledResource);
+		if (inFlight) {
+			// A concurrent send is already materializing this untitled session.
+			// Await its result and re-target the resulting real resource instead of
+			// minting a second real session.
+			const realResource = await inFlight;
+			if (!realResource) {
+				this.trace('materializeUntitledSession', `In-flight materialization of ${untitledResource.toString()} produced no real session; keeping untitled`);
+				return undefined;
+			}
+			// The winner has already loaded the real model and retains a reference
+			// to it, so look it up without acquiring (and leaking) an additional
+			// reference per concurrent send.
+			const realModel = this._sessionModels.get(realResource);
+			if (!realModel) {
+				this.info('materializeUntitledSession', `Joined in-flight materialization of ${untitledResource.toString()} but real model ${realResource.toString()} is missing; keeping untitled`);
+				return undefined;
+			}
+			this.trace('materializeUntitledSession', `Concurrent send joined in-flight materialization ${untitledResource.toString()} -> ${realResource.toString()}`);
+			return { model: realModel, sessionResource: realResource, newSessionResource: realResource };
+		}
+
+		// Track the materialization in-flight (keyed by the original untitled
+		// resource) so a concurrent second send joins this one rather than creating
+		// a duplicate real session. Store synchronously, before any await, so a
+		// concurrent send reliably observes the in-flight materialization.
+		const materialized = new DeferredPromise<URI | undefined>();
+		this._inFlightUntitledMaterializations.set(untitledResource, materialized.p);
+		try {
+			const parsedRequest = this.parseChatRequest(untitledResource, request, options?.location ?? untitledModel.initialLocation, options);
+			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
+			const requestText = getPromptText(parsedRequest).message;
+
+			// Snapshot the untitled session's options up front: they seed
+			// `createNewChatSessionItem` below and are pushed onto the real session
+			// once it loads. Capturing before those steps avoids reading them back
+			// after the untitled entry may have changed during materialization.
+			const initialSessionOptions = this.chatSessionService.getSessionOptions(untitledResource);
+
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(untitledResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource }, CancellationToken.None);
+			if (!newItem) {
+				materialized.complete(undefined);
+				return undefined;
+			}
+
+			// Register the inverse alias before loading so session-option lookups
+			// for the new resource resolve to the untitled session's options.
+			this.chatSessionService.registerSessionResourceAlias(untitledResource, newItem.resource);
+
+			// Do not dispose tempRef as per 6bc5ae80de9caffb21e9eb58e18b5ca24fa2d6e8
+			const tempRef = await this.loadRemoteSession(newItem.resource, untitledModel.initialLocation, CancellationToken.None);
+			const realModel = tempRef?.object as ChatModel | undefined;
+			if (!realModel) {
+				throw new Error(`Failed to load session for resource: ${newItem.resource}`);
+			}
+
+			// Update the new model's contributed session with initialSessionOptions
+			// so that the agent receives them when invoked.
+			if (initialSessionOptions) {
+				this.chatSessionService.updateSessionOptions(realModel.sessionResource, initialSessionOptions);
+			}
+
+			// Publish the forward mapping only after a successful load (see
+			// `setMaterializedSessionResource`).
+			this.chatSessionService.setMaterializedSessionResource(untitledResource, newItem.resource);
+			materialized.complete(newItem.resource);
+			// If this ever logs twice for the
+			// same untitled resource (different real resources), a single send
+			// produced duplicate sessions.
+			this.info('materializeUntitledSession', `Materialized untitled session ${untitledResource.toString()} into real session ${newItem.resource.toString()}`);
+			return { model: realModel, sessionResource: newItem.resource, newSessionResource: newItem.resource };
+		} catch (err) {
+			// Resolve (not reject) so a concurrent waiter degrades to the normal
+			// untitled path rather than inheriting this failure, then propagate the
+			// error to the originating caller. The forward mapping is only published
+			// on success, so there is nothing to roll back here.
+			materialized.complete(undefined);
+			throw err;
+		} finally {
+			if (this._inFlightUntitledMaterializations.get(untitledResource) === materialized.p) {
+				this._inFlightUntitledMaterializations.delete(untitledResource);
+			}
+		}
+	}
+
+	private getAttachmentCapabilitiesForParser(chatSessionType: string, agent: IChatAgentData | undefined): IChatAgentAttachmentCapabilities | undefined {
+		return this.chatSessionService.getCapabilitiesForSessionType(chatSessionType) ?? agent?.capabilities;
+	}
+
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
 		let parserContext = options?.parserContext;
+		let contextAgent = parserContext?.forcedAgent ?? parserContext?.selectedAgent;
 		if (options?.agentId) {
 			const agent = this.chatAgentService.getAgent(options.agentId);
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
+			contextAgent = agent;
+			parserContext = { ...parserContext, selectedAgent: agent, mode: options.modeInfo?.kind };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		} else if (options?.agentIdSilent && !parserContext?.forcedAgent) {
-			// Resolve slash commandsin the context of locked participant so its subcommands take precedence over global
+			// Resolve slash commands in the context of locked participant so its subcommands take precedence over global
 			// slash commands with the same name.
 			const silentAgent = this.chatAgentService.getAgent(options.agentIdSilent);
 			if (silentAgent) {
+				contextAgent = silentAgent;
 				parserContext = { ...parserContext, forcedAgent: silentAgent };
 			}
+		}
+
+		const attachmentCapabilities = parserContext?.attachmentCapabilities ?? this.getAttachmentCapabilitiesForParser(getChatSessionType(sessionResource), contextAgent);
+		if (attachmentCapabilities) {
+			parserContext = { ...parserContext, attachmentCapabilities };
 		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
@@ -897,6 +1257,7 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 		const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 		const requests = [...model.getRequests()];
+		const isTerminalCommand = isTerminalCommandPrompt(parsedRequest.text, this.chatSessionService.getCapabilitiesForSessionType(getChatSessionType(sessionResource))?.terminalCommandPrefix);
 		const requestTelemetry = this.instantiationService.createInstance(ChatRequestTelemetry, {
 			agent: agentPart?.agent ?? defaultAgent,
 			agentSlashCommandPart,
@@ -928,6 +1289,9 @@ export class ChatService extends Disposable implements IChatService {
 					return;
 				}
 
+				if (!gotProgress) {
+					markChat(sessionResource, ChatPerfMark.FirstToken);
+				}
 				gotProgress = true;
 
 				for (let i = 0; i < progress.length; i++) {
@@ -950,18 +1314,98 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
-			// Collect hooks from hook .json files
-			let collectedHooks: IChatRequestHooks | undefined;
-			let hasDisabledClaudeHooks = false;
-			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
-				if (hooksInfo) {
-					collectedHooks = hooksInfo.hooks;
-					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
+			// Gate /troubleshoot and the troubleshoot skill behind the file logging flag.
+			// agentDebugLog.enabled is deprecated; only fileLogging.enabled is authoritative.
+			{
+				const fileLoggingEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
+				if (!fileLoggingEnabled) {
+					const isTroubleshootCommand = agentSlashCommandPart?.command.name === TROUBLESHOOT_COMMAND_NAME;
+					const hasTroubleshootSkill = options?.attachedContext?.some(v => {
+						const uri = IChatRequestVariableEntry.toUri(v);
+						return uri && (uri.scheme === COPILOT_SKILL_URI_SCHEME || uri.path.includes(TROUBLESHOOT_SKILL_PATH));
+					});
+					if (isTroubleshootCommand || hasTroubleshootSkill) {
+						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
+						completeResponseCreated();
+
+						const settingsArg = encodeURIComponent(JSON.stringify(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING));
+						model.acceptResponseProgress(request, {
+							kind: 'markdownContent',
+							content: new MarkdownString(localize(
+								'agentDebugLog.troubleshootDisabled',
+								"The `{0}` skill requires `{1}` to be enabled. After enabling, reload the window to apply. [Enable in Settings](command:workbench.action.openSettings?{2})",
+								TROUBLESHOOT_COMMAND_NAME,
+								AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING,
+								settingsArg
+							), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+						});
+						model.setResponse(request, {});
+						request.response?.complete();
+						store.dispose();
+						return;
+					}
 				}
-			} catch (error) {
-				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
+
+			// Collect hooks from hook .json files
+			const collectHooks = async (): Promise<{ hooks: ChatRequestHooks | undefined; hasDisabledClaudeHooks: boolean }> => {
+				let collectedHooks: ChatRequestHooks | undefined;
+				let hasDisabledClaudeHooks = false;
+				try {
+					const hooksInfo = await this.promptsService.getHooks(token);
+					if (hooksInfo) {
+						collectedHooks = hooksInfo.hooks;
+						hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
+					}
+				} catch (error) {
+					this.logService.warn('[ChatService] Failed to collect hooks:', error);
+				}
+
+				// Merge hooks from the selected custom agent's frontmatter (if any)
+				const agentName = options?.modeInfo?.modeInstructions?.name;
+				if (agentName) {
+					try {
+						const agents = await this.promptsService.getCustomAgents(token);
+						const customAgent = agents.find(a => a.name === agentName && a.enabled);
+						if (customAgent?.hooks) {
+							collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
+						}
+					} catch (error) {
+						this.logService.warn('[ChatService] Failed to collect agent hooks:', error);
+					}
+				}
+				return { hooks: collectedHooks, hasDisabledClaudeHooks };
+			};
+
+			// Collect automatic instructions (.instructions.md, skills, etc.)
+			const collectInstructions = async (): Promise<IChatRequestVariableEntry[]> => {
+				const ctx = options?.instructionContext;
+				if (!ctx) {
+					return [];
+				}
+				// When the extension is responsible for instruction collection, skip the core path entirely.
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.CollectInstructionsInExtension) === true) {
+					return [];
+				}
+				markChat(sessionResource, ChatPerfMark.WillCollectInstructions);
+				try {
+					// Seed the variable set with existing attachments so that
+					// applyTo pattern matching and referenced-instruction
+					// resolution can see them. We filter them back out below
+					// to return only the entries that were newly added.
+					const variableSet = new ChatRequestVariableSet(options?.attachedContext);
+					const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ctx.modeKind, ctx.enabledTools, ctx.enabledSubAgents, getChatSessionType(sessionResource));
+					await computer.collect(variableSet, token);
+					// Return only the entries that were added by instruction collection
+					const originalIds = new Set((options?.attachedContext ?? []).map(v => v.id));
+					return variableSet.asArray().filter(v => !originalIds.has(v.id));
+				} catch (err) {
+					this.logService.error('[ChatService] Failed to collect instructions:', err);
+					return [];
+				} finally {
+					markChat(sessionResource, ChatPerfMark.DidCollectInstructions);
+				}
+			};
 
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
@@ -987,33 +1431,55 @@ export class ChatService extends Disposable implements IChatService {
 				let rawResult: IChatAgentResult | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
-						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
+					// --- Step 1: Create the request model immediately (before any awaits) ---
+					// This fires RequestUiUpdated synchronously so the user sees their message right away.
+					const initialAgent = agentPart?.agent ?? defaultAgent;
+					const initialCommand = agentSlashCommandPart?.command;
+					const initVariableData: IChatRequestVariableData = { variables: [] };
+					request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand);
+					const thisRequest = request;
+					completeResponseCreated();
 
-						let variableData: IChatRequestVariableData;
-						let message: string;
-						if (chatRequest) {
-							variableData = chatRequest.variableData;
-							message = getPromptText(request.message).message;
-						} else {
-							variableData = { variables: this.prepareContext(request.attachedContext) };
-							model.updateRequest(request, variableData);
+					// --- Step 2: Collect hooks + instructions in parallel (after UI is shown) ---
+					const [hooksResult, instructionEntries] = await Promise.all([
+						collectHooks(),
+						collectInstructions(),
+					]);
+					const collectedHooks = hooksResult.hooks;
+					const hasDisabledClaudeHooks = hooksResult.hasDisabledClaudeHooks;
 
-							// Merge resolved variables (e.g. images from directories) for the
-							// agent request only - they are not stored on the request model.
-							if (options?.resolvedVariables?.length) {
-								variableData = { variables: [...variableData.variables, ...options.resolvedVariables] };
-							}
+					// --- Step 3: Merge instructions and resolved variables into variableData ---
+					const allContext = this.prepareContext(request.attachedContext);
+					if (instructionEntries.length > 0) {
+						allContext.push(...instructionEntries);
+					}
 
-							const promptTextResult = getPromptText(request.message);
-							variableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
-							message = promptTextResult.message;
-						}
+					// Store only non-instruction variables on the model.
+					// Automatically-added promptText entries (~33 KB each) are
+					// ephemeral — re-collected every turn, never rendered in
+					// the UI, and not needed in serialized session history.
+					const storedVariables = allContext.filter(v => !(isPromptTextVariableEntry(v) && v.automaticallyAdded));
+					model.updateRequest(request, { variables: storedVariables });
 
+					// The full set (including instructions) is passed to the
+					// agent request only — not stored on the request model.
+					let variableData: IChatRequestVariableData = { variables: allContext };
+
+					// Merge resolved variables (e.g. images from directories) for the
+					// agent request only - they are not stored on the request model.
+					if (options?.resolvedVariables?.length) {
+						variableData = { variables: [...variableData.variables, ...options.resolvedVariables] };
+					}
+
+					const promptTextResult = getPromptText(request.message);
+					variableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
+					const message = promptTextResult.message;
+
+					// --- Step 4: Build the agent request object ---
+					const buildAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const agentRequest: IChatAgentRequest = {
 							sessionResource: model.sessionResource,
-							requestId: request.id,
+							requestId: thisRequest.id,
 							agentId: agent.id,
 							message,
 							command: command?.name,
@@ -1022,15 +1488,20 @@ export class ChatService extends Disposable implements IChatService {
 							isParticipantDetected,
 							attempt,
 							location,
-							locationData: request.locationData,
+							locationData: thisRequest.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
+							agentHostSessionConfig: options?.agentHostSessionConfig,
 							userSelectedModelId: options?.userSelectedModelId,
+							modelConfiguration: options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined),
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
-							editedFileEvents: request.editedFileEvents,
+							permissionLevel: options?.modeInfo?.permissionLevel,
+							editedFileEvents: thisRequest.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+							isSystemInitiated: options?.isSystemInitiated,
+							workingDirectory: model.workingDirectory,
 						};
 
 						let isInitialTools = true;
@@ -1052,6 +1523,7 @@ export class ChatService extends Disposable implements IChatService {
 						return agentRequest;
 					};
 
+					// --- Step 5: Participant detection ---
 					if (
 						this.configurationService.getValue('chat.detectParticipant.enabled') !== false &&
 						this.chatAgentService.hasChatParticipantDetectionProviders() &&
@@ -1059,16 +1531,14 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
-						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
+						location !== ChatAgentLocation.EditorInline &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent
 					) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, location, defaultAgent.id);
-
-						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
+						const chatAgentRequest = buildAgentRequest(defaultAgent, undefined, enableCommandDetection, false);
 
 						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
 						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
@@ -1086,7 +1556,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
-					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
+					const requestProps = buildAgentRequest(agent, command, enableCommandDetection, !!detectedAgent);
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest) {
@@ -1097,16 +1567,18 @@ export class ChatService extends Disposable implements IChatService {
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
-					}
-					completeResponseCreated();
-
-					// Check for disabled Claude Code hooks and notify the user once per workspace
-					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
-					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
-						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
-						if (hasDisabledClaudeHooks) {
-							progressCallback([{ kind: 'disabledClaudeHooks' }]);
+						if (pendingRequest.requestId) {
+							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequestId', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
 						}
+					}
+
+					// Check for disabled Claude Code hooks and notify the user once per workspace.
+					// Only set the flag when actually showing the hint, so the setup agent flow
+					// (which may resend requests) doesn't consume the flag before the real request runs.
+					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
+					if (hasDisabledClaudeHooks && !this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
+						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
+						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
@@ -1121,7 +1593,7 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
-				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
+				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command, getChatSessionType(model.sessionResource))) {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
 						completeResponseCreated();
@@ -1139,7 +1611,7 @@ export class ChatService extends Disposable implements IChatService {
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback([p]);
-					}), history, location, model.sessionResource, token);
+					}), history, location, model.sessionResource, token, options);
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 
@@ -1150,6 +1622,9 @@ export class ChatService extends Disposable implements IChatService {
 				if ((token.isCancellationRequested && !rawResult)) {
 					return;
 				} else if (!request) {
+					// Silent slash command completed successfully — allow queued
+					// requests to proceed.
+					shouldProcessPending = !token.isCancellationRequested;
 					return;
 				} else {
 					if (!rawResult) {
@@ -1179,11 +1654,15 @@ export class ChatService extends Disposable implements IChatService {
 						this.chatEntitlementService.markAnonymousRateLimited();
 					}
 
-					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
+					shouldProcessPending = !rawResult.errorDetails
+						&& !token.isCancellationRequested
+						&& !request.response?.response.value.some(v => v.kind === 'confirmation' && !v.isUsed);
 					request.response?.complete();
+
 					if (agentOrCommandFollowups) {
+						const completedRequest = request;
 						agentOrCommandFollowups.then(followups => {
-							model.setFollowups(request!, followups);
+							model.setFollowups(completedRequest, followups);
 							const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
 							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
 						});
@@ -1212,20 +1691,22 @@ export class ChatService extends Disposable implements IChatService {
 		let shouldProcessPending = false;
 		const rawResponsePromise = sendRequestInternal();
 		// Note- requestId is not known at this point, assigned later
-		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined);
+		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined, rawResponsePromise, options);
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest' });
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		rawResponsePromise.finally(() => {
+			markChat(sessionResource, ChatPerfMark.RequestComplete);
+			clearChatMarks(sessionResource);
 			if (this._pendingRequests.get(model.sessionResource) === cancellableRequest) {
 				this._pendingRequests.deleteAndDispose(model.sessionResource);
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete' });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete', requestId: cancellableRequest.requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			}
 			// Process the next pending request from the queue if any
 			if (shouldProcessPending) {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId) {
+		if (options?.userSelectedModelId && !options.isSystemInitiated) {
 			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
 		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest });
@@ -1243,51 +1724,119 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
+	 * Returns true if the session is backed by an agent host server, which
+	 * controls queued-message dequeuing on the server side.
+	 */
+	private _isServerManagedQueue(sessionResource: URI): boolean {
+		return getChatSessionType(sessionResource).startsWith('agent-host-');
+	}
+
+	/**
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
+	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
-		const pendingRequest = model.dequeuePendingRequest();
-		if (!pendingRequest) {
+		// Agent host sessions delegate queue management to the server.
+		// The server dispatches ChatTurnStarted with queuedMessageId when
+		// it consumes a queued message, so the client should not dequeue eagerly.
+		if (this._isServerManagedQueue(model.sessionResource)) {
 			return;
 		}
 
-		this.trace('processNextPendingRequest', `Processing queued request for session ${model.sessionResource}`);
+		// Dequeue all consecutive steering requests and combine them into one
+		const steeringRequests = model.dequeueAllSteeringRequests();
 
-		const deferred = this._queuedRequestDeferreds.get(pendingRequest.request.id);
-		this._queuedRequestDeferreds.delete(pendingRequest.request.id);
+		// Then dequeue a single non-steering request if no steering was found
+		const nextQueued = steeringRequests.length === 0 ? model.dequeuePendingRequest() : undefined;
+
+		const allRequests = steeringRequests.length > 0 ? steeringRequests : (nextQueued ? [nextQueued] : []);
+		if (allRequests.length === 0) {
+			return;
+		}
+
+		this.trace('processNextPendingRequest', `Processing ${allRequests.length} queued request(s) for session ${model.sessionResource}`);
+
+		// Collect and remove all deferreds
+		const deferreds: DeferredPromise<ChatSendResult>[] = [];
+		for (const req of allRequests) {
+			const deferred = this._queuedRequestDeferreds.get(req.request.id);
+			this._queuedRequestDeferreds.delete(req.request.id);
+			if (deferred) {
+				deferreds.push(deferred);
+			}
+		}
+
+		// Build send options from the first request, combining attachments from all
+		const firstRequest = allRequests[0];
+
+		// Preserve terminal correlation only when all merged requests agree on the
+		// same terminal. With subagents, multiple terminals can queue steering
+		// requests simultaneously — picking one arbitrarily would misattribute the
+		// notification, so we drop the ID when they conflict.
+		const terminalIds = new Set(allRequests.map(req => req.sendOptions.terminalExecutionId).filter((id): id is string => !!id));
+		if (terminalIds.size > 1) {
+			this.info('processNextPendingRequest', `Dropping terminalExecutionId: ${terminalIds.size} conflicting terminal IDs (${[...terminalIds].join(', ')})`);
+		}
+		const mergedTerminalExecutionId = terminalIds.size === 1 ? [...terminalIds][0] : undefined;
 
 		const sendOptions: IChatSendRequestOptions = {
-			...pendingRequest.sendOptions,
-			// Ensure attachedContext is preserved after deserialization, where sendOptions
-			// loses attachedContext but the request model retains it in variableData.
-			attachedContext: pendingRequest.request.variableData.variables.slice(),
+			...firstRequest.sendOptions,
+			terminalExecutionId: mergedTerminalExecutionId,
+			attachedContext: allRequests.flatMap(req => req.request.variableData.variables.slice()),
 		};
+
 		const location = sendOptions.location ?? sendOptions.locationData?.type ?? model.initialLocation;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, sendOptions.modeInfo?.kind);
 		if (!defaultAgent) {
 			this.logService.warn('processNextPendingRequest', `No default agent for location ${location}`);
-			deferred?.complete({ kind: 'rejected', reason: 'No default agent available' });
+			for (const deferred of deferreds) {
+				deferred.complete({ kind: 'rejected', reason: 'No default agent available' });
+			}
 			return;
 		}
 
-		const parsedRequest = pendingRequest.request.message;
+		// For multiple steering requests, combine texts and re-parse; otherwise use as-is
+		let parsedRequest: IParsedChatRequest;
+		try {
+			if (allRequests.length > 1) {
+				const combinedText = allRequests.map(req => req.request.message.text).join('\n\n');
+				// message.text already includes agent/slash-command prefixes from the
+				// original parse, so clear them to avoid double-prefixing.
+				parsedRequest = this.parseChatRequest(model.sessionResource, combinedText, location, {
+					...sendOptions,
+					agentId: undefined,
+					slashCommand: undefined,
+				});
+			} else {
+				parsedRequest = firstRequest.request.message;
+			}
+		} catch (err) {
+			this.logService.error('processNextPendingRequest: failed to parse combined chat request', err);
+			const reason = toErrorMessage(err);
+			for (const deferred of deferreds) {
+				deferred.complete({ kind: 'rejected', reason });
+			}
+			return;
+		}
+
 		const silentAgent = sendOptions.agentIdSilent ? this.chatAgentService.getAgent(sendOptions.agentIdSilent) : undefined;
 		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
-		// Send the queued request - this will add it to _pendingRequests and handle it normally
-		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, pendingRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
+		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
 
-		// Resolve the deferred with the sent result
-		deferred?.complete({
+		const result: ChatSendResultSent = {
 			kind: 'sent',
 			data: {
 				...responseState,
 				agent,
 				slashCommand: agentSlashCommandPart?.command,
 			},
-		});
+		};
+		for (const deferred of deferreds) {
+			deferred.complete(result);
+		}
 	}
 
 	private generateInitialChatTitleIfNeeded(model: ChatModel, request: IChatAgentRequest, defaultAgent: IChatAgentData, token: CancellationToken): void {
@@ -1361,6 +1910,7 @@ export class ChatService extends Disposable implements IChatService {
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
 				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
+				modeInstructions: request.modeInfo?.modeInstructions,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
@@ -1378,7 +1928,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (pendingRequest?.requestId === requestId) {
 			pendingRequest.cancel();
 			this._pendingRequests.deleteAndDispose(sessionResource);
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'removeRequest' });
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'removeRequest', requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		}
 
 		model.removeRequest(requestId);
@@ -1401,8 +1951,8 @@ export class ChatService extends Disposable implements IChatService {
 			if (cts) {
 				cts.requestId = request.id;
 				this._pendingRequests.set(target.sessionResource, cts);
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'adoptRequest' });
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'adoptRequest' });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'adoptRequest', requestId: request.id, chatSessionId: chatSessionResourceToId(oldOwner.sessionResource) });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'adoptRequest', requestId: request.id, chatSessionId: chatSessionResourceToId(target.sessionResource) });
 			}
 		}
 	}
@@ -1434,35 +1984,69 @@ export class ChatService extends Disposable implements IChatService {
 		request.response?.complete();
 	}
 
-	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void {
+	async cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (!pendingRequest) {
-			const model = this._sessionModels.get(sessionResource);
-			const requestInProgress = model?.requestInProgress.get();
-			const pendingRequestsCount = model?.getPendingRequests().length ?? 0;
-			const lastRequest = model?.lastRequest;
-			this.telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
-				source: source ?? 'chatService',
-				reason: 'noPendingRequest',
-				requestInProgress: requestInProgress === undefined ? 'unknown' : requestInProgress ? 'true' : 'false',
-				pendingRequests: pendingRequestsCount,
-				sessionScheme: sessionResource.scheme,
-				lastRequestId: lastRequest?.id,
-			});
-			this.info('cancelCurrentRequestForSession', `No pending request was found for session ${sessionResource}. requestInProgress=${requestInProgress ?? 'unknown'}, pendingRequests=${pendingRequestsCount}`);
+			if (source !== 'archive') {
+				const model = this._sessionModels.get(sessionResource);
+				const requestInProgress = model?.requestInProgress.get();
+				const pendingRequestsCount = model?.getPendingRequests().length ?? 0;
+				const lastRequest = model?.lastRequest;
+				this.telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
+					source: source ?? 'chatService',
+					reason: 'noPendingRequest',
+					requestInProgress: requestInProgress === undefined ? 'unknown' : requestInProgress ? 'true' : 'false',
+					pendingRequests: pendingRequestsCount,
+					sessionScheme: sessionResource.scheme,
+					lastRequestId: lastRequest?.id,
+					chatSessionId: chatSessionResourceToId(sessionResource),
+				});
+				this.info('cancelCurrentRequestForSession', `No pending request was found for session ${sessionResource}. requestInProgress=${requestInProgress ?? 'unknown'}, pendingRequests=${pendingRequestsCount}`);
+			}
 			return;
 		}
 
+		const responseCompletePromise = pendingRequest.responseCompletePromise;
 		pendingRequest.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest' });
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
+
+		if (responseCompletePromise) {
+			await raceTimeout(responseCompletePromise, 1000);
+		}
 	}
 
 	setYieldRequested(sessionResource: URI): void {
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (pendingRequest) {
 			pendingRequest.setYieldRequested();
+		}
+	}
+
+	migrateRequests(originalResource: URI, targetResource: URI): void {
+		const model = this._sessionModels.get(originalResource);
+		if (!model) {
+			return;
+		}
+
+		const pendingRequests = [...model.getPendingRequests()];
+
+		if (pendingRequests.length === 0) {
+			return;
+		}
+
+		// Remove each remaining pending request from the original session
+		for (const pending of pendingRequests) {
+			this.removePendingRequest(originalResource, pending.request.id);
+		}
+
+		// Re-send remaining queued requests
+		for (const pending of pendingRequests) {
+			void this.sendRequest(targetResource, pending.request.message.text, {
+				...pending.sendOptions,
+				queue: pending.kind,
+			});
 		}
 	}
 
@@ -1492,6 +2076,58 @@ export class ChatService extends Disposable implements IChatService {
 		if (model) {
 			model.setPendingRequests(requests);
 		}
+	}
+
+	async sendPendingRequestImmediately(sessionResource: URI, requestId: string): Promise<void> {
+		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
+		if (!model) {
+			return;
+		}
+
+		const pendingRequests = model.getPendingRequests();
+		const target = pendingRequests.find(r => r.request.id === requestId);
+		if (!target) {
+			return;
+		}
+
+		if (this._isServerManagedQueue(sessionResource)) {
+			// Agent host queues are drained by the server, which intentionally
+			// skips pending messages on cancellation. So remove the message
+			// (clearing it server-side) and re-send it as a normal turn after
+			// cancelling. Remove before sending to avoid the server also
+			// auto-draining it (double send); restore it on failure so a
+			// rejected re-send doesn't silently drop the message.
+			const message = target.request.message.text;
+			const attachedContext = target.request.variableData.variables.slice();
+			const sendOptions: IChatSendRequestOptions = {
+				...target.sendOptions,
+				queue: undefined,
+				attachedContext,
+			};
+			this.removePendingRequest(sessionResource, requestId);
+			await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+			let result: ChatSendResult | undefined;
+			try {
+				result = await this.sendRequest(sessionResource, message, sendOptions);
+			} catch (err) {
+				this.logService.error('sendPendingRequestImmediately: re-send failed', err);
+			}
+			if (!result || result.kind === 'rejected') {
+				this.info('sendPendingRequestImmediately', `Re-send was not accepted (${result?.kind ?? 'error'}); restoring pending message to the queue`);
+				await this.sendRequest(sessionResource, message, { ...sendOptions, attachedContext, queue: target.kind });
+			}
+			return;
+		}
+
+		// Local sessions: move the target to the front (keeping its kind),
+		// cancel the in-flight request, and let the queue processor send it.
+		const reordered = [
+			{ requestId: target.request.id, kind: target.kind },
+			...pendingRequests.filter(r => r.request.id !== requestId).map(r => ({ requestId: r.request.id, kind: r.kind })),
+		];
+		this.setPendingRequests(sessionResource, reordered);
+		await this.cancelCurrentRequestForSession(sessionResource, 'queueRunNext');
+		this.processPendingRequests(sessionResource);
 	}
 
 	public hasSessions(): boolean {
@@ -1549,4 +2185,18 @@ export class ChatService extends Disposable implements IChatService {
 		}
 		return localSessionId;
 	}
+}
+
+export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDetail> {
+	const title = model.title || localize('newChat', "New Chat");
+	return {
+		sessionResource: model.sessionResource,
+		title,
+		lastMessageDate: model.lastMessageDate,
+		timing: model.timing,
+		isActive: true,
+		stats: await awaitStatsForSession(model),
+		lastResponseState: model.lastRequest?.response?.state ?? ResponseModelState.Pending,
+		workingDirectory: model.workingDirectory,
+	};
 }

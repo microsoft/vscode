@@ -3,136 +3,115 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
-import { PromptFilesLocator } from '../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
-import { Event } from '../../../../base/common/event.js';
-import { basename, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { HOOKS_SOURCE_FOLDER } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { ISearchService } from '../../../../workbench/services/search/common/search.js';
-import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
 
+/** URI root for built-in skills bundled with the Agents app. */
+export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
+
+/**
+ * Sessions-specific PromptsService that additionally discovers built-in skills
+ * bundled at `vs/sessions/skills/{folder}/SKILL.md`.
+ *
+ * Built-in skills are contributed via the single {@link getBuiltinPromptFiles}
+ * override, so the base service merges them into `findAgentSkills()`,
+ * `listPromptFiles(skill)` and
+ * `listPromptFilesForStorage(skill, PromptsStorage.builtIn)` and applies its own
+ * parsing, sanitization and duplicate-name precedence. Built-ins have the lowest
+ * skill priority, so a user/workspace skill with the same folder name wins.
+ */
 export class AgenticPromptsService extends PromptsService {
-	private _copilotRoot: URI | undefined;
 
-	protected override createPromptFilesLocator(): PromptFilesLocator {
-		return this.instantiationService.createInstance(AgenticPromptFilesLocator);
+	private _builtinSkillsCache: Promise<readonly IAgentSkill[]> | undefined;
+
+	private async getBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+		if (!this._builtinSkillsCache) {
+			this._builtinSkillsCache = this.discoverBuiltinSkills();
+		}
+		return this._builtinSkillsCache;
 	}
 
-	private getCopilotRoot(): URI {
-		if (!this._copilotRoot) {
-			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
-			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+		try {
+			const stat = await this.fileService.resolve(BUILTIN_SKILLS_URI);
+			if (!stat.children) {
+				return [];
+			}
+
+			const skills: IAgentSkill[] = [];
+			for (const child of stat.children) {
+				if (!child.isDirectory) {
+					continue;
+				}
+				const skillFileUri = joinPath(child.resource, SKILL_FILENAME);
+				try {
+					const parsed = await this.parseNew(skillFileUri, CancellationToken.None);
+					const rawName = parsed.header?.name;
+					const rawDescription = parsed.header?.description;
+					if (!rawName || !rawDescription) {
+						continue;
+					}
+					const name = sanitizeSkillText(rawName, 64);
+					const description = sanitizeSkillText(rawDescription, 1024);
+					const folderName = basename(child.resource);
+					if (name !== folderName) {
+						continue;
+					}
+					skills.push({
+						uri: skillFileUri,
+						storage: PromptsStorage.builtIn,
+						name,
+						description,
+						disableModelInvocation: parsed.header?.disableModelInvocation === true,
+						userInvocable: parsed.header?.userInvocable !== false,
+					});
+				} catch (e) {
+					this.logger.warn(`[AgenticPromptsService] Failed to parse built-in skill: ${skillFileUri}`, e instanceof Error ? e.message : String(e));
+				}
+			}
+			return skills;
+		} catch {
+			return [];
 		}
-		return this._copilotRoot;
+	}
+
+	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
+		const skills = await this.getBuiltinSkills();
+		return skills.map(s => ({
+			uri: s.uri,
+			storage: PromptsStorage.builtIn,
+			type: PromptsType.skill,
+			name: s.name,
+			description: s.description,
+		}));
 	}
 
 	/**
-	 * Override to use ~/.copilot as the user-level source folder for creation,
-	 * instead of the VS Code profile's promptsHome.
+	 * Contributes the built-in skills bundled with the Agents app. The base
+	 * {@link PromptsService} merges these into skill discovery
+	 * (`findAgentSkills()`), `listPromptFiles(skill)` and
+	 * `listPromptFilesForStorage(skill, PromptsStorage.builtIn)`, applying its
+	 * own parsing, sanitization and duplicate-name precedence (built-ins have
+	 * the lowest priority, so user/workspace skills of the same name win).
 	 */
-	public override async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
-		const folders = await super.getSourceFolders(type);
-		const copilotRoot = this.getCopilotRoot();
-		// Replace any user-storage folders with the CLI-accessible ~/.copilot root
-		return folders.map(folder => {
-			if (folder.storage === PromptsStorage.user) {
-				const subfolder = getCliUserSubfolder(type);
-				return subfolder
-					? { ...folder, uri: joinPath(copilotRoot, subfolder) }
-					: folder;
-			}
-			return folder;
-		});
-	}
-}
-
-class AgenticPromptFilesLocator extends PromptFilesLocator {
-
-	constructor(
-		@IFileService fileService: IFileService,
-		@IConfigurationService configService: IConfigurationService,
-		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ISearchService searchService: ISearchService,
-		@IUserDataProfileService userDataService: IUserDataProfileService,
-		@ILogService logService: ILogService,
-		@IPathService pathService: IPathService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
-	) {
-		super(
-			fileService,
-			configService,
-			workspaceService,
-			environmentService,
-			searchService,
-			userDataService,
-			logService,
-			pathService
-		);
-	}
-
-	protected override getWorkspaceFolders(): readonly IWorkspaceFolder[] {
-		const folder = this.getActiveWorkspaceFolder();
-		return folder ? [folder] : [];
-	}
-
-	protected override getWorkspaceFolder(resource: URI): IWorkspaceFolder | undefined {
-		const folder = this.getActiveWorkspaceFolder();
-		if (!folder) {
-			return undefined;
+	protected override async getBuiltinPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IBuiltinPromptPath[]> {
+		if (type !== PromptsType.skill) {
+			return [];
 		}
-		return isEqualOrParent(resource, folder.uri) ? folder : undefined;
-	}
-
-	protected override onDidChangeWorkspaceFolders(): Event<void> {
-		return Event.fromObservableLight(this.activeSessionService.activeSession);
-	}
-
-	public override async getHookSourceFolders(): Promise<readonly URI[]> {
-		const configured = await super.getHookSourceFolders();
-		if (configured.length > 0) {
-			return configured;
-		}
-		const folder = this.getActiveWorkspaceFolder();
-		return folder ? [joinPath(folder.uri, HOOKS_SOURCE_FOLDER)] : [];
-	}
-
-	private getActiveWorkspaceFolder(): IWorkspaceFolder | undefined {
-		const session = this.activeSessionService.getActiveSession();
-		const root = session?.worktree ?? session?.repository;
-		if (!root) {
-			return undefined;
-		}
-		return {
-			uri: root,
-			name: basename(root),
-			index: 0,
-			toResource: relativePath => joinPath(root, relativePath),
-		};
+		return this.getBuiltinSkillPaths();
 	}
 }
 
 /**
- * Returns the subfolder name under ~/.copilot/ for a given customization type.
- * Used to determine the CLI-accessible user creation target.
+ * Strips XML tags and truncates to the given max length.
+ * Matches the sanitization applied by PromptsService for other skill sources.
  */
-function getCliUserSubfolder(type: PromptsType): string | undefined {
-	switch (type) {
-		case PromptsType.instructions: return 'instructions';
-		case PromptsType.skill: return 'skills';
-		case PromptsType.agent: return 'agents';
-		case PromptsType.prompt: return 'prompts';
-		default: return undefined;
-	}
+function sanitizeSkillText(text: string, maxLength: number): string {
+	const sanitized = text.replace(/<[^>]+>/g, '');
+	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
 }
-

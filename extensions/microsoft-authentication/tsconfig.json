@@ -5,7 +5,15 @@
 		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		"types": [
+			"node",
+			"mocha"
+		],
+		"typeRoots": [
+			"./node_modules/@types",
+			"../../node_modules/@types"
+		]
 	},
 	"include": [
 		"src/**/*",

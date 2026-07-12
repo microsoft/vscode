@@ -28,7 +28,7 @@ function fixReferences(literal: Record<string, unknown> | unknown[]) {
 		}
 		Object.getOwnPropertyNames(literal).forEach(property => {
 			const value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
+			if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
 				fixReferences(value as Record<string, unknown>);
 			}
 		});
@@ -56,9 +56,9 @@ const hide: IJSONSchema = {
 	default: true
 };
 
-const inSessions: IJSONSchema = {
+const inAgents: IJSONSchema = {
 	type: 'boolean',
-	description: nls.localize('JsonSchema.inSessions', 'Show this task in the Agent Sessions run action dropdown'),
+	description: nls.localize('JsonSchema.inAgents', 'Show this task in the Agents run action dropdown'),
 	default: false
 };
 
@@ -384,8 +384,8 @@ const runOptions: IJSONSchema = {
 		},
 		runOn: {
 			type: 'string',
-			enum: ['default', 'folderOpen'],
-			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			enum: ['default', 'folderOpen', 'worktreeCreated'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened. If set to worktreeCreated, then the task will be run automatically when an Agent Session worktree is created.'),
 			default: 'default'
 		},
 		instanceLimit: {
@@ -443,7 +443,7 @@ const taskConfiguration: IJSONSchema = {
 		presentation: Objects.deepClone(presentation),
 		icon: Objects.deepClone(icon),
 		hide: Objects.deepClone(hide),
-		inSessions: Objects.deepClone(inSessions),
+		inAgents: Objects.deepClone(inAgents),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -517,7 +517,7 @@ taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
 taskDescriptionProperties.hide = Objects.deepClone(hide);
-taskDescriptionProperties.inSessions = Objects.deepClone(inSessions);
+taskDescriptionProperties.inAgents = Objects.deepClone(inAgents);
 taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);

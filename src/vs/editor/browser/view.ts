@@ -605,7 +605,8 @@ export class View extends ViewEventHandler {
 				}
 
 				const viewPartsToRender = this._getViewPartsToRender();
-				if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
+				const viewLinesShouldRender = this._viewLines.shouldRender();
+				if (!viewLinesShouldRender && viewPartsToRender.length === 0) {
 					// Nothing to render
 					return null;
 				}

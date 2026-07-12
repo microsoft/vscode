@@ -1,0 +1,54 @@
+[
+    {
+        "question": "/explain",
+        "description": "can explain different editor selections in a single conversation",
+        "stateFile": "./explain.3.state.json",
+        "keywords": {
+            "allOf": [
+                "bar"
+            ],
+            "not": [
+                "Corge"
+            ]
+        }
+    },
+    {
+        "question": "/explain",
+        "stateFile": "./explain.2.state.json",
+        "keywords": {
+            "allOf": [
+                "bar"
+            ],
+            "not": [
+                "qux"
+            ]
+        }
+    },
+    {
+        "question": "/explain",
+        "stateFile": "./explain.1.state.json",
+        "keywords": {
+            "allOf": [
+                "bar",
+                "console"
+            ],
+            "not": [
+                "qux"
+            ]
+        }
+    },
+    {
+        "question": "/explain",
+        "stateFile": "./explain.0.state.json",
+        "keywords": {
+            "allOf": [
+                "foo",
+                "bar",
+                "console"
+            ],
+            "not": [
+                "qux"
+            ]
+        }
+    }
+]

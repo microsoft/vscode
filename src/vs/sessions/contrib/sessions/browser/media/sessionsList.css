@@ -1,0 +1,703 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-list-control {
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
+	.monaco-list-row:has(.session-item) {
+		border-radius: var(--vscode-cornerRadius-medium);
+		margin: 0 10px;
+		width: calc(100% - 20px);
+	}
+
+	/* Suppressed while selected so the selection highlight is not overpainted. */
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+			animation: none;
+			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		}
+	}
+
+	.monaco-list-row .force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .session-details-row {
+		color: unset;
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-details-row {
+		.session-diff {
+
+			.session-diff-added,
+			.session-diff-removed {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list-row.selected .session-title {
+		color: unset;
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .codicon,
+	.monaco-list:focus .monaco-list-row.selected .session-icon > .monaco-pixel-spinner {
+		color: var(--vscode-list-activeSelectionForeground) !important;
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.monaco-list-row .session-title-toolbar {
+		position: relative;
+		height: 16px;
+		display: none;
+
+		.monaco-toolbar {
+			position: relative;
+			right: 0;
+			top: 0;
+		}
+	}
+
+	.monaco-list-row .session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
+	.monaco-list-row:hover,
+	.monaco-list-row.focused:not(.selected) {
+		.session-title-toolbar {
+			display: block;
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
+
+	/* Pinned but not hovered/focused: show only the unpin action */
+	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
+		.session-title-toolbar {
+			display: block;
+
+			.action-item:not(:last-child) {
+				display: none;
+			}
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
+}
+
+/* Session Item */
+
+.session-item {
+	display: flex;
+	flex-direction: row;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 8px 6px 8px 12px;
+
+	&.archived {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	&.sticky {
+		border-left: 2px solid var(--vscode-focusBorder);
+		padding-left: 4px;
+	}
+
+	.session-main,
+	.session-title-row,
+	.session-details-row {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.session-icon {
+		display: flex;
+		align-items: flex-start;
+		line-height: 17px;
+		/* Anchor for outgoing icons during a cross-fade swap (see swapIconWithCrossfade). */
+		position: relative;
+
+		> .codicon {
+			flex-shrink: 0;
+			font-size: var(--vscode-codiconFontSize, 16px);
+			height: 16px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		> .monaco-pixel-spinner {
+			flex-shrink: 0;
+			width: 16px;
+			height: 16px;
+		}
+
+		&.session-icon-pulse > .codicon {
+			animation: session-needs-input-pulse 2s ease-in-out infinite;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			&.session-icon-pulse > .codicon {
+				animation: none;
+			}
+		}
+	}
+
+	.session-main {
+		padding-left: 6px;
+	}
+
+	.session-title-row,
+	.session-details-row {
+		display: flex;
+		align-items: center;
+	}
+
+	.session-title-row {
+		line-height: 17px;
+		padding-bottom: 4px;
+	}
+
+	.session-details-row {
+		gap: 4px;
+		font-size: var(--vscode-agents-fontSize-label2, 11px);
+		line-height: 15px;
+		max-height: 15px;
+		overflow: hidden;
+		color: var(--vscode-descriptionForeground);
+
+		.session-details-icon {
+			display: flex;
+			align-items: center;
+
+			> .codicon {
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
+			}
+		}
+
+		.session-diff {
+			font-variant-numeric: tabular-nums;
+			overflow: hidden;
+			display: flex;
+			gap: 2px;
+
+			.session-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
+
+		.session-badge {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		.session-separator {
+			display: none;
+
+			&.has-separator {
+				display: inline;
+
+				&::before {
+					content: '\00B7';
+				}
+			}
+		}
+	}
+
+	.session-title,
+	.session-description {
+		/* push other items to the end */
+		flex: 1;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.session-description p {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.session-description:empty {
+		display: none;
+	}
+
+	.session-title {
+		font-size: var(--vscode-agents-fontSize-body1, 13px);
+	}
+
+	.session-title {
+		color: var(--vscode-foreground);
+	}
+
+	/* Strong foreground is reserved for sessions that need attention: */
+	/* unread, input required, or selected. All others use foreground. */
+	&.unread .session-title,
+	&.needs-input .session-title {
+		color: var(--vscode-strongForeground);
+	}
+
+	.session-time {
+		display: flex;
+		align-items: center;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.session-approval-row {
+		display: none;
+		gap: 8px;
+		margin-top: 4px;
+		margin-left: -6px;
+		padding: 4px 4px 4px 6px;
+		box-sizing: border-box;
+		border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+		border-radius: var(--vscode-cornerRadius-large);
+		background-color: var(--vscode-editor-background);
+		color: var(--vscode-editor-foreground);
+		align-items: center;
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-approval-label {
+			flex: 1;
+			overflow: hidden;
+			min-width: 0;
+
+			& > .rendered-markdown,
+			& > .rendered-markdown > .code,
+			& > .rendered-markdown > .code > span {
+				display: block;
+				overflow: hidden;
+			}
+
+			.monaco-tokenized-source {
+				display: block;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				font-size: var(--vscode-agents-fontSize-label1, 12px);
+			}
+		}
+
+		.session-approval-button {
+			flex-shrink: 0;
+
+			.monaco-button {
+				padding: 2px 10px;
+				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				white-space: nowrap;
+			}
+		}
+	}
+}
+
+/* Show More */
+
+.session-show-more {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	padding: 0 10px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	color: var(--vscode-descriptionForeground);
+	min-height: 26px;
+	cursor: pointer;
+
+	.session-show-more-label {
+		padding: 0 6px;
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	/* Lines on both sides of the text */
+	&::before,
+	&::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+	}
+}
+
+.monaco-list-row:hover .session-show-more:hover {
+	color: var(--vscode-foreground);
+}
+
+/* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
+.session-placeholder {
+	display: flex;
+	align-items: center;
+	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
+	padding: 0 12px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	color: var(--vscode-descriptionForeground);
+	min-height: 26px;
+	cursor: default;
+
+	.session-placeholder-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		padding-left: 22px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		opacity: 0.8;
+	}
+}
+
+/* Folders show-more/show-less: align with workspace section headers. */
+.session-show-more.session-show-more-folders {
+	justify-content: flex-start;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+
+	.session-show-more-label {
+		padding: 0;
+	}
+
+	/* No surrounding separator lines for the folders show-more/less item */
+	&::before,
+	&::after {
+		content: none;
+	}
+}
+
+/* Section Header */
+
+.session-section {
+	display: flex;
+	align-items: center;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	color: var(--vscode-descriptionForeground);
+	padding: 0 10px;
+
+	.session-section-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.session-section-icon {
+		flex-shrink: 0;
+		margin-right: 6px;
+		font-size: var(--vscode-codiconFontSize, 16px);
+	}
+
+	.session-section-count {
+		flex-shrink: 0;
+		opacity: 0.7;
+		margin-left: 4px;
+		margin-right: 4px;
+	}
+
+	.session-section-toolbar {
+		flex-shrink: 0;
+		margin-left: 4px;
+		display: none;
+	}
+
+	.session-section-toolbar .monaco-action-bar .action-label {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.session-section-chevron {
+		flex-shrink: 0;
+		display: none;
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-codiconFontSize-compact, 12px);
+		width: 22px;
+		height: 22px;
+		border-radius: var(--vscode-cornerRadius-small);
+		justify-content: center;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
+}
+
+.monaco-list-row:hover .session-section .session-section-chevron.collapsible,
+.monaco-list-row.focused .session-section .session-section-chevron.collapsible {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-list-row .session-section .session-section-chevron.collapsible:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-list-control {
+
+	/* Workspace headers and folder toggles use label color changes instead of row background fills for hover/focus/selection. */
+	.monaco-list-row:has(.session-section):hover,
+	.monaco-list-row:has(.session-show-more-folders):hover,
+	.monaco-list-row.focused:has(.session-section),
+	.monaco-list-row.focused:has(.session-show-more-folders),
+	.monaco-list-row.selected:has(.session-section),
+	.monaco-list-row.selected:has(.session-show-more-folders) {
+		background: transparent !important;
+	}
+
+	.monaco-list-row:hover .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row:hover .session-show-more-folders .session-show-more-label,
+	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	&.session-section-focus-from-pointer {
+		.monaco-list-row.focused:has(.session-section),
+		.monaco-list-row.selected:has(.session-section) {
+			outline: none !important;
+		}
+	}
+}
+
+/* Session groups render like sections, with an inline name editor. */
+.session-group {
+	.session-group-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: none;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 20px;
+			line-height: 18px;
+		}
+
+		.monaco-inputbox .input {
+			padding: 0 4px;
+			font-size: var(--vscode-agents-fontSize-label2, 11px);
+		}
+	}
+}
+
+.session-group.session-group-editing .session-group-input {
+	display: block;
+}
+
+/* Header-only feedback while dragging sessions into a group or Pinned. */
+.sessions-list-control .monaco-list-row.drop-target:has(.session-section),
+.sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
+	background-color: var(--vscode-list-dropBackground) !important;
+}
+
+@keyframes session-needs-input-pulse {
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+/* PROTO: yellow background pulse for "Input needed" session rows. */
+@keyframes session-needs-input-accent-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
+	}
+}
+
+/* Shimmer effect for in-progress session titles when not selected. */
+/* Gated behind @supports because some environments apply */
+/* `-webkit-text-fill-color: transparent` without honoring */
+/* `background-clip: text`, which renders gradient-filled blocks */
+/* instead of clipped text. Also disabled under reduced motion. */
+
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+	@media not (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+			background: linear-gradient(
+				90deg,
+				var(--vscode-strongForeground) 0%,
+				var(--vscode-strongForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-strongForeground) 70%,
+				var(--vscode-strongForeground) 100%
+			);
+			background-size: 400% 100%;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: session-title-shimmer 3s linear infinite;
+		}
+
+		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
+		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+			background-image: linear-gradient(
+				90deg,
+				var(--vscode-strongForeground) 0%,
+				var(--vscode-strongForeground) 30%,
+				var(--vscode-descriptionForeground) 50%,
+				var(--vscode-strongForeground) 70%,
+				var(--vscode-strongForeground) 100%
+			);
+		}
+	}
+}
+
+@keyframes session-title-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
+/* ---- Mobile Layout: Touch Adaptations ---- */
+
+/* Always show inline toolbar on mobile (no hover dependency) */
+.agent-sessions-workbench.phone-layout .sessions-list .monaco-list-row .actions {
+	display: flex !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+/* Touch feedback on session list items */
+.agent-sessions-workbench.phone-layout .sessions-list .monaco-list-row:active {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+/* Disable webkit touch callout on list items */
+.agent-sessions-workbench.phone-layout .sessions-list .monaco-list-row {
+	-webkit-touch-callout: none;
+	touch-action: manipulation;
+}
+
+/*
+ * Phone layout: roomier rows with a centered, always-visible action
+ * toolbar that meets the 44px minimum touch target. The taller row
+ * height is reserved by `SessionsTreeDelegate.ITEM_HEIGHT_PHONE` —
+ * keep these rules in sync if paddings/font sizes change here.
+ */
+.agent-sessions-workbench.phone-layout .sessions-list-control {
+	.monaco-list-row:has(.session-item) {
+		/* Horizontal-only margin: virtual list rows are absolutely
+		 * positioned with JS-set `top`/`height`, so vertical margins
+		 * here would not produce reliable inter-row spacing. Any gap
+		 * lives inside the row via padding. */
+		margin: 0 8px;
+		width: calc(100% - 16px);
+		border-radius: var(--vscode-cornerRadius-xLarge);
+	}
+
+	.session-item {
+		padding: 10px 10px;
+		/* Vertically center the icon + main column inside the fixed phone row height. */
+		align-items: center;
+		/* Anchor for the absolutely positioned title toolbar (kept out
+		 * of the title-row flow so a 44px tap target doesn't inflate
+		 * the title line-height or shift the details row down). */
+		position: relative;
+	}
+
+	.session-item .session-icon {
+		line-height: 20px;
+
+		> .codicon {
+			font-size: 14px;
+			height: 20px;
+		}
+
+		> .monaco-pixel-spinner {
+			width: 20px;
+			height: 20px;
+		}
+	}
+
+	.session-item .session-main {
+		padding-left: 10px;
+		/* Reserve space for the right-aligned toolbar so long titles
+		 * don't overlap the action icons. Sized to fit two 44px actions
+		 * (88px) plus a small gap. */
+		padding-right: 96px;
+	}
+
+	.session-item .session-title-row {
+		line-height: 20px;
+		padding-bottom: 4px;
+	}
+
+	.session-item .session-title {
+		font-size: 15px;
+		line-height: 20px;
+	}
+
+	.session-item .session-details-row {
+		font-size: 12.5px;
+		line-height: 16px;
+		max-height: 16px;
+	}
+
+	/*
+	 * Reveal the per-row action toolbar at rest. The default workbench
+	 * rule shows it on `:hover`/`:focus`, neither of which fire reliably
+	 * on touch. Pull the toolbar out of the title row flow and vertically
+	 * center it against the full row so 44px tap targets don't push the
+	 * details row down.
+	 */
+	.monaco-list-row .session-title-toolbar {
+		display: block;
+		position: absolute;
+		right: 6px;
+		top: 50%;
+		transform: translateY(-50%);
+		height: auto;
+	}
+
+	/* Center the codicon inside the 44x44 tap target. The base
+	 * `.action-label` is a flex container that defaults to start
+	 * alignment, so the icon sticks to the top-left of the square. */
+	.monaco-list-row .session-title-toolbar .action-item.menu-entry > .action-label {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+}

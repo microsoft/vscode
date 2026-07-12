@@ -5,9 +5,9 @@
 
 import './media/agentFeedbackEditorOverlay.css';
 import { Disposable, DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableSignalFromEvent, observableValue, type IObservable } from '../../../../base/common/observable.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Event } from '../../../../base/common/event.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,13 +18,28 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
+import { hasUnsubmittedAgentFeedback, hasSessionEditorComments, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
+
+class SubmitFeedbackActionRunner extends ActionRunner {
+
+	constructor(private readonly _editorGroup: IEditorGroup) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+		const editorToClose = action.id === submitFeedbackActionId ? this._editorGroup.activeEditor : undefined;
+		const didSubmit = await action.run(context);
+		if (didSubmit === true && editorToClose) {
+			await this._editorGroup.closeEditor(editorToClose);
+		}
+	}
+}
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -32,10 +47,16 @@ class AgentFeedbackActionViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly _keybindingService: IKeybindingService,
+		private readonly _acceptedFeedbackCount?: IObservable<number>,
+		private readonly _editorGroup?: IEditorGroup,
 		private readonly _primaryActionIds: readonly string[] = [submitFeedbackActionId],
 	) {
 		const isIconOnly = action.id === navigatePreviousFeedbackActionId || action.id === navigateNextFeedbackActionId;
 		super(undefined, action, { ...options, icon: isIconOnly, label: !isIconOnly, keybindingNotRenderedWithLabel: true });
+
+		if (this._editorGroup && this._action.id === submitFeedbackActionId) {
+			this.actionRunner = this._register(new SubmitFeedbackActionRunner(this._editorGroup));
+		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -43,23 +64,49 @@ class AgentFeedbackActionViewItem extends ActionViewItem {
 		if (this._primaryActionIds.includes(this._action.id)) {
 			this.element?.classList.add('primary');
 		}
+
+		const acceptedFeedbackCount = this._acceptedFeedbackCount;
+		if (this._action.id === submitFeedbackActionId && acceptedFeedbackCount) {
+			this._store.add(autorun(r => {
+				acceptedFeedbackCount.read(r);
+				this.updateLabel();
+				this.updateTooltip();
+			}));
+		}
+	}
+
+	protected override updateLabel(): void {
+		if (this._action.id === submitFeedbackActionId && this.label) {
+			this.label.textContent = this._getSubmitLabel();
+			return;
+		}
+		super.updateLabel();
 	}
 
 	protected override getTooltip(): string | undefined {
-		const value = super.getTooltip();
+		const value = this._action.id === submitFeedbackActionId ? this._getSubmitLabel() : super.getTooltip();
 		if (!value || this.options.keybinding) {
 			return value;
 		}
 		return this._keybindingService.appendKeybinding(value, this._action.id);
 	}
+
+	private _getSubmitLabel(): string {
+		const acceptedFeedbackCount = this._acceptedFeedbackCount?.get();
+		if (acceptedFeedbackCount === undefined) {
+			return this._action.label;
+		}
+		return localize('agentFeedback.submitCountShort', 'Submit {0}', acceptedFeedbackCount);
+	}
 }
 
-class AgentFeedbackOverlayWidget extends Disposable {
+export class AgentFeedbackOverlayWidget extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
 	private readonly _showStore = this._store.add(new DisposableStore());
 	private readonly _navigationBearings = observableValue<{ activeIdx: number; totalCount: number }>(this, { activeIdx: -1, totalCount: 0 });
+	private readonly _acceptedFeedbackCount = observableValue<number>(this, 0);
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -78,9 +125,10 @@ class AgentFeedbackOverlayWidget extends Disposable {
 		return this._domNode;
 	}
 
-	show(navigationBearings: { activeIdx: number; totalCount: number }): void {
+	show(navigationBearings: { activeIdx: number; totalCount: number }, acceptedFeedbackCount: number, editorGroup?: IEditorGroup): void {
 		this._showStore.clear();
 		this._navigationBearings.set(navigationBearings, undefined);
+		this._acceptedFeedbackCount.set(acceptedFeedbackCount, undefined);
 
 		if (!this._domNode.contains(this._toolbarNode)) {
 			this._domNode.appendChild(this._toolbarNode);
@@ -120,7 +168,7 @@ class AgentFeedbackOverlayWidget extends Disposable {
 					};
 				}
 
-				return new AgentFeedbackActionViewItem(action, options, this._keybindingService);
+				return new AgentFeedbackActionViewItem(action, options, this._keybindingService, this._acceptedFeedbackCount, editorGroup);
 			},
 		}));
 		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
@@ -129,6 +177,7 @@ class AgentFeedbackOverlayWidget extends Disposable {
 	hide(): void {
 		this._showStore.clear();
 		this._navigationBearings.set({ activeIdx: -1, totalCount: 0 }, undefined);
+		this._acceptedFeedbackCount.set(0, undefined);
 		this._toolbarNode.remove();
 	}
 }
@@ -142,9 +191,9 @@ class AgentFeedbackOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatEditingService chatEditingService: IChatEditingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICodeReviewService codeReviewService: ICodeReviewService,
 	) {
 		this._domNode.classList.add('agent-feedback-editor-overlay');
 		this._domNode.style.position = 'absolute';
@@ -155,6 +204,8 @@ class AgentFeedbackOverlayController {
 		const widget = this._store.add(instaService.createInstance(AgentFeedbackOverlayWidget));
 		this._domNode.appendChild(widget.getDomNode());
 		this._store.add(toDisposable(() => this._domNode.remove()));
+		const hasCommentsContext = hasSessionEditorComments.bindTo(contextKeyService);
+		const hasAgentFeedbackContext = hasUnsubmittedAgentFeedback.bindTo(contextKeyService);
 
 		const show = () => {
 			if (!container.contains(this._domNode)) {
@@ -181,20 +232,35 @@ class AgentFeedbackOverlayController {
 
 			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
 			let navigationBearings = undefined;
+			let acceptedFeedbackCount = 0;
 			for (const candidate of candidates) {
-				const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService);
-				if (sessionResource && agentFeedbackService.getFeedback(sessionResource).length > 0) {
-					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource);
+				const sessionResource = agentFeedbackService.getSessionForFile(candidate)?.resource;
+				if (!sessionResource) {
+					continue;
+				}
+
+				const comments = getSessionEditorComments(
+					sessionResource,
+					agentFeedbackService.getFeedback(sessionResource),
+					codeReviewService.getPRReviewState(sessionResource).read(r),
+				);
+				if (comments.length > 0) {
+					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
+					acceptedFeedbackCount = getAcceptedAgentFeedbackCommentCount(comments);
 					break;
 				}
 			}
 
 			if (!navigationBearings) {
+				hasCommentsContext.set(false);
+				hasAgentFeedbackContext.set(false);
 				hide();
 				return;
 			}
 
-			widget.show(navigationBearings);
+			hasCommentsContext.set(true);
+			hasAgentFeedbackContext.set(acceptedFeedbackCount > 0);
+			widget.show(navigationBearings, acceptedFeedbackCount, group);
 			show();
 		}));
 	}

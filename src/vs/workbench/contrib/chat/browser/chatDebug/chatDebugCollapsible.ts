@@ -7,15 +7,12 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IChatDebugMessageSection } from '../../common/chatDebugService.js';
-
-const $ = DOM.$;
 
 /**
  * Wire up a collapsible toggle on a chevron+header+content triple.
  * Handles icon switching and display toggling.
  */
-export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement, contentEl: HTMLElement, disposables: DisposableStore, initiallyCollapsed: boolean = false): void {
+export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement, contentEl: HTMLElement, disposables: DisposableStore, initiallyCollapsed: boolean = false, scrollable?: { scanDomNode(): void }): void {
 	let collapsed = initiallyCollapsed;
 
 	// Accessibility: make header keyboard-focusable and expose toggle semantics
@@ -38,6 +35,7 @@ export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement
 		collapsed = !collapsed;
 		chevron.className = 'chat-debug-message-section-chevron';
 		updateState();
+		scrollable?.scanDomNode();
 	}));
 
 	disposables.add(DOM.addDisposableListener(header, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -46,26 +44,4 @@ export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement
 			header.click();
 		}
 	}));
-}
-
-/**
- * Render a collapsible section with a clickable header and pre-formatted content
- * wrapped in a scrollable element.
- */
-export function renderCollapsibleSection(parent: HTMLElement, section: IChatDebugMessageSection, disposables: DisposableStore, initiallyCollapsed: boolean = false): void {
-	const sectionEl = DOM.append(parent, $('div.chat-debug-message-section'));
-
-	const header = DOM.append(sectionEl, $('div.chat-debug-message-section-header'));
-
-	const chevron = DOM.append(header, $(`span.chat-debug-message-section-chevron`));
-	DOM.append(header, $('span.chat-debug-message-section-title', undefined, section.name));
-
-	const contentEl = $('pre.chat-debug-message-section-content');
-	contentEl.textContent = section.content;
-	contentEl.tabIndex = 0;
-
-	const wrapper = DOM.append(sectionEl, $('div.chat-debug-message-section-content-wrapper'));
-	wrapper.appendChild(contentEl);
-
-	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed);
 }

@@ -88,6 +88,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 
 	// Global counter for unique name generation
 	let nameCounter = 0;
+	let fieldCount = 0;
 	let classCount = 0;
 
 	// Collect all edits
@@ -114,7 +115,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		lastEnd = edit.end;
 	}
 	parts.push(code.substring(lastEnd));
-	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1, edits };
+	return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: edits.length, elapsed: Date.now() - t1, edits };
 
 	// --- AST walking ---
 
@@ -127,13 +128,34 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	}
 
 	function visitClass(node: ts.ClassDeclaration | ts.ClassExpression): void {
-		// 1) Collect all private field/method/accessor declarations in THIS class
+		// 1) Collect public member names so generated names don't collide
+		const publicNames = new Set<string>();
+		for (const member of node.members) {
+			if (!member.name) {
+				continue;
+			}
+			if (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) {
+				publicNames.add(member.name.text);
+				continue;
+			}
+			if (ts.isComputedPropertyName(member.name) && ts.isStringLiteral(member.name.expression)) {
+				publicNames.add(member.name.expression.text);
+			}
+		}
+
+		// 2) Collect all private field/method/accessor declarations in THIS class,
+		//    skipping generated names that collide with existing public members.
 		const scope: ClassScope = new Map();
 		for (const member of node.members) {
 			if (member.name && ts.isPrivateIdentifier(member.name)) {
 				const name = member.name.text;
 				if (!scope.has(name)) {
-					scope.set(name, generateShortName(nameCounter++));
+					let shortName: string;
+					do {
+						shortName = generateShortName(nameCounter++);
+					} while (publicNames.has(shortName));
+					scope.set(name, shortName);
+					fieldCount++;
 				}
 			}
 		}
@@ -141,12 +163,27 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		if (scope.size > 0) {
 			classCount++;
 		}
-		classStack.push(scope);
 
-		// 2) Walk the class body, replacing PrivateIdentifier nodes
-		ts.forEachChild(node, function walkInClass(child: ts.Node): void {
+		// 3) Walk heritage clauses BEFORE pushing this class's scope.
+		//    The `extends` expression is evaluated in the enclosing lexical scope,
+		//    so any private-field references there belong to an outer class.
+		const walkInClass = createWalkInClass(node);
+		for (const clause of node.heritageClauses ?? []) {
+			ts.forEachChild(clause, walkInClass);
+		}
+
+		// 4) Now push the scope and walk the class members
+		classStack.push(scope);
+		for (const member of node.members) {
+			ts.forEachChild(member, walkInClass);
+		}
+		classStack.pop();
+	}
+
+	function createWalkInClass(classNode: ts.ClassDeclaration | ts.ClassExpression) {
+		return function walkInClass(child: ts.Node): void {
 			// Nested class: process independently with its own scope
-			if ((ts.isClassDeclaration(child) || ts.isClassExpression(child)) && child !== node) {
+			if ((ts.isClassDeclaration(child) || ts.isClassExpression(child)) && child !== classNode) {
 				visitClass(child);
 				return;
 			}
@@ -172,19 +209,22 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 			if (ts.isPrivateIdentifier(child)) {
 				const resolved = resolvePrivateName(child.text);
 				if (resolved !== undefined) {
+					const start = child.getStart(sourceFile);
 					edits.push({
-						start: child.getStart(sourceFile),
+						start,
 						end: child.getEnd(),
-						newText: resolved
+						// In minified code, `async#run()` has no space before `#`.
+						// The `#` naturally starts a new token, but `$` does not —
+						// `async$a` would fuse into one identifier. Insert a space
+						// when the preceding character is an identifier character.
+						newText: (start > 0 && isIdentifierChar(code.charCodeAt(start - 1))) ? ' ' + resolved : resolved
 					});
 				}
 				return;
 			}
 
 			ts.forEachChild(child, walkInClass);
-		});
-
-		classStack.pop();
+		};
 	}
 
 	function resolvePrivateName(name: string): string | undefined {
@@ -197,6 +237,11 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		}
 		return undefined;
 	}
+}
+
+function isIdentifierChar(ch: number): boolean {
+	// a-z, A-Z, 0-9, _, $
+	return (ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) || (ch >= 48 && ch <= 57) || ch === 95 || ch === 36;
 }
 
 /**
@@ -220,15 +265,53 @@ export function adjustSourceMap(
 		return sourceMapJson;
 	}
 
-	// Build a line-offset table for the original code to convert byte offsets to line/column
-	const lineStarts: number[] = [0];
-	for (let i = 0; i < originalCode.length; i++) {
-		if (originalCode.charCodeAt(i) === 10 /* \n */) {
-			lineStarts.push(i + 1);
-		}
+	// Build line-offset tables for the original code and the code after edits.
+	// When edits span newlines (e.g. NLS replacing a multi-line template literal
+	// with `null`), subsequent lines shift up and columns change. We handle this
+	// by converting each mapping's old generated (line, col) to a byte offset,
+	// adjusting the offset for the edits, then converting back to (line, col) in
+	// the post-edit coordinate system.
+
+	const oldLineStarts = buildLineStarts(originalCode);
+	const newLineStarts = buildLineStartsAfterEdits(originalCode, edits);
+
+	// Precompute cumulative byte-shift after each edit for binary search
+	const n = edits.length;
+	const editStarts: number[] = new Array(n);
+	const editEnds: number[] = new Array(n);
+	const cumShifts: number[] = new Array(n); // cumulative shift *after* edit[i]
+	let cumShift = 0;
+	for (let i = 0; i < n; i++) {
+		editStarts[i] = edits[i].start;
+		editEnds[i] = edits[i].end;
+		cumShift += edits[i].newText.length - (edits[i].end - edits[i].start);
+		cumShifts[i] = cumShift;
 	}
 
-	function offsetToLineCol(offset: number): { line: number; col: number } {
+	function adjustOffset(oldOff: number): number {
+		// Binary search: find last edit with start <= oldOff
+		let lo = 0, hi = n - 1;
+		while (lo <= hi) {
+			const mid = (lo + hi) >> 1;
+			if (editStarts[mid] <= oldOff) {
+				lo = mid + 1;
+			} else {
+				hi = mid - 1;
+			}
+		}
+		// hi = index of last edit where start <= oldOff, or -1 if none
+		if (hi < 0) {
+			return oldOff;
+		}
+		if (oldOff < editEnds[hi]) {
+			// Inside edit range — clamp to edit start in new coordinates
+			const prevShift = hi > 0 ? cumShifts[hi - 1] : 0;
+			return editStarts[hi] + prevShift;
+		}
+		return oldOff + cumShifts[hi];
+	}
+
+	function offsetToLineCol(lineStarts: readonly number[], offset: number): { line: number; col: number } {
 		let lo = 0, hi = lineStarts.length - 1;
 		while (lo < hi) {
 			const mid = (lo + hi + 1) >> 1;
@@ -241,23 +324,9 @@ export function adjustSourceMap(
 		return { line: lo, col: offset - lineStarts[lo] };
 	}
 
-	// Convert edits from byte offsets to per-line column shifts
-	interface LineEdit { col: number; origLen: number; newLen: number }
-	const editsByLine = new Map<number, LineEdit[]>();
-	for (const edit of edits) {
-		const pos = offsetToLineCol(edit.start);
-		const origLen = edit.end - edit.start;
-		let arr = editsByLine.get(pos.line);
-		if (!arr) {
-			arr = [];
-			editsByLine.set(pos.line, arr);
-		}
-		arr.push({ col: pos.col, origLen, newLen: edit.newText.length });
-	}
-
 	// Use source-map library to read, adjust, and write
 	const consumer = new SourceMapConsumer(sourceMapJson);
-	const generator = new SourceMapGenerator({ file: sourceMapJson.file });
+	const generator = new SourceMapGenerator({ file: sourceMapJson.file, sourceRoot: sourceMapJson.sourceRoot });
 
 	// Copy sourcesContent
 	for (let i = 0; i < sourceMapJson.sources.length; i++) {
@@ -267,15 +336,19 @@ export function adjustSourceMap(
 		}
 	}
 
-	// Walk every mapping, adjust the generated column, and add to the new generator
+	// Walk every mapping, convert old generated position → byte offset → adjust → new position
 	consumer.eachMapping(mapping => {
-		const lineEdits = editsByLine.get(mapping.generatedLine - 1); // 0-based for our data
-		const adjustedCol = adjustColumn(mapping.generatedColumn, lineEdits);
+		const oldLine0 = mapping.generatedLine - 1; // 0-based
+		const oldOff = (oldLine0 < oldLineStarts.length
+			? oldLineStarts[oldLine0]
+			: oldLineStarts[oldLineStarts.length - 1]) + mapping.generatedColumn;
 
-		// Some mappings may be unmapped (no original position/source) - skip those.
+		const newOff = adjustOffset(oldOff);
+		const newPos = offsetToLineCol(newLineStarts, newOff);
+
 		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
 			const newMapping: Mapping = {
-				generated: { line: mapping.generatedLine, column: adjustedCol },
+				generated: { line: newPos.line + 1, column: newPos.col },
 				original: { line: mapping.originalLine, column: mapping.originalColumn },
 				source: mapping.source,
 			};
@@ -283,25 +356,82 @@ export function adjustSourceMap(
 				newMapping.name = mapping.name;
 			}
 			generator.addMapping(newMapping);
+		} else {
+			// Preserve unmapped segments (generated-only mappings with no original
+			// position). These create essential "gaps" that prevent
+			// originalPositionFor() from wrongly interpolating between distant
+			// valid mappings on the same line in minified output.
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			generator.addMapping({
+				generated: { line: newPos.line + 1, column: newPos.col },
+			} as Mapping);
 		}
 	});
 
 	return JSON.parse(generator.toString());
 }
 
-function adjustColumn(col: number, lineEdits: { col: number; origLen: number; newLen: number }[] | undefined): number {
-	if (!lineEdits) {
-		return col;
-	}
-	let shift = 0;
-	for (const edit of lineEdits) {
-		if (edit.col + edit.origLen <= col) {
-			shift += edit.newLen - edit.origLen;
-		} else if (edit.col < col) {
-			return edit.col + shift;
-		} else {
+function buildLineStarts(text: string): number[] {
+	const starts: number[] = [0];
+	let pos = 0;
+	while (true) {
+		const nl = text.indexOf('\n', pos);
+		if (nl === -1) {
 			break;
 		}
+		starts.push(nl + 1);
+		pos = nl + 1;
 	}
-	return col + shift;
+	return starts;
+}
+
+/**
+ * Compute line starts for the code that results from applying `edits` to
+ * `originalCode`, without materialising the full new string.
+ */
+function buildLineStartsAfterEdits(originalCode: string, edits: readonly TextEdit[]): number[] {
+	const starts: number[] = [0];
+	let oldPos = 0;
+	let newPos = 0;
+
+	for (const edit of edits) {
+		// Scan unchanged region [oldPos, edit.start) for newlines
+		let from = oldPos;
+		while (true) {
+			const nl = originalCode.indexOf('\n', from);
+			if (nl === -1 || nl >= edit.start) {
+				break;
+			}
+			starts.push(newPos + (nl - oldPos) + 1);
+			from = nl + 1;
+		}
+		newPos += edit.start - oldPos;
+
+		// Scan replacement text for newlines
+		let replFrom = 0;
+		while (true) {
+			const nl = edit.newText.indexOf('\n', replFrom);
+			if (nl === -1) {
+				break;
+			}
+			starts.push(newPos + nl + 1);
+			replFrom = nl + 1;
+		}
+		newPos += edit.newText.length;
+
+		oldPos = edit.end;
+	}
+
+	// Scan remaining unchanged text after last edit
+	let from = oldPos;
+	while (true) {
+		const nl = originalCode.indexOf('\n', from);
+		if (nl === -1) {
+			break;
+		}
+		starts.push(newPos + (nl - oldPos) + 1);
+		from = nl + 1;
+	}
+
+	return starts;
 }

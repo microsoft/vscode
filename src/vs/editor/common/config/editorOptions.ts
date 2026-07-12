@@ -902,6 +902,13 @@ export interface IDiffEditorBaseOptions {
 	compactMode?: boolean;
 
 	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
+
+	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
@@ -962,7 +969,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced';
+	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -1745,6 +1752,10 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
+	 * Controls whether to close the Find Widget after an explicit find navigation command lands on a match.
+	 */
+	closeOnResult?: boolean;
+	/**
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
@@ -1772,6 +1783,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
+			closeOnResult: false,
 			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
@@ -1821,6 +1833,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
+				'editor.find.closeOnResult': {
+					type: 'boolean',
+					default: defaults.closeOnResult,
+					description: nls.localize('find.closeOnResult', "Controls whether the Find Widget closes after an explicit find navigation command lands on a result.")
+				},
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
@@ -1867,6 +1884,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			closeOnResult: boolean(input.closeOnResult, this.defaultValue.closeOnResult),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
@@ -2322,6 +2340,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+	 * Defaults to true.
+	 */
+	showLongLineWarning?: boolean;
 }
 
 /**
@@ -2338,6 +2361,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showLongLineWarning: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2351,7 +2375,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 						nls.localize('hover.enabled.off', "Hover is disabled."),
 						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding `{0}` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Command` : `Control`)
 					],
-					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
+					description: nls.localize('hover.enabled', "Controls whether the hover is shown."),
+					keywords: ['hint', 'info', 'tooltip']
 				},
 				'editor.hover.delay': {
 					type: 'number',
@@ -2376,6 +2401,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.showLongLineWarning': {
+					type: 'boolean',
+					default: defaults.showLongLineWarning,
+					description: nls.localize('hover.showLongLineWarning', "Controls whether long line warning hovers are shown, such as when tokenization is skipped or rendering is paused.")
+				},
 			}
 		);
 	}
@@ -2391,6 +2421,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
 	}
 }
@@ -3740,7 +3771,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		};
@@ -3749,7 +3780,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			{
 				type: 'string',
 				enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
-				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when an inline completion provider is available")]
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when inline completions are showing")]
 			}
 		];
 		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
@@ -3758,7 +3789,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				{
 					type: 'string',
 					enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
-					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when an inline completion provider is available")]
+					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when inline completions are showing")]
 				},
 				{
 					type: 'object',
@@ -4469,6 +4500,12 @@ export interface IInlineSuggestOptions {
 		showLongDistanceHint?: boolean;
 
 		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
+		/**
 		* @internal
 		*/
 		enabled?: boolean;
@@ -4527,6 +4564,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4632,6 +4670,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
 					tags: ['nextEditSuggestions', 'experimental']
 				},
+				'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+					type: 'number',
+					default: defaults.edits.longDistanceHintContextLineCount,
+					minimum: 0,
+					maximum: 10,
+					description: nls.localize('inlineSuggest.edits.longDistanceHintContextLineCount', "Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line."),
+					tags: ['nextEditSuggestions', 'experimental'],
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4684,6 +4733,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(input.longDistanceHintContextLineCount, this.defaultValue.edits.longDistanceHintContextLineCount, 0, 10),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}

@@ -42,6 +42,14 @@
         "category": "Simple Browser"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "simpleBrowser.show",
+          "when": "isWeb"
+        }
+      ]
+    },
     "configuration": [
       {
         "title": "Simple Browser",
@@ -51,12 +59,6 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
-          },
-          "simpleBrowser.useIntegratedBrowser": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.useIntegratedBrowser.description%",
-            "scope": "application"
           }
         }
       }
@@ -79,7 +81,7 @@
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/vscode-webview": "^1.57.0",
     "@vscode/codicons": "^0.0.36"
   },

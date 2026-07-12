@@ -10,7 +10,7 @@ export class Extension extends vscode.Disposable {
 	private readonly _output: vscode.LogOutputChannel;
 	private _npmFeature: NpmUpToDateFeature | undefined;
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(_context: vscode.ExtensionContext) {
 		const disposables: vscode.Disposable[] = [];
 		super(() => disposables.forEach(d => d.dispose()));
 

@@ -5,87 +5,162 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 
-interface ICustomizationItemConfig {
+export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
-	readonly section: AICustomizationManagementSection;
-	readonly promptType?: PromptsType;
-	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
+	readonly section?: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+	/** If set, count comes from `IAICustomizationItemsModel.getCount(modelSection)`. */
+	readonly modelSection?: ItemsModelSection;
+	readonly isMcp?: boolean;
+	readonly isPlugins?: boolean;
+	readonly isTools?: boolean;
+	readonly isAutomations?: boolean;
+	/** Additional `when` clause beyond the standard harness-visibility gate. */
+	readonly when?: ContextKeyExpression;
 }
 
-const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
+/**
+ * Per-section context key indicating whether the active harness exposes
+ * the section in the sidebar customizations toolbar. Driven by
+ * `IHarnessDescriptor.hiddenSections` and consumed via the menu `when`
+ * clause registered alongside each customization action.
+ */
+function customizationSectionVisibleKey(section: string): string {
+	return `sessionsCustomizationSectionVisible.${section}`;
+}
+
+const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
+	id: 'sessions.customization.overview',
+	label: localize('overview', "Overview"),
+	icon: Codicon.home,
+};
+
+export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
 		id: 'sessions.customization.agents',
 		label: localize('agents', "Agents"),
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
-		promptType: PromptsType.agent,
+		modelSection: AICustomizationManagementSection.Agents,
 	},
 	{
 		id: 'sessions.customization.skills',
 		label: localize('skills', "Skills"),
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
-		promptType: PromptsType.skill,
+		modelSection: AICustomizationManagementSection.Skills,
 	},
 	{
 		id: 'sessions.customization.instructions',
 		label: localize('instructions', "Instructions"),
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
-		promptType: PromptsType.instructions,
-	},
-	{
-		id: 'sessions.customization.prompts',
-		label: localize('prompts', "Prompts"),
-		icon: promptIcon,
-		section: AICustomizationManagementSection.Prompts,
-		promptType: PromptsType.prompt,
+		modelSection: AICustomizationManagementSection.Instructions,
 	},
 	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
-		promptType: PromptsType.hook,
+		modelSection: AICustomizationManagementSection.Hooks,
 	},
-	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
+	{
+		id: 'sessions.customization.automations',
+		label: localize('automations', "Automations"),
+		icon: automationIcon,
+		section: AICustomizationManagementSection.Automations,
+		isAutomations: true,
+		when: ChatAutomationsEnabledContext,
+	},
+	{
+		id: 'sessions.customization.mcpServers',
+		label: localize('mcpServers', "MCP Servers"),
+		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
+		isMcp: true,
+	},
+	{
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
+	},
+	{
+		id: 'sessions.customization.tools',
+		label: localize('tools', "Tools"),
+		icon: toolsIcon,
+		section: AICustomizationManagementSection.Tools,
+		isTools: true,
+	},
 ];
+
+export async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+	const sessionResource = sessionsService.activeSession.get()?.resource;
+	if (sessionResource) {
+		harnessService.setActiveSession(sessionResource);
+	}
+
+	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const pane = await editorService.openEditor(input, { pinned: true });
+	if (pane instanceof AICustomizationManagementEditor) {
+		pane.showWelcomePage();
+	}
+}
+
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+	const sessionResource = sessionsService.activeSession.get()?.resource;
+	if (sessionResource) {
+		harnessService.setActiveSession(sessionResource);
+	}
+
+	const input = AICustomizationManagementEditorInput.getOrCreate();
+	const pane = await editorService.openEditor(input, { pinned: true });
+	if (pane instanceof AICustomizationManagementEditor) {
+		pane.selectSectionById(section);
+	}
+}
 
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
- * Renders icon + label + source count badges, matching the sidebar footer style.
+ * Renders icon + label + a single count badge driven by the same
+ * observables that feed the customizations editor — so the badge always
+ * matches the editor's count exactly.
  */
-class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends ActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
@@ -95,12 +170,11 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		private readonly _config: ICustomizationItemConfig,
-		@IPromptsService private readonly _promptsService: IPromptsService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
-		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -136,80 +210,36 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		// Count container (inside button, floating right)
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
-		// Subscribe to changes
-		this._viewItemDisposables.add(this._promptsService.onDidChangeCustomAgents(() => this._updateCounts()));
-		this._viewItemDisposables.add(this._promptsService.onDidChangeSlashCommands(() => this._updateCounts()));
-		this._viewItemDisposables.add(this._languageModelsService.onDidChangeLanguageModels(() => this._updateCounts()));
 		this._viewItemDisposables.add(autorun(reader => {
-			this._mcpService.servers.read(reader);
-			this._updateCounts();
+			const count = this._readCount(reader);
+			if (this._countContainer) {
+				this._renderTotalCount(this._countContainer, count);
+			}
 		}));
-		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
-		this._viewItemDisposables.add(autorun(reader => {
-			this._activeSessionService.activeSession.read(reader);
-			this._updateCounts();
-		}));
-
-		// Initial count
-		this._updateCounts();
 	}
 
-	private _updateCountsRequestId = 0;
-
-	private async _updateCounts(): Promise<void> {
-		if (!this._countContainer) {
-			return;
+	private _readCount(reader: Parameters<Parameters<typeof autorun>[0]>[0]): number {
+		if (this._config.modelSection) {
+			return this._itemsModel.getCount(this._config.modelSection).read(reader);
 		}
-
-		const requestId = ++this._updateCountsRequestId;
-
-		if (this._config.promptType) {
-			const type = this._config.promptType;
-			const filter = this._workspaceService.getStorageSourceFilter(type);
-			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService);
-			if (requestId !== this._updateCountsRequestId) {
-				return;
-			}
-			this._renderSourceCounts(this._countContainer, counts);
-		} else if (this._config.getCount) {
-			const count = await this._config.getCount(this._languageModelsService, this._mcpService);
-			if (requestId !== this._updateCountsRequestId) {
-				return;
-			}
-			this._renderSimpleCount(this._countContainer, count);
+		if (this._config.isMcp) {
+			return this._mcpService.servers.read(reader).length;
 		}
+		if (this._config.isPlugins) {
+			return this._itemsModel.getPluginCount().read(reader);
+		}
+		if (this._config.isTools) {
+			const state = this._toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
+			const toolSets = this._toolsService.toolSets.read(reader);
+			return countEnabledCustomizationTools(toolSets, state, reader);
+		}
+		if (this._config.isAutomations) {
+			return this._automationService.automations.read(reader).length;
+		}
+		return 0;
 	}
 
-	private _renderSourceCounts(container: HTMLElement, counts: ISourceCounts): void {
-		container.textContent = '';
-		const type = this._config.promptType;
-		const filter = type ? this._workspaceService.getStorageSourceFilter(type) : this._workspaceService.getStorageSourceFilter(PromptsType.prompt);
-		const total = getSourceCountsTotal(counts, filter);
-		container.classList.toggle('hidden', total === 0);
-		if (total === 0) {
-			return;
-		}
-
-		const visibleSourcesSet = new Set(filter.sources);
-		const sources: { storage: PromptsStorage; count: number; icon: ThemeIcon; title: string }[] = [
-			{ storage: PromptsStorage.local, count: counts.workspace, icon: workspaceIcon, title: localize('workspaceCount', "{0} from workspace", counts.workspace) },
-			{ storage: PromptsStorage.user, count: counts.user, icon: userIcon, title: localize('userCount', "{0} from user", counts.user) },
-		];
-
-		for (const source of sources) {
-			if (source.count === 0 || !visibleSourcesSet.has(source.storage)) {
-				continue;
-			}
-			const badge = append(container, $('span.source-count-badge'));
-			badge.title = source.title;
-			const icon = append(badge, $('span.source-count-icon'));
-			icon.classList.add(...ThemeIcon.asClassNameArray(source.icon));
-			const num = append(badge, $('span.source-count-num'));
-			num.textContent = `${source.count}`;
-		}
-	}
-
-	private _renderSimpleCount(container: HTMLElement, count: number): void {
+	private _renderTotalCount(container: HTMLElement, count: number): void {
 		container.textContent = '';
 		container.classList.toggle('hidden', count === 0);
 		if (count > 0) {
@@ -222,42 +252,103 @@ class CustomizationLinkViewItem extends ActionViewItem {
 
 // --- Register actions and view items --- //
 
-class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
+export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsCustomizationsToolbar';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
+		// Per-section visibility context keys, kept in sync with the active
+		// harness's `hiddenSections`. Each customization action's menu entry
+		// is gated on its key so that harnesses (e.g. Claude, AHP) which
+		// don't support a customization type don't surface its row.
+		const visibilityKeys = new Map<string, IContextKey<boolean>>();
+		for (const config of CUSTOMIZATION_ITEMS) {
+			if (!config.section) {
+				continue;
+			}
+			const key = new RawContextKey<boolean>(customizationSectionVisibleKey(config.section), true).bindTo(contextKeyService);
+			visibilityKeys.set(config.section, key);
+		}
+		this._register(autorun(reader => {
+			harnessService.activeHarness.read(reader);
+			harnessService.availableHarnesses.read(reader);
+			const descriptor = harnessService.getActiveDescriptor();
+			const hidden = new Set(descriptor.hiddenSections ?? []);
+			for (const config of CUSTOMIZATION_ITEMS) {
+				if (!config.section) {
+					continue;
+				}
+				visibilityKeys.get(config.section)!.set(!hidden.has(config.section));
+			}
+		}));
+
+		this._register(actionViewItemService.register(Menus.SidebarCustomizations, CUSTOMIZATION_OVERVIEW_ITEM.id, (action, options) => {
+			return instantiationService.createInstance(CustomizationLinkViewItem, action, options, CUSTOMIZATION_OVERVIEW_ITEM);
+		}, undefined));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: CUSTOMIZATION_OVERVIEW_ITEM.id,
+					title: CUSTOMIZATION_OVERVIEW_ITEM.label,
+					menu: {
+						id: Menus.SidebarCustomizations,
+						group: 'navigation',
+						order: 0,
+						when: ChatContextKeys.enabled,
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				await openCustomizationOverviewPage(
+					accessor.get(IEditorService),
+					accessor.get(ICustomizationHarnessService),
+					accessor.get(ISessionsService),
+				);
+			}
+		}));
+
 		for (const [index, config] of CUSTOMIZATION_ITEMS.entries()) {
+			if (!config.section) {
+				continue;
+			}
+			const section = config.section;
 			// Register the custom ActionViewItem for this action
 			this._register(actionViewItemService.register(Menus.SidebarCustomizations, config.id, (action, options) => {
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
+
+			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const combinedWhen = config.when
+				? ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen, config.when)
+				: ContextKeyExpr.and(ChatContextKeys.enabled, sectionVisibleWhen);
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: config.id,
-						title: localize2('customizationAction', '{0}', config.label),
+						title: config.label,
 						menu: {
 							id: Menus.SidebarCustomizations,
 							group: 'navigation',
 							order: index + 1,
+							when: combinedWhen,
 						}
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
-					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
-					if (editor instanceof AICustomizationManagementEditor) {
-						editor.selectSectionById(config.section);
-					}
+					const harnessService = accessor.get(ICustomizationHarnessService);
+					const sessionsService = accessor.get(ISessionsService);
+					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
 				}
 			}));
 		}
@@ -265,3 +356,66 @@ class CustomizationsToolbarContribution extends Disposable implements IWorkbench
 }
 
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Returns the harness id that matches a given session, or `undefined` if no
+ * harness is registered for it.
+ *
+ * The session's `resource.scheme` is the per-host harness id (e.g. local AHP
+ * uses `agent-host-${provider}` and remote AHP uses `remote-${authority}-${provider}`),
+ * while {@link ISession.sessionType} is the agent provider name shared across
+ * hosts (e.g. `copilotcli`). Lookup therefore prefers the resource scheme so
+ * that an AHP remote session selects its remote harness rather than the local
+ * harness with the same `sessionType`. The `sessionType` is kept as a fallback
+ * for harnesses whose id matches it directly.
+ */
+export function findHarnessIdForSession(session: ISession | undefined, harnessService: ICustomizationHarnessService): string | undefined {
+	if (!session) {
+		return undefined;
+	}
+	const schemeId = session.resource.scheme;
+	if (harnessService.findHarnessById(schemeId)) {
+		return schemeId;
+	}
+	if (harnessService.findHarnessById(session.sessionType)) {
+		return session.sessionType;
+	}
+	return undefined;
+}
+
+/**
+ * Keeps the active customization harness in sync with the currently active
+ * session. This drives the customizations sidebar (counts, filtering) and the
+ * customizations editor so they reflect the harness that matches the session
+ * the user is interacting with.
+ *
+ * This covers two cases identically:
+ *  - opening / navigating into an existing session
+ *  - selecting "New session in {workspace}" (which sets a pending active
+ *    session before the user has sent the first request)
+ */
+export class ActiveSessionHarnessSyncContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsActiveHarnessSync';
+
+	constructor(
+		@ISessionsService sessionsService: ISessionsService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+	) {
+		super();
+
+		this._register(autorun(reader => {
+			const session = sessionsService.activeSession.read(reader);
+			if (!session) {
+				return;
+			}
+			// Re-read available harnesses so we re-run when an external harness
+			// (e.g. agent host, CLI) registers asynchronously after the session
+			// has already been selected.
+			harnessService.availableHarnesses.read(reader);
+			harnessService.setActiveSession(session.resource);
+		}));
+	}
+}
+
+registerWorkbenchContribution2(ActiveSessionHarnessSyncContribution.ID, ActiveSessionHarnessSyncContribution, WorkbenchPhase.AfterRestored);

@@ -105,16 +105,18 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 
 	private createServerCommandLinks(servers: Array<{ id: string; label: string }>): string {
 		return servers.map(s => createMarkdownCommandLink({
-			title: '`' + escapeMarkdownSyntaxTokens(s.label) + '`',
+			text: '`' + escapeMarkdownSyntaxTokens(s.label) + '`',
 			id: McpCommandIds.ServerOptions,
 			arguments: [s.id],
+			tooltip: localize('mcp.server.options.tooltip', 'Show options for {0}', s.label),
 		}, false)).join(', ');
 	}
 
 	private updateDetailedProgress(state: IAutostartResult): void {
 		const skipText = createMarkdownCommandLink({
-			title: localize('mcp.skip.link', 'Skip?'),
+			text: localize('mcp.skip.link', 'Skip?'),
 			id: McpCommandIds.SkipCurrentAutostart,
+			tooltip: localize('mcp.skip.tooltip', 'Skip starting this MCP server'),
 		});
 
 		let content: MarkdownString;

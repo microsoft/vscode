@@ -15,18 +15,26 @@ import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
-import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
@@ -63,6 +71,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
+	private readonly _resourceLabels: ResourceLabels;
+
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -73,8 +83,13 @@ export class NewChatContextAttachments extends Disposable {
 		@ISearchService private readonly searchService: ISearchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super();
+		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
 	// --- Rendering ---
@@ -90,30 +105,62 @@ export class NewChatContextAttachments extends Disposable {
 		}
 
 		this._renderDisposables.clear();
+		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
-		if (this._attachedContext.length === 0) {
+		const visibleAttachments = this._attachedContext.filter(entry => !isAgentHostCompletionVariableEntry(entry));
+		if (visibleAttachments.length === 0) {
 			this._container.style.display = 'none';
 			return;
 		}
 
 		this._container.style.display = '';
+		this._container.classList.add('show-file-icons');
 
-		for (const entry of this._attachedContext) {
+		for (const entry of visibleAttachments) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
-			pill.tabIndex = 0;
-			pill.role = 'button';
-			const icon = entry.kind === 'image' ? Codicon.fileMedia : entry.kind === 'directory' ? Codicon.folder : Codicon.file;
-			dom.append(pill, renderIcon(icon));
-			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
-
-			// Click to open the resource
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
-			if (resource) {
+			if (entry.kind === 'image') {
+				dom.append(pill, renderIcon(Codicon.fileMedia));
+				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
+			} else {
+				const label = this._resourceLabels.create(pill, { supportIcons: true });
+				this._renderDisposables.add(label);
+				if (resource) {
+					label.setFile(resource, {
+						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
+						hidePath: true,
+					});
+				} else {
+					label.setLabel(entry.name);
+				}
+			}
+
+			// Click to open the resource or image
+			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
+			if (imageData) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
+						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
+					} else if (resource) {
+						await this.openerService.open(resource, { fromUserGesture: true });
+					}
+				}));
+			} else if (resource) {
 				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
 					await this.openerService.open(resource, { fromUserGesture: true });
 				}));
+			}
+
+			// Only expose the pill itself as a focusable button when it has an open
+			// action; reference pills without a resource (e.g. `#session`) would
+			// otherwise be a focusable control that does nothing.
+			if (imageData || resource) {
+				pill.tabIndex = 0;
+				pill.role = 'button';
 			}
 
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
@@ -390,7 +437,7 @@ export class NewChatContextAttachments extends Disposable {
 			return searchResult.results.map(result => ({
 				label: basename(result.resource),
 				description: this.labelService.getUriLabel(result.resource, { relative: true }),
-				iconClass: ThemeIcon.asClassName(Codicon.file),
+				iconClasses: getIconClasses(this.modelService, this.languageService, result.resource, FileKind.FILE),
 				id: result.resource.toString(),
 			} satisfies IQuickPickItem));
 		} catch {
@@ -434,7 +481,7 @@ export class NewChatContextAttachments extends Disposable {
 						picks.push({
 							label: child.name,
 							description: this.labelService.getUriLabel(child.resource, { relative: true }),
-							iconClass: ThemeIcon.asClassName(Codicon.file),
+							iconClasses: getIconClasses(this.modelService, this.languageService, child.resource, FileKind.FILE),
 							id: child.resource.toString(),
 						});
 					}
@@ -540,6 +587,10 @@ export class NewChatContextAttachments extends Disposable {
 		return name;
 	}
 
+	addAttachments(...entries: IChatRequestVariableEntry[]): void {
+		this._addAttachments(...entries);
+	}
+
 	private _addAttachments(...entries: IChatRequestVariableEntry[]): void {
 		for (const entry of entries) {
 			if (!this._attachedContext.some(e => e.id === entry.id)) {
@@ -549,6 +600,7 @@ export class NewChatContextAttachments extends Disposable {
 		this._updateRendering();
 		this._onDidChangeContext.fire();
 	}
+
 
 	private _removeAttachment(id: string): void {
 		const index = this._attachedContext.findIndex(e => e.id === id);

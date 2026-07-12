@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { convertPrivateFields, adjustSourceMap } from '../private-to-property.ts';
 import { SourceMapConsumer, SourceMapGenerator, type RawSourceMap } from 'source-map';
 
@@ -290,6 +291,181 @@ suite('convertPrivateFields', () => {
 		const result = convertPrivateFields(code, 'test.js');
 		assert.deepStrictEqual(result.edits, []);
 	});
+
+	test('async private method — replacement must not merge with async keyword', async () => {
+		// In minified output, there is no space between `async` and `#method`:
+		//   class Foo{async#run(){await Promise.resolve(1)}}
+		// Replacing `#run` with `$a` naively produces `async$a()` which is a
+		// single identifier, not `async $a()`. The `await` inside then becomes
+		// invalid because the method is no longer async.
+		const code = 'class Foo{async#run(){return await Promise.resolve(1)}call(){return this.#run()}}';
+		const result = convertPrivateFields(code, 'test.js');
+		assert.ok(!result.code.includes('#run'), 'should replace #run');
+		// The replacement must NOT fuse with `async` into a single token
+		assert.doesNotThrow(() => new Function(result.code), 'transformed code must be valid JS');
+		// Verify it actually executes (the async method should still work)
+		const exec = new Function(`
+			${result.code}
+			return new Foo().call();
+		`);
+		const val = await exec();
+		assert.strictEqual(val, 1);
+	});
+
+	test('async private method — space inserted in declaration and not in usage', () => {
+		// More readable version: ensure that `async #method()` becomes
+		// `async $a()` (with space), while `this.#method()` becomes
+		// `this.$a()` (no extra space needed since `.` separates tokens).
+		const code = [
+			'class Foo {',
+			'  async #doWork() { return await 42; }',
+			'  run() { return this.#doWork(); }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.ok(!result.code.includes('#doWork'), 'should replace #doWork');
+		assert.doesNotThrow(() => new Function(result.code), 'transformed code must be valid JS');
+	});
+
+	test('static async private method — no token fusion', async () => {
+		const code = 'class Foo{static async#init(){return await Promise.resolve(1)}static go(){return Foo.#init()}}';
+		const result = convertPrivateFields(code, 'test.js');
+		assert.doesNotThrow(() => new Function(result.code),
+			'static async private method must produce valid JS, got:\n' + result.code);
+		const exec = new Function(`
+			${result.code}
+			return Foo.go();
+		`);
+		const value = await exec();
+		assert.strictEqual(value, 1);
+	});
+
+	test('heritage clause — extends expression resolves outer private field, not inner', () => {
+		const code = [
+			'class Outer {',
+			'  #x = "outer";',
+			'  method() {',
+			'    return class extends (this.#x, Object) {',
+			'      #x = "inner";',
+			'    };',
+			'  }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// Outer.#x → $a (first class scanned), Inner.#x → $b (second)
+		// this.#x in the extends clause lexically refers to Outer.#x,
+		// so it must become this.$a, NOT this.$b
+		assert.ok(result.code.includes('this.$a, Object'),
+			'heritage clause should reference outer replacement ($a), got:\n' + result.code);
+	});
+
+	test('heritage clause runtime — extends uses correct outer private field', () => {
+		const code = [
+			'class Base { }',
+			'class Outer {',
+			'  #Base = Base;',
+			'  createInner() {',
+			'    return class extends this.#Base {',
+			'      #Base = null;',
+			'    };',
+			'  }',
+			'}',
+			'const o = new Outer();',
+			'const Inner = o.createInner();',
+			'const inst = new Inner();',
+			'return inst instanceof Base;',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// With the bug, this.#Base in extends resolves to Inner's replacement
+		// ($b) instead of Outer's ($a). Since the Outer instance has no $b
+		// property, `class extends undefined` throws TypeError.
+		assert.strictEqual(new Function(result.code)(), true,
+			'inner class should extend Base via outer private field, code:\n' + result.code);
+	});
+
+	test('generated name must not collide with existing public property', () => {
+		const code = [
+			'class Foo {',
+			'  $a = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this.$a; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// #x must not be renamed to $a since the class already has a public $a
+		const fieldDecls = result.code.match(/\$a\s*=/g);
+		assert.ok(!fieldDecls || fieldDecls.length <= 1,
+			'should not produce duplicate $a property declarations, got:\n' + result.code);
+	});
+
+	test('collision with existing property — runtime correctness', () => {
+		const code = [
+			'class Foo {',
+			'  $a = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this.$a; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// Original: getPublic() → "public", getPrivate() → "private"
+		// With the bug: both return "private" because $a overwrites $a
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'public and private properties must remain distinct, code:\n' + result.code);
+	});
+
+	test('collision avoidance — string-literal public property name', () => {
+		const code = [
+			'class Foo {',
+			'  \'$a\' = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this[\'$a\']; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'string-literal public property must not collide, code:\n' + result.code);
+	});
+
+	test('collision avoidance — computed string-literal public property name', () => {
+		const code = [
+			'class Foo {',
+			'  [\'$a\'] = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this[\'$a\']; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'computed string-literal public property must not collide, code:\n' + result.code);
+	});
+
+	test('brand check in heritage clause resolves to outer scope', () => {
+		const code = [
+			'class Outer {',
+			'  #brand;',
+			'  createChecked(obj) {',
+			'    return class extends (#brand in obj ? Object : Object) {',
+			'      #brand;',
+			'    };',
+			'  }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// #brand in the extends clause should resolve to Outer.#brand ($a),
+		// not Inner.#brand ($b)
+		assert.ok(result.code.includes('\'$a\' in obj'),
+			'brand check in heritage clause should use outer replacement, got:\n' + result.code);
+	});
 });
 
 suite('adjustSourceMap', () => {
@@ -437,6 +613,41 @@ suite('adjustSourceMap', () => {
 		const origGetValueCol = origLines[3].indexOf('getValue');
 		assert.strictEqual(pos.line, 4, 'getValue should map to original line 4');
 		assert.strictEqual(pos.column, origGetValueCol, 'getValue column should match original');
+	});
+
+	test('multi-line edit: removing newlines shifts subsequent lines up', () => {
+		// Simulates the NLS scenario: a template literal with embedded newlines
+		// is replaced with `null`, collapsing 3 lines into 1.
+		const code = [
+			'var a = "hello";',          // line 0 (0-based)
+			'var b = `line1',             // line 1
+			'line2',                      // line 2
+			'line3`;',                    // line 3
+			'var c = "world";',           // line 4
+		].join('\n');
+		const map = createIdentitySourceMap(code, 'test.js');
+
+		// Replace the template literal `line1\nline2\nline3` with `null`
+		// (keeps `var b = ` and `;` intact)
+		const tplStart = code.indexOf('`line1');
+		const tplEnd = code.indexOf('line3`') + 'line3`'.length;
+		const edits = [{ start: tplStart, end: tplEnd, newText: 'null' }];
+
+		const result = adjustSourceMap(map, code, edits);
+		const consumer = new SourceMapConsumer(result);
+
+		// After edit, code is:
+		// "var a = \"hello\";\nvar b = null;\nvar c = \"world\";"
+		// "var c" was on line 5 (1-based), now on line 3 (1-based) since 2 newlines removed
+
+		// 'var c' at original line 5, col 0 should now map at generated line 3
+		const pos = consumer.originalPositionFor({ line: 3, column: 0 });
+		assert.strictEqual(pos.line, 5, 'var c should map to original line 5');
+		assert.strictEqual(pos.column, 0, 'var c column should be 0');
+
+		// 'var a' on line 1 should be unaffected
+		const posA = consumer.originalPositionFor({ line: 1, column: 0 });
+		assert.strictEqual(posA.line, 1, 'var a should still map to original line 1');
 	});
 
 	test('brand check: #field in obj -> string replacement adjusts map', () => {

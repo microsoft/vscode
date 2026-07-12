@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
-
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -444,11 +442,17 @@ declare module 'vscode' {
 		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
 		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
 		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+		ChatResponseAutoModeResolutionPart: ChatResponseAutoModeResolutionPart;
 	}
 
 	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
 
 	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseInfoPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
 	}
@@ -563,6 +567,22 @@ declare module 'vscode' {
 		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
 	}
 
+	/**
+	 * Represents an auto-mode model routing resolution. Displayed as a collapsible
+	 * widget in the chat stream showing which model was selected and why.
+	 */
+	export class ChatResponseAutoModeResolutionPart {
+		/** The model ID that was selected by the router */
+		resolvedModel: string;
+		/** The user-facing display name of the resolved model */
+		resolvedModelName: string;
+		/** The router's classification label */
+		predictedLabel: string;
+		/** Confidence score (0-1) from the router */
+		confidence: number;
+		constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number);
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -632,6 +652,15 @@ declare module 'vscode' {
 		 * @returns This stream.
 		 */
 		warning(message: string | MarkdownString): void;
+
+		/**
+		 * Push an info banner to this stream. Short-hand for
+		 * `push(new ChatResponseInfoPart(message))`.
+		 *
+		 * @param message An informational message
+		 * @returns This stream.
+		 */
+		info(message: string | MarkdownString): void;
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
@@ -840,6 +869,17 @@ declare module 'vscode' {
 		readonly completionTokens: number;
 
 		/**
+		 * The number of tokens reserved for the response.
+		 * This is rendered specially in the UI to indicate that these tokens aren't used but are reserved.
+		 */
+		readonly outputBuffer?: number;
+
+		/**
+		 * The number of copilot credits consumed by this request.
+		 */
+		readonly copilotCredits?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -984,10 +1024,6 @@ declare module 'vscode' {
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
-	}
-
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
@@ -1059,9 +1095,16 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		/** set when the mode a custom agent (not built-in), to be used as identifier */
+		readonly uri?: Uri;
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly allowedSubagents?: readonly string[];
 		readonly metadata?: Record<string, boolean | string | number>;
+		/**
+		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 }

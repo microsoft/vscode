@@ -1,0 +1,242 @@
+name: CSS Cascade-Order Scan
+
+on:
+  schedule:
+    # Once per day at 05:17 UTC (off the hour to avoid scheduler contention).
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: css-order-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Scan CSS cascade-order dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-css-order-scan
+          key-args: "compile $(node -p process.arch)"
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build
+
+      - name: Install rspack dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+        working-directory: build/rspack
+
+      - name: Save node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-node-modules
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
+      - name: Transpile source
+        run: npm run transpile-client
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Start serve-out
+        # The scan attaches to an already-running serve (component-explorer-attach.json).
+        # Start it in the background and wait until the dev server accepts connections.
+        # Probe the port directly instead of grepping the log: rspack's stdout is
+        # block-buffered when redirected to a file, so the "Loopback" line can take
+        # minutes to land in the log even though the server is already listening.
+        run: |
+          npm run serve-out-rspack > /tmp/serve-out.log 2>&1 &
+          echo "SERVE_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 120); do
+            if curl -s -o /dev/null "http://localhost:5123/"; then
+              echo "serve-out is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::serve-out did not become ready in time"
+          cat /tmp/serve-out.log
+          exit 1
+
+
+      - name: Run CSS order scan
+        run: |
+          node test/componentFixtures/cssOrderScan.mts \
+            --fixture-id-regex ".*" \
+            --image-base-url "https://hediet-screenshots.azurewebsites.net/images"
+
+      - name: Generate random commit SHA
+        id: random_sha
+        run: |
+          RANDOM_SHA=$(node -e "const { randomBytes } = require('node:crypto'); process.stdout.write(randomBytes(20).toString('hex'));")
+          echo "sha=$RANDOM_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare CSS order upload payload
+        id: prepare_upload
+        run: |
+          REPORT_DIR="test/componentFixtures/.build/css-order-report"
+          REPORT_JSON="$REPORT_DIR/report.json"
+          UPLOAD_DIR="/tmp/css-order-upload"
+          rm -rf "$UPLOAD_DIR"
+          mkdir -p "$UPLOAD_DIR"
+          node -e "
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const reportDir = process.env.REPORT_DIR;
+            const reportJson = process.env.REPORT_JSON;
+            const uploadDir = process.env.UPLOAD_DIR;
+            const randomSha = process.env.RANDOM_SHA;
+            const repo = process.env.GITHUB_REPOSITORY || '';
+            const [owner, name] = repo.split('/');
+            const report = JSON.parse(fs.readFileSync(reportJson, 'utf8'));
+            const fixtures = [];
+            for (const problem of report.problems || []) {
+              const background = (problem.background === 'dark' || problem.background === 'light') ? problem.background : 'light';
+              if (problem.baselineHash && problem.baselineImage) {
+                fixtures.push({
+                  fixtureId: problem.fixtureId + '#baseline',
+                  imageHash: problem.baselineHash,
+                  imagePath: problem.baselineImage,
+                  background,
+                  labels: ['css-order-scan', 'baseline'],
+                  expectedVisualDescriptions: [],
+                  hasError: false,
+                  events: [],
+                  renderTimeMs: { sync: 0, total: 0 },
+                });
+              }
+              if (problem.reversedHash && problem.reversedImage) {
+                fixtures.push({
+                  fixtureId: problem.fixtureId + '#reversed',
+                  imageHash: problem.reversedHash,
+                  imagePath: problem.reversedImage,
+                  background,
+                  labels: ['css-order-scan', 'reversed'],
+                  expectedVisualDescriptions: [],
+                  hasError: false,
+                  events: [],
+                  renderTimeMs: { sync: 0, total: 0 },
+                });
+              }
+            }
+            const manifest = {
+              version: 1,
+              repository: { owner, name },
+              commit: {
+                hash: randomSha,
+                parentHashes: ['ac6e93443c08ba377136572a17477d45f2e17504'],
+                author: {
+                  name: 'css-order-scan',
+                  email: 'css-order-scan@users.noreply.github.com',
+                },
+                timestamp: new Date().toISOString(),
+                message: 'CSS order scan image upload',
+              },
+              fixtures,
+            };
+            fs.writeFileSync(path.join(uploadDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+            for (const fixture of fixtures) {
+              const src = path.join(reportDir, fixture.imagePath);
+              const dst = path.join(uploadDir, fixture.imagePath);
+              fs.mkdirSync(path.dirname(dst), { recursive: true });
+              fs.copyFileSync(src, dst);
+            }
+          "
+          FIXTURE_COUNT=$(node -e "const m = require('/tmp/css-order-upload/manifest.json'); process.stdout.write(String((m.fixtures || []).length));")
+          echo "fixture_count=$FIXTURE_COUNT" >> "$GITHUB_OUTPUT"
+          cd "$UPLOAD_DIR"
+          zip -qr "$GITHUB_WORKSPACE/css-order-screenshots.zip" .
+        env:
+          REPORT_DIR: test/componentFixtures/.build/css-order-report
+          REPORT_JSON: test/componentFixtures/.build/css-order-report/report.json
+          UPLOAD_DIR: /tmp/css-order-upload
+          RANDOM_SHA: ${{ steps.random_sha.outputs.sha }}
+
+      - name: Get OIDC token
+        id: oidc
+        if: steps.prepare_upload.outputs.fixture_count != '0'
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CSS order images to service
+        if: steps.prepare_upload.outputs.fixture_count != '0'
+        run: |
+          set +e
+          STATUS=$(curl -sS -o /tmp/css-order-upload.out -w '%{http_code}' \
+            -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
+            -H "Content-Type: application/zip" \
+            -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
+            --data-binary @"$GITHUB_WORKSPACE/css-order-screenshots.zip")
+          CURL_EXIT=$?
+          set -e
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "::warning::Screenshot service unreachable (curl exit $CURL_EXIT) -- links in report may not resolve."
+          elif [ "${STATUS:0:1}" != "2" ]; then
+            echo "::warning::Screenshot service returned HTTP $STATUS -- links in report may not resolve."
+            cat /tmp/css-order-upload.out || true
+          else
+            echo "Uploaded CSS order images (HTTP $STATUS)."
+          fi
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Stop serve-out
+        if: always()
+        run: kill "$SERVE_PID" 2>/dev/null || true
+
+      - name: Upload serve-out log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: serve-out-log
+          path: /tmp/serve-out.log
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: css-order-report
+          path: test/componentFixtures/.build/css-order-report/
+
+      - name: Write job summary
+        if: always()
+        run: |
+          REPORT="test/componentFixtures/.build/css-order-report/report.md"
+          if [ -f "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi

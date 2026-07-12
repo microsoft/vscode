@@ -1,0 +1,204 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Font Ramp".
+ *
+ * Applies a single, disciplined typographic ramp across the workbench. Each role
+ * maps to a size and weight:
+ *
+ *   - Heading 1   26px / 600   welcome screen title
+ *   - Heading 2   18px / 600   title
+ *   - Heading 3   13px / 600   subtitle
+ *   - Body 1      13px / 400   primary text          (Strong: 600)
+ *   - Body 2      11px / 400   secondary text        (Strong: 600)
+ *   - Label 1     12px / 400   section titles, tabs  (Strong: 600)
+ *   - Label 2     11px / 400   metadata              (Strong: 600)
+ *   - Label 3     10px / 400   badges
+ *
+ * The body tiers line up with the shared font-size tokens, so the foundation
+ * block below redefines those tokens once and lets the cascade carry the ramp
+ * across the large surface area that already consumes them. Headings, section
+ * titles / tabs and badges are then mapped onto their canonical surfaces.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled. Without
+ * that class these rules never apply.
+ */
+
+/*
+ * Foundation: align the shared body font-size tokens to the ramp. Most widgets
+ * (lists, trees, inputs, menus, ...) consume these `--vscode-bodyFontSize*`
+ * variables, so redefining them here distributes the ramp's body sizes across
+ * the workbench from a single place. The tiers map as: bodyFontSize = Body 1
+ * (13px), small = Label 1 (12px), xSmall = Body 2 / Label 2 (11px).
+ */
+.style-override {
+	--vscode-bodyFontSize: 13px;
+	--vscode-bodyFontSize-small: 12px;
+	--vscode-bodyFontSize-xSmall: 11px;
+}
+
+/* Anchor the workbench base font on Body 1 so inheriting surfaces follow the ramp. */
+.style-override.monaco-workbench {
+	font-size: var(--vscode-bodyFontSize);
+}
+
+/* =============================================================================
+ * Headings — prominent titles rendered at SemiBold (600).
+ * ========================================================================== */
+
+/* Heading 1 (26px) — welcome / getting started screen title. */
+.style-override.monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
+	font-size: 26px;
+	font-weight: 600;
+}
+
+/* Heading 2 (18px) — welcome subtitle and secondary screen titles. */
+.style-override.monaco-workbench .part.editor > .content .gettingStartedContainer .subtitle,
+.style-override.monaco-workbench .part.editor > .content .gettingStartedContainer h2 {
+	font-size: 18px;
+	font-weight: 600;
+}
+
+/* =============================================================================
+ * Label 1 (12px) — section titles and tabs.
+ * ========================================================================== */
+
+/* View pane (sidebar / panel section) header titles — section title, Strong. */
+.style-override .monaco-pane-view .pane > .pane-header .title {
+	font-size: var(--vscode-bodyFontSize-small);
+	font-weight: 600;
+}
+
+/* Part (sidebar / auxiliary bar / panel) title labels — section title, Strong. */
+.style-override.monaco-workbench .part > .title > .title-label h2 {
+	font-size: var(--vscode-bodyFontSize-small);
+	font-weight: 600;
+}
+
+/*
+ * Auxiliary bar single-composite header label (e.g. "Chat") — render it Strong
+ * like the part title-labels so it matches the primary side bar section header
+ * instead of looking like a lighter composite tab.
+ */
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-weight: 600;
+}
+
+/* Editor tab labels. */
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/* =============================================================================
+ * Label 3 (10px) — badges and counters.
+ * ========================================================================== */
+
+.style-override .monaco-count-badge,
+.style-override .monaco-action-bar .badge .badge-content {
+	font-size: 10px;
+}
+
+/* =============================================================================
+ * Casing — replace ALL-CAPS labels with capitalized (title-case) text. The
+ * underlying strings are already properly cased, so these surfaces only need
+ * their `text-transform: uppercase` swapped for `capitalize`. The extra
+ * `.style-override` ancestor raises specificity over the base rules.
+ * ========================================================================== */
+
+/* View pane (sidebar / panel section) header titles. */
+.style-override .monaco-pane-view .pane > .pane-header > .title,
+/* Part titles (sidebar, auxiliary bar, panel) — but never editor filenames. */
+.style-override.monaco-workbench .part:not(.editor) > .title > .title-label h2,
+/*
+ * Panel / composite bar action-item labels. The font-size must land on the
+ * `.action-label` (the `<a>`), not the `.action-item` (the `<li>`): the base
+ * `.monaco-action-bar .action-label` rule (actionbar.css) sets font-size
+ * directly on the label, and a direct value always beats one inherited from the
+ * parent item, so targeting the item alone leaves the visible text at 11px.
+ */
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+/* Notifications center header. */
+.style-override.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title,
+/* Debug call-stack session state labels. */
+.style-override .debug-pane .debug-call-stack .session > .state.label,
+/* Settings editor tab labels and section headers. */
+.style-override .settings-tabs-widget > .monaco-action-bar .action-item .action-label,
+.style-override .monaco-editor .settings-header-widget .title-container .title,
+/* Agent sessions list header ("SESSIONS"). */
+.style-override .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {
+	text-transform: capitalize;
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/*
+ * File Explorer titles — respect the real casing of the workspace / folder name
+ * (user input). `text-transform: none` overrides both the base `uppercase` rule
+ * and the `capitalize` override above (the `:has(...)` argument raises
+ * specificity). System labels such as "Untitled (Workspace)" are already
+ * title-cased in source, so they still render correctly; only user-provided
+ * folder names (e.g. "vscode-dev") are left untouched.
+ */
+.style-override.monaco-workbench .part:not(.editor):has(> .content > .composite.explorer-viewlet) > .title > .title-label h2,
+.style-override .monaco-pane-view .pane > .pane-header:has(> .icon.codicon-explorer-view-icon) > .title {
+	text-transform: none;
+}
+
+/*
+ * Chat view title — the conversation title (e.g. "hello") shown in the chat
+ * view header. It is dynamic text (user / model generated), so respect its real
+ * casing rather than forcing ALL-CAPS like the base rule
+ * (chatViewTitleControl.css) does.
+ */
+.style-override .chat-viewpane .chat-view-title-container .chat-view-title-label {
+	text-transform: none;
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/*
+ * Drop the active-tab underline on the auxiliary bar composite header so a
+ * single-composite header (e.g. the secondary side bar "Chat") reads as a plain
+ * section title that matches the primary side bar, rather than a highlighted
+ * tab. The base rules (auxiliaryBarPart.css) paint the indicator with
+ * `!important` from a `.part.auxiliarybar` selector, so the override must mirror
+ * those exact selectors (including the `:not(:focus)` / `.clicked:focus` states)
+ * and rely on the extra `.style-override` class to win on specificity.
+ */
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-bottom-color: transparent !important;
+}
+
+.style-override.monaco-workbench .monaco-count-badge {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer {
+	.agent-session-section {
+		text-transform: none;
+	}
+
+	.agent-session-item .agent-session-details-row {
+		font-size: var(--vscode-agents-fontSize-label2);
+	}
+}
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control {
+	.agent-session-section {
+		padding-left: 12px;
+	}
+}
+
+.style-override.monaco-workbench .monaco-icon-label::after,
+.style-override.monaco-workbench .explorer-folders-view .explorer-item::after {
+	margin-right: 8px;
+	font-size: var(--vscode-fontSize-label2);
+}

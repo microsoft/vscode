@@ -6,36 +6,55 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
-import type { ToWebviewMessage } from '../types/previewMessaging';
+import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
 
 let documentVersion = 0;
 let documentResource = settings.settings.source;
+let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
+
+const onDiffScroll = (mappedLine: number) => {
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) {
+		clearTimeout(scrollDisabledTimer);
+	}
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
+	doAfterImagesLoaded(() => scrollToRevealSourceLine(mappedLine, documentVersion, settings));
+};
+const diffScrollSyncManager = settings.settings.diffScrollSync
+	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
+	: undefined;
 
 interface State {
 	scrollProgress?: number;
 	resource?: string;
+	line?: number;
+	fragment?: string;
 }
 
 const originalState: State = vscode.getState() ?? {};
-const state = {
+const state: State = {
 	...originalState,
-	...getData<any>('data-state')
+	...getData<Partial<State>>('data-state')
 };
 
-if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
-	state.scrollProgress = 0;
+const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
+if (typeof originalState.scrollProgress !== 'undefined'
+	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
+	state.scrollProgress = undefined;
 }
 
 // Make sure to sync VS Code state here
@@ -85,9 +104,12 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
+			scrollDisabledCount = 1;
+			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
 			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
 			window.scrollTo(0, scrollToY);
@@ -110,12 +132,16 @@ onceDocumentLoaded(() => {
 
 				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
 			} else {
 				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount += 1;
+					scrollDisabledCount = 1;
+					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
 				}
 			}
@@ -129,7 +155,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -143,7 +175,9 @@ const onUpdateView = (() => {
 })();
 
 window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 	updateScrollProgress();
 }, true);
 
@@ -226,6 +260,10 @@ window.addEventListener('message', async event => {
 			return;
 
 		case 'updateContent': {
+			lineChanges = data.lineChanges;
+			if (data.diffScrollSync) {
+				diffScrollSyncManager?.update(data.diffScrollSync);
+			}
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -297,10 +335,296 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			applyLineChanges(lineChanges);
 			break;
 		}
 	}
 }, false);
+
+function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	for (const element of document.querySelectorAll('.code-line-diff-added, .code-line-diff-deleted, .code-line-diff-modified')) {
+		element.classList.remove('code-line-diff', 'code-line-diff-added', 'code-line-diff-deleted', 'code-line-diff-modified');
+	}
+
+	// Remove previous change indicators
+	for (const element of document.querySelectorAll('.diff-change-indicator')) {
+		element.remove();
+	}
+
+	// Remove previous modification gutter bars
+	for (const element of document.querySelectorAll('.diff-modification-gutter')) {
+		element.remove();
+	}
+
+	markChangedLines(lineChanges?.added, 'code-line-diff-added');
+	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
+
+	applyChangeIndicators(lineChanges);
+	applyInnerChangeHighlights(lineChanges);
+}
+
+function markChangedLines(lines: readonly number[] | undefined, className: string): void {
+	if (!lines) {
+		return;
+	}
+
+	for (const line of lines) {
+		const { previous, next } = getElementsForSourceLine(line, documentVersion);
+		const lineElement = previous.line >= 0 ? previous : next;
+		const element = lineElement?.codeElement || lineElement?.element;
+		if (element) {
+			element.classList.add('code-line-diff', className);
+		}
+	}
+}
+
+
+function applyChangeIndicators(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	if (!lineChanges?.changeIndicators?.length) {
+		return;
+	}
+
+	for (const block of getRenderedChangeBlocks(lineChanges.changeIndicators)) {
+		if (block.indicator.type === 'deletion') {
+			const wrapper = createChangeIndicatorElement(block.indicator);
+			block.elements[0].parentElement?.insertBefore(wrapper, block.elements[0]);
+			continue;
+		}
+
+		let isFirst = true;
+		for (const element of block.elements) {
+			element.classList.add('code-line-diff-modified');
+			addModificationGutterBar(element, isFirst ? block.indicator : undefined);
+			isFirst = false;
+		}
+	}
+}
+
+interface RenderedChangeBlock {
+	readonly indicator: MarkdownPreviewChangeIndicator;
+	readonly elements: readonly HTMLElement[];
+}
+
+function getRenderedChangeBlocks(indicators: readonly MarkdownPreviewChangeIndicator[]): RenderedChangeBlock[] {
+	const blocks: RenderedChangeBlock[] = [];
+	for (const indicator of indicators) {
+		const elements = indicator.type === 'deletion'
+			? getDeletionChangeElements(indicator.modifiedLine)
+			: getModificationChangeElements(indicator.modifiedLine, indicator.modifiedLineCount);
+		if (elements.length) {
+			blocks.push({ indicator, elements });
+		}
+	}
+	return blocks;
+}
+
+function getDeletionChangeElements(modifiedLine: number): readonly HTMLElement[] {
+	const { previous, next } = getElementsForSourceLine(modifiedLine, documentVersion);
+	const targetElement = (previous.line === modifiedLine)
+		? (previous.codeElement || previous.element)
+		: (next?.codeElement || next?.element || previous.codeElement || previous.element);
+	return targetElement ? [targetElement] : [];
+}
+
+function getModificationChangeElements(modifiedLine: number, modifiedLineCount: number): readonly HTMLElement[] {
+	const elements: HTMLElement[] = [];
+	const seen = new Set<HTMLElement>();
+	const lineElements = getElementsForSourceLineRange(modifiedLine, modifiedLine + modifiedLineCount, documentVersion);
+	for (const lineElement of lineElements) {
+		const element = lineElement.codeElement || lineElement.element;
+		if (element && !seen.has(element)) {
+			seen.add(element);
+			elements.push(element);
+		}
+	}
+	return elements;
+}
+
+function createChangeIndicatorElement(indicator: MarkdownPreviewChangeIndicator): HTMLDivElement {
+	const wrapper = document.createElement('div');
+	wrapper.className = `diff-change-indicator diff-change-indicator-${indicator.type}`;
+	wrapper.setAttribute('data-original-line-count', String(indicator.originalLineCount));
+
+	const arrowLine = document.createElement('span');
+	arrowLine.className = 'diff-change-indicator-arrow';
+	const tooltip = createDiffTooltip(indicator);
+	arrowLine.appendChild(tooltip);
+	wrapper.appendChild(arrowLine);
+
+	return wrapper;
+}
+
+function addModificationGutterBar(element: HTMLElement, indicator?: MarkdownPreviewChangeIndicator): void {
+	const gutter = document.createElement('div');
+	gutter.className = 'diff-modification-gutter';
+
+	if (indicator) {
+		const tooltip = createDiffTooltip(indicator);
+		gutter.appendChild(tooltip);
+	}
+
+	element.style.position = 'relative';
+	element.appendChild(gutter);
+}
+
+function createDiffTooltip(indicator: MarkdownPreviewChangeIndicator): HTMLDivElement {
+	const tooltip = document.createElement('div');
+	tooltip.className = 'diff-change-indicator-tooltip';
+
+	if (indicator.originalContent) {
+		appendDiffTooltipSection(tooltip, 'diff-tooltip-deleted', indicator.originalContent, indicator.originalInnerChanges, 'diff-tooltip-inner-deleted');
+	}
+	if (indicator.modifiedContent) {
+		appendDiffTooltipSection(tooltip, 'diff-tooltip-added', indicator.modifiedContent, indicator.modifiedInnerChanges, 'diff-tooltip-inner-added');
+	}
+
+	return tooltip;
+}
+
+function appendDiffTooltipSection(tooltip: HTMLElement, className: string, content: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	const section = document.createElement('div');
+	section.className = className;
+	const pre = document.createElement('pre');
+	appendDiffTooltipContent(pre, content, innerChanges, innerChangeClassName);
+	section.appendChild(pre);
+	tooltip.appendChild(section);
+}
+
+function appendDiffTooltipContent(container: HTMLElement, content: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	if (!innerChanges?.length) {
+		container.textContent = content;
+		return;
+	}
+
+	const innerChangesByLine = groupInnerChangesByLine(innerChanges);
+	const lines = content.split('\n');
+	for (let line = 0; line < lines.length; ++line) {
+		appendDiffTooltipLine(container, lines[line], innerChangesByLine.get(line), innerChangeClassName);
+		if (line + 1 < lines.length) {
+			container.appendChild(document.createTextNode('\n'));
+		}
+	}
+}
+
+function appendDiffTooltipLine(container: HTMLElement, lineText: string, innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, innerChangeClassName: string): void {
+	const normalizedInnerChanges = normalizeInnerChanges(innerChanges, lineText.length);
+	let offset = 0;
+	for (const change of normalizedInnerChanges) {
+		if (offset < change.startColumn) {
+			container.appendChild(document.createTextNode(lineText.slice(offset, change.startColumn)));
+		}
+
+		const span = document.createElement('span');
+		span.className = innerChangeClassName;
+		span.textContent = lineText.slice(change.startColumn, change.endColumn);
+		container.appendChild(span);
+		offset = change.endColumn;
+	}
+
+	if (offset < lineText.length) {
+		container.appendChild(document.createTextNode(lineText.slice(offset)));
+	}
+}
+
+function groupInnerChangesByLine(innerChanges: readonly MarkdownPreviewInnerChange[]): Map<number, readonly MarkdownPreviewInnerChange[]> {
+	const groupedInnerChanges = new Map<number, MarkdownPreviewInnerChange[]>();
+	for (const change of innerChanges) {
+		const lineChanges = groupedInnerChanges.get(change.line);
+		if (lineChanges) {
+			lineChanges.push(change);
+		} else {
+			groupedInnerChanges.set(change.line, [change]);
+		}
+	}
+	return groupedInnerChanges;
+}
+
+function normalizeInnerChanges(innerChanges: readonly MarkdownPreviewInnerChange[] | undefined, lineLength: number): { startColumn: number; endColumn: number }[] {
+	if (!innerChanges?.length) {
+		return [];
+	}
+
+	const sortedInnerChanges = innerChanges
+		.map(change => ({
+			startColumn: clampColumn(change.startColumn, lineLength),
+			endColumn: clampColumn(change.endColumn, lineLength),
+		}))
+		.filter(change => change.startColumn < change.endColumn)
+		.sort((a, b) => a.startColumn - b.startColumn || a.endColumn - b.endColumn);
+	const normalizedInnerChanges: { startColumn: number; endColumn: number }[] = [];
+	for (const change of sortedInnerChanges) {
+		const previous = normalizedInnerChanges[normalizedInnerChanges.length - 1];
+		if (previous && change.startColumn <= previous.endColumn) {
+			previous.endColumn = Math.max(previous.endColumn, change.endColumn);
+		} else {
+			normalizedInnerChanges.push(change);
+		}
+	}
+	return normalizedInnerChanges;
+}
+
+function clampColumn(column: number, lineLength: number): number {
+	return Math.min(Math.max(column, 0), lineLength);
+}
+
+
+function applyInnerChangeHighlights(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	const diffHighlightAddedName = 'diff-inner-added';
+	const diffHighlightDeletedName = 'diff-inner-deleted';
+
+	// Clear previous highlights
+	CSS.highlights?.delete(diffHighlightAddedName);
+	CSS.highlights?.delete(diffHighlightDeletedName);
+
+	if (!lineChanges?.innerChanges?.length || !CSS.highlights) {
+		return;
+	}
+
+	const highlightName = lineChanges.added ? diffHighlightAddedName : diffHighlightDeletedName;
+	const ranges: Range[] = [];
+
+	// Find all marker pairs and create Range objects between them
+	const root = document.querySelector('.markdown-body');
+	if (!root) {
+		return;
+	}
+
+	for (const { startMarker, endMarker } of getDiffMarkerPairs(root)) {
+		const range = new Range();
+		range.setStartAfter(startMarker);
+		range.setEndBefore(endMarker);
+		ranges.push(range);
+	}
+
+	if (ranges.length > 0) {
+		CSS.highlights.set(highlightName, new Highlight(...ranges));
+	}
+}
+
+interface DiffMarkerPair {
+	readonly startMarker: Element;
+	readonly endMarker: Element;
+}
+
+function getDiffMarkerPairs(root: Element): DiffMarkerPair[] {
+	const endMarkersById = new Map<string, Element>();
+	for (const endMarker of root.querySelectorAll('[data-diff-end]')) {
+		const id = endMarker.getAttribute('data-diff-end');
+		if (id !== null) {
+			endMarkersById.set(id, endMarker);
+		}
+	}
+
+	const pairs: DiffMarkerPair[] = [];
+	for (const startMarker of root.querySelectorAll('[data-diff-start]')) {
+		const id = startMarker.getAttribute('data-diff-start');
+		const endMarker = id === null ? undefined : endMarkersById.get(id);
+		if (endMarker && !(startMarker.compareDocumentPosition(endMarker) & Node.DOCUMENT_POSITION_PRECEDING)) {
+			pairs.push({ startMarker, endMarker });
+		}
+	}
+	return pairs;
+}
 
 
 
@@ -335,10 +659,10 @@ document.addEventListener('click', event => {
 		return;
 	}
 
-	let node: any = event.target;
+	let node = event.target as Element | null;
 	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
+		if (node.tagName && node.tagName === 'A' && (node as HTMLAnchorElement).href) {
+			if (node.getAttribute('href')?.startsWith('#')) {
 				return;
 			}
 
@@ -346,13 +670,13 @@ document.addEventListener('click', event => {
 			if (!hrefText) {
 				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
+				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;
 				}
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
+			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
@@ -361,7 +685,7 @@ document.addEventListener('click', event => {
 
 			return;
 		}
-		node = node.parentNode;
+		node = node.parentElement;
 	}
 }, true);
 
@@ -369,12 +693,15 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		state.line = line;
+		vscode.setState(state);
+		messaging.postMessage('revealLine', { line });
+		diffScrollSyncManager?.broadcastScroll(line);
 	}
 }, 50));
 

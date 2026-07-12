@@ -11,13 +11,14 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
 import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
@@ -26,8 +27,8 @@ import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
-import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
-import { AgentSessionProviders } from './agentSessions/agentSessions.js';
+import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
+import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
 /**
  * A workspace item that can be selected in the workspace picker.
@@ -74,29 +75,42 @@ export interface IWorkspacePickerDelegate {
  * Allows consumers to get and optionally set the active session provider.
  */
 export interface ISessionTypePickerDelegate {
-	getActiveSessionProvider(): AgentSessionProviders | undefined;
+	getActiveSessionProvider(): AgentSessionTarget | undefined;
 	/**
 	 * Optional setter for the active session provider.
 	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
 	 * This allows the welcome view to maintain independent state from the main chat panel.
 	 */
-	setActiveSessionProvider?(provider: AgentSessionProviders): void;
+	setActiveSessionProvider?(provider: AgentSessionTarget): void;
 	/**
 	 * Optional getter for the pending delegation target - the target that will be used when submit is pressed.
 	 */
-	getPendingDelegationTarget?(): AgentSessionProviders | undefined;
+	getPendingDelegationTarget?(): AgentSessionTarget | undefined;
 	/**
 	 * Optional setter for the pending delegation target.
 	 * When a user selects a different session provider in a non-empty chat,
 	 * this stores the target for delegation on the next submit instead of immediately creating a new session.
 	 */
-	setPendingDelegationTarget?(provider: AgentSessionProviders): void;
+	setPendingDelegationTarget?(provider: AgentSessionTarget): void;
 	/**
 	 * Optional event that fires when the active session provider changes.
 	 * When provided, listeners (like chatInputPart) can react to session type changes
 	 * and update pickers accordingly.
 	 */
-	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+	onDidChangeActiveSessionProvider?: Event<AgentSessionTarget>;
+	/**
+	 * Returns whether the current session's workspace has a git repository.
+	 * Used to gate cloud delegation which requires a GitHub repository.
+	 */
+	hasGitRepository?(): boolean;
+	/**
+	 * Optional visibility filter for the session-type dropdown. When
+	 * provided, the picker hides any session type for which this returns
+	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
+	 * the automations dialog, which only supports a handful of session
+	 * types). When omitted, every contributed session type is shown.
+	 */
+	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -144,7 +158,7 @@ export interface IChatWidgetService {
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
@@ -204,7 +218,6 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly elementId: string;
 	readonly uri: URI | undefined;
-	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
@@ -226,10 +239,17 @@ export interface IChatListItemRendererOptions {
 	readonly noFooter?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
+	readonly supportsFork?: boolean;
 	readonly editable?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly contentHorizontalPadding?: number;
+	/**
+	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
+	 * so command/tool output pasted by the model wraps instead of overflowing).
+	 */
+	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
 }
 
 export interface IChatWidgetViewOptions {
@@ -289,6 +309,12 @@ export interface IChatWidgetViewOptions {
 	 * redirect to a different workspace rather than executing locally.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
+
+	/**
+	 * Whether we are running in the sessions window.
+	 * When true, the secondary toolbar (permissions picker) is hidden.
+	 */
+	isSessionsWindow?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -324,10 +350,10 @@ export interface IChatAcceptInputOptions {
 	 */
 	queue?: ChatRequestQueueKind;
 	/**
-	 * When true, always queues the request regardless of whether a request is currently in progress.
-	 * The request stays in the pending queue until explicitly processed.
+	 * Cancels the current request before sending this message instead of falling back to queueing.
 	 */
-	alwaysQueue?: boolean;
+	cancelCurrentRequest?: boolean;
+	preserveFocus?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -357,6 +383,8 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	/** The main input part at the bottom of the widget. Unlike `input`, this always returns the main input, not the inline editing input. */
+	readonly inputPart: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
 	readonly contribs: readonly IChatWidgetContrib[];
@@ -373,6 +401,7 @@ export interface IChatWidget {
 	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
+	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;
@@ -415,6 +444,11 @@ export interface IChatWidget {
 	 */
 	navigateToNextQuestion(): boolean;
 	/**
+	 * Focuses the terminal associated with the active question carousel.
+	 * @returns Whether the operation succeeded (i.e., a terminal was found and focused).
+	 */
+	focusQuestionCarouselTerminal(): boolean;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
@@ -428,9 +462,10 @@ export interface IChatWidget {
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
-	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
+	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
@@ -449,3 +484,6 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+
+export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
+export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';

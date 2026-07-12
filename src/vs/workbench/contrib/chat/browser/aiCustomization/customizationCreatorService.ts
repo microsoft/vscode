@@ -12,8 +12,14 @@ import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { PromptsServiceCustomizationItemProvider } from './promptsServiceCustomizationItemProvider.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -32,9 +38,15 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
+		const currentSessionResource = this.harnessService.activeSessionResource.get();
+
+
 		// Ask for the name before entering chat
 		const typeLabel = getTypeLabel(type);
 		const name = await this.quickInputService.input({
@@ -58,7 +70,15 @@ export class CustomizationCreatorService {
 		// directory and have those changes tracked.
 
 		// Capture project root BEFORE opening new chat (which may change active session)
-		const targetDir = this.resolveTargetDirectory(type);
+		const picker = this.instantiationService.createInstance(CustomizationLocationPicker);
+		const targetDir = await picker.resolveTargetDirectoryWithPicker(
+			currentSessionResource,
+			type,
+			'local',
+		);
+		if (targetDir === null) {
+			return; // User cancelled the picker
+		}
 		const systemInstructions = buildAgentInstructions(type, targetDir, trimmedName);
 		const userMessage = buildUserMessage(type, targetDir, trimmedName);
 
@@ -76,12 +96,13 @@ export class CustomizationCreatorService {
 			modeInfo: {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
-				modeId: 'custom',
+				telemetryModeId: 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				modeInstructions: {
 					name: 'customization-creator',
 					content: systemInstructions,
 					toolReferences: [],
+					allowedSubagents: undefined,
 				},
 			},
 		});
@@ -100,6 +121,66 @@ export class CustomizationCreatorService {
 	 */
 	async resolveUserDirectory(type: PromptsType): Promise<URI | undefined> {
 		return resolveUserTargetDirectory(this.promptsService, type);
+	}
+}
+
+
+export class CustomizationLocationPicker {
+	constructor(
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILabelService private readonly labelService: ILabelService
+	) { }
+
+	/**
+	 * Resolves the target directory for creating a new customization file.
+	 * If multiple source folders exist for the given storage type, shows a
+	 * picker to let the user choose. Otherwise, returns the single match.
+	 *
+	 * Source folders come from the active harness's item provider (via the
+	 * items model) — each session can supply its own set of customization
+	 * locations through `ICustomizationItemProvider.provideSourceFolders`.
+	 *
+	 * @returns the resolved URI, `undefined` when no folder is available,
+	 *          or `null` when the user cancelled the picker.
+	 */
+	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target: 'local' | 'user'): Promise<URI | undefined | null> {
+		const sessionType = getChatSessionType(sessionResource);
+		const descriptor = this.harnessService.findHarnessById(sessionType);
+		const provider = descriptor?.itemProvider ?? this.instantiationService.createInstance(PromptsServiceCustomizationItemProvider);
+		if (!provider.provideSourceFolders) {
+			return undefined;
+		}
+		const allFolders = await provider.provideSourceFolders(sessionResource, type, CancellationToken.None);
+		if (!allFolders) {
+			// Provider returned no source folders for this type/session.
+			return undefined;
+		}
+
+		const matchingFolders = allFolders.filter(f => f.source === target);
+		if (matchingFolders.length === 0) {
+			// No matching folders — return undefined so the command can fall
+			// back to askForPromptSourceFolder (not null which means cancellation)
+			return undefined;
+		}
+
+		// if (matchingFolders.length === 1) {
+		// 	return matchingFolders[0].uri;
+		// }
+
+		// Multiple directories — ask the user which one to use
+		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
+			label: folder.label,
+			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+			uri: folder.uri,
+		}));
+
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
+		});
+
+		return picked?.uri ?? null;
 	}
 }
 

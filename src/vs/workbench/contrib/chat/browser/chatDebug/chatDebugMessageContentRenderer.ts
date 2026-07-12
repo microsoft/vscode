@@ -6,15 +6,18 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IChatDebugUserMessageEvent, IChatDebugAgentResponseEvent, IChatDebugEventMessageContent } from '../../common/chatDebugService.js';
-import { renderCollapsibleSection } from './chatDebugCollapsible.js';
+import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
 
 const $ = DOM.$;
 
 /**
  * Render a user message event with collapsible prompt sections.
+ * JSON content in sections is syntax-highlighted.
  */
-export function renderUserMessageContent(event: IChatDebugUserMessageEvent): { element: HTMLElement; disposables: DisposableStore } {
+export async function renderUserMessageContent(event: IChatDebugUserMessageEvent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -28,7 +31,8 @@ export function renderUserMessageContent(event: IChatDebugUserMessageEvent): { e
 			localize('chatDebug.promptSections', "Prompt Sections ({0})", event.sections.length)));
 
 		for (const section of event.sections) {
-			renderCollapsibleSection(sectionsContainer, section, disposables);
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 		}
 	}
 
@@ -37,8 +41,9 @@ export function renderUserMessageContent(event: IChatDebugUserMessageEvent): { e
 
 /**
  * Render an agent response event with collapsible response sections.
+ * JSON content in sections is syntax-highlighted.
  */
-export function renderAgentResponseContent(event: IChatDebugAgentResponseEvent): { element: HTMLElement; disposables: DisposableStore } {
+export async function renderAgentResponseContent(event: IChatDebugAgentResponseEvent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -52,7 +57,8 @@ export function renderAgentResponseContent(event: IChatDebugAgentResponseEvent):
 			localize('chatDebug.responseSections', "Response Sections ({0})", event.sections.length)));
 
 		for (const section of event.sections) {
-			renderCollapsibleSection(sectionsContainer, section, disposables);
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 		}
 	}
 
@@ -79,8 +85,9 @@ export function messageEventToPlainText(event: IChatDebugUserMessageEvent | ICha
 
 /**
  * Render a resolved message content (from resolveChatDebugLogEvent) with collapsible sections.
+ * JSON content in sections is syntax-highlighted.
  */
-export function renderResolvedMessageContent(content: IChatDebugEventMessageContent): { element: HTMLElement; disposables: DisposableStore } {
+export async function renderResolvedMessageContent(content: IChatDebugEventMessageContent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -99,7 +106,8 @@ export function renderResolvedMessageContent(content: IChatDebugEventMessageCont
 		DOM.append(sectionsContainer, $('div.chat-debug-message-sections-label', undefined, label));
 
 		for (const section of content.sections) {
-			renderCollapsibleSection(sectionsContainer, section, disposables);
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 		}
 	}
 

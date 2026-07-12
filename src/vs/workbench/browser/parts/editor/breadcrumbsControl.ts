@@ -9,9 +9,12 @@ import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -22,10 +25,11 @@ import { OutlineElement } from '../../../../editor/contrib/documentSymbols/brows
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextViewService, IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -38,6 +42,7 @@ import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/brows
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
@@ -46,6 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -211,6 +217,12 @@ export interface IBreadcrumbsControlOptions {
 	readonly showPlaceholder: boolean;
 	readonly dragEditor: boolean;
 	readonly widgetStyles?: IBreadcrumbsWidgetStyles;
+	/**
+	 * Whether to show a dropdown on the right-hand side that lets the user switch between the editors
+	 * that can open the active resource (e.g. Text Editor vs. Markdown Preview). Only makes sense for
+	 * the dedicated breadcrumbs bar below tabs, not the inline single-tab breadcrumbs.
+	 */
+	readonly showEditorTypePicker?: boolean;
 }
 
 const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
@@ -237,18 +249,25 @@ export class BreadcrumbsControl {
 	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false, localize('breadcrumbsPossible', "Whether the editor can show breadcrumbs"));
 	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false, localize('breadcrumbsVisible', "Whether breadcrumbs are currently visible"));
 	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false, localize('breadcrumbsActive', "Whether breadcrumbs have focus"));
+	static readonly CK_BreadcrumbsHasSymbols = new RawContextKey('breadcrumbsHasSymbols', false, localize('breadcrumbsHasSymbols', "Whether breadcrumbs contain symbol items"));
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
+	private readonly _ckBreadcrumbsHasSymbols: IContextKey<boolean>;
 
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowEditorType: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 	private readonly _cfTitleScrollbarVisibility: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarVisibility']>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
+	private readonly _editorTypeNode: HTMLDivElement;
+	private readonly _editorTypeLabel: HTMLSpanElement;
+	private readonly _editorTypeHover: IManagedHover;
+	private _lastLayoutDimension: dom.Dimension | undefined;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _breadcrumbsDisposables = new DisposableStore();
@@ -268,20 +287,26 @@ export class BreadcrumbsControl {
 		private readonly _editorGroup: IEditorGroupView,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorResolverService private readonly _editorResolverService: IEditorResolverService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
+		this.domNode.classList.toggle('with-editor-type', !!_options.showEditorTypePicker);
 		dom.append(container, this.domNode);
 
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
+		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(configurationService);
 
@@ -302,9 +327,32 @@ export class BreadcrumbsControl {
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 
+		// Editor type dropdown (right-aligned). Lets the user switch between the editors that can
+		// open the active resource (e.g. "Text Editor" vs. "Markdown Preview"). Only shown when a
+		// more specialized editor is available for the resource.
+		this._editorTypeNode = document.createElement('div');
+		this._editorTypeNode.classList.add('breadcrumbs-editor-type', 'hidden');
+		this._editorTypeNode.setAttribute('role', 'button');
+		this._editorTypeLabel = document.createElement('span');
+		this._editorTypeLabel.classList.add('label');
+		this._editorTypeNode.appendChild(this._editorTypeLabel);
+		const editorTypeChevron = document.createElement('span');
+		editorTypeChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
+		this._editorTypeNode.appendChild(editorTypeChevron);
+		dom.append(this.domNode, this._editorTypeNode);
+		this._editorTypeHover = this._disposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._editorTypeNode, ''));
+		this._disposables.add(dom.addDisposableListener(this._editorTypeNode, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._showEditorTypePicker();
+		}));
+		if (this._options.showEditorTypePicker) {
+			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
+		}
+
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
+		this._ckBreadcrumbsHasSymbols = BreadcrumbsControl.CK_BreadcrumbsHasSymbols.bindTo(this._contextKeyService);
 
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
@@ -319,8 +367,10 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
+		this._ckBreadcrumbsHasSymbols.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfShowEditorType.dispose();
 		this._cfTitleScrollbarSizing.dispose();
 		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
@@ -333,6 +383,15 @@ export class BreadcrumbsControl {
 	}
 
 	layout(dim: dom.Dimension | undefined): void {
+		if (dim) {
+			this._lastLayoutDimension = dim;
+		}
+		// When the editor type dropdown is visible it occupies space on the right, so shrink the
+		// breadcrumbs widget accordingly to avoid it rendering behind the dropdown.
+		if (dim && !this._editorTypeNode.classList.contains('hidden')) {
+			const editorTypeWidth = this._editorTypeNode.offsetWidth;
+			dim = new dom.Dimension(Math.max(0, dim.width - editorTypeWidth), dim.height);
+		}
 		this._widget.layout(dim);
 	}
 
@@ -345,7 +404,9 @@ export class BreadcrumbsControl {
 
 		this._breadcrumbsDisposables.clear();
 		this._ckBreadcrumbsVisible.set(false);
+		this._ckBreadcrumbsHasSymbols.set(false);
 		this.domNode.classList.toggle('hidden', true);
+		this._editorTypeNode.classList.toggle('hidden', true);
 
 		if (!wasHidden) {
 			this._onDidVisibilityChange.fire();
@@ -378,6 +439,7 @@ export class BreadcrumbsControl {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
+			this._ckBreadcrumbsHasSymbols.set(false);
 			if (!wasHidden) {
 				this.hide();
 				return true;
@@ -391,6 +453,7 @@ export class BreadcrumbsControl {
 
 		this.show();
 		this._ckBreadcrumbsPossible.set(true);
+		this._updateEditorTypeControl();
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
 			fileInfoUri ?? uri,
@@ -408,7 +471,9 @@ export class BreadcrumbsControl {
 				showFileIcons: this._options.showFileIcons && showIcons,
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement
+			const elements = model.getElements();
+			this._ckBreadcrumbsHasSymbols.set(elements.some(element => !(element instanceof FileElement)));
+			const items = elements.map(element => element instanceof FileElement
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
@@ -462,6 +527,44 @@ export class BreadcrumbsControl {
 		});
 
 		return wasHidden !== this.isHidden();
+	}
+
+	private _updateEditorTypeControl(): void {
+		const wasHidden = this._editorTypeNode.classList.contains('hidden');
+		const previousWidth = wasHidden ? 0 : this._editorTypeNode.offsetWidth;
+
+		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
+		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
+		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
+			this._editorTypeNode.classList.toggle('hidden', true);
+		} else {
+			const current = available.editors.find(editor => editor.id === available.currentId);
+			const label = current ? editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
+			this._editorTypeLabel.textContent = label;
+			this._editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
+			this._editorTypeNode.classList.toggle('hidden', false);
+		}
+
+		// The dropdown width may have changed (different editor label or visibility toggled). Since the
+		// breadcrumbs widget uses an explicit pixel width that reserves room for the dropdown, re-run the
+		// layout so the widget shrinks/grows to match the new dropdown width.
+		const isHiddenNow = this._editorTypeNode.classList.contains('hidden');
+		const currentWidth = isHiddenNow ? 0 : this._editorTypeNode.offsetWidth;
+		if (this._lastLayoutDimension && currentWidth !== previousWidth) {
+			this.layout(this._lastLayoutDimension);
+		}
+	}
+
+	private _showEditorTypePicker(): void {
+		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService);
+		if (!available) {
+			return;
+		}
+		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => this._editorTypeNode,
+			getActions: () => actions
+		});
 	}
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
@@ -961,13 +1064,13 @@ registerAction2(class CopyBreadcrumbPath extends Action2 {
 			id: 'breadcrumbs.copyPath',
 			title: localize2('cmd.copyPath', "Copy Breadcrumbs Path"),
 			category: Categories.View,
-			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			precondition: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsHasSymbols),
 			f1: true,
 			menu: [{
 				id: MenuId.EditorTitleContext,
 				group: '1_cutcopypaste',
 				order: 100,
-				when: BreadcrumbsControl.CK_BreadcrumbsPossible
+				when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsPossible, BreadcrumbsControl.CK_BreadcrumbsHasSymbols)
 			}]
 		});
 	}
