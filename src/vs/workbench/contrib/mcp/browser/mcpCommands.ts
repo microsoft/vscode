@@ -174,7 +174,7 @@ export class ListMcpServerCommand extends Action2 {
 			];
 
 			// Preserve the previously selected item if it still exists, otherwise select the first server on first run
-			if (previousActiveId && previousActiveId !== '$add') {
+			if (previousActiveId) {
 				const previousItem = pick.items.find((item): item is ItemType => !('type' in item) && item.id === previousActiveId);
 				if (previousItem) {
 					pick.activeItems = [previousItem];
@@ -251,7 +251,7 @@ export class ListMcpServerCommand extends Action2 {
 			];
 
 			// Preserve the previously selected item if it still exists, otherwise select the first server on first run
-			if (previousActiveId && previousActiveId !== BACK_ID && previousActiveId !== '$empty') {
+			if (previousActiveId) {
 				const previousItem = pick.items.find((item): item is ItemType => !('type' in item) && item.id === previousActiveId);
 				if (previousItem) {
 					pick.activeItems = [previousItem];
