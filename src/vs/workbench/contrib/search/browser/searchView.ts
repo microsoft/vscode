@@ -980,6 +980,7 @@ export class SearchView extends ViewPane {
 			],
 			this.searchDataSource,
 			{
+				compressionEnabled: this.configurationService.getValue<boolean>('explorer.compactFolders'),
 				identityProvider,
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, element => {
@@ -1008,6 +1009,9 @@ export class SearchView extends ViewPane {
 					return this.shouldCollapseAccordingToConfig(e);
 				}
 			}));
+
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'))(() =>
+			this.tree.updateOptions({ compressionEnabled: this.configurationService.getValue<boolean>('explorer.compactFolders') })));
 
 		Constants.SearchContext.SearchResultListFocusedKey.bindTo(this.tree.contextKeyService);
 
