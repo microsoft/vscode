@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/editorTabs.css';
+import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -20,7 +21,7 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext, SinglePaneDetailChangesOrFilesActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { EditorMaximizedContext, HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -213,7 +214,7 @@ class HideMainEditorPartAction extends Action2 {
 					singlePaneDetailPanel,
 					EditorMaximizedContext.negate(),
 					AuxiliaryBarVisibleContext,
-					SinglePaneDetailChangesOrFilesActiveContext,
+					HasDockedDetailsContext,
 					MainEditorAreaVisibleContext)
 			}
 		});

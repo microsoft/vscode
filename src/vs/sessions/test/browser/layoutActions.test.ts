@@ -12,7 +12,7 @@ import { CommandsRegistry } from '../../../platform/commands/common/commands.js'
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { MainEditorAreaVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { Menus } from '../../browser/menus.js';
-import { SinglePaneDetailChangesOrFilesActiveContext } from '../../common/contextkeys.js';
+import { HasDockedDetailsContext } from '../../common/contextkeys.js';
 
 // Import layout actions to trigger menu registration
 import '../../browser/layoutActions.js';
@@ -66,7 +66,7 @@ suite('Sessions - Layout Actions', () => {
 
 		// Hide is additionally gated on the changes/files detail being active.
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';
-		assert.ok(hideWhen.includes(SinglePaneDetailChangesOrFilesActiveContext.key));
+		assert.ok(hideWhen.includes(HasDockedDetailsContext.key));
 
 		// Add File as Context stays an editor-title action, not a layout action.
 		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);

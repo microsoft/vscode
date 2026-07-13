@@ -136,6 +136,13 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 	if ((path === '/models/session' || path === '/models/session/intent') && method === 'POST') {
 		return { status: 500, headers: { 'content-type': 'text/plain', 'x-should-retry': 'false' }, body: 'auto-mode not available in replay' };
 	}
+	// Enterprise MCP registry policy — fetched only when the developer has local
+	// MCP servers configured (`~/.copilot/mcp-config.json`), so it varies per
+	// machine and must be stubbed, not recorded (issue #325248). Empty registry =
+	// no enterprise restrictions, exactly as when none is configured.
+	if (path === '/copilot/mcp_registry' && method === 'GET') {
+		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ mcp_registries: [] }) };
+	}
 	if (path.startsWith('/copilot_internal/')) {
 		if (path.includes('/token') || path.includes('/nltoken')) {
 			return { status: 200, headers: JSON_HEADERS, body: tokenStubBody() };

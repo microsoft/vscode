@@ -175,6 +175,15 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly shellPermissionReplayUnstableOnWindows?: boolean;
 	/**
+	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
+	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
+	 * on-disk `subagents/agent-*.jsonl` files — not reliably visible on Windows
+	 * right after the turn, so the transcript can come back empty. macOS/Linux keep
+	 * full coverage; providers that rebuild from the in-process event log (Copilot)
+	 * are unaffected and stay enabled on Windows.
+	 */
+	readonly subagentReplayUnstableOnWindows?: boolean;
+	/**
 	 * Whether the provider's plan-mode flow matches the shared test's
 	 * expectations (auto-approve session-state writes; reach the
 	 * exit-plan-mode tool as an `inputRequested`). Currently true only for
@@ -1129,7 +1138,8 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 				`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
 		});
 
-		(/*config.supportsSubagents ? test :*/ test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
+		// Windows-skipped for providers with on-disk subagent replay (see `subagentReplayUnstableOnWindows`).
+		((isWindows && config.subagentReplayUnstableOnWindows) ? test.skip : (config.supportsSubagents ? test : test.skip))('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 			this.timeout(180_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);

@@ -19,7 +19,7 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SinglePaneChangesTabMissingContext, SinglePaneDetailChangesOrFilesActiveContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SinglePaneChangesTabMissingContext, HasDockedDetailsContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -287,20 +287,20 @@ suite('LayoutController (desktop)', () => {
 	test('[single-pane] restores the detail panel after a browser tab hides it', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
-		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
-		assert.strictEqual(isChangesOrFilesActive(), false, 'hidden target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'hidden target should clear the editor chevron context');
 
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
-		assert.strictEqual(isChangesOrFilesActive(), true, 'changes target should enable the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), true, 'changes target should enable the editor chevron context');
 
 		const browserEditor = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
 		Object.defineProperty(browserEditor, 'resource', { value: URI.parse('browser://test') });
 
 		harness.activeEditorInput = browserEditor;
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), false, 'browser target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'browser target should clear the editor chevron context');
 		await timeout(0);
 
 		assert.ok(
@@ -312,7 +312,7 @@ suite('LayoutController (desktop)', () => {
 		harness.openedViewContainers = [];
 		harness.activeEditorInput = store.add(new EmptyFileEditorInput());
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), true, 'files target should enable the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
 
 		assert.ok(
@@ -328,18 +328,18 @@ suite('LayoutController (desktop)', () => {
 		// the chevron context must clear just like the browser tab does.
 		harness.activeEditorInput = store.add(new TestStubEditorInput(URI.parse('search-editor://test')));
 		harness.onDidActiveEditorChange.fire();
-		assert.strictEqual(isChangesOrFilesActive(), false, 'search target should clear the editor chevron context');
+		assert.strictEqual(hasDockedDetails(), false, 'search target should clear the editor chevron context');
 	});
 
 	test('[single-pane] hides the detail panel when the main editor part is empty and keeps it closed on tab open', async () => {
 		createSinglePaneController({ activateAux: true });
 		await timeout(0);
-		const isChangesOrFilesActive = () => harness.contextKeyService.getContextKeyValue(SinglePaneDetailChangesOrFilesActiveContext.key);
+		const hasDockedDetails = () => harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key);
 
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
 		await timeout(0);
-		assert.strictEqual(isChangesOrFilesActive(), true, 'non-empty no-active-editor fallback should keep contextual detail active');
+		assert.strictEqual(hasDockedDetails(), true, 'non-empty no-active-editor fallback should keep contextual detail active');
 
 		harness.setPartHiddenCalls = [];
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
@@ -350,10 +350,10 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			isChangesOrFilesActive: isChangesOrFilesActive(),
+			hasDockedDetails: hasDockedDetails(),
 			hiddenCalls: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === true).length,
 		}, {
-			isChangesOrFilesActive: false,
+			hasDockedDetails: false,
 			hiddenCalls: 1,
 		});
 
@@ -368,11 +368,11 @@ suite('LayoutController (desktop)', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			isChangesOrFilesActive: isChangesOrFilesActive(),
+			hasDockedDetails: hasDockedDetails(),
 			reveals: harness.setPartHiddenCalls.filter(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false).length,
 			openedFiles: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
 		}, {
-			isChangesOrFilesActive: true,
+			hasDockedDetails: true,
 			reveals: 0,
 			openedFiles: false,
 		});
@@ -2188,7 +2188,7 @@ suite('LayoutController (desktop)', () => {
 			order: items[0].order,
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
-			gatedOnChangesOrFilesTab: when.includes(SinglePaneDetailChangesOrFilesActiveContext.key),
+			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 		}, {
 			icon: Codicon.listSelection.id,
 			// Conditional (hidden for tab types with no detail, e.g. browser and
@@ -2197,7 +2197,7 @@ suite('LayoutController (desktop)', () => {
 			order: 30,
 			hasToggled: true,
 			gatedOnEditorArea: true,
-			gatedOnChangesOrFilesTab: true,
+			gatedOnDockedDetails: true,
 		});
 	});
 

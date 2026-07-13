@@ -30,6 +30,7 @@ import {
 	shouldRestoreLateArrivingModel,
 	shouldRestorePersistedModel,
 	shouldRestorePerTypeModelOnSessionSwitch,
+	shouldShowCacheBreakHint,
 	shouldSuppressModelPersistenceOnSessionSwitch,
 	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
@@ -1846,6 +1847,45 @@ suite('ChatModelSelectionLogic', () => {
 
 		test('accepts a Set of live ids', () => {
 			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+		});
+	});
+
+	suite('shouldShowCacheBreakHint', () => {
+
+		function show(opts: { dismissed?: boolean; cacheWarm?: boolean; noModelsAvailable?: boolean; excludeAutoModel?: boolean; selectedModelIsAuto?: boolean }): boolean {
+			return shouldShowCacheBreakHint({
+				dismissed: opts.dismissed ?? false,
+				cacheWarm: opts.cacheWarm ?? true,
+				noModelsAvailable: opts.noModelsAvailable ?? false,
+				excludeAutoModel: opts.excludeAutoModel ?? true,
+				selectedModelIsAuto: opts.selectedModelIsAuto ?? false,
+			});
+		}
+
+		test('shown only for a warm cache with a real model to switch to', () => {
+			assert.deepStrictEqual(
+				{
+					default: show({}),
+					dismissed: show({ dismissed: true }),
+					coldCache: show({ cacheWarm: false }),
+					// Signed out / Restricted Mode / empty list: nothing to switch to.
+					noModels: show({ noModelsAvailable: true }),
+					autoInModelPicker: show({ selectedModelIsAuto: true }),
+					// The options picker: reasoning effort / context size reset the cache under Auto too.
+					autoInOptionsPicker: show({ selectedModelIsAuto: true, excludeAutoModel: false }),
+					// A suppressing condition still wins in the options picker.
+					noModelsInOptionsPicker: show({ noModelsAvailable: true, excludeAutoModel: false }),
+				},
+				{
+					default: true,
+					dismissed: false,
+					coldCache: false,
+					noModels: false,
+					autoInModelPicker: false,
+					autoInOptionsPicker: true,
+					noModelsInOptionsPicker: false,
+				}
+			);
 		});
 	});
 

@@ -91,7 +91,7 @@ const SYSTEM_FIELD_RE = /("instructions"\s*:\s*)"(?:[^"\\]|\\.)*"/g;
 const SYSTEM_PROMPT_PLACEHOLDER = '${system}';
 
 /** GitHub-API path prefixes (routed to the GitHub upstream, not CAPI). */
-const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry'];
+const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_registry'];
 
 export type CapiReplayMode = 'record' | 'replay';
 
