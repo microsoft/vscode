@@ -11,6 +11,7 @@ export const COPILOT_BRANCH_PREFIX = 'agents/';
 const COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;
+const MAX_BRANCH_NAME_COLLISION_ATTEMPTS = 100;
 
 export interface ICopilotBranchNameGeneratorRequest {
 	readonly sessionId: string;
@@ -25,11 +26,10 @@ export interface ICopilotBranchNameGeneratorRequest {
 	 */
 	readonly branchPrefix?: string;
 	/**
-	 * Optional predicate used to check whether a candidate branch name already
-	 * exists. When it reports a collision, a short suffix derived from the
-	 * session id is appended so the generated branch name stays unique.
+	 * Optional predicate used to check whether a candidate branch name collides
+	 * with an existing branch or its corresponding worktree path.
 	 */
-	readonly branchExists?: (branchName: string) => Promise<boolean>;
+	readonly branchNameCollides?: (branchName: string) => Promise<boolean>;
 }
 
 export const ICopilotBranchNameGenerator = createDecorator<ICopilotBranchNameGenerator>('copilotBranchNameGenerator');
@@ -117,19 +117,23 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 		// historical `agents/<hint>` shape.
 		const prefix = `${request.branchPrefix ?? ''}${COPILOT_BRANCH_PREFIX}`;
 
-		if (!branchNameHint) {
-			// No usable hint - fall back to the (already unique) session id.
-			return `${prefix}${request.sessionId}`;
+		const branchName = `${prefix}${branchNameHint ?? request.sessionId}`;
+		if (!request.branchNameCollides || !await request.branchNameCollides(branchName)) {
+			return branchName;
 		}
 
-		// Prefer the bare hint and only append a short session-id suffix when
-		// the branch name would collide with an existing branch.
-		const branchName = `${prefix}${branchNameHint}`;
-		if (request.branchExists && await request.branchExists(branchName)) {
-			return `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`;
+		const collisionBase = branchNameHint
+			? `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`
+			: branchName;
+		const firstAttempt = branchNameHint ? 1 : 2;
+		for (let attempt = firstAttempt; attempt <= MAX_BRANCH_NAME_COLLISION_ATTEMPTS; attempt++) {
+			const candidate = attempt === 1 ? collisionBase : `${collisionBase}-${attempt}`;
+			if (!await request.branchNameCollides(candidate)) {
+				return candidate;
+			}
 		}
 
-		return branchName;
+		throw new Error(`Unable to find an available branch name after ${MAX_BRANCH_NAME_COLLISION_ATTEMPTS} attempts`);
 	}
 }
 

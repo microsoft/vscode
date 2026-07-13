@@ -493,6 +493,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _pendingFirstTurnAnnouncements = new Map<string, string>();
 	private readonly _sessionSequencer = new SequencerByKey<string>();
+	private readonly _worktreeCreationSequencer = new SequencerByKey<string>();
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
@@ -3381,23 +3382,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const worktreeBranchPrefix = typeof config.config[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? config.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
-		const branchName = await this._branchNameGenerator.generateBranchName({
-			sessionId,
-			message: prompt,
-			githubToken: this._githubToken,
-			branchPrefix: worktreeBranchPrefix,
-			// Treat a failed existence check as a collision so we fall back to a
-			// suffixed branch name rather than risk `addWorktree` failing because
-			// the branch already exists.
-			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => true),
-		});
-		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
-		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
-		// `addWorktree`'s signature requires a startPoint, but historically the
-		// runtime accepted undefined when `branch` was not set in config. Preserve
-		// that behavior by passing through whatever value (or undefined) was set.
-		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+		const { branchName, worktree } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+			const branchName = await this._branchNameGenerator.generateBranchName({
+				sessionId,
+				message: prompt,
+				githubToken: this._githubToken,
+				branchPrefix: worktreeBranchPrefix,
+				branchNameCollides: async branchName => {
+					if (await this._gitService.branchExists(repositoryRoot, branchName)) {
+						return true;
+					}
+					const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
+					return fileExists(worktree.fsPath);
+				},
+			});
+			const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
+			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
+			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+			return { branchName, worktree };
+		});
 
 		const worktreeIncludeFiles = Array.isArray(config.config[SessionConfigKey.WorktreeIncludeFiles]) &&
 			config.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
