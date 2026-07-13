@@ -137,13 +137,14 @@
 }
 
 /*
- * File Explorer root header — respect the real casing of the workspace / folder
- * name (user input). `text-transform: none` overrides both the base
- * `uppercase` rule and the `capitalize` override above (the `:has(...)`
- * argument raises specificity). System labels such as "Untitled (Workspace)"
- * are already title-cased in source, so they still render correctly; only
- * user-provided folder names (e.g. "vscode-dev") are left untouched.
+ * File Explorer titles — respect the real casing of the workspace / folder name
+ * (user input). `text-transform: none` overrides both the base `uppercase` rule
+ * and the `capitalize` override above (the `:has(...)` argument raises
+ * specificity). System labels such as "Untitled (Workspace)" are already
+ * title-cased in source, so they still render correctly; only user-provided
+ * folder names (e.g. "vscode-dev") are left untouched.
  */
+.style-override.monaco-workbench .part:not(.editor):has(> .content > .composite.explorer-viewlet) > .title > .title-label h2,
 .style-override .monaco-pane-view .pane > .pane-header:has(> .icon.codicon-explorer-view-icon) > .title {
 	text-transform: none;
 }
@@ -174,4 +175,34 @@
 .style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-bottom-color: transparent !important;
+}
+
+.style-override.monaco-workbench .monaco-count-badge {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.style-override .debug-pane .debug-call-stack .session > .state.label {
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.style-override.monaco-workbench .agent-sessions-viewer {
+	.agent-session-section {
+		text-transform: none;
+	}
+
+	.agent-session-item .agent-session-details-row {
+		font-size: var(--vscode-agents-fontSize-label2);
+	}
+}
+
+.style-override.monaco-workbench .chat-viewpane.has-sessions-control {
+	.agent-session-section {
+		padding-left: 12px;
+	}
+}
+
+.style-override.monaco-workbench .monaco-icon-label::after,
+.style-override.monaco-workbench .explorer-folders-view .explorer-item::after {
+	margin-right: 8px;
+	font-size: var(--vscode-fontSize-label2);
 }

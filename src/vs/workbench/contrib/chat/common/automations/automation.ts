@@ -80,6 +80,11 @@ export interface IAutomation {
 	readonly nextRunAt?: string;
 }
 
+/**
+ * Lifecycle of an automation run. A run stays `running` while its agent session
+ * is active or needs input, and becomes terminal when that session completes or
+ * fails, or when tracking is cancelled or times out while the session may remain active.
+ */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
@@ -94,8 +99,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session identifier assigned by ISessionsManagementService, if any. */
-	readonly sessionId?: string;
+	/** Session resource URI (stringified), recorded as soon as the committed session is available. */
+	readonly sessionResource?: string;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

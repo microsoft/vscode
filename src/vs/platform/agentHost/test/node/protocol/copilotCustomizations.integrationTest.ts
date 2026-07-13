@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Copilot SDK customization integration tests running on a mocked LLM.
+ * Agent host end-to-end tests (Copilot customizations, mocked LLM).
  *
  * agent host log file: ~/.vscode-insiders/tmp/tmp_vscode_1/ahp-customizations-home-mock-ZBucPX/Library/Application Support/Code - OSS Dev/logs/20260701T192836/agenthost-server.log
  */
@@ -16,11 +16,34 @@ import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { CustomizationType, type DirectoryCustomization } from '../../../common/state/sessionState.js';
-import { createRealSession, dispatchTurn, IRealSdkProviderConfig } from './realSdkTestHelpers.js';
+import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
+import { createRealSession, dispatchTurn, IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
 import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
-const COPILOT_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket — Real Copilot SDK Mocked LLM',
+/**
+ * Whether `notification` is a *settled* `session/customizationsChanged` for
+ * `sessionUri`.
+ *
+ * Filesystem customization discovery is asynchronous: a client
+ * `SessionActiveClientSet`/`sync` can publish a snapshot before the initial
+ * disk scan has settled, producing a transient `customizations: []`
+ * notification (see `SessionPluginController.getCustomizationsSettled`).
+ * Because `clearReceived()` clears the local buffer but cannot retract an
+ * already-sent socket message, such a pre-discovery snapshot may even be
+ * delivered *after* a `clearReceived()`. These empty snapshots are not
+ * meaningful state changes, so the tests match and count only non-empty
+ * (settled) notifications — every session discovers at least the standard
+ * customization directories, so a settled snapshot always has a non-empty list.
+ */
+function isSettledCustomizationsNotification(notification: AhpNotification, sessionUri: string): boolean {
+	if (!isActionNotification(notification, ActionType.SessionCustomizationsChanged) || getActionEnvelope(notification).channel !== sessionUri) {
+		return false;
+	}
+	return (getActionEnvelope(notification).action as SessionCustomizationsChangedAction).customizations.length > 0;
+}
+
+const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Copilot (Mocked LLM)',
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
@@ -37,7 +60,7 @@ const SETUP_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 90_000;
 const NOTIFICATION_TIMEOUT_MS = 10_000;
 
-suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizations)', function () {
+suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -109,7 +132,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		dispatchTurn(client, sessionUri, 'turn-customizations-empty-mock', 'hello', 2);
 
 		const [customizationsNotif] = await Promise.all([
-			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS),
 			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
 		]);
 
@@ -242,7 +265,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 		dispatchTurn(client, sessionUri, 'turn-customizations-mock', 'hello', 2);
 
 		const [customizationsNotif] = await Promise.all([
-			client.waitForNotification(n => isActionNotification(n, ActionType.SessionCustomizationsChanged) && getActionEnvelope(n).channel === sessionUri, NOTIFICATION_TIMEOUT_MS),
+			client.waitForNotification(n => isSettledCustomizationsNotification(n, sessionUri), NOTIFICATION_TIMEOUT_MS),
 			client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), NOTIFICATION_TIMEOUT_MS),
 		]);
 
@@ -400,16 +423,21 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 					isActionNotification(notification, ActionType.SessionCustomizationsChanged) &&
 					getActionEnvelope(notification).channel === sessionUri
 				);
+				// Only settled (non-empty) notifications represent a real state
+				// change; transient pre-discovery `customizations: []` snapshots
+				// may straddle a `clearReceived()` (see
+				// `isSettledCustomizationsNotification`) and must not be counted.
+				const settledNotifications = matchingNotifications.filter(notification => isSettledCustomizationsNotification(notification, sessionUri));
 				assert.strictEqual(
-					matchingNotifications.length,
+					settledNotifications.length,
 					1,
-					`expected exactly one ${ActionType.SessionCustomizationsChanged} notification for ${directoryUri}; got ${matchingNotifications.length}: ${JSON.stringify(matchingNotifications)}`,
+					`expected exactly one settled ${ActionType.SessionCustomizationsChanged} notification for ${directoryUri}; got ${settledNotifications.length} settled of ${matchingNotifications.length} total: ${JSON.stringify(matchingNotifications)}`,
 				);
 			};
 
 			const getMatchingActionFromNotifications = (notifications: ReturnType<TestProtocolClient['receivedNotifications']>): SessionCustomizationsChangedAction | undefined => {
 				for (const notification of notifications) {
-					if (!isActionNotification(notification, ActionType.SessionCustomizationsChanged) || getActionEnvelope(notification).channel !== sessionUri) {
+					if (!isSettledCustomizationsNotification(notification, sessionUri)) {
 						continue;
 					}
 					const action = getActionEnvelope(notification).action as SessionCustomizationsChangedAction;
@@ -431,7 +459,7 @@ suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizatio
 			let notif;
 			try {
 				notif = await client.waitForNotification(n => {
-					if (!isActionNotification(n, ActionType.SessionCustomizationsChanged) || getActionEnvelope(n).channel !== sessionUri) {
+					if (!isSettledCustomizationsNotification(n, sessionUri)) {
 						return false;
 					}
 					const action = getActionEnvelope(n).action as SessionCustomizationsChangedAction;

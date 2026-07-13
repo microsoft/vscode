@@ -29,10 +29,10 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
@@ -93,7 +93,7 @@ interface IAICustomizationGroupItem {
 	readonly type: 'group';
 	readonly id: string;
 	readonly label: string;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly storage: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly icon: ThemeIcon;
 }
@@ -107,7 +107,7 @@ interface IAICustomizationFileItem {
 	readonly uri: URI;
 	readonly name: string;
 	readonly description?: string;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly storage: AICustomizationSource;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
 }
@@ -321,6 +321,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		private readonly promptsService: IPromptsService,
 		private readonly logService: ILogService,
 		private readonly onItemCountChanged: (count: number) => void,
+		private readonly isAutomationsEnabled: () => boolean,
 	) { }
 
 	/**
@@ -363,7 +364,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	}
 
 	private getTypeCategories(): (IAICustomizationTypeItem | IAICustomizationLinkItem)[] {
-		return [
+		const items: (IAICustomizationTypeItem | IAICustomizationLinkItem)[] = [
 			{
 				type: 'category',
 				id: 'category-agents',
@@ -385,6 +386,17 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				promptType: PromptsType.instructions,
 				icon: instructionsIcon,
 			},
+		];
+		if (this.isAutomationsEnabled()) {
+			items.push({
+				type: 'link',
+				id: 'link-automations',
+				label: localize('automations', "Automations"),
+				icon: automationIcon,
+				section: AICustomizationManagementSection.Automations,
+			});
+		}
+		items.push(
 			{
 				type: 'link',
 				id: 'link-mcp-servers',
@@ -392,7 +404,8 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: mcpServerIcon,
 				section: AICustomizationManagementSection.McpServers,
 			},
-		];
+		);
+		return items;
 	}
 
 	/**
@@ -420,7 +433,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceSkills = cached.skills.filter(s => s.storage === PromptsStorage.local);
 			const userSkills = cached.skills.filter(s => s.storage === PromptsStorage.user);
 			const extensionSkills = cached.skills.filter(s => s.storage === PromptsStorage.extension);
-			const builtinSkills = cached.skills.filter(s => s.storage === BUILTIN_STORAGE);
+			const builtinSkills = cached.skills.filter(s => s.storage === PromptsStorage.builtIn);
 
 			if (workspaceSkills.length > 0) {
 				groups.push(this.createGroupItem(promptType, AICustomizationSources.local, workspaceSkills.length));
@@ -456,13 +469,13 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
-			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
+			const builtinItems = allItems.filter(item => item.storage === PromptsStorage.builtIn);
 
 			cached.files = new Map<string, readonly IPromptPath[]>([
 				[PromptsStorage.local, workspaceItems],
 				[PromptsStorage.user, userItems],
 				[PromptsStorage.extension, extensionItems],
-				[BUILTIN_STORAGE, builtinItems],
+				[PromptsStorage.builtIn, builtinItems],
 			]);
 
 			const itemCount = allItems.length;
@@ -473,7 +486,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		const workspaceItems = cached.files!.get(PromptsStorage.local) || [];
 		const userItems = cached.files!.get(PromptsStorage.user) || [];
 		const extensionItems = cached.files!.get(PromptsStorage.extension) || [];
-		const builtinItems = cached.files!.get(BUILTIN_STORAGE) || [];
+		const builtinItems = cached.files!.get(PromptsStorage.builtIn) || [];
 
 		if (workspaceItems.length > 0) {
 			groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceItems.length));
@@ -485,7 +498,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionItems.length));
 		}
 		if (builtinItems.length > 0) {
-			groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinItems.length));
+			groups.push(this.createGroupItem(promptType, PromptsStorage.builtIn, builtinItems.length));
 		}
 
 		return groups;
@@ -533,7 +546,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	 * Returns files for a specific storage/type combination from cache.
 	 * getStorageGroups must be called first to populate the cache.
 	 */
-	private async getFilesForStorageAndType(storage: AICustomizationPromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
+	private async getFilesForStorageAndType(storage: AICustomizationSource, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
 		const cached = this.cache.get(promptType);
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 
@@ -675,6 +688,7 @@ export class AICustomizationViewPane extends ViewPane {
 			this.promptsService,
 			this.logService,
 			(count) => this.isEmptyContextKey.set(count === 0),
+			() => this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
 		);
 
 		this.tree = this.treeDisposables.add(this.instantiationService.createInstance(

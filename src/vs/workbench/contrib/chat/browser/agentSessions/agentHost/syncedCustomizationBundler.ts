@@ -11,6 +11,7 @@ import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
@@ -43,9 +44,37 @@ function pluginDirForType(type: PromptsType): string | undefined {
 	}
 }
 
-interface ISyncableFile {
+export interface ISyncableFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
+	/**
+	 * Where this file originally came from (extension, plugin, built-in, ...).
+	 * Optional because it is only used to populate the provenance reverse map;
+	 * files without it simply have no recoverable {@link ISyncedCustomizationOrigin}.
+	 */
+	readonly source?: AICustomizationSource;
+	/** Identifier of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionId?: string;
+	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
+	readonly pluginUri?: URI;
+}
+
+/**
+ * Describes where a file bundled into the synthetic plugin originally came
+ * from. The bundle flattens files from many different sources (extensions,
+ * plugins, built-ins) into a single in-memory plugin, which erases their
+ * provenance. {@link SyncedCustomizationBundler.getOrigin} lets consumers
+ * recover it by mapping a synced (destination) URI back to this record.
+ */
+export interface ISyncedCustomizationOrigin {
+	/** The original local file URI before it was copied into the synthetic bundle. */
+	readonly uri: URI;
+	/** Where the file originally came from (extension, plugin, built-in, ...). */
+	readonly source: AICustomizationSource;
+	/** Identifier of the contributing extension, when {@link source} is `extension`. */
+	readonly extensionId?: string;
+	/** Root URI of the contributing plugin, when {@link source} is `plugin`. */
+	readonly pluginUri?: URI;
 }
 
 /**
@@ -88,6 +117,8 @@ export class SyncedCustomizationBundler extends Disposable {
 	private readonly _authority: string;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
+	/** Maps a synced (destination) URI string back to its original source location. Rebuilt on every {@link bundle}. */
+	private _originByDest = new Map<string, ISyncedCustomizationOrigin>();
 
 	constructor(
 		authority: string,
@@ -129,6 +160,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// bundle (a frequent case when a change event fires but content is
 		// identical).
 		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
+		const originByDest = new Map<string, ISyncedCustomizationOrigin>();
 		await Promise.all(syncable.map(async file => {
 			const dir = pluginDirForType(file.type)!;
 			const fileName = basename(file.uri);
@@ -148,9 +180,26 @@ export class SyncedCustomizationBundler extends Disposable {
 				hashKey = `${dir}/${fileName}`;
 			}
 
+			// Record the reverse mapping so the flattened file's original
+			// provenance (extension/plugin/built-in) can be recovered later.
+			// Only files that carry a source have recoverable provenance.
+			if (file.source !== undefined) {
+				originByDest.set(destUri.toString(), {
+					uri: file.uri,
+					source: file.source,
+					extensionId: file.extensionId,
+					pluginUri: file.pluginUri,
+				});
+			}
+
 			const content = await this._fileService.readFile(file.uri);
 			entries.push({ destUri, content: content.value, hashPart: `${hashKey}:${content.value.toString()}` });
 		}));
+
+		// Publish the freshly computed provenance map. This is done before the
+		// nonce short-circuit below so the map always reflects the latest set of
+		// bundled files, even when the content nonce is unchanged.
+		this._originByDest = originByDest;
 
 		// Write MCP servers into `.mcp.json`. The agent host's Open Plugin
 		// adapter reads this file relative to the plugin root. Servers are
@@ -224,5 +273,14 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	get lastNonce(): string | undefined {
 		return this._lastNonce;
+	}
+
+	/**
+	 * Recovers the original provenance of a file that was flattened into the
+	 * synthetic bundle, given its synced (destination) URI. Returns `undefined`
+	 * for URIs that are not part of the most recent bundle.
+	 */
+	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
+		return this._originByDest.get(syncedUri.toString());
 	}
 }

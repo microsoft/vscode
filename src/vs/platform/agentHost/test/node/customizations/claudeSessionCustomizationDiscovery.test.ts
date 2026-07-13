@@ -371,6 +371,27 @@ suite('claudeSessionCustomizationDiscovery', () => {
 			await settle();
 			assert.strictEqual(fires, 1);
 		});
+
+		test('ignores SDK runtime churn under `.claude` (transcripts, history, tasks, ...)', async () => {
+			const watcher = disposables.add(new ClaudeCustomizationWatcher(workspace, userHome, fileService, new NullLogService(), debounceMs));
+			let fires = 0;
+			disposables.add(watcher.onDidChange(() => { fires++; }));
+
+			// The Claude SDK constantly rewrites these under `~/.claude` during a
+			// turn. None of them are customization sources, so they must not
+			// trigger a re-scan (previously each write fanned out to an O(N^2)
+			// storm of `SessionCustomizationsChanged` envelopes).
+			await Promise.all([
+				seed('/home/.claude/history.jsonl', '{}'),
+				seed('/home/.claude/projects/-Users-me-repo/session.jsonl', '{}'),
+				seed('/home/.claude/tasks/abc/state.json', '{}'),
+				seed('/home/.claude/file-history/abc/edit.json', '{}'),
+				seed('/home/.claude/shell-snapshots/snap.sh', '#'),
+				seed('/home/.claude/stats-cache.json', '{}'),
+			]);
+			await settle();
+			assert.strictEqual(fires, 0);
+		});
 	});
 
 	suite('resolveClaudeAgentName', () => {

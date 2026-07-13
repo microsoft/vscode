@@ -22,7 +22,7 @@ import { parseChatUri, parseSubagentSessionUri } from '../../../../../platform/a
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat } from '../../../../services/sessions/common/session.js';
+import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 // "Open Subagent" affordance for agent host worker (subagent) chats.
 //
@@ -244,17 +244,30 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			: localize('chat.subagent.prefix', "Subagent");
 	}
 
+	/**
+	 * Tracks the resolved subagent chat's title and running state. The pill's
+	 * spinner reflects the subagent chat's **own** {@link SessionStatus.InProgress}
+	 * status rather than the parent `.chat-subagent-part`'s `chat-thinking-active`
+	 * class: the spawning tool call completes as soon as the subagent is
+	 * dispatched, so that class stops early while the worker keeps running.
+	 */
 	private _updateTitleTracker(): void {
 		const resource = contextChatResource(this._context);
 		if (!resource) {
 			this._titleTracker.clear();
 			this._setResolvedTitle(undefined);
+			this._setRunning(false);
 			return;
 		}
 		this._titleTracker.value = autorun(reader => {
-			const title = findSubagentChat(this.sessionsService, resource, reader)?.chat.title.read(reader);
-			this._setResolvedTitle(title || undefined);
+			const chat = findSubagentChat(this.sessionsService, resource, reader)?.chat;
+			this._setResolvedTitle(chat?.title.read(reader) || undefined);
+			this._setRunning(chat?.status.read(reader) === SessionStatus.InProgress);
 		});
+	}
+
+	private _setRunning(running: boolean): void {
+		this.element?.classList.toggle('chat-subagent-running', running);
 	}
 
 	private _setResolvedTitle(title: string | undefined): void {

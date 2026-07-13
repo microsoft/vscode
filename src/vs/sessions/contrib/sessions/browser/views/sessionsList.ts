@@ -28,23 +28,27 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -86,7 +90,7 @@ export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
 
-/** Controls whether empty default groups (Pinned, Chats) are shown in the sessions list. */
+/** Controls whether the empty default Chats group is shown in the sessions list. */
 export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.showEmptyDefaultGroups';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
@@ -200,6 +204,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
+		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 	) { }
 
 	getHeight(element: SessionListItem): number {
@@ -220,11 +225,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
 		}
+		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
+			height += SessionItemRenderer.CI_ROW_HEIGHT;
+		}
 		return height;
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
-		return !!this._approvalModel && isSessionItem(element);
+		return (!!this._approvalModel || !!this._ciFixModel) && isSessionItem(element);
 	}
 
 	getTemplateId(element: SessionListItem): string {
@@ -279,11 +287,15 @@ interface ISessionItemTemplate {
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleContainer: HTMLElement;
-	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
+	readonly pendingVoiceIndicator: HTMLElement;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
+	readonly ciRow: HTMLElement;
+	readonly ciLabel: HTMLElement;
+	readonly ciButtonContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -299,12 +311,39 @@ export interface IApprovedSession {
 	readonly approvalId: string;
 }
 
+/** Summary of a session's failing CI checks, backing its "Fix CI" row. */
+export interface ISessionCIFixState {
+	/** Number of checks that have completed with a failing conclusion. */
+	readonly failed: number;
+	/** Number of checks still running or queued. */
+	readonly pending: number;
+}
+
+/**
+ * Supplies the per-session "Fix CI" row shown for blocked sessions whose pull
+ * request has failing CI checks. Only the blocked-sessions dropdown provides one
+ * (via {@link ISessionsFlatListOptions.ciFixModel}), so the row never appears in
+ * any other session list.
+ */
+export interface ISessionCIFixModel {
+	/**
+	 * Observable CI-failure summary for a session, or `undefined` when it has no
+	 * failing checks (or the user already requested a fix for the current commit).
+	 */
+	getCIFix(session: ISession): IObservable<ISessionCIFixState | undefined>;
+	/** Kick off the fix-CI flow for the session in the background (no session is opened). */
+	fixCI(session: ISession): void;
+}
+
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
+
+	/** Height of the single-line "Fix CI" row (label + orange button), including its top margin. */
+	static readonly CI_ROW_HEIGHT = 32;
 
 	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
 		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
@@ -319,8 +358,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarActions: boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
@@ -328,7 +368,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly sessionsProvidersService: ISessionsProvidersService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
-	) { }
+		private readonly _voicePlaybackService: IVoicePlaybackService,
+	) {
+	}
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
 		const disposables = new DisposableStore();
@@ -354,6 +396,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 		}));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
+		// Shown when a voice response arrived while this session was unfocused and
+		// is held until it is (mirrors the main window's sessions viewer).
+		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
 		// The list opens a session on click and on Gesture `tap` (touch).
 		// DOM event propagation stops only cover mouse/pointer events; the
 		// list's tap handler reads from `Gesture` directly, bypassing
@@ -371,15 +416,33 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const approvalLabel = DOM.append(approvalRow, $('span.session-approval-label'));
 		const approvalButtonContainer = DOM.append(approvalRow, $('.session-approval-button'));
 
+		// Fix-CI row — shown only in the blocked-sessions list for sessions whose
+		// pull request has failing CI checks. Styled like the chat input's CI banner.
+		const ciRow = DOM.append(mainCol, $('.session-ci-row'));
+		const ciLabel = DOM.append(ciRow, $('span.session-ci-label'));
+		const ciButtonContainer = DOM.append(ciRow, $('.session-ci-button'));
+		// The list opens a session on click/tap. The "Fix CI" button opens the
+		// session itself as part of its flow, so swallow row clicks here to stop
+		// them bubbling to the tree and triggering a second, racing open.
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(ciRow, eventType, e => e.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(ciRow));
+
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
-		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
-			menuOptions: { shouldForwardArgs: true },
-			actionRunner,
-		}));
+		// When toolbar actions are disabled (e.g. the blocked-sessions dropdown) the row
+		// renders no inline action toolbar at all.
+		let titleToolbar: MenuWorkbenchToolBar | undefined;
+		if (this.options.toolbarActions) {
+			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
+			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
+				menuOptions: { shouldForwardArgs: true },
+				actionRunner,
+			}));
+		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -410,8 +473,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}), { groupId: 'sessions-list' }));
 		}
 
+		// Pending voice response indicator: a response arrived while this session
+		// was unfocused and is held until it is.
+		const pendingVoiceResource = element.resource;
+		template.pendingVoiceIndicator.className = 'session-pending-voice-indicator ' + ThemeIcon.asClassName(Codicon.unmute);
+		template.elementDisposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			template.pendingVoiceIndicator,
+			localize('pendingVoiceResponse', "Voice response ready"),
+		));
+		template.elementDisposables.add(autorun(reader => {
+			this._voicePlaybackService.pendingResponseVersion.read(reader);
+			template.pendingVoiceIndicator.classList.toggle('visible', this._voicePlaybackService.hasPendingResponse(pendingVoiceResource));
+		}));
+
 		// Toolbar context
-		template.titleToolbar.context = element;
+		if (template.titleToolbar) {
+			template.titleToolbar.context = element;
+		}
 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
@@ -613,6 +692,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.approvalModel) {
 			this.renderApprovalRow(element, template);
 		}
+
+		// Fix-CI row — reactive (only supplied by the blocked-sessions list)
+		if (this.ciFixModel) {
+			this.renderCIRow(element, template);
+		}
 	}
 
 	private renderApprovalRow(element: ISession, template: ISessionItemTemplate): void {
@@ -675,6 +759,49 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					info.confirm();
 					this._onDidApproveSession.fire({ session: element, approvalId });
 				}));
+			}
+
+			if (wasVisible !== visible) {
+				wasVisible = visible;
+				this._onDidChangeItemHeight.fire(element);
+			}
+		}));
+	}
+
+	private renderCIRow(element: ISession, template: ISessionItemTemplate): void {
+		if (!this.ciFixModel) {
+			return;
+		}
+
+		const ciFixModel = this.ciFixModel;
+		const stateObs = ciFixModel.getCIFix(element);
+		let wasVisible = !!stateObs.get();
+		template.ciRow.classList.toggle('visible', wasVisible);
+
+		const buttonStore = template.elementDisposables.add(new DisposableStore());
+
+		template.elementDisposables.add(autorun(reader => {
+			buttonStore.clear();
+
+			const state = stateObs.read(reader);
+			const visible = !!state;
+
+			template.ciRow.classList.toggle('visible', visible);
+
+			if (state) {
+				template.ciLabel.textContent = localize('ci.blockedRow', "{0} checks failed, {1} pending", state.failed, state.pending);
+
+				template.ciButtonContainer.textContent = '';
+				// Match the chat input CI banner's prominent orange action button.
+				const button = buttonStore.add(new Button(template.ciButtonContainer, {
+					title: localize('ci.fixCITooltip', "Fix failing CI checks"),
+					...defaultButtonStyles,
+					buttonBackground: asCssVariable(chartsOrange),
+					buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+					buttonBorder: asCssVariable(chartsOrange),
+				}));
+				button.label = localize('ci.fixCI', "Fix CI");
+				buttonStore.add(button.onDidClick(() => ciFixModel.fixCI(element)));
 			}
 
 			if (wasVisible !== visible) {
@@ -1623,15 +1750,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarActions: true },
 			approvalModel,
+			undefined,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
 			agentSessionsService,
+			voicePlaybackService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
@@ -2034,15 +2164,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
-		// Keep the "Pinned" and "Chats" default sections visible even when empty so
-		// they stay discoverable, unless the user opts out via the setting.
+		// Keep the "Chats" default section visible even when empty so it stays
+		// discoverable, unless the user opts out via the setting. The "Pinned"
+		// section is only shown when it actually has pinned sessions.
 		const showEmptyDefaultGroups = this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING);
-
-		// Keep the "Pinned" section always visible (even with no pinned sessions)
-		// so it is discoverable, mirroring the always-visible "Chats" section.
-		if (showEmptyDefaultGroups && !sections.some(s => s.id === 'pinned')) {
-			sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: [] });
-		}
 
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
@@ -2128,12 +2253,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				&& this.workspaceGroupCapped;
 			let sectionChildren = renderSessionChildren(section.sessions, section.id, section.label, limitSessions);
 
-			// The always-visible "Chats" and "Pinned" sections show a muted
-			// placeholder row when they have no sessions yet.
+			// The always-visible "Chats" section shows a muted placeholder row
+			// when it has no sessions yet.
 			if (section.id === QUICK_CHATS_SECTION_ID && section.sessions.length === 0) {
 				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noChats', "No chats") } }];
-			} else if (section.id === 'pinned' && section.sessions.length === 0) {
-				sectionChildren = [{ element: { placeholder: true as const, sectionId: section.id, label: localize('noPinnedSessions', "No pinned sessions") } }];
 			}
 
 			// Default collapse state for older time sections
@@ -2148,9 +2271,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
-			// The always-visible "Pinned" and "Chats" sections start collapsed on
-			// first open; the user's later choice is persisted and honored via
-			// getSavedCollapseState.
+			// The "Pinned" and "Chats" sections start collapsed on first open; the
+			// user's later choice is persisted and honored via getSavedCollapseState.
 			if (section.id === 'pinned' || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
@@ -2599,6 +2721,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsRenameContext.key, element.capabilities.get().supportsRename ?? false],
 			[SessionSupportsDeleteContext.key, element.capabilities.get().supportsDelete ?? false],
+			[SessionHasPullRequestContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
@@ -3232,11 +3355,23 @@ export interface ISessionsFlatListOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 	/**
+	 * Supplies the per-session "Fix CI" row for sessions whose pull request has
+	 * failing CI checks. Only the blocked-sessions dropdown passes one, so the row
+	 * never appears in other lists. When omitted no fix-CI rows are rendered.
+	 */
+	readonly ciFixModel?: ISessionCIFixModel;
+	/**
 	 * Maximum number of terminal-command lines shown in a session's approval
 	 * prompt. Defaults to the same limit as the main sessions list; the
 	 * blocked-sessions dropdown passes a larger value.
 	 */
 	readonly approvalRowMaxLines?: number;
+	/**
+	 * Whether each session row renders its inline action toolbar (pin, mark as done,
+	 * etc.). Defaults to `true`; set to `false` for surfaces where those actions
+	 * don't apply (e.g. the blocked-sessions dropdown), which renders no toolbar.
+	 */
+	readonly toolbarActions?: boolean;
 }
 
 /**
@@ -3269,6 +3404,7 @@ export class SessionsFlatList extends Disposable {
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 	) {
 		super();
 
@@ -3293,17 +3429,20 @@ export class SessionsFlatList extends Disposable {
 				showHover: this.options.showSessionHover ?? true,
 				isInChatsSection: s => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
+				toolbarActions: this.options.toolbarActions ?? true,
 			},
 			approvalModel,
+			this.options.ciFixModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
 			agentSessionsService,
+			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,

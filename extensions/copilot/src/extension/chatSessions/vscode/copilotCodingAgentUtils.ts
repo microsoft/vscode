@@ -3,10 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { AgentTaskState } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { UriHandlerPaths, UriHandlers } from './chatSessionsUriHandler';
+
+/**
+ * Task (v2) lifecycle states in which the cloud agent still owns the turn (or is about to):
+ * the session must render as active and any live stream keep polling. Terminal states
+ * (`completed`/`failed`/`timed_out`/`cancelled`) return false. This is the single source of
+ * truth for "is the task still running" so the detail view, the `activeResponseCallback`
+ * gate, and the {@link TaskTurnStreamer} settle check all agree.
+ */
+export function isActiveTaskState(state: AgentTaskState): boolean {
+	switch (state) {
+		case 'queued':
+		case 'in_progress':
+		case 'idle':
+		case 'waiting_for_user':
+			return true;
+		case 'completed':
+		case 'failed':
+		case 'timed_out':
+		case 'cancelled':
+			return false;
+	}
+}
+
+/**
+ * Task (v2) lifecycle states that represent an unsuccessful terminal outcome. Used to render a
+ * failure notice in the detail view when the task ended without emitting any events (e.g.
+ * "Failed to launch agent"), which otherwise leaves the latest turn's session state stuck at
+ * `in_progress`/`queued` and shows a perpetual "Session is in progress…" spinner.
+ */
+export function isFailedTaskState(state: AgentTaskState): boolean {
+	return state === 'failed' || state === 'timed_out' || state === 'cancelled';
+}
 
 export const MAX_PROBLEM_STATEMENT_LENGTH = 30_000 - 50; // 50 character buffer
 export const CONTINUE_TRUNCATION = vscode.l10n.t('Continue with truncation');

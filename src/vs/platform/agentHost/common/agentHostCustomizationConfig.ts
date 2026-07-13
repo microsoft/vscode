@@ -20,16 +20,6 @@ export const enum AgentHostConfigKey {
 	 * TODO: revisit magic key in config; refine into a dedicated typed channel. https://github.com/microsoft/vscode/issues/313812
 	 */
 	DefaultShell = 'defaultShell',
-	/** When true, Copilot SDK sessions use Agent Host's custom terminal tool override instead of the SDK's default terminal behavior. Disabled by default. */
-	EnableCustomTerminalTool = 'enableCustomTerminalTool',
-	/** When true, Copilot SDK sessions enable the rubber duck critic subagent. */
-	RubberDuck = 'rubberDuck',
-	/**
-	 * When true, Copilot SDK sessions running a Claude Opus 4.8 model apply the
-	 * Opus 4.8-tuned system-prompt section overrides on top of the SDK
-	 * foundation prompt. Opt-in; disabled by default.
-	 */
-	Opus48Prompt = 'opus48Prompt',
 	/**
 	 * When true (the default), the Claude provider routes all Anthropic
 	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
@@ -37,6 +27,16 @@ export const enum AgentHostConfigKey {
 	 * the user's own credentials (BYO Anthropic — Phase 19).
 	 */
 	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	/**
+	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
+	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
+	 * Cloud). When set, the agent host computes its GitHub protected resources and
+	 * REST/GraphQL endpoints from this base instead of github.com. Normally pushed
+	 * by the local VS Code client from the workbench `github-enterprise.uri`
+	 * setting; remote operators set it directly in the remote
+	 * `agent-host-config.json`.
+	 */
+	GithubEnterpriseUri = 'githubEnterpriseUri',
 }
 
 /**
@@ -83,29 +83,16 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
-		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
-		default: false,
-	}),
-	[AgentHostConfigKey.RubberDuck]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
-		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
-		default: false,
-	}),
-	[AgentHostConfigKey.Opus48Prompt]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
-		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
-		default: false,
-	}),
 	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
 		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
 		default: true,
+	}),
+	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
+		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
 });
 

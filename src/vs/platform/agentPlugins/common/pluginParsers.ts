@@ -135,8 +135,8 @@ export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
 	readonly hookConfigPath: string;
-	readonly pluginRootToken: string | undefined;
-	readonly pluginRootEnvVar: string | undefined;
+	readonly pluginRootTokens: readonly string[];
+	readonly pluginRootEnvVars: readonly string[];
 	/** Parses hooks from a JSON object using the format's conventions. */
 	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
@@ -145,8 +145,8 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
 	manifestPath: 'plugin.json',
 	hookConfigPath: 'hooks.json',
-	pluginRootToken: undefined,
-	pluginRootEnvVar: undefined,
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
@@ -156,8 +156,8 @@ const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${CLAUDE_PLUGIN_ROOT}',
-	pluginRootEnvVar: 'CLAUDE_PLUGIN_ROOT',
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
 		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	},
@@ -167,8 +167,8 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.OpenPlugin,
 	manifestPath: '.plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${PLUGIN_ROOT}',
-	pluginRootEnvVar: 'PLUGIN_ROOT',
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
 		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	},
@@ -448,10 +448,10 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 export function interpolateMcpPluginRoot(
 	def: IMcpServerDefinition,
 	fsPath: string,
-	token: string,
-	envVar: string,
+	tokens: readonly string[],
+	envVars: readonly string[],
 ): IMcpServerDefinition {
-	const replace = (s: string) => s.replaceAll(token, fsPath);
+	const replace = (s: string) => tokens.reduce((result, token) => result.replaceAll(token, fsPath), s);
 
 	const config = def.configuration;
 	let interpolated: IMcpServerConfiguration;
@@ -471,7 +471,9 @@ export function interpolateMcpPluginRoot(
 				local.env[k] = replace(v);
 			}
 		}
-		local.env[envVar] = fsPath;
+		for (const envVar of envVars) {
+			local.env[envVar] = fsPath;
+		}
 		if (local.envFile) {
 			local.envFile = replace(local.envFile);
 		}
@@ -1094,8 +1096,9 @@ export function parseMcpServerDefinitionMap(
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		if (formatConfig.pluginRootToken && formatConfig.pluginRootEnvVar) {
-			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootToken, formatConfig.pluginRootEnvVar);
+		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
+		if (def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
+			def = { ...def, configuration: { ...def.configuration, cwd: pluginFsPath } };
 		}
 		def = convertBareEnvVarsToVsCodeSyntax(def);
 		definitions.push(def);

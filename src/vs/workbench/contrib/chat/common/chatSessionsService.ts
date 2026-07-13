@@ -83,6 +83,12 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly longContextCacheCost?: number;
 	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly capabilities?: {
@@ -280,6 +286,7 @@ export type IChatSessionHistoryItem = {
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	isTerminalRequest?: boolean;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -300,6 +307,17 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly isTerminalRequest?: boolean;
+}
+
+/**
+ * Whether `text` runs as a terminal command for the given command `prefix`
+ * (e.g. `!`) — it starts with the prefix and has a non-empty command after it.
+ * Mirrors the agent host's bang parser, where a lone `!` (or `!` followed only
+ * by whitespace) is forwarded to the agent rather than executed.
+ */
+export function isTerminalCommandPrompt(text: string, prefix: string | undefined): boolean {
+	return !!prefix && text.startsWith(prefix) && text.slice(prefix.length).trim().length > 0;
 }
 
 /**
@@ -408,6 +426,9 @@ export interface IChatSession extends IDisposable {
 
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
+	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Optional. Compute completion items for an input being composed in this
@@ -713,6 +734,8 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+	/** Resolves a parsed response Markdown URI through its session content provider. */
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Compute completion items for an input being composed in the chat

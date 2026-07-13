@@ -11,6 +11,7 @@ export const COPILOT_BRANCH_PREFIX = 'agents/';
 const COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;
+const MAX_BRANCH_NAME_CANDIDATES = 100;
 
 export interface ICopilotBranchNameGeneratorRequest {
 	readonly sessionId: string;
@@ -18,11 +19,17 @@ export interface ICopilotBranchNameGeneratorRequest {
 	readonly githubToken?: string;
 	readonly signal?: AbortSignal;
 	/**
-	 * Optional predicate used to check whether a candidate branch name already
-	 * exists. When it reports a collision, a short suffix derived from the
-	 * session id is appended so the generated branch name stays unique.
+	 * Optional prefix prepended before the built-in {@link COPILOT_BRANCH_PREFIX}
+	 * when constructing the branch name (e.g. the user's `git.branchPrefix`
+	 * setting). An empty or omitted value preserves the historical
+	 * `agents/<hint>` naming.
 	 */
-	readonly branchExists?: (branchName: string) => Promise<boolean>;
+	readonly branchPrefix?: string;
+	/**
+	 * Optional predicate used to check whether a candidate branch name collides
+	 * with an existing branch or its corresponding worktree path.
+	 */
+	readonly branchNameCollides?: (branchName: string) => Promise<boolean>;
 }
 
 export const ICopilotBranchNameGenerator = createDecorator<ICopilotBranchNameGenerator>('copilotBranchNameGenerator');
@@ -105,19 +112,27 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 	}
 
 	private async _buildBranchName(request: ICopilotBranchNameGeneratorRequest, branchNameHint: string | undefined): Promise<string> {
-		if (!branchNameHint) {
-			// No usable hint - fall back to the (already unique) session id.
-			return `${COPILOT_BRANCH_PREFIX}${request.sessionId}`;
+		// Prepend the caller-supplied prefix (e.g. `git.branchPrefix`) ahead of
+		// the built-in `agents/` prefix. An empty/omitted value keeps the
+		// historical `agents/<hint>` shape.
+		const prefix = `${request.branchPrefix ?? ''}${COPILOT_BRANCH_PREFIX}`;
+
+		const branchName = `${prefix}${branchNameHint ?? request.sessionId}`;
+		const collisionBase = branchNameHint
+			? `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`
+			: branchName;
+		for (let candidateIndex = 0; candidateIndex < MAX_BRANCH_NAME_CANDIDATES; candidateIndex++) {
+			const candidate = candidateIndex === 0
+				? branchName
+				: branchNameHint && candidateIndex === 1
+					? collisionBase
+					: `${collisionBase}-${branchNameHint ? candidateIndex : candidateIndex + 1}`;
+			if (!request.branchNameCollides || !await request.branchNameCollides(candidate)) {
+				return candidate;
+			}
 		}
 
-		// Prefer the bare hint and only append a short session-id suffix when
-		// the branch name would collide with an existing branch.
-		const branchName = `${COPILOT_BRANCH_PREFIX}${branchNameHint}`;
-		if (request.branchExists && await request.branchExists(branchName)) {
-			return `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`;
-		}
-
-		return branchName;
+		throw new Error(`Unable to find an available branch name after checking ${MAX_BRANCH_NAME_CANDIDATES} candidates`);
 	}
 }
 

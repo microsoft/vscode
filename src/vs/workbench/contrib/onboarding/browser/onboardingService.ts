@@ -104,6 +104,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// flags resolve. The filter blocks any id with the reserved onboarding prefix unless its
 		// gate has already been opened (this session or persisted from a previous one).
 		this.assignmentService.addTelemetryAssignmentFilter({
+			id: 'onboarding',
 			exclude: assignment => assignment.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX) && !this._openedAssignmentContextIds.has(assignment),
 			onDidChange: this._onDidChangeOpenedIds.event
 		});

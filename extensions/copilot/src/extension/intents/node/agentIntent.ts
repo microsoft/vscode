@@ -12,7 +12,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../plat
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGptFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -98,26 +98,18 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  * Only clamps when the selection is strictly smaller than the model window so
  * the full tier ("Longer sessions") stays uncompacted.
  *
- * When no explicit selection is present and the model has a long-context
- * surcharge, falls back to the model's default context-max tier
- * (`tokenPricing.default.contextMax`). When both tiers cost the same (no
- * `longContext` pricing tier), skips the fallback and uses the full native
- * window — users get long context for free.
+ * When no explicit selection is present, falls back to the default context-max tier, unless the tiers cost the same and `chat.preferLongContext.enabled` is set, in which case the full native window is used.
  *
  * @internal - exported for testing
  */
-export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest, preferLongContext: boolean = false): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	// Use the explicit selection when valid, otherwise fall back to the default
-	// context-max tier. Guard against non-positive / non-finite selections
-	// (e.g. 0, -1, NaN, Infinity): a non-positive token budget would produce an
-	// invalid endpoint configuration.
-	// When both tiers cost the same (no longContext pricing tier), skip the
-	// fallback and use the full model window — users get long context for free.
+	// Prefer a valid explicit selection; otherwise fall back to the default tier. Guard against non-positive / non-finite selections (0, -1, NaN, Infinity). When tiers cost the same and the user prefers long context, skip the fallback and use the full window. See microsoft/vscode#322950, microsoft/vscode#323116.
 	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
+	const useDefaultTierFallback = !preferLongContext || hasLongContextSurcharge;
 	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
 		? contextSize
-		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
+		: useDefaultTierFallback ? endpoint.tokenPricing?.default.contextMax : undefined;
 	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
 		return endpoint.cloneWithTokenOverride(effectiveSize);
 	}
@@ -291,7 +283,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	if (model.family.includes('grok-code')) {
+	if (isXAiFamily(model)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -374,7 +366,8 @@ export class AgentIntent extends EditCodeIntent {
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@ILogService private readonly _logService: ILogService,
 		@IToolsService private readonly _toolsService: IToolsService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
 		this._sessionListeners.add(chatSessionService.onDidDisposeChatSession(sessionId => {
@@ -473,23 +466,37 @@ export class AgentIntent extends EditCodeIntent {
 		try {
 			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
 		} finally {
-			// Fire one final bg todo review pass once the agent loop has ended for
-			// this turn. The per-round passes never see the very last round, so any
-			// task that just completed otherwise stays stuck as 'in-progress'.
-			// Await completion so this final pass runs before we return, while the
-			// request's tool invocation token is (hopefully) still valid.
-
-			if (request.subAgentInvocationId === undefined && request.subAgentName === undefined) {
-				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				if (todoProcessor) {
-					await raceTimeout(
-						todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
-						5000,
-						() => todoProcessor.cancel()
-					);
-				}
-			}
+			await this._runFinalBackgroundTodoPass(conversation, request);
 		}
+	}
+
+	/**
+	 * Fire one final bg todo review pass once the agent loop has ended for this
+	 * turn. The per-round passes never see the very last round, so any task that
+	 * just completed otherwise stays stuck as 'in-progress'. Awaits completion so
+	 * this final pass runs before we return, while the request's tool invocation
+	 * token is (hopefully) still valid.
+	 */
+	private async _runFinalBackgroundTodoPass(conversation: Conversation, request: vscode.ChatRequest): Promise<void> {
+		if (request.subAgentInvocationId !== undefined || request.subAgentName !== undefined) {
+			return;
+		}
+		const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+		if (!todoProcessor) {
+			return;
+		}
+		// Only run the final review pass when the background todo agent is still
+		// enabled for the current model. If the user switched to a BYOK (non-CAPI)
+		// model mid-session, the existing processor must not fire against it.
+		const endpoint = await this.endpointProvider.getChatEndpoint(request).catch(() => undefined);
+		if (!endpoint || !isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this._authenticationService, request)) {
+			return;
+		}
+		await raceTimeout(
+			todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
+			5000,
+			() => todoProcessor.cancel()
+		);
 	}
 
 	private async handleSummarizeCommand(
@@ -669,7 +676,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// so the server-managed compaction threshold (Responses API) is keyed to the
 		// selected tier rather than the model's full native window. See
 		// applyContextSizeOverride for the cost rationale.
-		super(intent, location, applyContextSizeOverride(endpoint, request), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		super(intent, location, applyContextSizeOverride(endpoint, request, configurationService.getConfig(ConfigKey.PreferLongContext)), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
-import { McpCustomizationController, findMcpChildId, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 function harness(opts: { customizations?: readonly Customization[] } = {}) {
 	const actions: SessionAction[] = [];
@@ -219,6 +219,8 @@ suite('McpCustomizationController', () => {
 			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: 'mcp://copilot/session-1/fs' }],
 			['mcp-top-level:copilot:session-1:search', { state: { kind: McpServerStatus.Starting }, channel: undefined }],
 		]));
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:fs'), 'fs');
+		assert.strictEqual(controller.serverNameForCustomizationId('mcp-top-level:copilot:session-1:search'), 'search');
 
 		controller.remove('fs');
 		assert.deepStrictEqual([...controller.runtimeStates.get().keys()], ['mcp-top-level:copilot:session-1:search']);
@@ -316,5 +318,23 @@ suite('McpCustomizationController', () => {
 		assert.strictEqual(findMcpChildId(customizations, 'fs'), 'mcp-child:demo:fs');
 		assert.strictEqual(findMcpChildId(customizations, 'search'), 'mcp-top-level:test:search');
 		assert.strictEqual(findMcpChildId(customizations, 'missing'), undefined);
+	});
+
+	test('findMcpServerName finds bare top-level entries and plugin children', () => {
+		const customizations: readonly Customization[] = [
+			...PLUGIN_CUSTOMIZATIONS,
+			{
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:test:search',
+				uri: 'mcp-top-level:test:search',
+				name: 'search',
+				enabled: true,
+				state: { kind: McpServerStatus.Ready },
+			},
+		];
+
+		assert.strictEqual(findMcpServerName(customizations, 'mcp-child:demo:fs'), 'fs');
+		assert.strictEqual(findMcpServerName(customizations, 'mcp-top-level:test:search'), 'search');
+		assert.strictEqual(findMcpServerName(customizations, 'missing'), undefined);
 	});
 });

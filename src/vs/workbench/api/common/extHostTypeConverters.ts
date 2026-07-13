@@ -216,6 +216,20 @@ export namespace DocumentSelector {
 	}
 }
 
+export namespace TabSelector {
+
+	function isViewTypeSelector(value: vscode.TabSelector): value is { viewType: string } {
+		return (value as { viewType?: string }).viewType !== undefined;
+	}
+
+	export function from(value: vscode.TabSelector, uriTransformer?: IURITransformer, extension?: IExtensionDescription): extHostProtocol.ITabSelectorDto {
+		if (isViewTypeSelector(value)) {
+			return { viewType: value.viewType };
+		}
+		return { uri: DocumentSelector.from(value.uri, uriTransformer, extension) };
+	}
+}
+
 export namespace DiagnosticTag {
 	export function from(value: vscode.DiagnosticTag): MarkerTag | undefined {
 		switch (value) {
