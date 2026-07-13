@@ -33,7 +33,15 @@ export class FileWatcherManager {
 			return;
 		}
 
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'), !listeners.create, !listeners.change, !listeners.delete);
+		// Watch the file as dirname + basename. RelativePattern(fileUri, '*') never matches
+		// events for that file (empty relative path), so creates did not clear the
+		// language service's cached "file does not exist" diagnostics.
+		const watcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(Utils.dirname(uri), Utils.basename(uri)),
+			!listeners.create,
+			!listeners.change,
+			!listeners.delete,
+		);
 		const parentDirWatchers: DirWatcherEntry[] = [];
 		this.#fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
 
