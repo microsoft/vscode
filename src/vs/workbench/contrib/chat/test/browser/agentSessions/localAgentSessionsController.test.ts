@@ -61,6 +61,7 @@ function createMockChatModel(options: {
 			linesAdded: number;
 			linesRemoved: number;
 			modifiedURI: URI;
+			getDiffInfo?: () => Promise<unknown>;
 		}>;
 	};
 }): MockChatModel {
@@ -98,6 +99,7 @@ function createMockChatModel(options: {
 		linesRemoved: observableValue('linesRemoved', entry.linesRemoved),
 		originalURI: entry.modifiedURI,
 		modifiedURI: entry.modifiedURI,
+		getDiffInfo: entry.getDiffInfo,
 	}));
 
 	const mockEditingSession = options.editingSession ? {
@@ -845,7 +847,7 @@ suite('LocalAgentsSessionsController', () => {
 			});
 		});
 
-		test('should ignore stale refresh results that complete out of order', async () => {
+		test('should apply a queued refresh after an in-flight refresh', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = createController();
 
@@ -863,23 +865,86 @@ suite('LocalAgentsSessionsController', () => {
 
 				let releaseStale!: () => void;
 				const staleReady = new Promise<void>(resolve => { releaseStale = resolve; });
-				mockChatService.getLiveSessionItemsImpl = async () => {
+				const originalGetLiveSessionItems = mockChatService.getLiveSessionItems.bind(mockChatService);
+				mockChatService.getLiveSessionItems = async () => {
 					await staleReady;
 					return [detail];
 				};
 
 				const staleRefresh = controller.refresh(CancellationToken.None);
 
-				mockChatService.getLiveSessionItemsImpl = undefined;
+				mockChatService.getLiveSessionItems = originalGetLiveSessionItems;
 				mockChatService.removeSession(sessionResource);
 				mockChatService.setLiveSessionItems([]);
 				mockChatService.setHistorySessionItems([]);
-				await controller.refresh(CancellationToken.None);
-				assert.strictEqual(controller.items.length, 0, 'newer refresh should remove the deleted session');
+				const latestRefresh = controller.refresh(CancellationToken.None);
 
 				releaseStale();
-				await staleRefresh;
-				assert.strictEqual(controller.items.length, 0, 'stale refresh must not revive the deleted session');
+				await Promise.all([staleRefresh, latestRefresh]);
+				assert.strictEqual(controller.items.length, 0, 'queued refresh should remove the deleted session');
+			});
+		});
+
+		test('should not delete restored history item when stale live update completes after unload', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+				const sessionResource = LocalChatSessionUri.forSession('stale-live-update');
+
+				let holdDetail = false;
+				let releaseDetail!: () => void;
+				const detailReady = new Promise<void>(resolve => { releaseDetail = resolve; });
+
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true,
+					customTitle: 'Keep Me',
+					editingSession: {
+						entries: [{
+							state: ModifiedFileEntryState.Modified,
+							linesAdded: 1,
+							linesRemoved: 0,
+							modifiedURI: URI.file('/test/file.ts'),
+							getDiffInfo: async () => {
+								if (holdDetail) {
+									await detailReady;
+								}
+							},
+						}]
+					}
+				});
+
+				const detail = {
+					sessionResource,
+					title: 'Keep Me',
+					lastMessageDate: Date.now(),
+					isActive: false,
+					lastResponseState: ResponseModelState.Complete,
+					timing: createTestTiming(),
+				};
+				mockChatService.setLiveSessionItems([detail]);
+				mockChatService.addSession(mockModel);
+				await timeout(0);
+				assert.strictEqual(controller.items.length, 1);
+
+				// Start a live update that will stay blocked in chatModelToChatDetail.
+				holdDetail = true;
+				mockModel.setCustomTitle('Keep Me Updated');
+				await timeout(0);
+
+				mockChatService.removeSession(sessionResource);
+				mockChatService.setLiveSessionItems([]);
+				mockChatService.setHistorySessionItems([detail]);
+				mockChatService.fireDidDisposeSession([sessionResource]);
+				await timeout(0);
+
+				assert.strictEqual(controller.items.length, 1, 'unload refresh should restore from history');
+				assert.strictEqual(controller.items[0].label, 'Keep Me');
+
+				releaseDetail();
+				await timeout(0);
+
+				assert.strictEqual(controller.items.length, 1, 'stale live update must not delete the restored history item');
+				assert.strictEqual(controller.items[0].label, 'Keep Me');
 			});
 		});
 	});

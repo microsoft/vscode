@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Throttler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -53,17 +54,20 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private _items = new ResourceMap<LocalChatSessionItem>();
-	private _refreshGeneration = 0;
+	private readonly _refreshThrottler = this._register(new Throttler());
 
 	get items(): readonly IChatSessionItem[] {
 		return Array.from(this._items.values());
 	}
 
-	async refresh(token: CancellationToken): Promise<void> {
-		const generation = ++this._refreshGeneration;
+	refresh(token: CancellationToken): Promise<void> {
+		return this._refreshThrottler.queue(() => this.doRefresh(token));
+	}
+
+	private async doRefresh(token: CancellationToken): Promise<void> {
 		const newItems = await this.provideChatSessionItems(token);
-		if (token.isCancellationRequested || generation !== this._refreshGeneration || this._isDisposed) {
-			return; // a newer refresh is in flight or completed
+		if (token.isCancellationRequested || this._isDisposed) {
+			return;
 		}
 
 		const newResources = new ResourceSet(newItems.map(i => i.resource));
@@ -101,7 +105,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			}
 
 			await this.refresh(CancellationToken.None);
-			if (this._isDisposed) {
+			if (this._isDisposed || this.chatService.getSession(model.sessionResource) !== model) {
 				return;
 			}
 
@@ -137,6 +141,10 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
 		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		// Model may have been unloaded/replaced while we awaited detail conversion.
+		if (this.chatService.getSession(model.sessionResource) !== model) {
+			return;
+		}
 		if (!updated) {
 			// The session no longer qualifies as a list item (e.g. it has no requests
 			// yet, or its requests were removed). Drop any stale item we were showing.
