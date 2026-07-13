@@ -14,7 +14,7 @@ import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatTool
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
-import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask, TaskApiError } from '../taskApiBackend';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
@@ -428,8 +428,9 @@ class FakeTaskApiClient implements ITaskApiClient {
 	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
 	private readonly _createResult: AgentTask;
 	private readonly _repoTasks: readonly AgentTask[];
+	private readonly _listTasksError: unknown;
 
-	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[] }) {
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse; repoTasks?: readonly AgentTask[]; listTasksError?: unknown }) {
 		this._createResult = opts?.createResult ?? ({
 			id: 'task-created',
 			state: 'queued',
@@ -438,6 +439,7 @@ class FakeTaskApiClient implements ITaskApiClient {
 		} as unknown as AgentTask);
 		this._createPRResult = opts?.createPRResult ?? { id: 1, number: 42, repository_id: 1 };
 		this._repoTasks = opts?.repoTasks ?? [];
+		this._listTasksError = opts?.listTasksError;
 	}
 
 	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
@@ -450,6 +452,9 @@ class FakeTaskApiClient implements ITaskApiClient {
 	}
 	async listTasks(options?: ListTasksOptions): Promise<AgentTaskListResponse> {
 		this.listCalls.push({ options });
+		if (this._listTasksError !== undefined) {
+			throw this._listTasksError;
+		}
 		return { tasks: [] } as unknown as AgentTaskListResponse;
 	}
 	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
@@ -554,6 +559,20 @@ describe('TaskApiBackend', () => {
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
+	});
+
+	it('fetchSessionList degrades to an empty list and reports the failure when the global task fetch throws', async () => {
+		// A 403 (user lacks Cloud Agent access) fired on every sessions-view refresh must not
+		// escape as an unhandled rejection. It should be routed through the guardrail
+		// instrumentation — matching the repo-scoped branch — and the list should degrade to empty.
+		const client = new FakeTaskApiClient({ listTasksError: new TaskApiError('Task API request failed: 403', 403, 'listTasks') });
+		const instrumentation = { ...NullCloudBackendInstrumentation, operationFailed: vi.fn() };
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), instrumentation);
+
+		const result = await backend.fetchSessionList(undefined, false, false);
+
+		expect(result).toEqual([]);
+		expect(instrumentation.operationFailed).toHaveBeenCalledWith('fetchSessionList', expect.objectContaining({ status: 403 }));
 	});
 
 	it('fetchSessionList carries the raw task lifecycle state so settled tasks are not shown as in_progress', async () => {
