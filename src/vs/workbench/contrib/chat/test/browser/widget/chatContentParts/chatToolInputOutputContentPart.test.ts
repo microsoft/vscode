@@ -76,8 +76,6 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			false,
 		));
 
-		let toggleCount = 0;
-		part.domNode.addEventListener(ChatCollapsibleContentPart.userToggleEvent, () => toggleCount++);
 		const button = part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-title');
 		const widget = part.domNode.querySelector('.chat-confirmation-widget');
 		const animationContent = part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-message-animation-inner');
@@ -86,6 +84,8 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 		assert.ok(widget);
 		assert.ok(animationContent);
 		assert.ok(chevron);
+		const expandedDuringToggle: Array<string | null> = [];
+		part.domNode.addEventListener(ChatCollapsibleContentPart.userToggleEvent, () => expandedDuringToggle.push(button.ariaExpanded));
 
 		const initiallyInert = animationContent.inert;
 		button.click();
@@ -102,7 +102,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			titleIsFirst: widget.firstElementChild === button,
 			expandedState,
 			collapsedInert: animationContent.inert,
-			toggleCount,
+			expandedDuringToggle,
 		}, {
 			initiallyInert: true,
 			titleIsFirst: true,
@@ -113,7 +113,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 				hasMessage: true,
 			},
 			collapsedInert: true,
-			toggleCount: 2,
+			expandedDuringToggle: ['false', 'true'],
 		});
 	});
 });

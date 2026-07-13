@@ -64,8 +64,9 @@ export interface ISessionOutputObs {
 	 * {@link buildDefaultChatUri}, or a peer chat's protocol resource). Reduces
 	 * that chat's last-turn edits into per-file {@link ISessionFileChange |
 	 * changes} (with diff stats), mirroring the "Last Turn Changes" changeset
-	 * without depending on it. Used by the chat input status pills to reflect
-	 * just what the chat's most recent request produced.
+	 * without depending on it, and excludes files outside the workspace/worktree.
+	 * Used by the chat input status pills to reflect just what the chat's most
+	 * recent request produced.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionFileChange[]>;
 	/**
@@ -93,9 +94,9 @@ export interface ISessionOutputObs {
  *   {@link SessionFileOperation.Created} while a deleted file is removed; only
  *   files outside the workspace folders are kept.
  * - {@link ISessionOutputObs.getLastTurnChanges}: given a chat's AHP URI, that
- *   chat's last turn's edits reduced per file into {@link ISessionFileChange |
- *   changes} (with diff stats), mirroring the "Last Turn Changes" changeset
- *   without depending on it.
+ *   chat's last turn's in-workspace/worktree edits reduced per file into
+ *   {@link ISessionFileChange | changes} (with diff stats), mirroring the
+ *   "Last Turn Changes" changeset without depending on it.
  * - {@link ISessionOutputObs.getLastTurnBrowserUrl}: given a chat's AHP URI, the
  *   URL of the last browser tool call in that chat's last turn, for the chat
  *   input "Live Browser" pill.
@@ -188,10 +189,11 @@ export function createSessionOutputObs(
 
 	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionFileChange[]> =>
 		derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
+			const folderRoots = getWorkspaceAndWorktreeRoots(workspaceObs.read(reader));
 			for (const chatEditsObs of editsPerChatObs.read(reader)) {
 				const chatEdits = chatEditsObs.read(reader);
 				if (isEqual(chatEdits.chatUri, chatUri)) {
-					return reduceTurnChanges(chatEdits.lastTurnEdits);
+					return reduceTurnChanges(chatEdits.lastTurnEdits, folderRoots);
 				}
 			}
 			return [];
@@ -242,6 +244,22 @@ export interface IChatFileEdits {
 	 * present, otherwise the most recently completed turn.
 	 */
 	readonly lastTurnEdits: readonly IParsedFileEdit[];
+}
+
+function pushUniqueRoot(roots: URI[], root: URI | undefined): void {
+	if (root && !roots.some(existing => isEqual(existing, root))) {
+		roots.push(root);
+	}
+}
+
+function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined): readonly URI[] {
+	const roots: URI[] = [];
+	for (const folder of workspace?.folders ?? []) {
+		pushUniqueRoot(roots, folder.root);
+		pushUniqueRoot(roots, folder.workingDirectory);
+		pushUniqueRoot(roots, folder.gitRepository?.workTreeUri);
+	}
+	return roots;
 }
 
 /**
@@ -563,11 +581,18 @@ interface IMutableTurnChange {
  *   preview) but still counted in the stats.
  * - Renames drop the source and surface the target as an edit of its
  *   before-content, matching the changeset's classification.
+ * - When roots are supplied, files outside every root are ignored.
  */
-export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessionFileChange2[] {
+export function reduceTurnChanges(edits: readonly IParsedFileEdit[], folderRoots?: readonly URI[]): IChatSessionFileChange2[] {
 	const byUri = new Map<string, IMutableTurnChange>();
 
+	const isInScope = (uri: URI): boolean =>
+		folderRoots === undefined || folderRoots.some(root => isEqualOrParent(uri, root));
+
 	const setCreated = (uri: URI, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
@@ -582,6 +607,9 @@ export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessi
 	};
 
 	const setModified = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
@@ -597,6 +625,9 @@ export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessi
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		if (byUri.has(key)) {
 			// Created/edited earlier in the same turn and now deleted: nets out.

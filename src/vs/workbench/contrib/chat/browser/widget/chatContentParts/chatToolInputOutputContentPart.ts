@@ -174,8 +174,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const toggle = (e: Event) => {
 			if (!e.defaultPrevented) {
 				const value = expanded.get();
-				expanded.set(!value, undefined);
 				container.root.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+				expanded.set(!value, undefined);
 				e.preventDefault();
 			}
 		};

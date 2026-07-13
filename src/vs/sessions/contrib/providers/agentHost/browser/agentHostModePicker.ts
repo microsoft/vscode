@@ -11,7 +11,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -129,6 +129,14 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract _getWidgetAriaLabel(): string;
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] { return []; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
+
+	/**
+	 * Optional list-widget options for the picker popup. Subclasses whose
+	 * option descriptions are long (e.g. the Codex approvals presets) return a
+	 * bounded `maxWidth` plus a `className`/`detailItemHeight` so the detail text
+	 * wraps within a compact box instead of stretching the popup horizontally.
+	 */
+	protected _getListOptions(): IActionListOptions | undefined { return undefined; }
 
 	/**
 	 * `true` while the active session's provider is resolving its config.
@@ -282,6 +290,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 				getAriaLabel: i => i.label ?? '',
 				getWidgetAriaLabel: () => this._getWidgetAriaLabel(),
 			},
+			this._getListOptions(),
 		);
 		return true;
 	}

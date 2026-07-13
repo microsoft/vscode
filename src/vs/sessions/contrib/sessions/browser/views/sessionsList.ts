@@ -35,6 +35,8 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -202,6 +204,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly _isPhone: () => boolean,
 		private readonly _approvalRowMaxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES,
+		private readonly _ciFixModel: ISessionCIFixModel | undefined = undefined,
 	) { }
 
 	getHeight(element: SessionListItem): number {
@@ -222,11 +225,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
 			}
 		}
+		if (this._ciFixModel && this._ciFixModel.getCIFix(element as ISession).get()) {
+			height += SessionItemRenderer.CI_ROW_HEIGHT;
+		}
 		return height;
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
-		return !!this._approvalModel && isSessionItem(element);
+		return (!!this._approvalModel || !!this._ciFixModel) && isSessionItem(element);
 	}
 
 	getTemplateId(element: SessionListItem): string {
@@ -287,6 +293,9 @@ interface ISessionItemTemplate {
 	readonly approvalRow: HTMLElement;
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
+	readonly ciRow: HTMLElement;
+	readonly ciLabel: HTMLElement;
+	readonly ciButtonContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -302,12 +311,39 @@ export interface IApprovedSession {
 	readonly approvalId: string;
 }
 
+/** Summary of a session's failing CI checks, backing its "Fix CI" row. */
+export interface ISessionCIFixState {
+	/** Number of checks that have completed with a failing conclusion. */
+	readonly failed: number;
+	/** Number of checks still running or queued. */
+	readonly pending: number;
+}
+
+/**
+ * Supplies the per-session "Fix CI" row shown for blocked sessions whose pull
+ * request has failing CI checks. Only the blocked-sessions dropdown provides one
+ * (via {@link ISessionsFlatListOptions.ciFixModel}), so the row never appears in
+ * any other session list.
+ */
+export interface ISessionCIFixModel {
+	/**
+	 * Observable CI-failure summary for a session, or `undefined` when it has no
+	 * failing checks (or the user already requested a fix for the current commit).
+	 */
+	getCIFix(session: ISession): IObservable<ISessionCIFixState | undefined>;
+	/** Kick off the fix-CI flow for the session in the background (no session is opened). */
+	fixCI(session: ISession): void;
+}
+
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
+
+	/** Height of the single-line "Fix CI" row (label + orange button), including its top margin. */
+	static readonly CI_ROW_HEIGHT = 32;
 
 	static getApprovalRowHeight(label: string, maxLines: number = DEFAULT_APPROVAL_ROW_MAX_LINES): number {
 		const lineCount = Math.min(label.split(/\r?\n/).length, maxLines);
@@ -324,6 +360,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	constructor(
 		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarActions: boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
@@ -379,6 +416,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const approvalLabel = DOM.append(approvalRow, $('span.session-approval-label'));
 		const approvalButtonContainer = DOM.append(approvalRow, $('.session-approval-button'));
 
+		// Fix-CI row — shown only in the blocked-sessions list for sessions whose
+		// pull request has failing CI checks. Styled like the chat input's CI banner.
+		const ciRow = DOM.append(mainCol, $('.session-ci-row'));
+		const ciLabel = DOM.append(ciRow, $('span.session-ci-label'));
+		const ciButtonContainer = DOM.append(ciRow, $('.session-ci-button'));
+		// The list opens a session on click/tap. The "Fix CI" button opens the
+		// session itself as part of its flow, so swallow row clicks here to stop
+		// them bubbling to the tree and triggering a second, racing open.
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(ciRow, eventType, e => e.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(ciRow));
+
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		// When toolbar actions are disabled (e.g. the blocked-sessions dropdown) the row
@@ -392,7 +442,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -642,6 +692,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (this.approvalModel) {
 			this.renderApprovalRow(element, template);
 		}
+
+		// Fix-CI row — reactive (only supplied by the blocked-sessions list)
+		if (this.ciFixModel) {
+			this.renderCIRow(element, template);
+		}
 	}
 
 	private renderApprovalRow(element: ISession, template: ISessionItemTemplate): void {
@@ -704,6 +759,49 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					info.confirm();
 					this._onDidApproveSession.fire({ session: element, approvalId });
 				}));
+			}
+
+			if (wasVisible !== visible) {
+				wasVisible = visible;
+				this._onDidChangeItemHeight.fire(element);
+			}
+		}));
+	}
+
+	private renderCIRow(element: ISession, template: ISessionItemTemplate): void {
+		if (!this.ciFixModel) {
+			return;
+		}
+
+		const ciFixModel = this.ciFixModel;
+		const stateObs = ciFixModel.getCIFix(element);
+		let wasVisible = !!stateObs.get();
+		template.ciRow.classList.toggle('visible', wasVisible);
+
+		const buttonStore = template.elementDisposables.add(new DisposableStore());
+
+		template.elementDisposables.add(autorun(reader => {
+			buttonStore.clear();
+
+			const state = stateObs.read(reader);
+			const visible = !!state;
+
+			template.ciRow.classList.toggle('visible', visible);
+
+			if (state) {
+				template.ciLabel.textContent = localize('ci.blockedRow', "{0} checks failed, {1} pending", state.failed, state.pending);
+
+				template.ciButtonContainer.textContent = '';
+				// Match the chat input CI banner's prominent orange action button.
+				const button = buttonStore.add(new Button(template.ciButtonContainer, {
+					title: localize('ci.fixCITooltip', "Fix failing CI checks"),
+					...defaultButtonStyles,
+					buttonBackground: asCssVariable(chartsOrange),
+					buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+					buttonBorder: asCssVariable(chartsOrange),
+				}));
+				button.label = localize('ci.fixCI', "Fix CI");
+				buttonStore.add(button.onDidClick(() => ciFixModel.fixCI(element)));
 			}
 
 			if (wasVisible !== visible) {
@@ -1656,6 +1754,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sessionRenderer = new SessionItemRenderer(
 			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarActions: true },
 			approvalModel,
+			undefined,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
@@ -3256,6 +3355,12 @@ export interface ISessionsFlatListOptions {
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
 	/**
+	 * Supplies the per-session "Fix CI" row for sessions whose pull request has
+	 * failing CI checks. Only the blocked-sessions dropdown passes one, so the row
+	 * never appears in other lists. When omitted no fix-CI rows are rendered.
+	 */
+	readonly ciFixModel?: ISessionCIFixModel;
+	/**
 	 * Maximum number of terminal-command lines shown in a session's approval
 	 * prompt. Defaults to the same limit as the main sessions list; the
 	 * blocked-sessions dropdown passes a larger value.
@@ -3327,6 +3432,7 @@ export class SessionsFlatList extends Disposable {
 				toolbarActions: this.options.toolbarActions ?? true,
 			},
 			approvalModel,
+			this.options.ciFixModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
@@ -3336,7 +3442,7 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
