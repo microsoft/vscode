@@ -374,7 +374,11 @@ export function setup(logger: Logger): void {
 		 * Input: Add the home test file to allowRead and ask chat to read it through the terminal tool.
 		 * Expected result: The sandbox permits the read and its output contains `HOME_READ_ALLOWED_EXIT_CODE=0`.
 		 */
-		it('allows reading a home directory file configured in allowRead', async function () {
+		// Skipped: flaky after the app restart introduced in #325532 — the
+		// restart tears down the warmed-up chat participant / mock LLM
+		// connection and the probe can time out. Tracked by
+		// https://github.com/microsoft/vscode-engineering/issues/3280.
+		it.skip('allows reading a home directory file configured in allowRead', async function () {
 			const app = this.app as Application;
 
 			try {
