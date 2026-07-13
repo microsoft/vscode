@@ -844,5 +844,43 @@ suite('LocalAgentsSessionsController', () => {
 				assert.ok(removedResources.some(r => r.toString() === sessionResource.toString()), 'removed event should fire');
 			});
 		});
+
+		test('should ignore stale refresh results that complete out of order', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('stale-refresh');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				mockChatService.addSession(mockModel);
+				const detail = await chatModelToChatDetail(mockModel);
+				mockChatService.setLiveSessionItems([detail]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				let releaseStale!: () => void;
+				const staleReady = new Promise<void>(resolve => { releaseStale = resolve; });
+				mockChatService.getLiveSessionItemsImpl = async () => {
+					await staleReady;
+					return [detail];
+				};
+
+				const staleRefresh = controller.refresh(CancellationToken.None);
+
+				mockChatService.getLiveSessionItemsImpl = undefined;
+				mockChatService.removeSession(sessionResource);
+				mockChatService.setLiveSessionItems([]);
+				mockChatService.setHistorySessionItems([]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 0, 'newer refresh should remove the deleted session');
+
+				releaseStale();
+				await staleRefresh;
+				assert.strictEqual(controller.items.length, 0, 'stale refresh must not revive the deleted session');
+			});
+		});
 	});
 });

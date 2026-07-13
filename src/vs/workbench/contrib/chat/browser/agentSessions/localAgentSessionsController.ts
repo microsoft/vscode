@@ -53,12 +53,18 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private _items = new ResourceMap<LocalChatSessionItem>();
+	private _refreshGeneration = 0;
+
 	get items(): readonly IChatSessionItem[] {
 		return Array.from(this._items.values());
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
+		const generation = ++this._refreshGeneration;
 		const newItems = await this.provideChatSessionItems(token);
+		if (token.isCancellationRequested || generation !== this._refreshGeneration || this._isDisposed) {
+			return; // a newer refresh is in flight or completed
+		}
 
 		const newResources = new ResourceSet(newItems.map(i => i.resource));
 		const addedOrUpdated: LocalChatSessionItem[] = [];

@@ -29,6 +29,9 @@ export class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
+	/** Test hook to override live-item fetching (e.g. delayed/stale snapshots). */
+	getLiveSessionItemsImpl?: () => Promise<IChatDetail[]>;
+
 	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
@@ -184,6 +187,9 @@ export class MockChatService implements IChatService {
 	}
 
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
+		if (this.getLiveSessionItemsImpl) {
+			return this.getLiveSessionItemsImpl();
+		}
 		return this.liveSessionItems;
 	}
 
