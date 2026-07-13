@@ -41,6 +41,10 @@ export interface IAgentHostPromptContext {
 	 * session snapshot at launch (MCP is discovered dynamically). A line that
 	 * gates on one of those names silently resolves to `false`; broadening this
 	 * is the context-enrichment follow-up.
+	 *
+	 * Reflects the session's per-model tool filters: a client tool removed by
+	 * `availableTools`/`excludedTools` reads as absent, so gated prompt lines
+	 * never advertise a tool the runtime has disabled.
 	 */
 	hasClientTool(name: string): boolean;
 

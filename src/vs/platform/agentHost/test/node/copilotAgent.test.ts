@@ -5797,7 +5797,10 @@ suite('CopilotAgent', () => {
 			try {
 				configurationService.updateRootConfig({
 					modelCapabilityOverrides: {
-						'claude-sonnet': { reasoningEffort: 'xhigh', availableTools: ['builtin:*'], excludedTools: ['mcp:*'] },
+						// The bare '*' entries are stripped (the SDK throws on them at
+						// createSession): availableTools empties out and reads as unset;
+						// excludedTools keeps its remaining pattern.
+						'claude-sonnet': { reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'] },
 					},
 				});
 				await agent.authenticate('https://api.github.com', 'token');
@@ -5817,7 +5820,7 @@ suite('CopilotAgent', () => {
 				}, {
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
-					availableTools: ['builtin:*'],
+					availableTools: undefined,
 					excludedTools: ['mcp:*'],
 				});
 			} finally {

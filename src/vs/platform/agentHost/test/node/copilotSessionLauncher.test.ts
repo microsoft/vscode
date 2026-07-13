@@ -27,7 +27,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -648,6 +648,46 @@ suite('resolveCopilotReasoningEffort', () => {
 				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
 			],
 			['low', 'high', 'low', 'xhigh', 'medium', 'high']
+		);
+	});
+});
+
+/**
+ * Covers the prompt-gate view of the per-model tool filters: client tools are
+ * all `custom:`-source, so a tool is excluded by its bare name, `custom:<name>`,
+ * or `custom:*` — and `excludedTools` wins over `availableTools`, mirroring
+ * the SDK. Ensures the system message never advertises a filtered-out tool.
+ */
+suite('filterClientToolNames', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies allow/deny patterns with excludedTools winning; other sources never match', () => {
+		const names = new Set(['openBrowserPage', 'readPage', 'runTask']);
+		const resolve = (available?: string[], excluded?: string[]) => [...filterClientToolNames(names, available, excluded)].sort();
+		assert.deepStrictEqual(
+			[
+				// no filters → same set (and same instance semantics: everything survives)
+				resolve(undefined, undefined),
+				// bare-name, source-qualified, and source-wildcard exclusion
+				resolve(undefined, ['openBrowserPage']),
+				resolve(undefined, ['custom:readPage']),
+				resolve(undefined, ['custom:*']),
+				// builtin/mcp patterns never match client tools
+				resolve(undefined, ['builtin:*', 'mcp:*', 'bash']),
+				// allowlist keeps only matches; excludedTools wins over availableTools
+				resolve(['openBrowserPage', 'custom:readPage'], undefined),
+				resolve(['custom:*'], ['openBrowserPage']),
+			],
+			[
+				['openBrowserPage', 'readPage', 'runTask'],
+				['readPage', 'runTask'],
+				['openBrowserPage', 'runTask'],
+				[],
+				['openBrowserPage', 'readPage', 'runTask'],
+				['openBrowserPage', 'readPage'],
+				['readPage', 'runTask'],
+			]
 		);
 	});
 });

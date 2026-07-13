@@ -155,7 +155,7 @@ layering is a known follow-up.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 
-`chat.agentHost.modelCapabilityOverrides` entries (keyed by model id; `'*'`
+`chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'`
 matches every model, a specific entry wins field-by-field) carry the non-prompt
 experimentation knobs the launcher applies: `family` (prompt-routing alias, so
 a preview model resolves through another family's contributor),
