@@ -618,38 +618,35 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
-		const [fileSearchResults, relativePathFileResults] = await Promise.all([
 
-			// File search: this is a search over all files of the workspace using the provided pattern
-			this.getFileSearchResults(query, token),
+		// Start the fuzzy file search over all workspace files right away, but do
+		// not await it yet: if the query resolves to existing file(s) relative to
+		// a workspace folder we want to return those directly and skip the search.
+		// Pasting a full path (e.g. from a diff or a merge conflict) then opens
+		// instantly instead of waiting for a search over the entire workspace,
+		// while a query that does not resolve to a file still pays no extra
+		// latency because the search was already in flight. The relative path
+		// lookup also surfaces results that the fuzzy search would exclude (e.g.
+		// compilation outputs).
+		const fileSearchResults = this.getFileSearchResults(query, token);
+		fileSearchResults.catch(() => { /* handled below or superseded by an early return */ });
 
-			// Relative path search: we also want to consider results that match files inside the workspace
-			// by looking for relative paths that the user typed as query. This allows to return even excluded
-			// results into the picker if found (e.g. helps for opening compilation results that are otherwise
-			// excluded)
-			this.getRelativePathFileResults(query, token)
-		]);
-
+		const relativePathFileResults = await this.getRelativePathFileResults(query, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
 
-		// Return quickly if no relative results are present
-		if (!relativePathFileResults) {
-			return fileSearchResults;
+		if (relativePathFileResults && relativePathFileResults.length > 0) {
+			return relativePathFileResults;
 		}
 
-		// Otherwise, make sure to filter relative path results from
-		// the search results to prevent duplicates
-		const relativePathFileResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		for (const relativePathFileResult of relativePathFileResults) {
-			relativePathFileResultsMap.set(relativePathFileResult, true);
+		// Otherwise fall back to the fuzzy file search that is already running
+		const results = await fileSearchResults;
+		if (token.isCancellationRequested) {
+			return [];
 		}
 
-		return [
-			...fileSearchResults.filter(result => !relativePathFileResultsMap.has(result)),
-			...relativePathFileResults
-		];
+		return results;
 	}
 
 	private async getFileSearchResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
