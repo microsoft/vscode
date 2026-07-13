@@ -11,7 +11,7 @@ export const COPILOT_BRANCH_PREFIX = 'agents/';
 const COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH = 8;
 const MAX_BRANCH_NAME_HINT_LENGTH = 48;
 const MIN_GENERATED_BRANCH_NAME_LENGTH = 8;
-const MAX_BRANCH_NAME_COLLISION_ATTEMPTS = 100;
+const MAX_BRANCH_NAME_CANDIDATES = 100;
 
 export interface ICopilotBranchNameGeneratorRequest {
 	readonly sessionId: string;
@@ -118,22 +118,21 @@ export class CopilotBranchNameGenerator implements ICopilotBranchNameGenerator {
 		const prefix = `${request.branchPrefix ?? ''}${COPILOT_BRANCH_PREFIX}`;
 
 		const branchName = `${prefix}${branchNameHint ?? request.sessionId}`;
-		if (!request.branchNameCollides || !await request.branchNameCollides(branchName)) {
-			return branchName;
-		}
-
 		const collisionBase = branchNameHint
 			? `${branchName}-${request.sessionId.substring(0, COPILOT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`
 			: branchName;
-		const firstAttempt = branchNameHint ? 1 : 2;
-		for (let attempt = firstAttempt; attempt <= MAX_BRANCH_NAME_COLLISION_ATTEMPTS; attempt++) {
-			const candidate = attempt === 1 ? collisionBase : `${collisionBase}-${attempt}`;
-			if (!await request.branchNameCollides(candidate)) {
+		for (let candidateIndex = 0; candidateIndex < MAX_BRANCH_NAME_CANDIDATES; candidateIndex++) {
+			const candidate = candidateIndex === 0
+				? branchName
+				: branchNameHint && candidateIndex === 1
+					? collisionBase
+					: `${collisionBase}-${branchNameHint ? candidateIndex : candidateIndex + 1}`;
+			if (!request.branchNameCollides || !await request.branchNameCollides(candidate)) {
 				return candidate;
 			}
 		}
 
-		throw new Error(`Unable to find an available branch name after ${MAX_BRANCH_NAME_COLLISION_ATTEMPTS} attempts`);
+		throw new Error(`Unable to find an available branch name after checking ${MAX_BRANCH_NAME_CANDIDATES} candidates`);
 	}
 }
 

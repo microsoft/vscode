@@ -3390,7 +3390,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				githubToken: this._githubToken,
 				branchPrefix: worktreeBranchPrefix,
 				branchNameCollides: async branchName => {
-					if (await this._gitService.branchExists(repositoryRoot, branchName)) {
+					if (await this._gitService.branchExists(repositoryRoot, branchName).catch(() => true)) {
 						return true;
 					}
 					const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
