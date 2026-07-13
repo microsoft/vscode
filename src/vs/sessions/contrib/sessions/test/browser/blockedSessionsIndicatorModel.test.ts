@@ -110,6 +110,23 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
+	test('does not blink when a queued block becomes visible then re-surfaces without ever being consumed', () => {
+		// A background session becomes blocked a moment before its own view becomes
+		// the active/visible session (the block and the visibility settle in separate
+		// transactions). While it is visible it is excluded from the count so the pill
+		// is suppressed and consumePendingBlink is never called; navigating away must
+		// still not fire the now-stale queued blink.
+		const { model, blockedModel, sessionsService } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([needsInput(s1)]);
+		// The session's view becomes visible: we are now "aware" of it (excluded from
+		// the count) so the queued blink is dropped — without any consume in between.
+		sessionsService.setVisible([s1]);
+		// Navigating away re-surfaces it in the count, but it must not blink.
+		sessionsService.setVisible([]);
+		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: ['s1'], blink: false });
+	});
+
 	test('does not blink when a queued block unblocks before the blink plays', () => {
 		const { model, blockedModel } = createModel();
 		const s1 = new TestSession('s1');
