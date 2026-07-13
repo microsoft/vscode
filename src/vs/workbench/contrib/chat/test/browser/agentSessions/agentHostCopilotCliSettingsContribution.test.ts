@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, CopilotCliConfigKey } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -101,10 +101,17 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('forwards the experimentation settings into root config once the schema advertises them', async () => {
+		// The capability-overrides value exercises the whole per-entry surface
+		// (family, effort, tool filters) plus the '*' wildcard — the forwarder
+		// must pass the object through structurally unchanged.
+		const capabilityOverrides = {
+			'preview-model-x': { family: 'claude-opus-4-8', reasoningEffort: 'high', availableTools: ['builtin:*'], excludedTools: ['mcp:*'] },
+			'*': { reasoningEffort: 'medium' },
+		};
 		const { agentHostService } = setup(disposables, {
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
-			[AgentHostModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema));
 		await flush();
@@ -116,7 +123,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 			[CopilotCliConfigKey.ReasoningEffortOverride]: 'xhigh',
-			[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[CopilotCliConfigKey.ModelCapabilityOverrides]: capabilityOverrides,
 		});
 	});
 
@@ -150,7 +157,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostOpus48PromptEnabledSettingId]: true,
 			[AgentHostReasoningEffortOverrideSettingId]: 'xhigh',
-			[AgentHostModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
+			[AgentHostCopilotModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.Opus48Prompt]: true,

@@ -46,7 +46,7 @@ suite('AgentHostPromptRegistry', () => {
 		assert.deepStrictEqual(registry.resolveSystemMessageConfig({ id: 'unknown-model' }, context()), withFileLinkInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
 	});
 
-	test('a contributor can fully replace the system prompt (replace mode)', () => {
+	test('a contributor can fully replace the system prompt (replace mode, universal appends survive)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['gpt-5'];
@@ -56,11 +56,11 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context()),
-			{ mode: 'replace', content: 'FULL PROMPT' }
+			withFileLinkInstructions({ mode: 'replace', content: 'FULL PROMPT' })
 		);
 	});
 
-	test('a contributor can override individual sections (customize mode)', () => {
+	test('a contributor can override individual sections (customize mode, default identity composed underneath)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
@@ -70,7 +70,27 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
-			withFileLinkInstructions({ mode: 'customize', sections: { guidelines: { action: 'append', content: 'Be concise.' } } })
+			withFileLinkInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					guidelines: { action: 'append', content: 'Be concise.' },
+				},
+			})
+		);
+	});
+
+	test('a contributor identity override wins over the composed default identity', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['claude'];
+			resolveSectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
+				return { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } };
+			}
+		});
+		assert.deepStrictEqual(
+			registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context()),
+			withFileLinkInstructions({ mode: 'customize', sections: { identity: { action: 'replace', content: 'CUSTOM IDENTITY' } } })
 		);
 	});
 
@@ -101,7 +121,7 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'gpt-5-codex' }, context()),
-			{ mode: 'replace', content: 'CODEX' }
+			withFileLinkInstructions({ mode: 'replace', content: 'CODEX' })
 		);
 	});
 
@@ -115,7 +135,13 @@ suite('AgentHostPromptRegistry', () => {
 		});
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
-			withFileLinkInstructions({ mode: 'customize', sections: { tone: { action: 'append', content: 'GATED' } } })
+			withFileLinkInstructions({
+				mode: 'customize',
+				sections: {
+					identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+					tone: { action: 'append', content: 'GATED' },
+				},
+			})
 		);
 		assert.deepStrictEqual(
 			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context()),
@@ -185,13 +211,16 @@ suite('AgentHostPromptRegistry', () => {
 				registry.resolveSystemMessageConfig({ id: 'claude-sonnet' }, context({}, [], true)),
 				{
 					mode: 'customize',
-					sections: { guidelines: { action: 'append', content: 'Be concise.' } },
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						guidelines: { action: 'append', content: 'Be concise.' },
+					},
 					content: `${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
 				}
 			);
 		});
 
-		test('does not append scratch instructions to a full replace prompt', () => {
+		test('appends scratch instructions after a full replace prompt', () => {
 			const registry = new AgentHostPromptRegistry();
 			registry.registerPrompt(class {
 				static readonly familyPrefixes = ['gpt-5'];
@@ -201,7 +230,7 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, [], true)),
-				{ mode: 'replace', content: 'FULL PROMPT' }
+				{ mode: 'replace', content: `FULL PROMPT\n\n${COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS}` }
 			);
 		});
 	});
@@ -242,7 +271,13 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, browserTools)),
-				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${BROWSER_LINE}` } } })
+				withFileLinkInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: `\nAlways prefer ripgrep.\n${BROWSER_LINE}` },
+					},
+				})
 			);
 		});
 
@@ -256,7 +291,27 @@ suite('AgentHostPromptRegistry', () => {
 			});
 			assert.deepStrictEqual(
 				registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({}, ['anyTool'])),
-				withFileLinkInstructions({ mode: 'customize', sections: { tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' } } })
+				withFileLinkInstructions({
+					mode: 'customize',
+					sections: {
+						identity: COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections.identity,
+						tool_instructions: { action: 'append', content: 'Always prefer ripgrep.' },
+					},
+				})
+			);
+		});
+
+		test('appends the browser line after a full replace prompt', () => {
+			const registry = new AgentHostPromptRegistry();
+			registry.registerPrompt(class {
+				static readonly familyPrefixes = ['gpt-5'];
+				resolveFullSystemPrompt(): string {
+					return 'FULL PROMPT';
+				}
+			});
+			assert.deepStrictEqual(
+				registry.resolveSystemMessageConfig({ id: 'gpt-5-mini' }, context({}, browserTools)),
+				withFileLinkInstructions({ mode: 'replace', content: `FULL PROMPT\n\n${BROWSER_LINE}` })
 			);
 		});
 	});

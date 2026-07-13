@@ -7,7 +7,6 @@ import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk'
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptContext } from './promptRegistry.js';
-import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
 
 /**
  * `customize`-mode section overrides for Claude Opus 4.8, tuned per Anthropic's
@@ -22,15 +21,11 @@ import { COPILOT_AGENT_HOST_IDENTITY } from './systemMessage.js';
  *  - subagents: the model spawns fewer by default, so give explicit fan-out
  *    guidance.
  * The guide warns against forcing interim-progress scaffolding ("summarize
- * after every N tool calls"), so none is added here. The identity is re-stated
- * to keep the agent-host self-description that the default message applies.
+ * after every N tool calls"), so none is added here. The agent-host identity
+ * is inherited from the default sections the registry composes underneath.
  */
 function opus48SectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
 	return {
-		identity: {
-			action: 'replace',
-			content: COPILOT_AGENT_HOST_IDENTITY,
-		},
 		tone: {
 			action: 'append',
 			// Leading newline so the appended text starts on its own line rather

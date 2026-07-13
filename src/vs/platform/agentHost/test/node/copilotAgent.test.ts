@@ -2661,6 +2661,50 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization applies the per-model capability overrides (effort, tool filters)', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({
+					modelCapabilityOverrides: {
+						// The bare '*' entries are stripped (the SDK throws on them at
+						// createSession): availableTools empties out and reads as unset;
+						// excludedTools keeps its remaining pattern.
+						'claude-sonnet': { reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'] },
+					},
+				});
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'capability-override-session'),
+					workingDirectory: URI.file('/workspace'),
+					model: { id: 'claude-sonnet', config: { thinkingLevel: 'medium' } },
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
+
+				assert.deepStrictEqual({
+					reasoningEffort: capturedConfig?.reasoningEffort,
+					availableTools: capturedConfig?.availableTools,
+					excludedTools: capturedConfig?.excludedTools,
+				}, {
+					// the per-model effort beats the picker's 'medium'
+					reasoningEffort: 'xhigh',
+					availableTools: undefined,
+					excludedTools: ['mcp:*'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
@@ -2945,7 +2989,7 @@ suite('CopilotAgent', () => {
 			readonly remapCalls: ReadonlyMap<string, string>[];
 			readonly sends: { prompt: string; turnId: string | undefined; mode: unknown; senderClientId: string | undefined }[];
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
-			readonly modelCalls: { id: string }[];
+			readonly modelCalls: { id: string; effort: string | undefined }[];
 			readonly agentCalls: (string | undefined)[];
 		}
 
@@ -2975,7 +3019,7 @@ suite('CopilotAgent', () => {
 					rec.sends.push({ prompt, turnId, mode, senderClientId });
 				},
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
-				async setModel(id: string): Promise<void> { rec.modelCalls.push({ id }); },
+				async setModel(id: string, reasoningEffort?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
@@ -3175,6 +3219,29 @@ suite('CopilotAgent', () => {
 					aModels: ['model-x'],
 					bModels: [],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel applies the per-model reasoning-effort override from the capability overrides', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'model-x': { reasoningEffort: 'low' }, '*': { reasoningEffort: 'high' } } });
+				const session = AgentSession.uri('copilotcli', 'model-effort');
+				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
+				const a = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chatA, a.fake);
+
+				await agent.chats.changeModel(chatA, { id: 'model-x' });
+				await agent.chats.changeModel(chatA, { id: 'model-y', config: { thinkingLevel: 'medium' } });
+
+				assert.deepStrictEqual(a.rec.modelCalls, [
+					// the specific entry wins; the wildcard covers every other model,
+					// beating the picker's thinking level
+					{ id: 'model-x', effort: 'low' },
+					{ id: 'model-y', effort: 'high' },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}

@@ -6,9 +6,10 @@
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
 
 /**
- * Identity section content shared by the default agent-host system message and
- * any per-model override that wants to keep the same self-description. Kept as
- * a single constant so the identity text is defined in exactly one place.
+ * Identity section content of the default agent-host system message. Per-model
+ * overrides inherit it automatically ({@link withDefaultSections} composes the
+ * default sections underneath), so the identity text is defined in exactly one
+ * place and only a contributor that overrides `identity` replaces it.
  */
 export const COPILOT_AGENT_HOST_IDENTITY = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
@@ -28,9 +29,11 @@ export const COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS = [
 ].join('\n');
 
 /**
- * Default system-message customization applied to every Copilot CLI agent-host
- * session that has no per-model override registered in the
- * {@link AgentHostPromptRegistry}.
+ * Default system-message customization for Copilot CLI agent-host sessions:
+ * used as-is when no per-model override matches, and composed UNDER a matching
+ * override's sections (via {@link withDefaultSections}) so a contributor only
+ * overrides the sections it names — the default `identity` survives unless
+ * explicitly overridden.
  *
  * Uses `customize` mode so the CLI/SDK foundation prompt (and its built-in
  * guardrails) stay intact — only the `identity` section is replaced.
@@ -68,10 +71,27 @@ export const COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS = [
  *
  * ⚠️ `replace` mode drops ALL SDK guardrails (including security restrictions);
  * prefer {@link sectionOverrides} unless the caller intends to own the entire
- * prompt.
+ * prompt. The registry still appends the universal plumbing (tool
+ * instructions, workspaceless guidance, file-link contract) after the
+ * replacement content, so a replacement owns the prompt body but not the
+ * host's response-format contracts.
  */
 export function fullSystemPrompt(content: string): SystemMessageConfig {
 	return { mode: 'replace', content };
+}
+
+/**
+ * Composes the default agent-host sections UNDER `config`'s own section
+ * overrides: any section the config does not override inherits the
+ * {@link COPILOT_AGENT_HOST_SYSTEM_MESSAGE} default (currently the `identity`),
+ * so contributors don't need to re-state it. Pass-through for non-`customize`
+ * configs.
+ */
+export function withDefaultSections(config: SystemMessageConfig): SystemMessageConfig {
+	if (config.mode !== 'customize') {
+		return config;
+	}
+	return { ...config, sections: { ...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections, ...config.sections } };
 }
 
 /**
@@ -82,11 +102,13 @@ export function sectionOverrides(sections: Partial<Record<SystemMessageSection, 
 	return { mode: 'customize', sections };
 }
 
-/** Appends universal content without changing a full-prompt replacement. */
+/**
+ * Appends universal content to the config's trailing `content` — after the
+ * replacement text for a full `replace` prompt (so host plumbing like the
+ * file-link contract survives a replacement), or after the customize/append
+ * `content` otherwise.
+ */
 export function appendSystemMessageContent(config: SystemMessageConfig, content: string): SystemMessageConfig {
-	if (config.mode === 'replace') {
-		return config;
-	}
 	const existing = config.content;
 	return { ...config, content: existing ? `${existing}\n\n${content}` : content };
 }

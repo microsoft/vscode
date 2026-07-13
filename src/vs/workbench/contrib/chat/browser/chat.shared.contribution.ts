@@ -13,7 +13,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -1291,15 +1291,30 @@ configurationRegistry.registerConfiguration({
 			default: '',
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostModelCapabilityOverridesSettingId]: {
+		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('chat.agentHost.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id, intended for evaluating preview models against an existing model's profile. For each model id, declare an aliased `family` (for example `claude-opus-4-8`) to route the model to that family's tuned system prompt without a code change; the model id sent to the runtime is unaffected. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating preview models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4-8`) to route a model to that family's tuned system prompt without a code change (the model id sent to the runtime is unaffected), a `reasoningEffort` to pin its effort level, or `availableTools`/`excludedTools` to filter its tool set. Tool filters apply when a session launches; the reasoning effort also re-applies on a mid-session model change. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			additionalProperties: {
 				type: 'object',
 				properties: {
 					family: {
 						type: 'string',
-						description: nls.localize('chat.agentHost.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+					},
+					reasoningEffort: {
+						type: 'string',
+						enum: ['low', 'medium', 'high', 'xhigh'],
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model; wins over `#chat.agentHost.reasoningEffortOverride#`. Unrecognized values are ignored."),
+					},
+					availableTools: {
+						type: 'array',
+						items: { type: 'string' },
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.availableTools', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names."),
+					},
+					excludedTools: {
+						type: 'array',
+						items: { type: 'string' },
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.excludedTools', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it."),
 					},
 				},
 			},

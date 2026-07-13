@@ -10,10 +10,13 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, resolveByokSessionConfig, resolveCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -318,6 +321,85 @@ suite('getCopilotReasoningEffort', () => {
 				getCopilotReasoningEffort(undefined),
 			],
 			['medium', 'xhigh', 'medium', 'high', undefined]
+		);
+	});
+});
+
+/**
+ * Covers the full config-driven precedence chain: the per-model capability
+ * override (specific id, then the `*` wildcard) wins over the global override,
+ * which wins over the picker's thinking level; an invalid value at either
+ * stage falls through to the next.
+ */
+suite('resolveCopilotReasoningEffort', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Stubs the config service with a fixed root-value bag. */
+	function configOf(values: SchemaValues<typeof copilotCliConfigSchema.definition>): Pick<IAgentConfigurationService, 'getRootValue'> {
+		// The runtime value is correct by construction; `never` satisfies the
+		// generic return type without widening the stub to `any`.
+		return { getRootValue: (_schema, key) => values[key as keyof typeof values] as never };
+	}
+
+	test('per-model override beats global override beats picker; invalid stages fall through', () => {
+		const log = new NullLogService();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		assert.deepStrictEqual(
+			[
+				// per-model (specific id) wins over global + picker
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// wildcard entry applies to any model; a specific entry wins over it
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' }, 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// invalid per-model falls through to the global override
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
+				// no per-model entry, unset global ('' marker) → picker value
+				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
+				// no model: the per-model stage is skipped, the global override applies
+				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
+			],
+			['low', 'high', 'low', 'xhigh', 'medium', 'high']
+		);
+	});
+});
+
+/**
+ * Covers the prompt-gate view of the per-model tool filters: client tools are
+ * all `custom:`-source, so a tool is excluded by its bare name, `custom:<name>`,
+ * or `custom:*` — and `excludedTools` wins over `availableTools`, mirroring
+ * the SDK. Ensures the system message never advertises a filtered-out tool.
+ */
+suite('filterClientToolNames', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('applies allow/deny patterns with excludedTools winning; other sources never match', () => {
+		const names = new Set(['openBrowserPage', 'readPage', 'runTask']);
+		const resolve = (available?: string[], excluded?: string[]) => [...filterClientToolNames(names, available, excluded)].sort();
+		assert.deepStrictEqual(
+			[
+				// no filters → same set (and same instance semantics: everything survives)
+				resolve(undefined, undefined),
+				// bare-name, source-qualified, and source-wildcard exclusion
+				resolve(undefined, ['openBrowserPage']),
+				resolve(undefined, ['custom:readPage']),
+				resolve(undefined, ['custom:*']),
+				// builtin/mcp patterns never match client tools
+				resolve(undefined, ['builtin:*', 'mcp:*', 'bash']),
+				// allowlist keeps only matches; excludedTools wins over availableTools
+				resolve(['openBrowserPage', 'custom:readPage'], undefined),
+				resolve(['custom:*'], ['openBrowserPage']),
+			],
+			[
+				['openBrowserPage', 'readPage', 'runTask'],
+				['readPage', 'runTask'],
+				['openBrowserPage', 'runTask'],
+				[],
+				['openBrowserPage', 'readPage', 'runTask'],
+				['openBrowserPage', 'readPage'],
+				['readPage', 'runTask'],
+			]
 		);
 	});
 });
