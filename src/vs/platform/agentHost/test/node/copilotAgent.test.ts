@@ -757,17 +757,51 @@ suite('CopilotAgent', () => {
 		});
 	});
 
-	test('appends a short session-id suffix when the branch name already exists', async () => {
+	test('finds an available branch name when candidates collide', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.response = 'add-agent-host-config';
 		const generator = new CopilotBranchNameGenerator(copilotApiService, new NullLogService());
+		const collisions = new Set([
+			'agents/add-agent-host-config',
+			'agents/add-agent-host-config-12345678',
+			'agents/12345678-aaaa-bbbb-cccc-123456789abc',
+		]);
+		const exhaustedCandidates: string[] = [];
+		let exhaustionError: string | undefined;
+		try {
+			await generator.generateBranchName({
+				sessionId: '12345678-aaaa-bbbb-cccc-123456789abc',
+				branchNameCollides: async name => {
+					exhaustedCandidates.push(name);
+					return true;
+				},
+			});
+		} catch (error) {
+			exhaustionError = error instanceof Error ? error.message : String(error);
+		}
 
 		assert.deepStrictEqual({
-			unique: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async () => false }),
-			collision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchExists: async name => name === 'agents/add-agent-host-config' }),
+			unique: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchNameCollides: async () => false }),
+			collision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchNameCollides: async name => name === 'agents/add-agent-host-config' }),
+			repeatedCollision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', message: 'Add agent host config', githubToken: 'token', branchNameCollides: async name => collisions.has(name) }),
+			fallbackCollision: await generator.generateBranchName({ sessionId: '12345678-aaaa-bbbb-cccc-123456789abc', branchNameCollides: async name => collisions.has(name) }),
+			exhaustion: {
+				error: exhaustionError,
+				candidateCount: exhaustedCandidates.length,
+				firstCandidate: exhaustedCandidates[0],
+				lastCandidate: exhaustedCandidates.at(-1),
+			},
 		}, {
 			unique: 'agents/add-agent-host-config',
 			collision: 'agents/add-agent-host-config-12345678',
+			repeatedCollision: 'agents/add-agent-host-config-12345678-2',
+			fallbackCollision: 'agents/12345678-aaaa-bbbb-cccc-123456789abc-2',
+			exhaustion: {
+				error: 'Unable to find an available branch name after checking 100 candidates',
+				candidateCount: 100,
+				firstCandidate: 'agents/12345678-aaaa-bbbb-cccc-123456789abc',
+				lastCandidate: 'agents/12345678-aaaa-bbbb-cccc-123456789abc-100',
+			},
 		});
 	});
 
@@ -4172,6 +4206,148 @@ suite('CopilotAgent', () => {
 				}, {
 					branchName: 'users/alice/agents/add-feature',
 					worktree: expectedWorktree.toString(),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('appends a session suffix when the worktree directory already exists', async () => {
+			const sessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-collision');
+			const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+			await fs.mkdir(URI.joinPath(worktreesRoot, 'add-feature').fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'add-feature';
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+				copilotApiService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main' },
+				}, sessionId, 'Add feature');
+
+				assert.deepStrictEqual({
+					branchName: gitService.addedWorktrees[0]?.branchName,
+					worktree: workingDir?.toString(),
+				}, {
+					branchName: 'agents/add-feature-12345678',
+					worktree: URI.joinPath(worktreesRoot, 'add-feature-12345678').toString(),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('appends a session suffix when the branch existence check fails', async () => {
+			const sessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-branch-check-failure');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			let branchExistsCalls = 0;
+			gitService.branchExists = async () => {
+				if (branchExistsCalls++ === 0) {
+					throw new Error('transient failure');
+				}
+				return false;
+			};
+
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'add-feature';
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+				copilotApiService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const workingDir = await agent.resolveWorktreeForTest({
+					workingDirectory: repositoryRoot,
+					config: { isolation: 'worktree', branch: 'main' },
+				}, sessionId, 'Add feature');
+
+				assert.deepStrictEqual({
+					branchExistsCalls,
+					branchName: gitService.addedWorktrees[0]?.branchName,
+					worktree: workingDir?.toString(),
+				}, {
+					branchExistsCalls: 2,
+					branchName: 'agents/add-feature-12345678',
+					worktree: URI.joinPath(getCopilotWorktreesRoot(repositoryRoot), 'add-feature-12345678').toString(),
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('serializes concurrent worktree creation in the same repository', async () => {
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-concurrent');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			let activeAddWorktrees = 0;
+			let maxActiveAddWorktrees = 0;
+			gitService.addWorktree = async (repositoryRoot, worktree, branchName, startPoint) => {
+				activeAddWorktrees++;
+				maxActiveAddWorktrees = Math.max(maxActiveAddWorktrees, activeAddWorktrees);
+				await timeout(10);
+				gitService.addedWorktrees.push({ repositoryRoot, worktree, branchName, startPoint });
+				gitService.existingBranches.add(branchName);
+				activeAddWorktrees--;
+			};
+
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'add-feature';
+			const agent = createTestAgent(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: new TestCopilotClient([]),
+				gitService,
+				copilotApiService,
+			}) as TestableCopilotAgent;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const worktrees = await Promise.all([
+					agent.resolveWorktreeForTest({
+						workingDirectory: repositoryRoot,
+						config: { isolation: 'worktree', branch: 'main' },
+					}, '12345678-aaaa-bbbb-cccc-123456789abc', 'Add feature'),
+					agent.resolveWorktreeForTest({
+						workingDirectory: repositoryRoot,
+						config: { isolation: 'worktree', branch: 'main' },
+					}, '87654321-aaaa-bbbb-cccc-123456789abc', 'Add feature'),
+				]);
+
+				assert.deepStrictEqual({
+					maxActiveAddWorktrees,
+					branchNames: gitService.addedWorktrees.map(({ branchName }) => branchName),
+					worktrees: worktrees.map(worktree => worktree?.toString()),
+				}, {
+					maxActiveAddWorktrees: 1,
+					branchNames: ['agents/add-feature', 'agents/add-feature-87654321'],
+					worktrees: [
+						URI.joinPath(getCopilotWorktreesRoot(repositoryRoot), 'add-feature').toString(),
+						URI.joinPath(getCopilotWorktreesRoot(repositoryRoot), 'add-feature-87654321').toString(),
+					],
 				});
 			} finally {
 				await disposeAgent(agent);

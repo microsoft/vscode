@@ -15,6 +15,7 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from '../../browser/blockedSessionsIndicatorModel.js';
 
 suite('BlockedSessionsIndicatorModel', () => {
@@ -25,23 +26,26 @@ suite('BlockedSessionsIndicatorModel', () => {
 		model: BlockedSessionsIndicatorModel;
 		blockedModel: TestBlockedSessions;
 		approvalModel: TestApprovalModel;
+		ciFixModel: TestCIFixModel;
 		sessionsService: TestSessionsService;
 	} {
 		const blockedModel = new TestBlockedSessions();
 		const approvalModel = new TestApprovalModel();
+		const ciFixModel = new TestCIFixModel();
 		const sessionsService = new TestSessionsService();
 		const productService = { quality: options?.quality ?? 'insider' } as unknown as IProductService;
 		const instantiationService = new class extends mock<IInstantiationService>() { }();
 		const model = store.add(new BlockedSessionsIndicatorModel(
 			approvalModel as unknown as AgentSessionApprovalModel,
 			blockedModel as unknown as BlockedSessions,
+			ciFixModel as unknown as BlockedSessionsCIFixModel,
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
-		return { model, blockedModel, approvalModel, sessionsService };
+		return { model, blockedModel, approvalModel, ciFixModel, sessionsService };
 	}
 
 	function blockedIds(model: BlockedSessionsIndicatorModel): string[] {
@@ -54,6 +58,16 @@ suite('BlockedSessionsIndicatorModel', () => {
 		const s2 = new TestSession('s2');
 		blockedModel.setBlocked([needsInput(s1), needsInput(s2)]);
 		sessionsService.setVisible([s1]);
+		assert.deepStrictEqual(blockedIds(model), ['s2']);
+	});
+
+	test('excludes sessions whose CI fix is being submitted', () => {
+		const { model, blockedModel, ciFixModel } = createModel();
+		const s1 = new TestSession('s1');
+		const s2 = new TestSession('s2');
+		blockedModel.setBlocked([failingCI(s1), failingCI(s2)]);
+		assert.deepStrictEqual(blockedIds(model), ['s1', 's2']);
+		ciFixModel.setHidden(['s1']);
 		assert.deepStrictEqual(blockedIds(model), ['s2']);
 	});
 
@@ -208,6 +222,10 @@ function needsInput(session: TestSession): IBlockedSession {
 	return { session: session as unknown as ISession, reason: BlockedSessionReason.NeedsInput };
 }
 
+function failingCI(session: TestSession): IBlockedSession {
+	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI };
+}
+
 function approval(kind: AgentSessionApprovalKind, since: Date = new Date()): IAgentSessionApprovalInfo {
 	return { kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
 }
@@ -252,6 +270,14 @@ class TestApprovalModel {
 			this._approvals.set(key, obs);
 		}
 		return obs;
+	}
+}
+
+class TestCIFixModel {
+	readonly hiddenSessions = observableValue<ReadonlySet<string>>('ciFixHidden', new Set());
+
+	setHidden(sessionIds: readonly string[]): void {
+		this.hiddenSessions.set(new Set(sessionIds), undefined);
 	}
 }
 

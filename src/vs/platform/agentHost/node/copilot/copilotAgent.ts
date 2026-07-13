@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, Limiter, SequencerByKey } from '../../../../base/common/async.js';
@@ -62,6 +62,7 @@ import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
+import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -494,9 +495,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _pendingFirstTurnAnnouncements = new Map<string, string>();
 	private readonly _sessionSequencer = new SequencerByKey<string>();
+	private readonly _worktreeCreationSequencer = new SequencerByKey<string>();
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -523,6 +526,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
@@ -1071,6 +1075,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotCliLogLevelFor(this._logService.getLevel()),
 				enableRemoteSessions: this._isSessionSyncEnabled(),
+				onGitHubTelemetry: (notification: GitHubTelemetryNotification) => this._gitHubTelemetryForwarder.forward(notification),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
@@ -3392,23 +3397,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const worktreeBranchPrefix = typeof config.config[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? config.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
-		const branchName = await this._branchNameGenerator.generateBranchName({
-			sessionId,
-			message: prompt,
-			githubToken: this._githubToken,
-			branchPrefix: worktreeBranchPrefix,
-			// Treat a failed existence check as a collision so we fall back to a
-			// suffixed branch name rather than risk `addWorktree` failing because
-			// the branch already exists.
-			branchExists: branchName => this._gitService.branchExists(repositoryRoot, branchName).catch(() => true),
-		});
-		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
-		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		const baseBranch = typeof config.config[SessionConfigKey.Branch] === 'string' ? config.config[SessionConfigKey.Branch] as string : undefined;
-		// `addWorktree`'s signature requires a startPoint, but historically the
-		// runtime accepted undefined when `branch` was not set in config. Preserve
-		// that behavior by passing through whatever value (or undefined) was set.
-		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+		const { branchName, worktree } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
+			const branchName = await this._branchNameGenerator.generateBranchName({
+				sessionId,
+				message: prompt,
+				githubToken: this._githubToken,
+				branchPrefix: worktreeBranchPrefix,
+				branchNameCollides: async branchName => {
+					if (await this._gitService.branchExists(repositoryRoot, branchName).catch(() => true)) {
+						return true;
+					}
+					const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
+					return fileExists(worktree.fsPath);
+				},
+			});
+			const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeDirectoryName(branchName, worktreeBranchPrefix));
+			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
+			await this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch as string);
+			return { branchName, worktree };
+		});
 
 		const worktreeIncludeFiles = Array.isArray(config.config[SessionConfigKey.WorktreeIncludeFiles]) &&
 			config.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')

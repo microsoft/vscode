@@ -10,10 +10,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -83,7 +83,7 @@ function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0],
  * mirrors the real handler's "use summary.model when usage hasn't reported
  * yet" behavior.
  */
-function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): Parameters<typeof rawTurnsToHistory>[4] {
+function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): TurnModelLookup {
 	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
 	return {
 		toLanguageModelId: (raw) => {
@@ -93,6 +93,10 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
+		},
+		toAutoModeResolution: usage => {
+			const raw = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;
+			return usageInfoToAutoModeResolution(usage, raw ? displayNames[raw] : undefined);
 		},
 	};
 }
@@ -354,6 +358,35 @@ suite('stateToProgressAdapter', () => {
 					{ type: 'response', details: 'Claude Opus 4.7' },
 				],
 			);
+		});
+
+		test('restores Auto model routing with the shared chat UI part', () => {
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: {
+						autoModeResolved: {
+							chosenModel: 'gpt-5.4-mini',
+							predictedLabel: 'no_reasoning',
+							confidence: 0.98,
+						},
+					},
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [{
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.4-mini',
+				resolvedModelName: 'GPT-5.4 mini',
+				predictedLabel: 'no_reasoning',
+				confidence: 0.98,
+			}]);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {

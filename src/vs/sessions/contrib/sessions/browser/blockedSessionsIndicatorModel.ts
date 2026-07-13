@@ -12,6 +12,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
 
 /**
@@ -54,6 +55,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	/** The approval model, shared with the dropdown list so both agree on each session's pending action. */
 	get approvalModel(): AgentSessionApprovalModel {
 		return this._approvalModel;
+	}
+
+	/** Drives the per-session "Fix CI" row; shared with the dropdown list. */
+	private readonly _ciFixModel: BlockedSessionsCIFixModel;
+
+	/** The CI-fix model, shared with the dropdown list so the fix action and the hide-while-fixing agree. */
+	get ciFixModel(): BlockedSessionsCIFixModel {
+		return this._ciFixModel;
 	}
 
 	/**
@@ -107,17 +116,19 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	constructor(
 		approvalModel: AgentSessionApprovalModel | undefined,
 		blockedSessions: BlockedSessions | undefined,
+		ciFixModel: BlockedSessionsCIFixModel | undefined,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
 	) {
 		super();
 
-		// The model owns the approval model and blocked-sessions model; the optional
-		// parameters are test seams so fixtures/tests can supply preset instances (only
-		// register — and thus dispose — the ones we created ourselves).
+		// The model owns the approval model, blocked-sessions model and CI-fix model;
+		// the optional parameters are test seams so fixtures/tests can supply preset
+		// instances (only register — and thus dispose — the ones we created ourselves).
 		this._approvalModel = approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		this._blockedSessionsModel = blockedSessions ?? this._register(instantiationService.createInstance(BlockedSessions));
+		this._ciFixModel = ciFixModel ?? this._register(instantiationService.createInstance(BlockedSessionsCIFixModel));
 
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
@@ -135,8 +146,12 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				}
 			}
 			const dismissed = this._dismissedApprovals.read(reader);
+			// Sessions whose CI fix is being submitted in the background are hidden
+			// immediately (before their status flips to in-progress) so the row
+			// disappears the moment the user clicks "Fix CI".
+			const ciFixHidden = this._ciFixModel.hiddenSessions.read(reader);
 			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
-				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
+				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !ciFixHidden.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
 		});
 
 		// The homogeneous reason across all blocked sessions (or `undefined` for a

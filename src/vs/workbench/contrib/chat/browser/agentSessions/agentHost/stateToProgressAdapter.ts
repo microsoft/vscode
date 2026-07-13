@@ -23,7 +23,7 @@ import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSess
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -220,6 +220,8 @@ export interface TurnModelLookup {
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Returns the human-readable response details, or undefined if unknown. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
+	/** Returns the Auto model routing part carried by this usage report, if any. */
+	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 }
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
@@ -252,6 +254,25 @@ export function formatTurnResponseDetails(
 		return [displayName, creditDetails].join(' • ');
 	}
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/** Converts an agent-host Auto routing result into the shared chat UI part. */
+export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, resolvedModelName: string | undefined): IChatAutoModeResolutionPart | undefined {
+	const resolution = readUsageInfoMeta(usage).autoModeResolved;
+	if (!resolution || typeof resolution.confidence !== 'number' || !Number.isFinite(resolution.confidence)) {
+		return undefined;
+	}
+	const predictedLabel = resolution.predictedLabel;
+	if (predictedLabel !== 'needs_reasoning' && predictedLabel !== 'no_reasoning' && predictedLabel !== 'fallback') {
+		return undefined;
+	}
+	return {
+		kind: 'autoModeResolution',
+		resolvedModel: resolution.chosenModel,
+		resolvedModelName: resolvedModelName ?? resolution.chosenModel,
+		predictedLabel,
+		confidence: Math.max(0, Math.min(1, resolution.confidence)),
+	};
 }
 
 /** Appends the billed model id (e.g. `Auto (raptor-mini)`) when one is supplied. */
@@ -543,6 +564,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
+		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
+		if (autoModeResolution) {
+			parts.push(autoModeResolution);
+		}
 		const usage = usageInfoToChatUsage(turn.usage);
 		if (usage) {
 			parts.push(usage);
