@@ -306,12 +306,12 @@
     "@vscode/sqlite3@5.1.12-vscode": true,
     "@vscode/windows-registry@1.2.0": true,
     "@vscode/windows-mutex@0.5.3": true,
-    "@vscode/windows-process-tree@0.7.0": true,
     "ssh2": false,
     "fsevents@2.3.2": true,
     "fsevents@1.2.13": true,
     "es5-ext": false,
     "husky": false,
-    "@vscode/windows-ca-certs@0.3.4": true
+    "@vscode/windows-ca-certs@0.3.4": true,
+    "@vscode/windows-process-tree@0.8.0": true
   }
 }
