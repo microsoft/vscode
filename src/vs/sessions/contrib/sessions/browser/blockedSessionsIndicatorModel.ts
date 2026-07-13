@@ -38,13 +38,9 @@ export const enum RequiresInputKind {
  * dismissals for approvals the user just allowed, classifies the homogeneous
  * requires-input reason, and decides when the attention blink should play.
  *
- * Blink detection deliberately keys off *changes to* the underlying model's
- * blocked-session ids, so the blink fires only when a session *genuinely* becomes
- * blocked — never merely because the user navigated to a different session, which
- * changes the visible set but not the blocked set. Visibility only ever *suppresses*
- * a blink (a session the user can already see is one we are already aware of), so a
- * session that is blocked while visible, or brought on screen after being blocked,
- * never blinks when a later navigation re-surfaces it.
+ * Blink detection keys off *changes to* the blocked-session ids, so visibility can
+ * only ever suppress a blink, never trigger one — navigating between sessions never
+ * blinks.
  *
  * The DOM rendering of the indicator lives in the title bar widget; this class is
  * DOM-free so it can be unit tested in isolation.
@@ -96,15 +92,9 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	private _lastBlockedSessionIds: ReadonlySet<string> = new Set();
 
 	/**
-	 * Ids of sessions that genuinely became blocked while not visible and whose
-	 * attention blink hasn't played yet. Keyed by session id (rather than a single
-	 * flag) so a blink queued while the pill is suppressed — e.g. during the transient
-	 * "Approved N sessions" state — can't later fire for a session that has since
-	 * become visible or stopped being blocked. The blink-detection autorun (see the
-	 * constructor) drops any id that becomes visible or unblocked, and
-	 * {@link consumePendingBlink} additionally only blinks while at least one pending
-	 * id is still in the surfaced blocked set — so a session the user is already
-	 * looking at never blinks on a later navigation.
+	 * Ids of not-yet-visible sessions that genuinely became blocked and whose
+	 * attention blink hasn't played yet. Keyed by session id so a queued blink can be
+	 * individually dropped once its session becomes visible or stops being blocked.
 	 */
 	private readonly _pendingBlinkSessionIds = new Set<string>();
 
@@ -205,17 +195,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 		}));
 
-		// Detect genuinely new blocks to drive the attention blink. Blink detection
-		// keys off the underlying model's blocked-session ids, so ONLY a change to the
-		// set of sessions needing input can ever trigger a blink — never a mere
-		// navigation. Visibility is tracked too, but purely to SUPPRESS: a session the
-		// user can already see is excluded from the count and must never blink, so it is
-		// never queued, and any queued blink for a session that has since become visible
-		// is dropped. Because the blink is gated on a blocked-set diff (a session id not
-		// in the previous blocked set), re-running this autorun on a visibility change
-		// can only ever drop a pending blink, never start one — which is why switching
-		// to a blocked session (making it visible) and back, or navigating between
-		// sessions, never blinks.
+		// Drive the attention blink. Gated on a blocked-set diff, so a visibility-only
+		// change can only ever drop a pending blink, never start one.
 		this._register(autorun(reader => {
 			if (!enabled) {
 				return;
@@ -232,10 +213,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				}
 			}
 
-			// Drop queued blinks for sessions that are no longer blocked, or that the
-			// user can now see: a visible session is one we are already "aware" of
-			// (excluded from the count), so its blink must never fire on a later
-			// navigation that re-surfaces it.
+			// Drop queued blinks for sessions that unblocked or that the user can now see.
 			for (const id of this._pendingBlinkSessionIds) {
 				if (!currentIds.has(id) || visibleSessionIds.has(id)) {
 					this._pendingBlinkSessionIds.delete(id);
