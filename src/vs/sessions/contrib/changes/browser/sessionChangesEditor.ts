@@ -39,6 +39,7 @@ import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar, ChangesActionsBarActionViewItem, CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -281,6 +282,27 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	expandAllDiffs(): void {
 		this.viewModel?.expandAll();
 	}
+
+	public collapse(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.collapse(item);
+	}
+
+	public expand(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.expand(item);
+	}
+
 
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
 		this._applyOptions(options);

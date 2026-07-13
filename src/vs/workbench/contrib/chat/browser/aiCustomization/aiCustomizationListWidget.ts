@@ -1526,6 +1526,24 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Reveals and selects the first list item whose URI matches one of the provided URIs.
+	 */
+	revealAndSelectFirstItemByUri(uris: readonly URI[]): boolean {
+		const entryIndex = this.displayEntries.findIndex(entry => {
+			return entry.type === 'file-item' && uris.some(uri => isEqual(entry.item.uri, uri));
+		});
+		if (entryIndex < 0) {
+			return false;
+		}
+
+		this.list.reveal(entryIndex);
+		this.list.setFocus([entryIndex]);
+		this.list.setSelection([entryIndex]);
+		this.list.domFocus();
+		return true;
+	}
+
+	/**
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {

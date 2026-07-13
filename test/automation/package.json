@@ -31,5 +31,8 @@
     "cpx2": "3.0.0",
     "nodemon": "^3.1.9",
     "npm-run-all2": "^8.0.4"
+  },
+  "allowScripts": {
+    "fsevents@2.3.3": true
   }
 }

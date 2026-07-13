@@ -18,7 +18,7 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SinglePaneDetailChangesOrFilesActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
@@ -173,7 +173,7 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 							IsTopRightEditorGroupContext,
 							SinglePaneLayoutEnabledContext,
 							MainEditorAreaVisibleContext,
-							SinglePaneDetailChangesOrFilesActiveContext)
+							HasDockedDetailsContext)
 					}
 				});
 			}

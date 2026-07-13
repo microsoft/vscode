@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -47,11 +49,12 @@ export interface IChatListWidgetStyles {
 export class UserToggleResizeState {
 
 	private framesUntilSettled = 0;
+	private transitionInProgress = false;
 
 	constructor(private readonly requiredStableFrames: number) { }
 
 	get isActive(): boolean {
-		return this.framesUntilSettled > 0;
+		return this.transitionInProgress || this.framesUntilSettled > 0;
 	}
 
 	start(): void {
@@ -60,8 +63,17 @@ export class UserToggleResizeState {
 
 	markResized(): void {
 		if (this.isActive) {
-			this.start();
+			this.framesUntilSettled = this.requiredStableFrames;
 		}
+	}
+
+	startTransition(): void {
+		this.transitionInProgress = true;
+	}
+
+	endTransition(): void {
+		this.transitionInProgress = false;
+		this.framesUntilSettled = this.requiredStableFrames;
 	}
 
 	advanceFrame(): void {
@@ -71,6 +83,10 @@ export class UserToggleResizeState {
 	}
 }
 
+export function getAnchoredScrollTop(scrollTop: number, currentTargetTop: number, anchorTargetTop: number): number {
+	return scrollTop + currentTargetTop - anchorTargetTop;
+}
+
 class UserToggleResizeTracker extends Disposable {
 
 	private readonly state = new UserToggleResizeState(2);
@@ -78,6 +94,7 @@ class UserToggleResizeTracker extends Disposable {
 
 	constructor(
 		target: HTMLElement,
+		private restoreScrollPosition: (() => void) | undefined,
 		private readonly onDidSettle: () => void,
 	) {
 		super();
@@ -88,9 +105,31 @@ class UserToggleResizeTracker extends Disposable {
 			this.scheduleFrame(targetWindow);
 		}, targetWindow));
 		this._register(resizeObserver.observe(target));
+		this._register(dom.addDisposableListener(target, 'transitionrun', e => {
+			if (e.propertyName === 'grid-template-rows') {
+				this.state.startTransition();
+				this.scheduleFrame(targetWindow);
+			}
+		}));
+		const finishTransition = (e: TransitionEvent) => {
+			if (e.propertyName === 'grid-template-rows') {
+				this.state.endTransition();
+				this.scheduleFrame(targetWindow);
+			}
+		};
+		this._register(dom.addDisposableListener(target, 'transitionend', finishTransition));
+		this._register(dom.addDisposableListener(target, 'transitioncancel', finishTransition));
 
 		this.state.start();
 		this.scheduleFrame(targetWindow);
+	}
+
+	restoreScrollAnchor(): void {
+		this.restoreScrollPosition?.();
+	}
+
+	cancelScrollRestoration(): void {
+		this.restoreScrollPosition = undefined;
 	}
 
 	private scheduleFrame(targetWindow: Window): void {
@@ -100,6 +139,7 @@ class UserToggleResizeTracker extends Disposable {
 
 		this.pendingFrame.value = dom.scheduleAtNextAnimationFrame(targetWindow, () => {
 			this.pendingFrame.clear();
+			this.restoreScrollPosition?.();
 			this.state.advanceFrame();
 			if (this.state.isActive) {
 				this.scheduleFrame(targetWindow);
@@ -488,6 +528,7 @@ export class ChatListWidget extends Disposable {
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
+			this.cancelUserToggleScrollRestoration();
 			this.setScrollLock(true);
 			this.scrollToEnd();
 		}));
@@ -535,6 +576,19 @@ export class ChatListWidget extends Disposable {
 				this.trackUserToggleResize(element, e.target);
 			}
 		}));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.WHEEL, () => this.cancelUserToggleScrollRestoration()));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.POINTER_DOWN, () => this.cancelUserToggleScrollRestoration()));
+		this._register(dom.addDisposableListener(this._container, dom.EventType.KEY_DOWN, e => {
+			const keyCode = new StandardKeyboardEvent(e).keyCode;
+			if (keyCode === KeyCode.UpArrow
+				|| keyCode === KeyCode.DownArrow
+				|| keyCode === KeyCode.PageUp
+				|| keyCode === KeyCode.PageDown
+				|| keyCode === KeyCode.Home
+				|| keyCode === KeyCode.End) {
+				this.cancelUserToggleScrollRestoration();
+			}
+		}, true));
 
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
@@ -728,6 +782,7 @@ export class ChatListWidget extends Disposable {
 	 * Delegate scroll events from a mouse wheel event to the tree.
 	 */
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void {
+		this.cancelUserToggleScrollRestoration();
 		this._tree.delegateScrollFromMouseWheelEvent(event);
 	}
 
@@ -743,8 +798,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
-			if (this._userToggleResizeTrackers.has(element)) {
+			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
+			if (userToggleResizeTracker) {
 				this._tree.updateElementHeight(element, height);
+				userToggleResizeTracker.restoreScrollAnchor();
 				return;
 			}
 			this._withPersistedAutoScroll(() => {
@@ -754,12 +811,24 @@ export class ChatListWidget extends Disposable {
 	}
 
 	private trackUserToggleResize(element: ChatTreeItem, target: HTMLElement): void {
-		const tracker: UserToggleResizeTracker = new UserToggleResizeTracker(target, () => {
+		const anchorTargetTop = this.isScrolledToBottom ? target.getBoundingClientRect().top : undefined;
+		const restoreScrollPosition = anchorTargetTop === undefined ? undefined : () => {
+			if (target.isConnected) {
+				this._tree.scrollTop = getAnchoredScrollTop(this._tree.scrollTop, target.getBoundingClientRect().top, anchorTargetTop);
+			}
+		};
+		const tracker: UserToggleResizeTracker = new UserToggleResizeTracker(target, restoreScrollPosition, () => {
 			if (this._userToggleResizeTrackers.get(element) === tracker) {
 				this._userToggleResizeTrackers.deleteAndDispose(element);
 			}
 		});
 		this._userToggleResizeTrackers.set(element, tracker);
+	}
+
+	private cancelUserToggleScrollRestoration(): void {
+		for (const tracker of this._userToggleResizeTrackers.values()) {
+			tracker.cancelScrollRestoration();
+		}
 	}
 
 	/**

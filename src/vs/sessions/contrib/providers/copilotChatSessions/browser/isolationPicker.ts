@@ -110,7 +110,7 @@ export class IsolationPicker extends Disposable {
 		// in vs/sessions/contrib/onboardingTours.
 		this._renderDisposables.add(markOnboardingTarget(slot, 'sessions.newSession.isolation'));
 
-		const label = localize('isolationMode.worktree', "Worktree");
+		const label = localize('isolationMode.worktree', "New Worktree");
 		const row = dom.append(slot, dom.$('.action-label'));
 		this._triggerElement = row;
 		row.setAttribute('aria-label', localize('isolationPicker.checkboxAriaLabel', "Worktree isolation"));

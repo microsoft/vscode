@@ -78,7 +78,7 @@ suite('Changes View Actions', () => {
 	test('toggle inline view is contributed to the single-pane editor header (1_diff group) with toggle state', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
+			.find(item => item.command.id === 'toggle.diff.renderSideBySide');
 
 		assert.ok(item, 'expected the toggle inline view action on the single-pane editor header menu');
 		const when = item.when?.serialize() ?? '';
@@ -97,7 +97,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			id: 'workbench.action.agentSessions.toggleInlineView',
+			id: 'toggle.diff.renderSideBySide',
 			title: 'Show Side by Side Diff',
 			group: '1_diff',
 			order: 20,
@@ -114,7 +114,7 @@ suite('Changes View Actions', () => {
 	test('toggle inline view is contributed to the command palette (Changes category)', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.toggleInlineView');
+			.find(item => item.command.id === 'toggle.diff.renderSideBySide' && item.command.category !== undefined && (typeof item.command.category === 'string' ? item.command.category : item.command.category.value) === 'Changes');
 
 		assert.ok(item, 'expected the toggle inline view action in the command palette');
 		const when = item.when?.serialize() ?? '';
@@ -127,7 +127,7 @@ suite('Changes View Actions', () => {
 			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			id: 'workbench.action.agentSessions.toggleInlineView',
+			id: 'toggle.diff.renderSideBySide',
 			title: 'Toggle Diff View',
 			category: 'Changes',
 			hasSessionsWindowGate: true,

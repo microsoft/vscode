@@ -29,8 +29,9 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { homedir, tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type MessageAttachment } from '../../../common/state/sessionState.js';
-import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { MessageAttachmentKind, MessageKind, buildDefaultChatUri, ToolCallConfirmationReason, ToolResultContentType, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { ActionType, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	capiReplayFor, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IAgentHostE2EProviderConfig,
@@ -49,6 +50,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
 	enabled: true,
 	supportsWorktreeIsolation: true,
+	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
 };
@@ -98,6 +100,101 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			} catch { /* best-effort */ }
 		}
 		tempDirs.length = 0;
+	});
+
+	test('client tool reaches ready after start and completes', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-'));
+		tempDirs.push(workingDirectory);
+
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-client-tool', createdSessions, URI.file(workingDirectory));
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'copilot-client-tool',
+					displayName: 'Test Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+
+		client.clearReceived();
+		const turnId = generateUuid();
+		client.dispatch({
+			channel: buildDefaultChatUri(sessionUri),
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				message: {
+					text: 'Call the get_magic_word tool and then tell me the exact magic word it returned.',
+					origin: { kind: MessageKind.User },
+					model: { id: 'claude-opus-4.6' },
+				},
+			},
+		});
+
+		const [toolStartNotification, toolReadyNotification] = await Promise.all([
+			client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallStart')) {
+					return false;
+				}
+				return (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'get_magic_word';
+			}, 90_000),
+			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'), 90_000),
+		]);
+		const toolStartEnvelope = getActionEnvelope(toolStartNotification);
+		const toolStartAction = toolStartEnvelope.action as ChatToolCallStartAction;
+		const toolReadyEnvelope = getActionEnvelope(toolReadyNotification);
+		const toolReadyAction = toolReadyEnvelope.action as ChatToolCallReadyAction;
+
+		assert.deepStrictEqual({
+			toolCallIdMatches: toolReadyAction.toolCallId === toolStartAction.toolCallId,
+			startPrecedesReady: toolStartEnvelope.serverSeq < toolReadyEnvelope.serverSeq,
+			requiresConfirmation: toolReadyAction.confirmed === undefined,
+		}, {
+			toolCallIdMatches: true,
+			startPrecedesReady: true,
+			requiresConfirmation: true,
+		});
+
+		client.dispatch({
+			channel: toolReadyEnvelope.channel,
+			clientSeq: 3,
+			action: {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId,
+				toolCallId: toolReadyAction.toolCallId,
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			},
+		});
+		client.dispatch({
+			channel: toolReadyEnvelope.channel,
+			clientSeq: 4,
+			action: {
+				type: ActionType.ChatToolCallComplete,
+				turnId,
+				toolCallId: toolReadyAction.toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Got the magic word',
+					content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
+				},
+			},
+		});
+
+		const completion = await client.waitForNotification(n =>
+			isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
+			90_000);
+		assert.ok(isActionNotification(completion, 'chat/turnComplete'), 'client tool turn should complete without an error');
 	});
 
 	test('usage reports include Copilot cost metadata', async function () {

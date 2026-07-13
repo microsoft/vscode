@@ -26,7 +26,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, readUsageInfoMeta, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -373,6 +373,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
+		isWorkingDirectoryPending: () => false,
+		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		getSessionConfigValues: () => undefined,
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
@@ -1195,6 +1197,59 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('forwards Auto model resolution on live usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const autoModeResolved = {
+			chosenModel: 'claude-opus-4.8',
+			reasoningBucket: 'high' as const,
+			categoryScores: { reasoning: 0.91, code_gen: 0.72 },
+			predictedLabel: 'needs_reasoning',
+			confidence: 0.93,
+			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+		};
+
+		session.resetTurnState('turn-before-auto');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 200,
+			cost: 5,
+		} as SessionEventPayload<'assistant.usage'>['data']);
+		session.resetTurnState('turn-auto');
+		mockSession.fire('session.auto_mode_resolved', autoModeResolved);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			cost: 2,
+		} as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = signals
+			.filter((signal): signal is IAgentActionSignal => signal.kind === 'action')
+			.map(signal => signal.action)
+			.filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage && action.turnId === 'turn-auto');
+
+		assert.deepStrictEqual({
+			usages: usageActions.map(action => action.usage),
+			parsed: readUsageInfoMeta(usageActions.at(-1)?.usage).autoModeResolved,
+		}, {
+			usages: [
+				{
+					model: 'claude-opus-4.8',
+					_meta: { autoModeResolved },
+				},
+				{
+					inputTokens: 10,
+					outputTokens: 20,
+					model: 'claude-opus-4.8',
+					cacheReadTokens: undefined,
+					_meta: { cost: 2, autoModeResolved },
+				},
+			],
+			parsed: autoModeResolved,
+		});
+	});
+
 	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -1743,92 +1798,6 @@ suite('CopilotAgentSession', () => {
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'reject');
-		});
-
-		test('shell tool: permission before tool.execution_start re-fires the dropped confirmation and suppresses the not-needed ready (SDK >= 1.0.6 ordering)', async () => {
-			// Regression: server-managed tools (shell/read) fire
-			// `permission.requested` a few ms *before* `tool.execution_start`
-			// under the SDK 1.0.6 reorder. The permission-derived
-			// `ChatToolCallReady` (with confirmationTitle) is dropped by the
-			// reducer because no part exists yet; `onToolStart` then emits a
-			// not-needed ready that wrongly transitions the tool to "running",
-			// losing the user's approval prompt and hanging the tool. The host
-			// must re-fire the confirmation onto the freshly created part and
-			// suppress the not-needed ready.
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
-
-			// Permission fires FIRST — no tool.execution_start yet.
-			const resultPromise = runtime.handlePermissionRequest({
-				kind: 'shell',
-				toolCallId: 'tc-shell-reorder',
-				fullCommandText: 'gh search code "x"',
-			});
-			await waitForSignal(s => s.kind === 'pending_confirmation');
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation').length, 1);
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 0);
-
-			// The real shell tool.execution_start arrives.
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-shell-reorder',
-				toolName: 'bash',
-				arguments: { command: 'gh search code "x"' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			// A ChatToolCallStart was emitted, and the confirmation was re-fired
-			// AFTER it so it lands on the part.
-			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
-			assert.strictEqual(startSignals.length, 1);
-			const pendingConfirmations = signals.filter(s => s.kind === 'pending_confirmation');
-			assert.strictEqual(pendingConfirmations.length, 2, 'confirmation should be re-fired after the tool start');
-			assert.ok(signals.indexOf(startSignals[0]) < signals.indexOf(pendingConfirmations[1]), 'ChatToolCallStart must precede the re-fired confirmation');
-
-			// The not-needed ready must NOT be emitted — it would clobber the
-			// pending confirmation and hang the tool at "running".
-			const notNeededReady = signals.filter(s => isAction(s, ActionType.ChatToolCallReady) && (s.action as ChatToolCallReadyAction).confirmed === ToolCallConfirmationReason.NotNeeded);
-			assert.strictEqual(notNeededReady.length, 0, 'onToolStart must not emit a not-needed ready when a confirmation is pending');
-
-			session.respondToPermissionRequest('tc-shell-reorder', false);
-			assert.strictEqual((await resultPromise).kind, 'reject');
-		});
-
-		test('shell tool: tool.execution_start arriving before the confirmation fires still emits start-then-confirmation with no not-needed ready (SDK >= 1.0.6 ordering, start-wins race)', async () => {
-			// The confirmation is fired from `handlePermissionRequest` only after
-			// its internal `await`s resolve, so `tool.execution_start` can arrive
-			// first (start-wins race). The emitted AHP sequence must be identical
-			// to the confirmation-wins ordering: `ChatToolCallStart` then the
-			// confirmation, with NO intermediate not-needed ready (which would
-			// otherwise briefly flip the tool to "running").
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
-
-			// Permission fires first and begins awaiting; do not await it.
-			const resultPromise = runtime.handlePermissionRequest({
-				kind: 'shell',
-				toolCallId: 'tc-shell-startwins',
-				fullCommandText: 'gh search code "x"',
-			});
-
-			// tool.execution_start arrives while the permission handler is still
-			// mid-await (before it fires the confirmation).
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-shell-startwins',
-				toolName: 'bash',
-				arguments: { command: 'gh search code "x"' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			await waitForSignal(s => s.kind === 'pending_confirmation');
-
-			// Exactly one start, exactly one confirmation, start before it, and
-			// crucially NO not-needed ready.
-			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
-			assert.strictEqual(startSignals.length, 1);
-			const pendingConfirmations = signals.filter(s => s.kind === 'pending_confirmation');
-			assert.strictEqual(pendingConfirmations.length, 1);
-			assert.ok(signals.indexOf(startSignals[0]) < signals.indexOf(pendingConfirmations[0]), 'ChatToolCallStart must precede the confirmation');
-			const notNeededReady = signals.filter(s => isAction(s, ActionType.ChatToolCallReady) && (s.action as ChatToolCallReadyAction).confirmed === ToolCallConfirmationReason.NotNeeded);
-			assert.strictEqual(notNeededReady.length, 0, 'no not-needed ready may precede the confirmation in the start-wins race');
-
-			session.respondToPermissionRequest('tc-shell-startwins', false);
-			assert.strictEqual((await resultPromise).kind, 'reject');
 		});
 
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
@@ -3999,62 +3968,6 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('permission before tool.execution_start synthesizes the client tool start so the ready is not dropped (SDK >= 1.0.6 ordering)', async () => {
-			// Regression for the client-tool hang after the Copilot SDK bump
-			// (1.0.6-preview): the SDK reordered client-tool events so
-			// `permission.requested` now fires *before* `tool.execution_start`.
-			// The permission-derived `ChatToolCallReady` must land on an
-			// existing tool-call part, so the host synthesizes the
-			// `ChatToolCallStart` at permission time. Without this the ready is
-			// dropped, the client tool stays streaming, and the turn hangs.
-			const activeClientToolSet = new ActiveClientToolSet();
-			activeClientToolSet.set('client-reorder', snapshot.tools);
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
-
-			// Permission fires FIRST — no tool.execution_start yet.
-			const resultPromise = runtime.handlePermissionRequest({
-				kind: 'custom-tool',
-				toolCallId: 'tc-reorder',
-				toolName: 'my_tool',
-				args: { file: 'test.ts' },
-			});
-			await waitForSignal(s => s.kind === 'pending_confirmation');
-
-			// A single ChatToolCallStart was synthesized (with the client
-			// contributor) and it precedes the pending_confirmation, so the
-			// permission-derived ready has a part to land on.
-			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
-			assert.strictEqual(startSignals.length, 1);
-			assert.deepStrictEqual((startSignals[0].action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'client-reorder' });
-			const startIndex = signals.indexOf(startSignals[0]);
-			const pendingIndex = signals.findIndex(s => s.kind === 'pending_confirmation');
-			assert.ok(startIndex >= 0 && startIndex < pendingIndex, 'ChatToolCallStart must be emitted before pending_confirmation');
-
-			// The real tool.execution_start now arrives — it must NOT emit a
-			// duplicate ChatToolCallStart.
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-reorder',
-				toolName: 'my_tool',
-				arguments: { file: 'test.ts' },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1, 'tool.execution_start must not emit a duplicate ChatToolCallStart');
-
-			// The parked SDK handler resolves once the client completes the
-			// call — i.e. the tool runs instead of hanging.
-			const tools = runtime.createClientSdkTools();
-			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-reorder', { file: 'test.ts' });
-			session.respondToPermissionRequest('tc-reorder', true);
-			assert.strictEqual((await resultPromise).kind, 'approve-once');
-			session.handleClientToolCallComplete('tc-reorder', {
-				success: true,
-				pastTenseMessage: 'did it',
-				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
-			});
-			const result = await handlerPromise;
-			assert.strictEqual(result.resultType, 'success');
-			assert.strictEqual(result.textResultForLlm, 'result text');
-		});
-
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
 			// Regression: when a client tool runs inside a subagent the
 			// permission-flow `pending_confirmation` must carry the
@@ -4088,61 +4001,6 @@ suite('CopilotAgentSession', () => {
 			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
 			assert.strictEqual(permSignals.length, 1);
 			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
-
-			session.respondToPermissionRequest('tc-sub-client', false);
-			await resultPromise;
-		});
-
-		test('subagent client tool: permission before tool.execution_start routes the synthesized start and ready to the subagent (SDK >= 1.0.6 ordering)', async () => {
-			// Regression for the SDK 1.0.6-preview reorder applied to a client
-			// tool running *inside a subagent*: `permission.requested` fires
-			// before `tool.execution_start`, so the start is synthesized at
-			// permission time. The synthesized start (and, via `_activeToolCalls`,
-			// the permission `pending_confirmation`) must route to the subagent
-			// session — the raw `permission.requested` event's `agentId` is used
-			// to recover the parent tool call because the SDK's permission handler
-			// callback drops it.
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
-
-			mockSession.fire('subagent.started', {
-				toolCallId: 'tc-parent-subagent',
-				agentName: 'helper',
-				agentDisplayName: 'Helper',
-				agentDescription: 'Helps',
-			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-client-tool' });
-
-			// NEW ordering: the raw permission.requested event (carrying agentId)
-			// arrives before tool.execution_start.
-			mockSession.fire('permission.requested', {
-				requestId: 'req-sub',
-				permissionRequest: { kind: 'custom-tool', toolCallId: 'tc-sub-client', toolName: 'my_tool', toolDescription: 'A test tool', args: {} },
-			} as SessionEventPayload<'permission.requested'>['data'], { agentId: 'agent-client-tool' });
-
-			const resultPromise = runtime.handlePermissionRequest({
-				kind: 'custom-tool',
-				toolCallId: 'tc-sub-client',
-				toolName: 'my_tool',
-			});
-			await waitForSignal(s => s.kind === 'pending_confirmation');
-
-			// The synthesized start routes to the subagent (parentToolCallId set).
-			const startSignals = signals.filter(s => isAction(s, ActionType.ChatToolCallStart));
-			assert.strictEqual(startSignals.length, 1);
-			assert.strictEqual(startSignals[0].parentToolCallId, 'tc-parent-subagent');
-			assert.deepStrictEqual((startSignals[0].action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
-
-			// The permission pending_confirmation also routes to the subagent.
-			const permSignals = signals.filter((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
-			assert.strictEqual(permSignals.length, 1);
-			assert.strictEqual(permSignals[0].parentToolCallId, 'tc-parent-subagent');
-
-			// The real subagent tool.execution_start must not emit a duplicate.
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-sub-client',
-				toolName: 'my_tool',
-				arguments: {},
-			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1, 'tool.execution_start must not emit a duplicate ChatToolCallStart');
 
 			session.respondToPermissionRequest('tc-sub-client', false);
 			await resultPromise;

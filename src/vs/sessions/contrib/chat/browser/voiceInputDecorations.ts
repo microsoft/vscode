@@ -133,7 +133,17 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 
 		if (visible.length === 0 || !showTranscript) {
 			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
-			if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+			if (!showTranscript && voiceState === 'listening') {
+				// Transcript is disabled: surface a minimal "Listening..." overlay
+				// while listening so the user has feedback. Cleared in any other state.
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const listening = dom.$('span.listening');
+				listening.textContent = localize('voiceMode.listening', "Listening...");
+				transcriptOverlay.append(listening);
+				transcriptScrollable.scanDomNode();
+			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();

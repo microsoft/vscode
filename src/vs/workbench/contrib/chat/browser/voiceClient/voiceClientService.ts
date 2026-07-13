@@ -297,7 +297,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		};
 
 		ws.onclose = (evt: CloseEvent) => {
-			this._logService.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
 					this._cleanup();
@@ -338,7 +338,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	disconnect(): void {
-		this._logService.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
+		this._logService.trace('[voice] disconnect() called');
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -557,6 +557,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			removes,
 			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {

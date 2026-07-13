@@ -94,6 +94,7 @@ interface IRenderFormHandle {
 
 
 const AUTOMATIONS_HARNESS_CHIP_ACTION_ID = 'workbench.action.chat.renderAutomationsHarnessChip';
+const AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID = 'workbench.action.chat.renderAutomationsWorkspacePicker';
 const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutomationsIsolationGroup';
 
 class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
@@ -263,15 +264,15 @@ class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * Hosts the shared {@link SessionTypePicker} inside the chat input's secondary
- * toolbar, in the slot previously occupied by the hardcoded harness chip. The
+ * Renders a dialog-owned picker into a chat input secondary-toolbar slot. The
  * picker instance is owned by the dialog (registered on its disposables); this
- * view item only renders it into the toolbar container.
+ * view item only injects the picker's DOM into the toolbar container via the
+ * supplied {@link renderPicker} callback.
  */
-class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
+class AutomationPickerActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
-		private readonly picker: MobileSessionTypePicker,
+		private readonly renderPicker: (container: HTMLElement) => void,
 		options?: IBaseActionViewItemOptions,
 	) {
 		super(undefined, action, options);
@@ -280,7 +281,7 @@ class AutomationSessionTypePickerActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		DOM.clearNode(container);
-		this.picker.render(container);
+		this.renderPicker(container);
 	}
 }
 
@@ -295,6 +296,25 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: -1,
+				when: ChatContextKeys.inAutomationsDialog,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
+	constructor() {
+		super({
+			id: AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID,
+			title: localize2('automation.form.workspacePicker.action', "Automations Workspace Picker"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0,
 				when: ChatContextKeys.inAutomationsDialog,
 			}],
 		});
@@ -505,10 +525,15 @@ export function renderForm(
 		// leaving its scrollbar floating ~24px in from the right wall.
 		inputPartHorizontalPadding: 0,
 		sessionTypePickerDelegate: sessionTypeDelegate,
-		workspacePickerInput: workspacePicker,
 		secondaryToolbarActionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationSessionTypePickerActionViewItem(action, sessionTypePicker, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), itemOptions);
+			}
+			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
+				return new AutomationPickerActionViewItem(action, container => {
+					container.classList.add('chat-input-picker-item');
+					workspacePicker.render(container);
+				}, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				const actionWidgetService = instantiationService.invokeFunction(accessor => accessor.get(IActionWidgetService));

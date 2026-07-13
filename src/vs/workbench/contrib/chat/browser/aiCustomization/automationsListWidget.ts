@@ -734,7 +734,7 @@ function dayName(day: number): string {
 }
 
 function formatNextRun(a: IAutomation): string {
-	if (a.schedule.interval === 'manual' || !a.nextRunAt) {
+	if (!a.enabled || a.schedule.interval === 'manual' || !a.nextRunAt) {
 		return localize('nextRunNever', "No scheduled run");
 	}
 	return localize('nextRun', "Next run {0}", formatRelativeTimeOrIso(a.nextRunAt));
