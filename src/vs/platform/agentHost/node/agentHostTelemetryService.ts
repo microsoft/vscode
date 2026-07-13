@@ -13,6 +13,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
 import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
 import { resolveCommonProperties } from '../../telemetry/common/commonProperties.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../telemetry/common/gdprTypings.js';
@@ -32,6 +33,8 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly logService: ILogService;
 	readonly disposables: DisposableStore;
 	readonly disableTelemetry?: boolean;
+	readonly fetchFn?: typeof globalThis.fetch;
+	readonly requestService?: IRequestService;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
@@ -196,7 +199,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	];
 	const internalTelemetry = isInternalTelemetry(productService, configurationService);
 	if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-		const collectorAppender = new OneDataSystemAppender(undefined, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+		const collectorAppender = new OneDataSystemAppender(options.requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 		disposables.add(toDisposable(() => { void collectorAppender.flush(); }));
 		appenders.push(collectorAppender);
 	}
@@ -220,7 +223,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
 	}, configurationService, productService);
 
-	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService);
+	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, undefined, options.fetchFn);
 
 	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
 }

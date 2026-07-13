@@ -31,7 +31,7 @@ export type TelemetryProps = Record<string, string | undefined>;
 export type TelemetryMeasurements = Record<string, number | undefined>;
 
 /** The subset of the global `fetch` used to POST envelopes; injectable so tests avoid live network calls. */
-type FetchFn = typeof globalThis.fetch;
+export type FetchFn = typeof globalThis.fetch;
 
 /**
  * App Insights caps a single property value at ~8192 chars. Long values are split across

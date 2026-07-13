@@ -11,7 +11,7 @@ import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.j
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -59,7 +59,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId, IChatWidgetService } from '../../chat.js';
+import { ChatViewId, IChatWidgetService, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -107,6 +107,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
+	private _sessionsListSuppressionCount = 0;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
@@ -777,6 +779,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsContainerVisible =
 					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
+					this._sessionsListSuppressionCount === 0 &&																			// not mid-transition (a slow session transiently shows an empty widget)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
 
@@ -799,6 +802,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
 			visible: newSessionsContainerVisible
 		};
+	}
+
+	private refreshSessionsControlVisibility(): void {
+		const { changed } = this.updateSessionsControlVisibility();
+		if (changed) {
+			this.relayout();
+		}
+	}
+
+	/**
+	 * Suppresses the sessions list until the returned disposable is disposed.
+	 * Used to span a whole session transition (e.g. a "Continue in…" migration:
+	 * load → materializing send → rebind) so the transiently-empty widget never
+	 * falls back to the list.
+	 */
+	beginSessionsListSuppression(): IDisposable {
+		this._sessionsListSuppressionCount++;
+		this.refreshSessionsControlVisibility();
+		return toDisposable(() => {
+			this._sessionsListSuppressionCount--;
+			this.refreshSessionsControlVisibility();
+		});
 	}
 
 	getFocusedSessions(): IAgentSession[] {
@@ -1073,9 +1098,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& !model.hasRequests;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false): Promise<IChatModel | undefined> {
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
+
+		// Baseline draft for preserving text typed during loading. `loadSession`
+		// opens its load window before calling us, so it passes its own baseline;
+		// otherwise this call's own await is the load window. See #325323.
+		const baselineInput = inputBeforeLoad ?? this._widget?.getInput() ?? '';
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
@@ -1111,7 +1141,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.viewState.sessionResource = model.sessionResource;
 		}
 
-		this._widget.setModel(model);
+		if (model) {
+			setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+		} else {
+			this._widget.setModel(model);
+		}
 
 		// Update title control
 		this.titleControl?.update(model);
@@ -1179,6 +1213,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
+		// Capture the input draft up front: the load window (clear + acquire below)
+		// opens before `showModel` binds, so text typed during loading must be
+		// baselined here to be preserved rather than erased. See #325323.
+		const inputBeforeLoad = this._widget?.getInput() ?? '';
+
 		// Cancel any in-flight loadSession call so the last one always wins
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
@@ -1221,7 +1260,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return undefined;
 				}
 
-				const result = await this.showModel(token, newModelRef);
+				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
 			} catch (err) {
@@ -1237,7 +1276,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const result = await this.showModel(token, undefined);
+				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
 			} finally {

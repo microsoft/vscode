@@ -470,6 +470,27 @@ export interface IChatWidget {
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
 
+/**
+ * Binds a freshly loaded model to a chat widget, preserving any text the user
+ * typed into the input while the session was still loading (the input stays
+ * editable during the async load, and binding would otherwise reset it to the
+ * session's own draft). See #325323.
+ *
+ * @param inputBeforeLoad Input value captured when the load window started, used
+ * as a baseline so a previous session's leftover draft is not mistaken for newly
+ * typed text.
+ * @param setModel Callback that performs the actual `setModel` binding.
+ */
+export function setModelPreservingInputTypedWhileLoading(widget: IChatWidget, inputBeforeLoad: string, setModel: () => void): void {
+	const typedWhileLoading = widget.getInput();
+	setModel();
+	// Restore only genuinely new text onto a session that has no draft of its own,
+	// so we never clobber a persisted draft or carry over a leftover draft.
+	if (typedWhileLoading && typedWhileLoading !== inputBeforeLoad && !widget.getInput()) {
+		widget.setInput(typedWhileLoading);
+	}
+}
+
 
 export interface ICodeBlockActionContextProvider {
 	getCodeBlockContext(editor?: ICodeEditor): ICodeBlockActionContext | undefined;

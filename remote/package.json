@@ -58,9 +58,20 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "ssh2": {
-      "cpu-features": "0.0.0"
-    },
     "yauzl": "^3.3.1"
+  },
+  "allowScripts": {
+    "kerberos@2.1.1": true,
+    "node-pty@1.2.0-beta.13": true,
+    "@parcel/watcher@2.5.6": true,
+    "@vscode/deviceid@0.1.5": true,
+    "@vscode/native-watchdog@1.4.6": true,
+    "@vscode/spdlog@0.15.8": true,
+    "@vscode/windows-registry@1.2.0": true,
+    "@vscode/windows-process-tree@0.7.0": true,
+    "ssh2": false,
+    "@vscode/sqlite3@5.1.12-vscode": true,
+    "cpu-features": false,
+    "@vscode/windows-ca-certs@0.3.4": true
   }
 }
