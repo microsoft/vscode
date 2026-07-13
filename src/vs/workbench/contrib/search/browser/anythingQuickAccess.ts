@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
@@ -619,34 +619,46 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private async doFileSearch(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {
 
-		// Start the fuzzy file search over all workspace files right away, but do
-		// not await it yet: if the query resolves to existing file(s) relative to
-		// a workspace folder we want to return those directly and skip the search.
-		// Pasting a full path (e.g. from a diff or a merge conflict) then opens
-		// instantly instead of waiting for a search over the entire workspace,
-		// while a query that does not resolve to a file still pays no extra
-		// latency because the search was already in flight. The relative path
-		// lookup also surfaces results that the fuzzy search would exclude (e.g.
-		// compilation outputs).
-		const fileSearchResults = this.getFileSearchResults(query, token);
-		fileSearchResults.catch(() => { /* handled below or superseded by an early return */ });
+		// Start the fuzzy file search over all workspace files right away under a
+		// cancellation source linked to the incoming token, but do not await it
+		// yet: if the query resolves to existing file(s) relative to a workspace
+		// folder we want to return those directly and cancel the search. Pasting a
+		// full path (e.g. from a diff or a merge conflict) then opens instantly
+		// instead of waiting for a search over the entire workspace, while a query
+		// that does not resolve to a file pays no extra latency because the search
+		// was already in flight. The relative path lookup also surfaces results
+		// that the fuzzy search would exclude (e.g. compilation outputs).
+		const fileSearchCts = new CancellationTokenSource(token);
+		const fileSearchResults = this.getFileSearchResults(query, fileSearchCts.token);
 
-		const relativePathFileResults = await this.getRelativePathFileResults(query, token);
-		if (token.isCancellationRequested) {
-			return [];
+		// Swallow rejections so that cancelling the search on an early return does
+		// not surface as an unhandled rejection; the miss path awaits and handles
+		// (or propagates) the result explicitly below.
+		fileSearchResults.catch(() => { });
+
+		try {
+			const relativePathFileResults = await this.getRelativePathFileResults(query, token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
+			// On an exact relative path hit, cancel the fuzzy search that is no
+			// longer needed and return the resolved file(s) directly
+			if (relativePathFileResults && relativePathFileResults.length > 0) {
+				fileSearchCts.cancel();
+				return relativePathFileResults;
+			}
+
+			// Otherwise fall back to the fuzzy file search that is already running
+			const results = await fileSearchResults;
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
+			return results;
+		} finally {
+			fileSearchCts.dispose();
 		}
-
-		if (relativePathFileResults && relativePathFileResults.length > 0) {
-			return relativePathFileResults;
-		}
-
-		// Otherwise fall back to the fuzzy file search that is already running
-		const results = await fileSearchResults;
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		return results;
 	}
 
 	private async getFileSearchResults(query: IPreparedQuery, token: CancellationToken): Promise<URI[]> {

@@ -596,16 +596,25 @@ suite('QuickAccess', () => {
 
 		fileSearchCallCount = 0;
 
-		// When set, `fileSearch` never resolves. Used to assert that a relative
-		// path hit returns without waiting for the fuzzy search to complete.
-		hangFileSearch = false;
+		// When set, `fileSearch` only resolves once its token is cancelled. Used
+		// to assert that a relative path hit returns without waiting for the fuzzy
+		// search and that the no longer needed search is cancelled.
+		blockFileSearchUntilCancelled = false;
 
-		async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+		fileSearchCancelled = false;
+
+		fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 			this.fileSearchCallCount++;
-			if (this.hangFileSearch) {
-				return new Promise<ISearchComplete>(() => { });
+			if (this.blockFileSearchUntilCancelled) {
+				return new Promise<ISearchComplete>(resolve => {
+					const listener = token?.onCancellationRequested(() => {
+						listener?.dispose();
+						this.fileSearchCancelled = true;
+						resolve({ results: [], messages: [], exit: SearchCompletionExitCode.Normal });
+					});
+				});
 			}
-			return { results: [], messages: [], exit: SearchCompletionExitCode.Normal };
+			return Promise.resolve({ results: [], messages: [], exit: SearchCompletionExitCode.Normal });
 		}
 
 		textSearch(): never { throw new Error('Method not implemented.'); }
@@ -655,18 +664,20 @@ suite('QuickAccess', () => {
 		return { provider: provider as unknown as ProviderWithFileSearch, searchService };
 	}
 
-	test('file search - existing relative path returns without waiting for the fuzzy file search', async () => {
+	test('file search - existing relative path returns without waiting for the fuzzy file search and cancels it', async () => {
 		// The test workspace folder is `/testWorkspace`, so `src/serialization.rs`
 		// resolves to `/testWorkspace/src/serialization.rs`.
 		const { provider, searchService } = createFileSearchProvider(new Set(['/testWorkspace/src/serialization.rs']));
 
-		// The fuzzy search never resolves; the relative path hit must still return.
-		searchService.hangFileSearch = true;
+		// The fuzzy search only resolves once cancelled; the relative path hit must
+		// still return and must cancel the no longer needed search.
+		searchService.blockFileSearchUntilCancelled = true;
 
 		const results = await provider.doFileSearch(prepareQuery('src/serialization.rs'), CancellationToken.None);
 
 		assert.strictEqual(results.length, 1);
 		assert.strictEqual(results[0].path, '/testWorkspace/src/serialization.rs');
+		assert.strictEqual(searchService.fileSearchCancelled, true);
 	});
 
 	test('file search - non-existing relative path falls back to the fuzzy file search', async () => {
