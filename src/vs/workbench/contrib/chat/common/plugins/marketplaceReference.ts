@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
 
 export { extraKnownMarketplacesToConfigDict } from '../../../../../base/common/managedSettings.js';
@@ -66,6 +66,35 @@ export function readConfiguredMarketplaces(configurationService: IConfigurationS
 		extraValues,
 		effectiveValues: [...userValues, ...extraValues],
 	};
+}
+
+/**
+ * Adds a marketplace reference to the user's `chat.plugins.marketplaces` setting.
+ *
+ * Reads the current user and effective values, skips the write when an
+ * equivalent marketplace (same canonical id) is already configured, and
+ * otherwise appends the trimmed raw value to the user setting. Returns `true`
+ * when the setting was updated and `false` when the reference was invalid or
+ * already present.
+ */
+export async function addConfiguredMarketplace(configurationService: IConfigurationService, refValue: string): Promise<boolean> {
+	const ref = parseMarketplaceReference(refValue);
+	if (!ref) {
+		return false;
+	}
+
+	const { userValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
+	const existingRefs = parseMarketplaceReferences(effectiveValues);
+	if (existingRefs.some(e => e.canonicalId === ref.canonicalId)) {
+		return false;
+	}
+
+	await configurationService.updateValue(
+		ChatConfiguration.PluginMarketplaces,
+		[...userValues, ref.rawValue],
+		ConfigurationTarget.USER,
+	);
+	return true;
 }
 
 export function parseMarketplaceReferences(values: readonly unknown[]): IMarketplaceReference[] {
