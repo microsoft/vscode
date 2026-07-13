@@ -94,7 +94,13 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 			istream = createWriteStream(targetFileName, { mode });
 			istream.once('close', () => c());
 			istream.once('error', e);
-			stream.once('error', e);
+			stream.once('error', err => {
+				// `stream.pipe()` does not destroy the destination when the
+				// source errors, so close the target file handle explicitly to
+				// avoid leaking it (mirrors the cancellation path above).
+				istream.destroy();
+				e(err);
+			});
 			stream.pipe(istream);
 		} catch (error) {
 			e(error);
