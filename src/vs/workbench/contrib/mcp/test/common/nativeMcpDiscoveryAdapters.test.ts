@@ -64,7 +64,10 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		assert.ok(defs);
 		assert.strictEqual(defs.length, 1);
 
-		const launch = defs[0].launch as { type: McpServerTransportType; cwd: string | undefined };
+		const launch = defs[0].launch;
+		if (launch.type !== McpServerTransportType.Stdio) {
+			assert.fail(`Expected Stdio launch, got ${launch.type}`);
+		}
 		assert.strictEqual(launch.type, McpServerTransportType.Stdio);
 		assert.strictEqual(launch.cwd, undefined);
 	});
