@@ -19,6 +19,7 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -177,14 +178,6 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
-					// Wrap long lines in response code blocks so command/tool output pasted
-					// by the agent stays compact instead of overflowing horizontally.
-					// `wrappingIndent: 'none'` makes wrapped continuations start at column 1
-					// instead of inheriting the source line's indentation. Without it, monaco's
-					// default (`'same'`) injects the leading indent as real whitespace at every
-					// wrap boundary, which corrupts the rendered text's DOM `textContent`
-					// (splitting tokens mid-word) and breaks smoke tests that read it.
-					codeBlockRenderOptions: { editorOptions: { wordWrap: 'on', wrappingIndent: 'none' } },
 				},
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
@@ -282,6 +275,10 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value = cts;
 		const token = cts.token;
 
+		// Capture the input draft before the load window opens so text typed
+		// during loading is preserved when the model binds. See #325323.
+		const inputBeforeLoad = this._widget.getInput();
+
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
@@ -289,7 +286,7 @@ export class ChatView extends AbstractChatView {
 			}
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
-			this._widget.setModel(ref.object);
+			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the

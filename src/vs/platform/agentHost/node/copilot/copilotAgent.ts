@@ -66,10 +66,11 @@ import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, g
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
+import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
+import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
@@ -499,6 +500,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -521,6 +523,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
 		// chat channel so the orchestrator manages sub-agent chats
@@ -529,7 +532,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
 			{
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-				getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
@@ -1480,6 +1483,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _findAnySession(sessionId: string): CopilotAgentSession | undefined {
 		return this._sessions.get(sessionId)?.defaultChat;
+	}
+
+	private _getRuntimeSlashCommands(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions) {
+		const session = this._findAnySession(sessionId);
+		if (session) {
+			return session.getRuntimeSlashCommands(options) ?? [];
+		}
+		return this._slashCommandProvider.getSlashCommands(options);
 	}
 
 	/**

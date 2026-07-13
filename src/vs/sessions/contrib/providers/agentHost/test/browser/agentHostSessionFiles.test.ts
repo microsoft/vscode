@@ -318,6 +318,27 @@ suite('agentHostSessionFiles', () => {
 		]);
 	});
 
+	test('reduceTurnChanges filters files outside the workspace and worktree roots', () => {
+		const edits: IParsedFileEdit[] = [
+			parsedEdit(FileEditKind.Edit, { after: '/repo/src/app.ts', beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
+			parsedEdit(FileEditKind.Create, { after: '/tmp/session-worktree/README.md' }, { insertions: 5 }),
+			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/tool.json', beforeContent: '/home/user/.config/tool.json.before' }, { insertions: 10, deletions: 1 }),
+		];
+
+		const changes = reduceTurnChanges(edits, [URI.file('/repo'), URI.file('/tmp/session-worktree')]).map(c => ({
+			uri: c.uri.path,
+			modified: c.modifiedUri?.path,
+			original: c.originalUri?.path,
+			insertions: c.insertions,
+			deletions: c.deletions,
+		}));
+
+		assert.deepStrictEqual(changes, [
+			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', insertions: 2, deletions: 0 },
+			{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, insertions: 5, deletions: 0 },
+		]);
+	});
+
 	test('reduceTurnChanges nets out a file created and then deleted in the same turn', () => {
 		const edits: IParsedFileEdit[] = [
 			parsedEdit(FileEditKind.Create, { after: '/repo/scratch.tmp' }, { insertions: 5 }),

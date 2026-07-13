@@ -155,10 +155,10 @@ extends:
     stages:
       # The per-OS compile template unconditionally waits (up to 30 min) for a
       # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
-      # the build. This stage produces it — mirroring product-build.yml. It runs
-      # in parallel with the build stages (dependsOn: []); the download step polls
-      # the whole-run timeline for the artifact. Without it every build stage
-      # fails at "Download Copilot VSIX".
+      # the build. This stage produces it — mirroring product-build.yml. The
+      # platform stages depend on its artifact-published output so they are
+      # skipped when the artifact cannot be produced, but still run if later
+      # Copilot validation fails.
       - stage: Copilot
         dependsOn: []
         pool:
@@ -175,7 +175,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -187,7 +188,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -199,7 +201,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
         - stage: macOS
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: AcesShared
             os: macOS
