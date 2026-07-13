@@ -2845,6 +2845,40 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(notifications.map(part => part.content.value), ['Background command completed']);
 		}));
 
+		test('Auto model routing metadata becomes a live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: {
+						autoModeResolved: {
+							chosenModel: 'gpt-5.4-mini',
+							predictedLabel: 'no_reasoning',
+							confidence: 0.98,
+						},
+					},
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'autoModeResolution'), [{
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.4-mini',
+				resolvedModelName: 'GPT-5.4 mini',
+				predictedLabel: 'no_reasoning',
+				confidence: 0.98,
+			}]);
+		}));
+
 		test('live turn marks chat session complete after turnComplete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 

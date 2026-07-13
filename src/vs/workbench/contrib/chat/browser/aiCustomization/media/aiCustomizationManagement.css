@@ -80,8 +80,80 @@
 }
 
 .ai-customization-management-editor .sidebar-sections-list {
+	flex: 0 0 auto;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut {
+	flex-shrink: 0;
+	margin-top: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.ai-customization-management-editor .sidebar-migration-separator {
+	height: var(--vscode-strokeThickness);
+	margin: 0 8px 6px;
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button {
+	all: unset;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 4px 8px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 18px;
+	font-family: inherit;
+	text-align: left;
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .sidebar-migration-shortcut > button.sidebar-migration-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .sidebar-migration-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+	opacity: 1;
+}
+
+.ai-customization-management-editor .sidebar-migration-label {
 	flex: 1;
 	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+.ai-customization-management-editor .sidebar-migration-count {
+	margin-left: auto;
+	flex-shrink: 0;
+	min-width: 14px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 16px;
+	text-align: right;
 }
 
 /* Section list items */
@@ -772,6 +844,7 @@
 
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .prompt-migration-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container,
@@ -786,6 +859,64 @@
 	border-radius: 6px;
 	overflow: hidden;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .prompt-migration-list {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	overflow: auto;
+	padding-bottom: 6px;
+}
+
+.ai-customization-management-editor .prompt-migration-group {
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .prompt-migration-group + .prompt-migration-group {
+	margin-top: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-header {
+	cursor: default;
+	margin-bottom: 2px;
+}
+
+.ai-customization-management-editor .prompt-migration-group-header:hover {
+	background-color: transparent;
+}
+
+.ai-customization-management-editor .prompt-migration-group-checkbox {
+	margin-right: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-item {
+	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-checkbox {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.ai-customization-management-editor .prompt-migration-item-name {
+	color: inherit;
+}
+
+.ai-customization-management-editor .prompt-migration-item .item-left {
+	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-empty {
+	margin: 0;
+	padding: 8px 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.ai-customization-management-editor .prompt-migration-button {
+	min-width: 96px;
 }
 
 /* Tools section list widget */
@@ -2346,20 +2477,18 @@ pane is first mounted. View switches inside the modal are not animated. */
  * contextview.ts as `2575 + layer`). DOM order means the dialog
  * shows on top, hiding any popup the chat input chips, the quick
  * input, or a context menu try to open. We can't change the inline
- * z-index from outside, so use `!important` on rules scoped to
- * `body:has(.automation-dialog)`. They only apply while the
- * automations dialog is on screen, so other dialogs' popup stacking
- * is untouched.
+ * z-index from outside, so use `!important` while the dialog service
+ * marks the active container as automation-dialog-open.
  */
-body:has(.automation-dialog) .context-view.monaco-component {
+.automation-dialog-open .context-view.monaco-component {
 	z-index: 2600 !important;
 }
 
-body:has(.automation-dialog) .quick-input-widget {
+.automation-dialog-open .quick-input-widget {
 	z-index: 2600 !important;
 }
 
-body:has(.automation-dialog) .monaco-menu-container {
+.automation-dialog-open .monaco-menu-container {
 	z-index: 2600 !important;
 }
 

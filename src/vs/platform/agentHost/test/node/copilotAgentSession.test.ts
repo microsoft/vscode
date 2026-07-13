@@ -26,7 +26,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, readUsageInfoMeta, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
@@ -1193,6 +1193,59 @@ suite('CopilotAgentSession', () => {
 				},
 			},
 		]);
+	});
+
+	test('forwards Auto model resolution on live usage metadata', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const autoModeResolved = {
+			chosenModel: 'claude-opus-4.8',
+			reasoningBucket: 'high' as const,
+			categoryScores: { reasoning: 0.91, code_gen: 0.72 },
+			predictedLabel: 'needs_reasoning',
+			confidence: 0.93,
+			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+		};
+
+		session.resetTurnState('turn-before-auto');
+		mockSession.fire('assistant.usage', {
+			model: 'gpt-5.5',
+			inputTokens: 100,
+			outputTokens: 200,
+			cost: 5,
+		} as SessionEventPayload<'assistant.usage'>['data']);
+		session.resetTurnState('turn-auto');
+		mockSession.fire('session.auto_mode_resolved', autoModeResolved);
+		mockSession.fire('assistant.usage', {
+			model: 'claude-opus-4.8',
+			inputTokens: 10,
+			outputTokens: 20,
+			cost: 2,
+		} as SessionEventPayload<'assistant.usage'>['data']);
+
+		const usageActions = signals
+			.filter((signal): signal is IAgentActionSignal => signal.kind === 'action')
+			.map(signal => signal.action)
+			.filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage && action.turnId === 'turn-auto');
+
+		assert.deepStrictEqual({
+			usages: usageActions.map(action => action.usage),
+			parsed: readUsageInfoMeta(usageActions.at(-1)?.usage).autoModeResolved,
+		}, {
+			usages: [
+				{
+					model: 'claude-opus-4.8',
+					_meta: { autoModeResolved },
+				},
+				{
+					inputTokens: 10,
+					outputTokens: 20,
+					model: 'claude-opus-4.8',
+					cacheReadTokens: undefined,
+					_meta: { cost: 2, autoModeResolved },
+				},
+			],
+			parsed: autoModeResolved,
+		});
 	});
 
 	test('reports the parent turn aggregate and additionally the per-subagent component', async () => {

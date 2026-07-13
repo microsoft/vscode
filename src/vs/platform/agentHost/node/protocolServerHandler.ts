@@ -1401,10 +1401,14 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getNetworkDiagnosticsInfo':
+				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'diagnosticsFetch':
+				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:
 				return undefined;
 		}

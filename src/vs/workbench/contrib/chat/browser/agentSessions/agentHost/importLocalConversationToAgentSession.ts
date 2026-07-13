@@ -38,27 +38,41 @@ function stringifyToolInput(rawInput: unknown): string {
  * text) as a markdown link so it survives migration instead of leaving a gap
  * where the chip used to be. Falls back to plain label text when no URI is
  * available.
+ *
+ * The source chip shows a short label — a file's basename or a symbol's name —
+ * never a workspace-relative path. Some inline references carry that path in
+ * their `name`, so a path-like label is collapsed to the URI's basename to
+ * avoid leaking the tree into the imported transcript.
  */
 function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlineReference'], name: string | undefined): string {
 	let uri: URI | undefined;
 	let label = name;
+	let isSymbol = false;
 	if (URI.isUri(reference)) {
 		uri = reference;
 	} else {
 		// `Location` carries the URI directly; `IWorkspaceSymbol` nests it under
 		// `location` and supplies its own display name.
-		const location = reference as { uri?: URI; location?: { uri?: URI } };
+		const location = reference as { uri?: URI; location?: { uri?: URI }; name?: string };
 		if (URI.isUri(location.uri)) {
 			uri = location.uri;
 		} else if (URI.isUri(location.location?.uri)) {
 			uri = location.location.uri;
-			label = label ?? (reference as { name?: string }).name;
+			label = label ?? location.name;
+			isSymbol = true;
 		}
 	}
 	if (!uri) {
 		return label ?? '';
 	}
-	return `[${label ?? basename(uri)}](${uri.toString()})`;
+	// A file reference with a missing or path-like label (some carry the
+	// workspace-relative path as their name) collapses to the basename, matching
+	// the source chip. A symbol's name is preserved verbatim — it may legitimately
+	// contain a separator (e.g. C++ `operator/`) and must not be treated as a path.
+	if (!label || (!isSymbol && /[\\/]/.test(label))) {
+		label = basename(uri);
+	}
+	return `[${label}](${uri.toString()})`;
 }
 
 /**

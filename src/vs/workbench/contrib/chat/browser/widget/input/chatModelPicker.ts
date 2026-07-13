@@ -39,7 +39,7 @@ import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService, isProUser 
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelConfigurationAccess, IModelPickerDelegate } from './modelPickerActionItem.js';
 import { getModelProviderIcon } from './modelProviderIcons.js';
-import { getModelPickerUnavailableReason, ModelPickerUnavailableReason } from './chatModelSelectionLogic.js';
+import { getModelPickerUnavailableReason, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -1041,6 +1041,18 @@ function createUnavailableModelItem(
 
 type ModelPickerBadge = 'info' | 'warning';
 
+/** Why the picker has no model to offer, and the label states that follow from it. */
+interface IModelPickerAvailability {
+	/** Untrusted workspace or sign-in / setup required, or `undefined` when a model is available. */
+	readonly reason: ModelPickerUnavailableReason | undefined;
+	/** Trusted, but models are still loading while the chat extension activates. */
+	readonly activating: boolean;
+	/** Trusted and set up, but the list is empty and there is no Auto fallback. */
+	readonly genericNoModels: boolean;
+	/** Any of the above: the picker has nothing to offer. */
+	readonly noModels: boolean;
+}
+
 /**
  * A model selection dropdown widget.
  *
@@ -1328,24 +1340,28 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Whether a picker should show the cache-break hint: the hint has not been
-	 * dismissed and the session's cache is warm. When `excludeAutoModel` is
-	 * set (the model picker), the hint is suppressed for the Auto model, since
-	 * Auto routes each request dynamically so "switching models" does not apply.
-	 * The options picker passes `false`: changing reasoning effort / context size
-	 * resets the cache even under Auto, which only routes the model.
+	 * The picker's current availability, derived once so the label states and the "nothing to switch
+	 * to" hint suppression (#325185) cannot disagree.
 	 */
+	private _availability(): IModelPickerAvailability {
+		// Queried directly rather than through the isRestrictedMode()/isSetupRequired() wrappers,
+		// which would each recompute it.
+		const reason = this._unavailableReason();
+		const empty = this._delegate.getModels().length === 0;
+		const activating = reason === undefined && empty && this._activatingAfterTrust;
+		const genericNoModels = reason === undefined && !activating && empty && !(this._delegate.showAutoModel?.() ?? false);
+		return { reason, activating, genericNoModels, noModels: reason !== undefined || activating || genericNoModels };
+	}
+
+	/** Thin wrapper over {@link computeShouldShowCacheBreakHint} that supplies this picker's live state. */
 	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
-		if (this.isCacheBreakHintDismissed()) {
-			return false;
-		}
-		if (!(this._delegate.isCacheWarm?.() ?? false)) {
-			return false;
-		}
-		if (excludeAutoModel && !!this._selectedModel && isAutoModel(this._selectedModel)) {
-			return false;
-		}
-		return true;
+		return computeShouldShowCacheBreakHint({
+			dismissed: this.isCacheBreakHintDismissed(),
+			cacheWarm: this._delegate.isCacheWarm?.() ?? false,
+			noModelsAvailable: this._availability().noModels,
+			excludeAutoModel,
+			selectedModelIsAuto: !!this._selectedModel && isAutoModel(this._selectedModel),
+		});
 	}
 
 	show(anchor?: HTMLElement): void {
@@ -1527,28 +1543,10 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name } = this._selectedModel?.metadata || {};
 
-		// Untrusted workspace: present a normal "Models" placeholder (no badge)
-		// rather than a dead-end label; the hover and dropdown carry the Restricted
-		// Mode explanation and the Trust Workspace action.
-		const restrictedMode = this.isRestrictedMode();
-
-		// Trusted, but Chat still needs sign-in / setup before any model is
-		// usable: present the same "Models" placeholder, with the dropdown
-		// carrying a Sign In action instead of a misleading "Auto".
-		const setupRequired = this.isSetupRequired();
-		const unavailable = restrictedMode || setupRequired;
-
-		// Just after Trust, models load asynchronously while the chat extension
-		// activates. Show a transient "Activating..." state — only when there is
-		// nothing else to display — instead of a misleading "Auto" fallback.
-		const activating = !unavailable && this._activatingAfterTrust && this._delegate.getModels().length === 0;
-
-		// Generic empty state (e.g. an agent-host session with no Auto fallback);
-		// not evaluated while unavailable/activating, which take precedence.
-		const genericNoModels = !unavailable && !activating
-			&& !(this._delegate.showAutoModel?.() ?? false)
-			&& this._delegate.getModels().length === 0;
-		const noModelsAvailable = unavailable || activating || genericNoModels;
+		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
+		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
+		const setupRequired = reason === ModelPickerUnavailableReason.SetupRequired;
+		const unavailable = reason !== undefined;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
@@ -1557,6 +1555,10 @@ export class ModelPickerWidget extends Disposable {
 		if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
+		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
+		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.
+		// "Activating..." is transient while models load after a Trust grant; "No models available"
+		// is the genuinely empty state (e.g. an agent-host session with no Auto fallback).
 		const modelLabel = unavailable
 			? localize('chat.modelPicker.modelsLabel', "Models")
 			: activating

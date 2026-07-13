@@ -286,7 +286,7 @@ suite('ChatModel', () => {
 		const stringContextValue: StringChatContextValue = {
 			value: 'pr-content',
 			name: 'PR #123',
-			icon: Codicon.gitPullRequest,
+			iconPath: Codicon.gitPullRequest,
 			uri: URI.parse('pr://123'),
 			handle: 1
 		};
@@ -296,7 +296,7 @@ suite('ChatModel', () => {
 			value: 'pr-content',
 			id: 'string-id',
 			name: 'PR #123',
-			icon: Codicon.gitPullRequest,
+			iconPath: Codicon.gitPullRequest,
 			uri: URI.parse('pr://123'),
 			handle: 1
 		};

@@ -9,7 +9,6 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '.
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -23,7 +22,7 @@ import { WebviewEditor } from '../../../webviewPanel/browser/webviewEditor.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -470,9 +469,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._uri;
 	}
 
-	get icon(): ThemeIcon | undefined {
+	get iconPath(): ChatContextIconPath | undefined {
 		if (isStringImplicitContextValue(this.value)) {
-			return this.value.icon;
+			return this.value.iconPath;
 		}
 		return undefined;
 	}
@@ -505,7 +504,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 					name: this.name,
 					value: this.value.value ?? this.name,
 					modelDescription: this.modelDescription,
-					icon: this.value.icon,
+					iconPath: this.value.iconPath,
 					uri: this.value.uri,
 					resourceUri: this.value.resourceUri,
 					handle: this.value.handle,
