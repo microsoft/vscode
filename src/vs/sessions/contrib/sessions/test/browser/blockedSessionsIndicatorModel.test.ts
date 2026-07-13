@@ -145,15 +145,11 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.requiresInputKind.get(), undefined);
 	});
 
-	test('classifies failing-CI and unresolved-comments reasons', () => {
+	test('classifies failing-CI reason', () => {
 		const { model, blockedModel } = createModel();
 		const ci = new TestSession('ci');
 		blockedModel.setBlocked([{ session: ci as unknown as ISession, reason: BlockedSessionReason.FailingCI }]);
-		const failingCI = model.requiresInputKind.get();
-		const comments = new TestSession('comments');
-		blockedModel.setBlocked([{ session: comments as unknown as ISession, reason: BlockedSessionReason.UnresolvedComments }]);
-		const unresolved = model.requiresInputKind.get();
-		assert.deepStrictEqual([failingCI, unresolved], [RequiresInputKind.FailingCI, RequiresInputKind.UnresolvedComments]);
+		assert.strictEqual(model.requiresInputKind.get(), RequiresInputKind.FailingCI);
 	});
 
 	test('builds the requires-input label per kind and count', () => {
@@ -163,7 +159,6 @@ suite('BlockedSessionsIndicatorModel', () => {
 			terminalMany: model.getRequiresInputLabel(3, RequiresInputKind.TerminalApproval),
 			questionOne: model.getRequiresInputLabel(1, RequiresInputKind.Question),
 			failingCIMany: model.getRequiresInputLabel(2, RequiresInputKind.FailingCI),
-			commentsOne: model.getRequiresInputLabel(1, RequiresInputKind.UnresolvedComments),
 			genericOne: model.getRequiresInputLabel(1, undefined),
 			genericMany: model.getRequiresInputLabel(4, undefined),
 		}, {
@@ -171,7 +166,6 @@ suite('BlockedSessionsIndicatorModel', () => {
 			terminalMany: '3 sessions require terminal approval',
 			questionOne: '1 session has a question',
 			failingCIMany: '2 sessions are failing CI',
-			commentsOne: '1 session has unresolved comments',
 			genericOne: '1 session requires input',
 			genericMany: '4 sessions require input',
 		});

@@ -26,8 +26,6 @@ export const enum RequiresInputKind {
 	Question,
 	/** All sessions have failing CI checks. */
 	FailingCI,
-	/** All sessions have unresolved pull request comments. */
-	UnresolvedComments,
 }
 
 /**
@@ -48,7 +46,7 @@ export const enum RequiresInputKind {
  */
 export class BlockedSessionsIndicatorModel extends Disposable {
 
-	/** Computes the raw set of blocked sessions (needs input / failing CI / comments). */
+	/** Computes the raw set of blocked sessions (needs input / failing CI). */
 	private readonly _blockedSessionsModel: BlockedSessions;
 
 	/** Tracks pending tool approvals per chat; distinguishes terminal vs question. */
@@ -302,10 +300,6 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				return count === 1
 					? localize('oneSessionFailingCI', "1 session is failing CI")
 					: localize('nSessionsFailingCI', "{0} sessions are failing CI", count);
-			case RequiresInputKind.UnresolvedComments:
-				return count === 1
-					? localize('oneSessionUnresolvedComments', "1 session has unresolved comments")
-					: localize('nSessionsUnresolvedComments', "{0} sessions have unresolved comments", count);
 			default:
 				return count === 1
 					? localize('oneSessionRequiresInput', "1 session requires input")
@@ -335,8 +329,6 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		switch (blocked.reason) {
 			case BlockedSessionReason.FailingCI:
 				return RequiresInputKind.FailingCI;
-			case BlockedSessionReason.UnresolvedComments:
-				return RequiresInputKind.UnresolvedComments;
 			case BlockedSessionReason.NeedsInput: {
 				const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
 				switch (approval?.kind) {
