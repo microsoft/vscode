@@ -7,14 +7,19 @@ import assert from 'assert';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { AuthInfo, IRequestService } from '../../../request/common/request.js';
+import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
+import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
@@ -148,5 +153,79 @@ suite('AgentHostRequestService', () => {
 		}, CancellationToken.None), /Connection refused/);
 
 		assert.strictEqual(attempts, 1);
+	});
+
+	test('forwards proxy and authorization lookups through the client channel', async () => {
+		const calls: unknown[] = [];
+		const requestService = {
+			resolveProxy: async (url: string) => {
+				calls.push(['resolveProxy', url]);
+				return 'PROXY proxy.example:8080';
+			},
+			lookupAuthorization: async (authInfo: AuthInfo) => {
+				calls.push(['lookupAuthorization', authInfo]);
+				return { username: 'user', password: 'password' };
+			},
+			lookupKerberosAuthorization: async (url: string) => {
+				calls.push(['lookupKerberosAuthorization', url]);
+				return 'Negotiate token';
+			},
+		} as IRequestService;
+		const server = new AgentHostClientProxyChannel(requestService);
+		const channel: IChannel = {
+			call: (command, arg) => server.call(undefined, command, arg),
+			listen: () => Event.None,
+		};
+		const connection = createAgentHostClientProxyConnection(channel);
+		const authInfo: AuthInfo = { scheme: 'basic', host: 'proxy.example', port: 8080, realm: 'proxy', isProxy: true, attempt: 1 };
+
+		const results = [
+			await connection.resolveProxy('https://example.com'),
+			await connection.lookupAuthorization(authInfo),
+			await connection.lookupKerberosAuthorization('http://proxy.example:8080'),
+		];
+
+		assert.deepStrictEqual({ calls, results }, {
+			calls: [
+				['resolveProxy', 'https://example.com'],
+				['lookupAuthorization', authInfo],
+				['lookupKerberosAuthorization', 'http://proxy.example:8080'],
+			],
+			results: [
+				'PROXY proxy.example:8080',
+				{ username: 'user', password: 'password' },
+				'Negotiate token',
+			],
+		});
+	});
+});
+
+suite('NetworkDiagnosticsService', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes nested proxy response errors', async () => {
+		const proxyError = new Error('Proxy response (407)');
+		const fetchError = new TypeError('fetch failed', { cause: new Error('dispatcher failed', { cause: proxyError }) });
+		const requestService: IRequestService = {
+			_serviceBrand: undefined,
+			onDidCompleteRequest: Event.None,
+			request: async () => { throw fetchError; },
+			resolveProxy: async () => undefined,
+			lookupAuthorization: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			loadCertificates: async () => [],
+		};
+		const proxyResolver = new TestProxyResolver();
+		const service = new NetworkDiagnosticsService(
+			requestService,
+			proxyResolver,
+			new TestConfigurationService(),
+			{ version: 'test' } as IProductService,
+			new NullLogService(),
+		);
+
+		const result = await service.fetch('https://localhost');
+
+		assert.strictEqual(result.error, 'fetch failed: dispatcher failed: Proxy response (407)');
 	});
 });
