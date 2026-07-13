@@ -751,12 +751,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
-		// Agent host sessions have server-authoritative archived state, so ignore
-		// the local view-state overlay: a stale local value must not mask the
-		// server truth reported via `session.archived`.
-		if (isAgentHostTarget(session.providerType)) {
-			return Boolean(session.archived);
-		}
 		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
 	}
 
