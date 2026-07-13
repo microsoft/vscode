@@ -1009,7 +1009,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const didChange = await this._outputView.toggle(expanded);
 		const isExpanded = this._outputView.isExpanded;
-		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded);
+		// Only drop the title's bottom border/radius when the output section is
+		// actually rendered below the title to visually close the box. Display-only
+		// invocations (e.g. a denied command with no terminal session or output) never
+		// append the output section (see constructor), so removing the title's bottom
+		// border here would leave an open-bottomed box.
+		const hasOutputSection = !!this._outputView.domNode.parentElement;
+		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded && hasOutputSection);
 		this._toolbarOutputExpanded = isExpanded;
 		this._updateToolbarActions();
 		if (didChange) {

@@ -66,13 +66,13 @@ suite('BlockedSessions', () => {
 		assert.deepStrictEqual(blockedIds(service), ['ci']);
 	});
 
-	test('completed session with unresolved PR comments is blocked', () => {
+	test('completed session with unresolved PR comments is not blocked', () => {
 		const gitHub = new TestGitHubService();
 		gitHub.setPullRequest('owner', 'repo', 8, openPullRequest(8, 'sha8'));
 		gitHub.setReviewThreads('owner', 'repo', 8, [{ isResolved: false } as IGitHubPullRequestReviewThread]);
 		const session = new TestSession('comments', SessionStatus.Completed, { pr: { owner: 'owner', repo: 'repo', number: 8 } });
 		const { service } = createService([session], gitHub);
-		assert.deepStrictEqual(blockedIds(service), ['comments']);
+		assert.deepStrictEqual(blockedIds(service), []);
 	});
 
 	test('in-progress session with failing CI is not blocked', () => {
@@ -122,11 +122,10 @@ suite('BlockedSessions', () => {
 		assert.deepStrictEqual(blockedReasons(service), [
 			['needsinput', BlockedSessionReason.NeedsInput],
 			['failingci', BlockedSessionReason.FailingCI],
-			['comments', BlockedSessionReason.UnresolvedComments],
 		]);
 	});
 
-	test('failing CI takes precedence over unresolved comments', () => {
+	test('failing CI still blocks sessions with unresolved comments', () => {
 		const gitHub = new TestGitHubService();
 		gitHub.setPullRequest('owner', 'repo', 22, openPullRequest(22, 'sha22'));
 		gitHub.setCIStatus('owner', 'repo', 22, 'sha22', GitHubCIOverallStatus.Failure);

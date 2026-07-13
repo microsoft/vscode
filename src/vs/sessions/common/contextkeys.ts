@@ -39,7 +39,6 @@ export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArc
 export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
 export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
 export const SessionHasWorkspaceContext = new RawContextKey<boolean>('sessionHasWorkspace', false, localize('sessionHasWorkspace', "Whether the session view's session has an associated workspace folder"));
-export const SessionHasTerminalsContext = new RawContextKey<boolean>('sessionHasTerminals', false, localize('sessionHasTerminals', "Whether the session view's session has one or more terminals that have had at least one command sent in them"));
 export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
 
 //#endregion

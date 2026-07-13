@@ -39,7 +39,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilo
 import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -66,10 +66,11 @@ import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, g
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
+import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
+import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
@@ -499,6 +500,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -521,6 +523,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
 		// chat channel so the orchestrator manages sub-agent chats
@@ -529,7 +532,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
 			{
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
-				getRuntimeSlashCommands: async (sessionId, options) => this._findAnySession(sessionId)?.getRuntimeSlashCommands(options) ?? [],
+				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
@@ -654,8 +657,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		return [
 			this._gitHubEndpointService.getCopilotResource(),
-			this._gitHubEndpointService.getRepoResource()
+			this._gitHubEndpointService.getRepoResource(),
 		];
+	}
+
+	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
+		let capiUrl = process.env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
+		if (this._githubToken) {
+			try {
+				capiUrl = await this._copilotApiService.resolveApiEndpoint(this._githubToken) || capiUrl;
+			} catch (error) {
+				this._logService.debug(`[Copilot] CAPI endpoint discovery for network diagnostics failed; using ${capiUrl}: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+		const capiPingUrl = new URL(capiUrl);
+		capiPingUrl.pathname = `${capiPingUrl.pathname.replace(/\/$/, '')}/_ping`;
+		return [
+			{ name: 'GitHub API', url: this._gitHubEndpointService.getApiBaseUri() },
+			{ name: 'Copilot API (CAPI)', url: capiPingUrl.toString() },
+		];
+	}
+
+	async getNetworkDiagnosticsAccount(): Promise<string | undefined> {
+		return this._githubToken ? this._copilotApiService.resolveUserLogin?.(this._githubToken) : undefined;
 	}
 
 	getCustomizations(): readonly Customization[] {
@@ -1459,6 +1483,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _findAnySession(sessionId: string): CopilotAgentSession | undefined {
 		return this._sessions.get(sessionId)?.defaultChat;
+	}
+
+	private _getRuntimeSlashCommands(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions) {
+		const session = this._findAnySession(sessionId);
+		if (session) {
+			return session.getRuntimeSlashCommands(options) ?? [];
+		}
+		return this._slashCommandProvider.getSlashCommands(options);
 	}
 
 	/**

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
-import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
@@ -59,6 +59,7 @@ import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
+import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. AHP now exposes the
@@ -73,11 +74,6 @@ type RuntimeSlashCommandInfo = Awaited<ReturnType<CopilotSession['rpc']['command
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
-type RuntimeSlashCommandCatalog = {
-	readonly commands: readonly RuntimeSlashCommandInfo[];
-	readonly byName: ReadonlyMap<string, RuntimeSlashCommandInfo>;
-	readonly byAlias: ReadonlyMap<string, RuntimeSlashCommandInfo>;
-};
 
 interface IPendingMcpAuthRequest {
 	readonly serverName: string;
@@ -85,10 +81,6 @@ interface IPendingMcpAuthRequest {
 	readonly requiredScopes: readonly string[];
 	readonly deferred: DeferredPromise<McpAuthResult | null | undefined>;
 }
-type RuntimeSlashCommandCache = {
-	value?: RuntimeSlashCommandCatalog;
-	inFlight?: Promise<RuntimeSlashCommandCatalog>;
-};
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
@@ -596,7 +588,7 @@ export class CopilotAgentSession extends Disposable {
 	private _lastSeenModelId: string | undefined;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
-	private _runtimeSlashCommandCache: RuntimeSlashCommandCache | undefined;
+	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
@@ -689,6 +681,7 @@ export class CopilotAgentSession extends Disposable {
 		super();
 		this.sessionId = options.rawSessionId;
 		this.sessionUri = options.sessionUri;
+		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
@@ -1294,7 +1287,7 @@ export class CopilotAgentSession extends Disposable {
 					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
 			}
 		} else if (slashCommand) {
-			const runtimeSlashCommand = await this._resolveRuntimeSlashCommand(slashCommand.command);
+			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
 			// Skills can be passed as is to the runtime.
 			if (runtimeSlashCommand && runtimeSlashCommand.kind !== 'skill') {
 				let result: CopilotCommandInvocationResult;
@@ -1340,7 +1333,7 @@ export class CopilotAgentSession extends Disposable {
 						break;
 				}
 				if (result.runtimeSettingsChanged === true) {
-					this._invalidateRuntimeSlashCommandCache();
+					this._slashCommandProvider.clearCache();
 				}
 				if (result.kind !== 'agent-prompt') {
 					this._completeActiveTurn();
@@ -1364,7 +1357,7 @@ export class CopilotAgentSession extends Disposable {
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
 		try {
-			return !!(await this._resolveRuntimeSlashCommand(command));
+			return !!(await this._slashCommandProvider.resolveSlashCommand(command));
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
 			return false;
@@ -1373,111 +1366,10 @@ export class CopilotAgentSession extends Disposable {
 
 	async getRuntimeSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
 		try {
-			const maxWaitMs = options?.maxWaitMs;
-			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs === undefined ? undefined : Math.max(0, maxWaitMs));
-			return catalog.commands;
+			return await this._slashCommandProvider.getSlashCommands(options);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
 			return [];
-		}
-	}
-
-	private async _resolveRuntimeSlashCommand(command: string, maxWaitMs: number | undefined = undefined): Promise<RuntimeSlashCommandInfo | undefined> {
-		const key = this._normalizeSlashCommandKey(command);
-		if (!key) {
-			return undefined;
-		}
-		const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
-		return catalog.byName.get(key) ?? catalog.byAlias.get(key);
-	}
-
-	private async _getRuntimeSlashCommandCatalog(maxWaitMs: number | undefined = undefined): Promise<RuntimeSlashCommandCatalog> {
-		const cache = this._runtimeSlashCommandCache ??= {};
-		if (cache.value) {
-			return cache.value;
-		}
-
-		const inFlight = this._refreshRuntimeSlashCommandCatalog(cache);
-		if (maxWaitMs === undefined) {
-			return inFlight;
-		}
-		const settled = await raceTimeout(inFlight, maxWaitMs);
-		if (settled) {
-			return settled;
-		}
-		if (cache.value) {
-			return cache.value;
-		}
-		return {
-			commands: [],
-			byName: new Map(),
-			byAlias: new Map(),
-		};
-	}
-
-	private _refreshRuntimeSlashCommandCatalog(cache: RuntimeSlashCommandCache): Promise<RuntimeSlashCommandCatalog> {
-		if (cache.inFlight) {
-			return cache.inFlight;
-		}
-
-		const inFlight = this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true })
-			.then(result => this._toRuntimeSlashCommandCatalog(result.commands));
-		cache.inFlight = inFlight;
-		inFlight.then(catalog => {
-			if (this._runtimeSlashCommandCache === cache) {
-				cache.value = catalog;
-				cache.inFlight = undefined;
-			}
-		}, () => {
-			if (this._runtimeSlashCommandCache === cache) {
-				cache.inFlight = undefined;
-				if (!cache.value) {
-					this._runtimeSlashCommandCache = undefined;
-				}
-			}
-		});
-		return inFlight;
-	}
-
-	private _toRuntimeSlashCommandCatalog(commands: readonly RuntimeSlashCommandInfo[]): RuntimeSlashCommandCatalog {
-		const byName = new Map<string, RuntimeSlashCommandInfo>();
-		const byAlias = new Map<string, RuntimeSlashCommandInfo>();
-		const deduped: RuntimeSlashCommandInfo[] = [];
-		for (const command of commands) {
-			const nameKey = this._normalizeSlashCommandKey(command.name);
-			if (!nameKey) {
-				continue;
-			}
-			let canonical = byName.get(nameKey);
-			if (!canonical) {
-				canonical = command;
-				byName.set(nameKey, canonical);
-				deduped.push(canonical);
-			}
-			for (const alias of command.aliases ?? []) {
-				const aliasKey = this._normalizeSlashCommandKey(alias);
-				if (!aliasKey || byAlias.has(aliasKey)) {
-					continue;
-				}
-				byAlias.set(aliasKey, canonical);
-			}
-		}
-		return { commands: deduped, byName, byAlias };
-	}
-
-	private _normalizeSlashCommandKey(command: string): string | undefined {
-		const trimmed = command.trim();
-		if (!trimmed) {
-			return undefined;
-		}
-		const slashStripped = trimmed.charCodeAt(0) === 0x2f /* / */ ? trimmed.slice(1) : trimmed;
-		return slashStripped.toLowerCase();
-	}
-
-	private _invalidateRuntimeSlashCommandCache(): void {
-		if (this._runtimeSlashCommandCache) {
-			// Keep in-flight promises isolated from fresh lookups after invalidation.
-			this._runtimeSlashCommandCache = undefined;
 		}
 	}
 
@@ -3458,11 +3350,11 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onToolsUpdated(() => {
-			this._invalidateRuntimeSlashCommandCache();
+			this._slashCommandProvider.clearCache();
 			this._fireMcpToolsListChanged();
 		}));
 		this._register(wrapper.onCommandsChanged(() => {
-			this._invalidateRuntimeSlashCommandCache();
+			this._slashCommandProvider.clearCache();
 		}));
 
 		// Seed the inventory with any servers the SDK has already loaded by
