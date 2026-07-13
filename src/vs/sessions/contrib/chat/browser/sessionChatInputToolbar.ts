@@ -10,6 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -114,6 +115,12 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
 	private readonly _previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
 
+	/** The URL of the last browser tool call in the viewed chat's last turn, if any. */
+	private readonly _browserUrl = derived<string | undefined>(this, reader => {
+		const chat = this._chat.read(reader);
+		return chat?.lastTurnBrowserUrl?.read(reader);
+	});
+
 	/** Whether pills may show at all: an agent host session while the viewed chat's turn is streaming. */
 	private readonly _active = derived(reader => {
 		const session = this._session.read(reader);
@@ -139,10 +146,13 @@ export class SessionChatInputToolbar extends Disposable {
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			previewFiles: this._previewFiles,
+			browserUrl: this._browserUrl,
 			changesEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).changes),
 			previewEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).preview),
+			browserEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).browser),
 			openChanges: () => this._openChanges(),
 			openPreviewFile: file => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			openBrowser: url => this._openBrowser(url),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
@@ -197,5 +207,18 @@ export class SessionChatInputToolbar extends Disposable {
 			multiDiffSource,
 			label: localize('sessions.lastTurnChanges.title', "Last Turn Changes"),
 		});
+	}
+
+	/**
+	 * Open the integrated browser at the given URL, falling back to the default
+	 * opener when the browser command is unavailable (e.g. web).
+	 */
+	private async _openBrowser(url: string): Promise<void> {
+		try {
+			await this._commandService.executeCommand(BrowserViewCommandId.Open, url);
+		} catch (err) {
+			this._logService.trace('[SessionChatInputToolbar] Falling back to default opener for browser URL', err);
+			await this._openerService.open(url);
+		}
 	}
 }

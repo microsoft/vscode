@@ -15,10 +15,12 @@ import {
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionFileOperation } from '../../../../../services/sessions/common/session.js';
+import { BrowserChatToolReferenceName } from '../../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import {
 	createIncrementalChatFileEditsParser,
 	IFileEditChatState,
 	IParsedFileEdit,
+	parseBrowserUrlFromResponseParts,
 	parseResponseParts,
 	reduceSessionFiles,
 	reduceTurnChanges,
@@ -60,6 +62,21 @@ function pendingConfirmationToolCallPart(items: object[]): ResponsePart {
 		displayName: 'Edit File',
 		invocationMessage: 'Editing',
 		edits: { items },
+	});
+}
+
+/** A completed browser tool call with the given tool name and raw JSON input. */
+function browserToolCallPart(toolName: string, toolInput: string | undefined): ResponsePart {
+	return toolCallPart({
+		status: ToolCallStatus.Completed,
+		toolCallId: `tc-${seq++}`,
+		toolName,
+		displayName: 'Browser',
+		invocationMessage: 'Browsing',
+		confirmed: ToolCallConfirmationReason.NotNeeded,
+		success: true,
+		pastTenseMessage: 'Browsed',
+		toolInput,
 	});
 }
 
@@ -189,6 +206,38 @@ suite('agentHostSessionFiles', () => {
 				{ kind: FileEditKind.Edit, uri: 'file:///edited.txt' },
 				{ kind: FileEditKind.Delete, uri: 'file:///deleted.txt' },
 			],
+		);
+	});
+
+	test('parseBrowserUrlFromResponseParts returns the last browser URL and ignores non-browser/malformed calls', () => {
+		const openInput = (url: string) => JSON.stringify({ url });
+		const navigateInput = (fields: object) => JSON.stringify(fields);
+
+		assert.deepStrictEqual(
+			{
+				none: parseBrowserUrlFromResponseParts([markdownPart('hi'), completedToolCallPart([createEdit('file:///a.txt')])]),
+				open: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, openInput('https://a.com/'))]),
+				navigate: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'url', url: 'https://b.com/' }))]),
+				// Later browser calls win so the pill reflects the most recent page.
+				last: parseBrowserUrlFromResponseParts([
+					browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, openInput('https://first.com/')),
+					markdownPart('mid'),
+					browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'url', url: 'https://last.com/' })),
+				]),
+				// A back/forward/reload navigation carries no URL.
+				navigateNoUrl: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'reload' }))]),
+				malformed: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, '{not json')]),
+				missingInput: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, undefined)]),
+			},
+			{
+				none: undefined,
+				open: 'https://a.com/',
+				navigate: 'https://b.com/',
+				last: 'https://last.com/',
+				navigateNoUrl: undefined,
+				malformed: undefined,
+				missingInput: undefined,
+			},
 		);
 	});
 

@@ -7320,5 +7320,14 @@
       "flags": "verified"
     },
     "publisherDisplayName": "GitHub"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "keytar@7.9.0": true,
+    "@playwright/browser-chromium@1.61.1": true,
+    "@vscode/vsce-sign@2.0.5": true,
+    "protobufjs": false,
+    "fsevents@2.3.3": true,
+    "fsevents@2.3.2": true
   }
 }

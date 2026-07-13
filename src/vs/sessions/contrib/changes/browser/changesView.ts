@@ -315,7 +315,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 					: op.status === SessionChangesetOperationStatus.Running
 						? `$(loading) ${op.label}`
 						: op.label,
-				tooltip: op.description,
+				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => changeset.invokeOperation(op.id),
 			});

@@ -840,8 +840,13 @@ configurationRegistry.registerConfiguration({
 					default: false,
 					description: nls.localize('chat.turnStatusPills.preview', "Show a pill to preview a Markdown or HTML file created or edited in the turn."),
 				},
+				browser: {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('chat.turnStatusPills.browser', "Show a \"Live Browser\" pill to open the integrated browser at the last URL a browser tool opened in the turn."),
+				},
 			},
-			default: { changes: false, preview: false },
+			default: { changes: false, preview: false, browser: false },
 			additionalProperties: false,
 		},
 		[mcpAccessConfig]: {
