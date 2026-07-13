@@ -238,7 +238,7 @@ suite('aiCustomizationListWidget', () => {
 				getItems: () => observableValue('test', [] as readonly never[]),
 				getCount: () => observableValue('test', 0),
 				getPluginCount: () => observableValue('test', 0),
-				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: activeSessionResource.get(), dispose() { } }),
 			});
 		});
 

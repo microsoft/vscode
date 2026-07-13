@@ -28,6 +28,13 @@ export function isActiveTaskState(state: AgentTaskState): boolean {
 		case 'timed_out':
 		case 'cancelled':
 			return false;
+		default:
+			// Forward-compat: an unknown state added server-side is treated as active, matching
+			// `taskStateToChatSessionStatus` (unknown → InProgress). Returning `false` here would
+			// let the detail view settle while the session state still reads `in_progress`, which
+			// reintroduces the stuck "Session is in progress…" spinner with no live callback to
+			// recover — so keep streaming until the state resolves to a known terminal one.
+			return true;
 	}
 }
 

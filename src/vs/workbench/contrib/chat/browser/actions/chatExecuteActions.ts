@@ -666,41 +666,6 @@ export class OpenWorkspacePickerAction extends Action2 {
 	}
 }
 
-/**
- * Workspace picker chip for the automations dialog. Sits between the mode
- * picker (order 1) and the model picker (order 3) in the primary chat input
- * toolbar. Visible only when the hosting `ChatInputPart` was constructed with
- * a `workspacePickerInput` and the dialog has set
- * {@link ChatContextKeys.inAutomationsDialog} on its scoped context-key
- * service.
- */
-export class OpenAutomationsWorkspacePickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openAutomationsWorkspacePicker';
-
-	constructor() {
-		super({
-			id: OpenAutomationsWorkspacePickerAction.ID,
-			title: localize2('interactive.openAutomationsWorkspacePicker.label', "Open Automations Workspace Picker"),
-			tooltip: localize('selectAutomationsWorkspace', "Select Workspace Folder"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					order: 2,
-					group: 'navigation',
-					when: ChatContextKeys.inAutomationsDialog,
-				},
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		// The picker is opened via the action view item's trigger.
-	}
-}
-
 export class ChatSessionPrimaryPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
@@ -1267,7 +1232,6 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(OpenSessionTargetPickerAction));
 	store.add(registerAction2(OpenDelegationPickerAction));
 	store.add(registerAction2(OpenWorkspacePickerAction));
-	store.add(registerAction2(OpenAutomationsWorkspacePickerAction));
 	store.add(registerAction2(ChatSessionPrimaryPickerAction));
 	store.add(registerAction2(ChangeChatModelAction));
 	store.add(registerAction2(CancelEdit));

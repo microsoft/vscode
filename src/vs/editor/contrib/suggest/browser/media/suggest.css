@@ -11,7 +11,7 @@
 	display: flex;
 	flex-direction: column;
 	border-radius: var(--vscode-cornerRadius-large);
-	box-shadow: var(--vscode-shadow-lg);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
 .monaco-editor .suggest-widget.message {
@@ -34,6 +34,11 @@
 .monaco-editor.hc-light .suggest-widget,
 .monaco-editor.hc-light .suggest-details {
 	border-width: 2px;
+}
+
+.monaco-editor.hc-black .suggest-widget,
+.monaco-editor.hc-light .suggest-widget {
+	box-shadow: none;
 }
 
 /* Styles for status bar part */
@@ -356,6 +361,8 @@
 	flex-direction: column;
 	cursor: default;
 	color: var(--vscode-editorSuggestWidget-foreground);
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
 }
 
 .monaco-editor .suggest-details:focus {

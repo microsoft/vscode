@@ -566,3 +566,20 @@ export function getModelPickerUnavailableReason(context: {
 	}
 	return undefined;
 }
+
+/**
+ * Whether a picker should show the cache-break hint: suppressed when dismissed, when the cache is cold, or
+ * when there is nothing to switch to (#325185). `excludeAutoModel` also suppresses it under Auto (model picker only).
+ */
+export function shouldShowCacheBreakHint(context: {
+	readonly dismissed: boolean;
+	readonly cacheWarm: boolean;
+	readonly noModelsAvailable: boolean;
+	readonly excludeAutoModel: boolean;
+	readonly selectedModelIsAuto: boolean;
+}): boolean {
+	if (context.dismissed || !context.cacheWarm || context.noModelsAvailable) {
+		return false;
+	}
+	return !(context.excludeAutoModel && context.selectedModelIsAuto);
+}

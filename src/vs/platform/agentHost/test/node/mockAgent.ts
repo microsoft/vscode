@@ -237,7 +237,7 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
@@ -924,7 +924,7 @@ export class ScriptedMockAgent implements IAgent {
 		disposeChat: (_chat: URI): Promise<void> => {
 			return Promise.resolve();
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},
