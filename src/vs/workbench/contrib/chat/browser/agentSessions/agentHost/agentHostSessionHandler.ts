@@ -1175,14 +1175,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return {};
 		}
 
-		// Creating/resuming an agent-host session can take several seconds on
-		// first use (CLI spawn, git worktree, plugin snapshot) — work done below
-		// before any turn progress is emitted. Show a shimmering status only if the
-		// turn is slow to start, cancelled as soon as real progress streams, so
-		// established sessions' fast turns never flash it.
-		const preparingStatus = disposableTimeout(() => {
-			progress([{ kind: 'progressMessage', content: new MarkdownString(localize('agentHost.preparingSession', "Preparing session…")), shimmer: true }]);
-		}, 500);
+		// A "Continue in…" migration from a local chat seeds the whole imported
+		// conversation eagerly (CLI spawn, seeding turns) before any turn progress
+		// streams, leaving the widget transiently empty. Only for that migration
+		// case show a shimmering status if the turn is slow to start, cancelled as
+		// soon as real progress streams. Normal agent-host sessions — whose first
+		// turn is also slow to spawn — never flash it.
+		const preparingStatus = new MutableDisposable();
 
 		try {
 			const resolvedSession = this._resolveSessionUri(request.sessionResource);
@@ -1215,6 +1214,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// If a conversation was imported ("Continue in…") into this
 				// session, seed it as real editable history at creation time.
 				const imported = this._importConversationStore.take(request.sessionResource);
+				if (imported) {
+					// Migration case: materializing the imported conversation is the
+					// slow, visually-blank phase — arm the "Preparing session…" status.
+					preparingStatus.value = disposableTimeout(() => {
+						progress([{ kind: 'progressMessage', content: new MarkdownString(localize('agentHost.preparingSession', "Preparing session…")), shimmer: true }]);
+					}, 500);
+				}
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				await this._createAndSubscribe(request.sessionResource, model, undefined, request.agentHostSessionConfig, imported ? { turns: imported.turns, model: imported.model } : undefined);
 			} else {
@@ -1249,7 +1255,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			let firstProgress: number | undefined;
 			const measuredProgress = (parts: IChatProgress[]) => {
 				// Real progress has started — cancel the pending "preparing" status.
-				preparingStatus.dispose();
+				preparingStatus.clear();
 				if (firstProgress === undefined && parts.some(isFirstVisibleProgressPart)) {
 					firstProgress = stopWatch.elapsed();
 				}

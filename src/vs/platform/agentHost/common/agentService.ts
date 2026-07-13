@@ -1116,8 +1116,11 @@ export interface IAgentChats {
 	 */
 	disposeChat(chat: URI): Promise<void>;
 
-	/** Send a user message into `chat`. */
-	sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	/**
+	 * Send a user message into `chat`; on first send, the host passes the resolved
+	 * working directory (or `undefined` for workspace-less sessions).
+	 */
+	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;

@@ -5,7 +5,54 @@
 
 import { MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources';
 import { expect, suite, test } from 'vitest';
-import { anthropicMessagesToRawMessages } from '../anthropicMessageConverter';
+import { LanguageModelChatMessage, LanguageModelDataPart, LanguageModelToolResultPart } from '../../../../vscodeTypes';
+import { anthropicMessagesToRawMessages, apiMessageToAnthropicMessage } from '../anthropicMessageConverter';
+
+suite('apiMessageToAnthropicMessage', function () {
+	test('converts PDF data parts to document blocks', function () {
+		const pdfData = Buffer.from('%PDF-1.4');
+		const imageData = Buffer.from('image');
+		const result = apiMessageToAnthropicMessage([
+			LanguageModelChatMessage.User([
+				new LanguageModelDataPart(pdfData, 'application/pdf'),
+				new LanguageModelDataPart(imageData, 'image/png'),
+				new LanguageModelToolResultPart('call_1', [
+					new LanguageModelDataPart(pdfData, 'application/pdf')
+				])
+			])
+		]);
+
+		expect(result.messages).toEqual([{
+			role: 'user',
+			content: [{
+				type: 'document',
+				source: {
+					type: 'base64',
+					media_type: 'application/pdf',
+					data: pdfData.toString('base64'),
+				}
+			}, {
+				type: 'image',
+				source: {
+					type: 'base64',
+					media_type: 'image/png',
+					data: imageData.toString('base64'),
+				}
+			}, {
+				type: 'tool_result',
+				tool_use_id: 'call_1',
+				content: [{
+					type: 'document',
+					source: {
+						type: 'base64',
+						media_type: 'application/pdf',
+						data: pdfData.toString('base64'),
+					}
+				}]
+			}]
+		}]);
+	});
+});
 
 suite('anthropicMessagesToRawMessages', function () {
 
