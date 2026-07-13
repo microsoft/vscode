@@ -1663,7 +1663,8 @@ class Aligner extends Disposable {
 				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
 				return false;
 			}
-			if (!parent.children) {
+			const children = parent.children;
+			if (!children) {
 				return false;
 			}
 			// For file-system-like subtrees - a parent and all of its children are
@@ -1675,7 +1676,7 @@ class Aligner extends Disposable {
 			// which has folder icons), avoiding an indentation mess between parallel
 			// file-system roots. Re-rendering on file icon theme changes (see the
 			// TreeRenderer's onDidFileIconThemeChange handler) keeps this live.
-			if (parent.resourceUri !== undefined && parent.children.every(c => c.resourceUri !== undefined)) {
+			if (parent.resourceUri !== undefined && children.every(c => c.resourceUri !== undefined)) {
 				return !this.themeService.getFileIconTheme().hasFolderIcons;
 			}
 			// Otherwise mirror the built-in file icon themable trees, where
@@ -1687,8 +1688,18 @@ class Aligner extends Disposable {
 			// *parent* has an icon must not influence the alignment of its children, and
 			// giving an icon to a collapsible sibling must not re-layout the level while
 			// other collapsible siblings still render a bare twistie (#307350).
-			const collapsibleSiblings = parent.children.filter(c => c.collapsibleState !== TreeItemCollapsibleState.None);
-			return collapsibleSiblings.length === 0 || collapsibleSiblings.some(c => !this.hasIconOrCheckbox(c));
+			let hasCollapsibleSibling = false;
+			for (let i = 0, len = children.length; i < len; i++) {
+				const child = children[i];
+				if (child.collapsibleState === TreeItemCollapsibleState.None) {
+					continue;
+				}
+				hasCollapsibleSibling = true;
+				if (!this.hasIconOrCheckbox(child)) {
+					return true;
+				}
+			}
+			return !hasCollapsibleSibling;
 		} else {
 			return false;
 		}
