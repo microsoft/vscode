@@ -19,6 +19,9 @@ import {
 	IVoiceSpeechStarted,
 	IVoiceSessionInit,
 	IVoiceFeedbackPayload,
+	IVoiceTurnConfig,
+	IVoiceTurnAutoEnded,
+	IVoiceTurnAutoEndReason,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -76,6 +79,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<boolean>());
 	readonly onDidChangeConnectionState: Event<boolean> = this._onDidChangeConnectionState.event;
 
+	private readonly _onTurnAutoEnded = this._register(new Emitter<IVoiceTurnAutoEnded>());
+	readonly onTurnAutoEnded: Event<IVoiceTurnAutoEnded> = this._onTurnAutoEnded.event;
+
 	get isConnected(): boolean {
 		return this._isConnected;
 	}
@@ -96,6 +102,72 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
+
+		// Push turn-endpointing settings to the backend live. Takes effect on
+		// the next push-to-talk press (the backend never mutates an in-flight
+		// press). When disconnected this no-ops; the latest config rides along
+		// on the next ``start_session`` / ``resume_session`` instead.
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (
+				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
+				e.affectsConfiguration('agents.voice.turn.stopPhrases')
+			) {
+				this._sendSetTurnConfig();
+			}
+			if (e.affectsConfiguration('agents.voice.voice')) {
+				this._sendSetVoice();
+			}
+		}));
+	}
+
+	/**
+	 * Resolve the configured voice key (e.g. ``maya_neutral``) sent to the
+	 * backend on ``start_session`` and via ``set_voice`` when changed live.
+	 */
+	private _getVoice(): string {
+		const raw = this._configurationService.getValue<string>('agents.voice.voice');
+		return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : 'maya_neutral';
+	}
+
+	private _sendSetVoice(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'set_voice', voice: this._getVoice() }));
+		}
+	}
+
+	/**
+	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
+	 * settings, normalizing each into the shape the backend expects. The
+	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
+	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
+	 * and stop-phrase ending is enabled when at least one phrase is configured.
+	 */
+	private _getTurnConfig(): IVoiceTurnConfig {
+		const cfg = this._configurationService;
+
+		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
+		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
+
+		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
+		const stop_phrases = Array.isArray(phrasesRaw)
+			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
+			: [];
+		const phrasesEnabled = stop_phrases.length > 0;
+
+		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
+			silenceEnabled && phrasesEnabled ? 'both'
+				: silenceEnabled ? 'vad'
+					: phrasesEnabled ? 'phrase'
+						: 'off';
+
+		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
+	}
+
+	private _sendSetTurnConfig(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'set_turn_config', turn_config: this._getTurnConfig() }));
+		}
 	}
 
 	private _getWsUrl(): string {
@@ -156,6 +228,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				args?: Record<string, string>;
 				status?: string;
 				committed?: string;
+				reason?: string;
+				turn_id?: string;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -203,6 +277,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						args: msg.args ?? {},
 					});
 					break;
+				case 'turn_auto_ended': {
+					// Backend ended the held turn itself (server VAD silence or a
+					// matched stop phrase). Normalize the reason and let the
+					// consumer stop capture for that turn; it must not send its
+					// own ptt_end.
+					const reason: IVoiceTurnAutoEndReason = msg.reason === 'stop_phrase' ? 'stop_phrase' : 'vad_silence';
+					this._onTurnAutoEnded.fire({ reason, turnId: msg.turn_id ?? '' });
+					break;
+				}
 				case 'error':
 					this._onError.fire(msg.detail ?? 'Unknown error');
 					break;
@@ -214,7 +297,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		};
 
 		ws.onclose = (evt: CloseEvent) => {
-			this._logService.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
 					this._cleanup();
@@ -255,7 +338,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	disconnect(): void {
-		this._logService.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
+		this._logService.trace('[voice] disconnect() called');
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -332,6 +415,24 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
+		}
+	}
+
+	sendBargeInStart(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
+		}
+	}
+
+	sendBargeInAudioChunk(audio: string): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
+		}
+	}
+
+	sendBargeInStop(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
 		}
 	}
 
@@ -456,6 +557,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			removes,
 			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {
@@ -502,7 +604,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._seedTracking(context);
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId };
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
@@ -513,7 +615,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
 			this._seedTracking(context);
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId }));
+			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
 		}
 	}
 

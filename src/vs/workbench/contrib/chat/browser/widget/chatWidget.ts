@@ -196,7 +196,7 @@ type ChatThinkingStyleUsageClassification = {
 	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the request was a new submit or a rerun.' };
 };
 
-const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
+const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 'terminalCommandPrefix'>> = {
 	supportsFileAttachments: true,
 	supportsToolAttachments: true,
 	supportsMCPAttachments: true,
@@ -735,6 +735,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	set scrollTop(value: number) {
 		this.listWidget.scrollTop = value;
+	}
+
+	get scrollHeight(): number {
+		return this.listWidget.scrollHeight;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -1653,7 +1657,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
 				location: this.location,
-				getCurrentLanguageModelId: () => this.input.currentLanguageModel,
+				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 			}
 		));
@@ -2329,6 +2333,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.reveal(item, relativeTop);
 	}
 
+	/**
+	 * The top offset of an item in transcript content space (same space as
+	 * `scrollTop`/`scrollHeight`), or `undefined` if it is not in the list.
+	 * Virtualization-safe for off-screen items (reads the layout height model).
+	 */
+	getElementTop(item: ChatTreeItem): number | undefined {
+		return this.listWidget.getElementTop(item);
+	}
+
 	focus(item: ChatTreeItem): void {
 		if (!this.listWidget.hasElement(item)) {
 			return;
@@ -2447,8 +2460,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const options: IChatSendRequestOptions = {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
-			userSelectedModelId: this.input.currentLanguageModel,
-			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
+			...this.getSelectedModelRequestOptions(),
 			modeInfo: this.input.currentModeInfo,
 		};
 		const result = await this.chatService.resendRequest(lastRequest, options);
@@ -2621,6 +2633,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
+		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
+			? this.getSelectedModelRequestOptions()
+			: undefined;
 		let cancelledCurrentRequest = false;
 		if (isEditing) {
 			// Clear the carousel since the existing request is being replaced
@@ -2738,10 +2753,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const modeKind = this.input.currentModeKind;
 		const modeInfo = this.input.currentModeInfo;
+		const currentModelRequestOptions = this.getSelectedModelRequestOptions();
+		const selectedModelRequestOptions = editedModelRequestOptions?.userSelectedModelId === currentModelRequestOptions.userSelectedModelId
+			? editedModelRequestOptions
+			: currentModelRequestOptions;
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
-			userSelectedModelId: this.input.currentLanguageModel,
-			userSelectedModelConfiguration: this.input.currentLanguageModel ? this.input.getModelConfiguration(this.input.currentLanguageModel) : undefined,
+			...selectedModelRequestOptions,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
 			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
@@ -2867,6 +2885,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return true;
 	}
 
+	// Keep the selected model and its editor-scoped configuration together so
+	// resend/confirmation flows preserve custom per-model settings.
+	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'> {
+		const modelId = this.input.currentLanguageModel;
+		return {
+			userSelectedModelId: modelId,
+			userSelectedModelConfiguration: modelId ? this.input.getModelConfiguration(modelId) : undefined,
+		};
+	}
+
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		if (!this.inputPartDisposable.value) {
 			return {};
@@ -2961,7 +2989,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this._inputVisible ? this.inputPart.height.get() : 0;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
-		const lastItem = this.listWidget.stickyScrollTargetItem;
+		const lastItem = this.listWidget.lastItem;
 
 		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);

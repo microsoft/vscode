@@ -359,24 +359,33 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
-	position: relative;
-	top: -4px;
-	left: -8px;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured {
-	border-top: 30px solid var(--vscode-activityBarBadge-background);
-	width: 30px;
-	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
 	height: 20px;
-	border-right: 40px solid transparent;
-	position: absolute;
+	border-top-left-radius: var(--vscode-cornerRadius-medium, 6px);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium, 6px);
+	background-color: var(--vscode-activityBarBadge-background);
+	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon {
-	top: -30px;
-	left: 4px;
-	font-size: 14px;
+	top: 0;
+	left: 0;
+	padding-right: 0;
+	font-size: 12px;
+	line-height: 12px;
+	height: 20px;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {

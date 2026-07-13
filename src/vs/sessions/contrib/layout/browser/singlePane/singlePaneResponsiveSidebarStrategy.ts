@@ -18,13 +18,16 @@ import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../../common/sessionConfig.js';
+import { HasDockedDetailsContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor title bar. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
-const singlePaneEditorTitleDetailsOrder = 1000001;
+// Toggle Details is conditional (hidden for tab types with no detail, e.g. browser
+// and search). It keeps its trailing position after the always-present
+// maximize/restore and hide chevron.
+const singlePaneLayoutToggleDetailsOrder = 30;
 
 /**
  * [D7 single-pane] Auto-hide the sessions list when the user needs more room for
@@ -156,18 +159,21 @@ export class SinglePaneResponsiveSidebarStrategy extends SinglePaneLayoutStrateg
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
-							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true))
+							SinglePaneLayoutEnabledContext)
 					},
 					menu: {
-						id: MenuId.EditorTitle,
+						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
-						order: singlePaneEditorTitleDetailsOrder,
+						order: singlePaneLayoutToggleDetailsOrder,
+						// Not every tab type has a detail panel to show/hide (e.g. browser
+						// and search tabs), so only surface the toggle for tab types that do.
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
-							ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
-							MainEditorAreaVisibleContext)
+							SinglePaneLayoutEnabledContext,
+							MainEditorAreaVisibleContext,
+							HasDockedDetailsContext)
 					}
 				});
 			}

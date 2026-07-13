@@ -281,13 +281,27 @@ export abstract class BaseLayoutController extends Disposable {
 		// deliberately except themselves from the modal part), so their tabs
 		// still need to be captured/restored per session in that mode.
 
-		// [B2] Session changed (save, apply)
-		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-			// Save working set for previous session (skip for untitled sessions)
-			if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+		// [B2] Save the outgoing session's working set eagerly on the raw active
+		// session change, not on the workspace-gated `activeSessionForWorkingSet`
+		// derive below. The derive lags while the incoming session's workspace
+		// resolves, and autoruns driven by the raw active session (e.g. the
+		// single-pane managed-tabs sync) async-close the outgoing session's docked
+		// editors during that window. Saving here synchronously — before those
+		// closes run — captures which editor was active (e.g. the Changes tab) so it
+		// is restored active on return.
+		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+			if (
+				previousSession
+				&& !isEqual(previousSession.resource, session?.resource)
+				&& previousSession.status.read(undefined) !== SessionStatus.Untitled
+				&& !this._isRestoringSessionLayout
+			) {
 				this._saveWorkingSet(previousSession.resource);
 			}
+		}));
 
+		// [B2] Session changed (apply)
+		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
 			// Apply working set for current session.
 			// On initial load (no previous session), only apply if we have a saved working set —
 			// skip applying 'empty' to avoid closing editors that are being restored.

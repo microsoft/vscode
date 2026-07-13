@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, ITransaction, observableSignal, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -52,7 +52,7 @@ import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentHostEnablementService } from '../../../../services/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 /** Claude Code session type — local agent powered by Claude. */
 export const ClaudeCodeSessionType: ISessionType = {
@@ -315,6 +315,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		@IGitService private readonly gitService: IGitService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.sessionId = toSessionId(providerId, resource);
@@ -499,6 +500,19 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		};
 		if (this._isolationMode === 'worktree' && this._branch) {
 			config[SessionConfigKey.Branch] = this._branch;
+
+			// Forward the user's `git.branchPrefix` (resource-scoped to the
+			// repository) so the agent host prepends it to the worktree branch
+			// it creates. Omit when unset/empty to preserve the default naming.
+			const branchPrefix = this.configurationService.getValue<string>('git.branchPrefix', { resource: this._repoUri });
+			if (typeof branchPrefix === 'string' && branchPrefix.length > 0) {
+				config[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
+			}
+
+			const worktreeIncludeFiles = this.configurationService.getValue<string[]>('git.worktreeIncludeFiles', { resource: this._repoUri });
+			if (Array.isArray(worktreeIncludeFiles) && worktreeIncludeFiles.length > 0) {
+				config[SessionConfigKey.WorktreeIncludeFiles] = worktreeIncludeFiles;
+			}
 		}
 		return config;
 	}
@@ -1439,6 +1453,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private readonly _onDidGroupMembershipChange = this._register(new Emitter<{ sessionId: string }>());
 
+	/**
+	 * Per-group signals, keyed by `sessionId`, that invalidate a single group's
+	 * chats observable. A group's chats derived observes only its own signal, so a
+	 * membership change recomputes just the affected group rather than every observed
+	 * group.
+	 */
+	private readonly _groupMembershipSignals = new Map<string, IObservableSignal<void>>();
+
+	/**
+	 * A single subscription to `_onDidGroupMembershipChange` that fans each event out
+	 * to the affected group's own signal. Subscribing exactly once (instead of once per
+	 * session) keeps the emitter's listener count constant regardless of how many
+	 * sessions exist — the per-session subscriptions previously leaked listeners as
+	 * sessions accumulated.
+	 */
+	private _registerGroupMembershipFanOut(): void {
+		this._register(this._onDidGroupMembershipChange.event(e => {
+			this._groupMembershipSignals.get(e.sessionId)?.trigger(undefined, undefined);
+		}));
+	}
+
 	private readonly _multiChatEnabled: boolean;
 
 	/**
@@ -1528,6 +1563,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
 			this._refreshSessionCache();
 		}));
+
+		this._registerGroupMembershipFanOut();
 	}
 
 	// -- Sessions --
@@ -1737,6 +1774,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				longContextCacheCost: modelMetadata?.longContextCacheCost,
 				longContextCacheWriteCost: modelMetadata?.longContextCacheWriteCost,
 				priceCategory: modelMetadata?.priceCategory,
+				promo: modelMetadata?.promo,
 				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
 				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
 				capabilities: modelMetadata?.capabilities ? {
@@ -2951,6 +2989,38 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
+	 * Get (creating on first use) the membership signal for a group, keyed by
+	 * `sessionId`. The group's chats observable observes this signal so a membership
+	 * change recomputes only the affected group; the single fan-out subscription in
+	 * `_groupMembershipSubscription` triggers it.
+	 */
+	private _getGroupMembershipSignal(sessionId: string): IObservableSignal<void> {
+		let signal = this._groupMembershipSignals.get(sessionId);
+		if (!signal) {
+			signal = observableSignal<void>(this);
+			this._groupMembershipSignals.set(sessionId, signal);
+		}
+		return signal;
+	}
+
+	/**
+	 * Structural equality for a group's chat list keyed on each chat's resource.
+	 * `_toChat` returns a fresh wrapper on every recompute, so identity comparison
+	 * would always differ; comparing resources lets a recompute that produced the
+	 * same set of chats avoid propagating downstream. Uses the URI identity comparer
+	 * so scheme-specific path casing and normalization are handled consistently.
+	 */
+	private _chatArraysEqual(a: readonly IChat[] | undefined, b: readonly IChat[] | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b || a.length !== b.length) {
+			return false;
+		}
+		return a.every((chat, i) => this.uriIdentityService.extUri.isEqual(chat.resource, b[i].resource));
+	}
+
+	/**
 	 * Wraps a primary {@link ICopilotChatSession} and its sibling chats into an {@link ISession}.
 	 * When multi-chat is enabled, the `chats` observable is derived from `sessionParentId`
 	 * metadata and updates when group membership changes.
@@ -2980,27 +3050,34 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// reflects the real backend resource without rebuilding the cached wrapper.
 		const mainChat = primaryChat.mainChat;
 
-		const groupChatsObs = observableFromEvent<readonly IChat[] | undefined>(
-			this,
-			Event.filter(this._onDidGroupMembershipChange.event, e => e.sessionId === sessionId),
-			() => {
-				const chatIds = this._getChatIdsInGroup(sessionId);
-				if (chatIds.length === 0) {
-					return undefined;
+		const membershipSignal = this._getGroupMembershipSignal(sessionId);
+		const groupChatsObs = derivedOpts<readonly IChat[] | undefined>({
+			owner: this,
+			equalsFn: (a, b) => this._chatArraysEqual(a, b),
+		}, reader => {
+			// Recompute this group's chats only when its own membership signal ticks.
+			// A single provider-wide listener on `_onDidGroupMembershipChange` fans out
+			// to per-group signals (see `_groupMembershipSubscription`), so the emitter's
+			// listener count stays constant while invalidation remains targeted to the
+			// affected group. The `equalsFn` then stops a recompute that produced the
+			// same chat set from propagating downstream.
+			membershipSignal.read(reader);
+			const chatIds = this._getChatIdsInGroup(sessionId);
+			if (chatIds.length === 0) {
+				return undefined;
+			}
+			const resolved: ICopilotChatSession[] = [];
+			for (const id of chatIds) {
+				const c = this._sessionCache.get(this._localIdFromchatId(id));
+				if (c) {
+					resolved.push(c);
 				}
-				const resolved: ICopilotChatSession[] = [];
-				for (const id of chatIds) {
-					const c = this._sessionCache.get(this._localIdFromchatId(id));
-					if (c) {
-						resolved.push(c);
-					}
-				}
-				if (resolved.length === 0) {
-					return undefined;
-				}
-				return resolved.map(c => this._toChat(c));
-			},
-		);
+			}
+			if (resolved.length === 0) {
+				return undefined;
+			}
+			return resolved.map(c => this._toChat(c));
+		});
 
 		// When the group has no resolved chats (typical for a new session before
 		// commit), fall back to the settable `mainChat` so it stays in sync after

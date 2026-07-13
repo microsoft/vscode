@@ -13,7 +13,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { IApprovedSession, SessionsFlatList } from './views/sessionsList.js';
+import { IApprovedSession, ISessionCIFixModel, SessionsFlatList } from './views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 
 /** Fixed width of the blocked-sessions list, in pixels. */
@@ -30,6 +30,8 @@ export interface IBlockedSessionsListOptions {
 	readonly width?: number;
 	/** Approval model forwarded to the underlying list (see {@link ISessionsFlatListOptions.approvalModel}). */
 	readonly approvalModel?: AgentSessionApprovalModel;
+	/** Fix-CI model forwarded to the underlying list (see {@link ISessionsFlatListOptions.ciFixModel}). */
+	readonly ciFixModel?: ISessionCIFixModel;
 }
 
 /**
@@ -84,7 +86,9 @@ export class BlockedSessionsList extends Disposable {
 			showSessionHover: true,
 			onSessionOpen: options.onSessionOpen,
 			approvalModel: options.approvalModel,
+			ciFixModel: options.ciFixModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
+			toolbarActions: false,
 		}));
 
 		this._register(this._list.onDidChangeContentHeight(() => {

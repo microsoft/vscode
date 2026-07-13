@@ -30,7 +30,8 @@ import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -84,7 +85,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
-import { EditorHeaderPrimaryMenuId, EditorHeaderSecondaryMenuId } from '../../../browser/parts/singlePaneEditorPart.js';
+import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
 const $ = dom.$;
@@ -94,6 +95,7 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const DIFF_STATS_ACTION_ID = 'workbench.changesView.action.viewChanges';
+const DIFF_STATS_LABEL_ACTION_ID = 'workbench.changesView.action.diffStatsLabel';
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 
 /** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
@@ -104,7 +106,25 @@ const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
 // --- ButtonBar widget
 
-class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
+/**
+ * Common surface for the changes action button-bar widgets so hosts (e.g. the
+ * editor-title actions bar) can react to and query whether any action rendered.
+ */
+interface IChangesButtonBarWidget extends IDisposable {
+	/** Fires whenever the rendered actions change. */
+	readonly onDidChangeActions: Event<void>;
+	/** Whether the widget currently renders at least one action. */
+	readonly hasActions: boolean;
+}
+
+class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _onDidChangeActions = this._register(new Emitter<void>());
+	readonly onDidChangeActions = this._onDidChangeActions.event;
+
+	private _currentButtonBar: MenuWorkbenchButtonBar | undefined;
+	get hasActions(): boolean { return (this._currentButtonBar?.buttons.length ?? 0) > 0; }
+
 	constructor(
 		container: HTMLElement,
 		hasGitOperationInProgressObs: IObservable<boolean>,
@@ -157,6 +177,10 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 			// Set the running label override
 			reader.store.add(buttonBar.onWillRun(e => runningLabelObs.set(e.action.label, undefined)));
+
+			this._currentButtonBar = buttonBar;
+			reader.store.add(buttonBar.onDidChange(() => this._onDidChangeActions.fire()));
+			this._onDidChangeActions.fire();
 
 			reader.store.add(buttonBar);
 		}));
@@ -216,7 +240,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
-			action.id === 'agentSession.markAsDone' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
@@ -240,7 +263,12 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 // --- ButtonBar widget (Agent Host)
 
-class ChangesWorkbenchButtonBarWidget extends Disposable {
+class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _buttonBar: WorkbenchButtonBar;
+	readonly onDidChangeActions: Event<void>;
+	get hasActions(): boolean { return this._buttonBar.buttons.length > 0; }
+
 	constructor(
 		container: HTMLElement,
 		@IMenuService menuService: IMenuService,
@@ -252,7 +280,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
 
-		const buttonBar = this._register(instantiationService.createInstance(
+		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
 			{
@@ -262,6 +290,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 				}
 			}
 		));
+		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -286,7 +315,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 					: op.status === SessionChangesetOperationStatus.Running
 						? `$(loading) ${op.label}`
 						: op.label,
-				tooltip: op.description,
+				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => changeset.invokeOperation(op.id),
 			});
@@ -393,6 +422,13 @@ export class ChangesActionsBar extends Disposable {
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
+		let currentWidget: IChangesButtonBarWidget | undefined;
+		const updateVisibility = () => {
+			const status = sessionsService.activeSession.get()?.status.get();
+			const visible = status !== SessionStatus.Untitled && (currentWidget?.hasActions ?? false);
+			dom.setVisibility(visible, container);
+		};
+
 		this._register(autorun(reader => {
 			dom.clearNode(container);
 
@@ -400,39 +436,32 @@ export class ChangesActionsBar extends Disposable {
 				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
 				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
+			currentWidget = widget;
+			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
+			updateVisibility();
 		}));
 
 		this._register(autorun(reader => {
-			const status = sessionsService.activeSession.read(reader)?.status.read(reader);
-			dom.setVisibility(status !== SessionStatus.Untitled, container);
+			sessionsService.activeSession.read(reader)?.status.read(reader);
+			updateVisibility();
 		}));
 	}
+
 }
 
 // --- Editor header menus (single-pane): the Changes editor declares
-// EditorHeaderPrimaryMenuId (Branch Changes picker + diff stats) and
-// EditorHeaderSecondaryMenuId (the actions bar) and the editor group renders
-// them. The custom action view items below are registered globally by menu id so
-// the group's generic toolbars render them.
+// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats, left) and
+// Menus.SessionsEditorHeaderSecondary (diff/code-review/view-mode actions, right), and
+// the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
+// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
+// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
+// The custom action view items below are registered globally by menu id so the
+// header toolbars render them.
 
-const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
+export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Anchor action for the trailing header toolbar; rendered as the {@link ChangesActionsBar}. */
-class ChangesHeaderActionsAction extends Action2 {
-	constructor() {
-		super({
-			id: CHANGES_HEADER_ACTIONS_ID,
-			title: localize2('changesView.headerActions', 'Changes Actions'),
-			f1: false,
-			menu: { id: EditorHeaderSecondaryMenuId, group: 'navigation', order: 1 },
-		});
-	}
-	override async run(): Promise<void> { }
-}
-registerAction2(ChangesHeaderActionsAction);
-
-/** Renders the {@link ChangesActionsBar} widget as the trailing header action item. */
-class ChangesActionsBarActionViewItem extends BaseActionViewItem {
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
+export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
@@ -459,22 +488,28 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 
 		const onDidRegister = this._register(new Emitter<void>());
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(ChangesPickerActionItem, action);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderPrimaryMenuId, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
+		// Editor area VISIBLE: non-interactive "N files +X -Y" label.
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_LABEL_ACTION_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
-		this._register(actionViewItemService.register(EditorHeaderSecondaryMenuId, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+		// Editor area CLOSED: interactive diff-stats (classic Changes view header action)
+		// that opens the Changes editor on click.
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
 		onDidRegister.fire();
@@ -502,6 +537,11 @@ export class ChangesViewPane extends ViewPane {
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 	private readonly treePaneSizeChange = this._register(new Emitter<number | undefined>());
+
+	/** Computes the CI pane's default height (content, capped to a third of the split). */
+	private computeCIPreferredHeight: (() => number) | undefined;
+	/** Once the user drags a sash we stop imposing the CI pane's default height. */
+	private ciPaneUserResized = false;
 
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
@@ -673,6 +713,19 @@ export class ChangesViewPane extends ViewPane {
 		const getSessionFilesPreferredHeight = () => Math.max(getSessionFilesMinimumHeight(), SessionFilesWidget.HEADER_HEIGHT + SessionFilesWidget.PREFERRED_BODY_HEIGHT);
 		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget?.desiredHeight ?? 0);
 		const getCIMinimumHeight = () => this.ciStatusWidget?.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		// Preferred default size for the CI pane: content height, capped to a third of the split.
+		const getCIPreferredHeight = () => {
+			const contentHeight = getCIContentHeight();
+			if (this.ciStatusWidget?.collapsed) {
+				return CIStatusWidget.HEADER_HEIGHT;
+			}
+			const availableHeight = this.getSplitViewAvailableHeight();
+			if (availableHeight > 0) {
+				return Math.max(getCIMinimumHeight(), Math.min(contentHeight, Math.round(availableHeight / 3)));
+			}
+			return contentHeight;
+		};
+		this.computeCIPreferredHeight = getCIPreferredHeight;
 		const thisView = this;
 
 		// Top pane: file tree
@@ -731,6 +784,9 @@ export class ChangesViewPane extends ViewPane {
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
 
+		// A manual sash drag hands layout control to the user: stop imposing the CI default size.
+		this._register(this.splitView.onDidSashChange(() => { this.ciPaneUserResized = true; }));
+
 		// Initially hide the other files and CI panes until content arrives
 		this.splitView.setViewVisible(1, false);
 		this.splitView.setViewVisible(2, false);
@@ -740,7 +796,7 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.sessionFilesWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 
 		// CI checks pane (index 2)
-		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIContentHeight);
+		this._wireSectionPane(this.ciStatusWidget, 2, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight, () => { this.ciPaneUserResized = false; });
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -1033,21 +1089,49 @@ export class ChangesViewPane extends ViewPane {
 		this.treePaneSizeChange.fire(undefined);
 	}
 
+	/** Compute the height available to the SplitView within the body. */
+	private getSplitViewAvailableHeight(): number {
+		const bodyHeight = this.currentBodyHeight;
+		if (bodyHeight <= 0) {
+			return 0;
+		}
+		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
+		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
+		const actionsMargin = actionsHeight > 0 ? 8 : 0;
+		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
+	}
+
 	/** Layout the SplitView to fill available body space. */
 	private layoutSplitView(): void {
 		if (!this.splitView || !this.splitViewContainer) {
 			return;
 		}
-		const bodyHeight = this.currentBodyHeight;
-		if (bodyHeight <= 0) {
+		const availableHeight = this.getSplitViewAvailableHeight();
+		if (availableHeight <= 0) {
 			return;
 		}
-		const bodyPadding = 16; // 8px top + 8px bottom from .changes-view-body
-		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
-		const actionsMargin = actionsHeight > 0 ? 8 : 0;
-		const availableHeight = Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
+		this.applyCIDefaultSize();
+	}
+
+	/**
+	 * Re-assert the CI pane's default height (capped to a third of the split) after layout.
+	 * This is where the split height is reliably known — the preferred height can otherwise be
+	 * evaluated during wiring when the body height is still 0, yielding an uncapped fallback.
+	 * Once the user drags a sash we back off and preserve their chosen size.
+	 */
+	private applyCIDefaultSize(): void {
+		if (!this.splitView || this.ciPaneUserResized || !this.computeCIPreferredHeight) {
+			return;
+		}
+		if (!this.ciStatusWidget?.visible || this.ciStatusWidget.collapsed) {
+			return;
+		}
+		const preferred = this.computeCIPreferredHeight();
+		if (this.splitView.getViewSize(2) !== preferred) {
+			this.splitView.resizeView(2, preferred);
+		}
 	}
 
 	/**
@@ -1061,6 +1145,7 @@ export class ChangesViewPane extends ViewPane {
 		paneIndex: number,
 		headerHeight: number,
 		getPreferredHeight: () => number,
+		onDidBecomeVisible?: () => void,
 	): void {
 		let savedPaneHeight = getPreferredHeight();
 
@@ -1091,6 +1176,7 @@ export class ChangesViewPane extends ViewPane {
 			if (visible !== isCurrentlyVisible) {
 				this.splitView.setViewVisible(paneIndex, visible);
 				if (visible && !widget.collapsed) {
+					onDidBecomeVisible?.();
 					savedPaneHeight = getPreferredHeight();
 					this.splitView.resizeView(paneIndex, savedPaneHeight);
 				}
@@ -1678,7 +1764,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setListViewMode', "View as List"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listTree,
+			icon: Codicon.listFlat,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1701,7 +1787,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 			title: localize('setTreeViewMode', "View as Tree"),
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
-			icon: Codicon.listFlat,
+			icon: Codicon.listTree,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
@@ -1738,7 +1824,7 @@ class VersionsPickerAction extends Action2 {
 				order: 9,
 				when: ActiveSessionContextKeys.HasGitRepository,
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
 				when: ActiveSessionContextKeys.HasGitRepository,
@@ -1812,7 +1898,40 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 }
 
-// --- Diff Stats Action
+// --- Diff Stats Actions
+//
+// Two variants render in the editor-group header's left title bar (SessionsEditorHeaderPrimary):
+//  - Editor area VISIBLE: a non-interactive "N files +X -Y" label (ChangesDiffStatsLabelAction,
+//    rendered by SinglePaneChangesDiffStatsActionItem).
+//  - Editor area CLOSED: the interactive diff-stats from the classic Changes view header
+//    (ChangesDiffStatsAction, rendered by ChangesDiffStatsActionItem) — clicking it opens the
+//    Changes editor. It resolves the Changes view because the detail panel is showing it.
+
+/**
+ * Non-interactive diff-stats label shown on the editor-group header (left) while the
+ * editor area is visible. It only presents the "N files +X -Y" summary and is not
+ * clickable — the {@link SinglePaneChangesDiffStatsActionItem} swallows clicks.
+ */
+class ChangesDiffStatsLabelAction extends Action2 {
+	static readonly ID = DIFF_STATS_LABEL_ACTION_ID;
+
+	constructor() {
+		super({
+			id: ChangesDiffStatsLabelAction.ID,
+			title: localize2('changesView.diffStatsLabel', 'Changes Stats'),
+			f1: false,
+			menu: [{
+				id: Menus.SessionsEditorHeaderPrimary,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, MainEditorAreaVisibleContext)
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { /* non-interactive label */ }
+}
+registerAction2(ChangesDiffStatsLabelAction);
 
 class ChangesDiffStatsAction extends Action2 {
 	static readonly ID = 'workbench.changesView.action.viewChanges';
@@ -1828,10 +1947,13 @@ class ChangesDiffStatsAction extends Action2 {
 				order: 1,
 				when: ChatContextKeys.hasAgentSessionChanges
 			}, {
-				id: EditorHeaderPrimaryMenuId,
+				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.hasAgentSessionChanges
+				// Shown only when the editor area is collapsed; clicking it opens the
+				// (currently closed) Changes editor. While the editor area is visible the
+				// non-interactive label (ChangesDiffStatsLabelAction) takes this slot.
+				when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, MainEditorAreaVisibleContext.negate())
 			}],
 		});
 	}
@@ -1922,31 +2044,27 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 }
 
 /**
- * Diff-stats label for the single-pane Changes editor header: a richer
- * "$(diff-multiple) N files +X -Y" rendering (the detail-panel header uses the
- * compact animated base rendering). Adds the `changes-diff-stats-action-rich`
- * marker class so its styling applies wherever it renders (the classic internal
- * header or the single-pane editor-group header).
+ * Diff-stats label for the single-pane Changes editor header: a richer "N files +X -Y"
+ * rendering (the detail-panel header uses the compact animated base rendering). It is a
+ * **non-interactive status label** — no hover background and clicks are swallowed. Adds
+ * the `changes-diff-stats-action-rich` marker class so its styling applies wherever it
+ * renders (the classic internal header or the single-pane editor-group header).
  */
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
 
 	override render(container: HTMLElement): void {
-		this.element = container;
-		container.classList.add('changes-diff-stats-action', 'changes-diff-stats-action-rich');
-
-		const label = dom.append(container, dom.$('span.action-label'));
-		this.label = label;
-		this.renderLabelContents(label);
-		this.updateTooltip();
+		super.render(container);
+		container.classList.add('changes-diff-stats-action-rich');
 	}
 
 	override onClick(event: dom.EventLike): void {
+		// Non-interactive: this is a status label, not an action.
 		dom.EventHelper.stop(event, true);
 	}
 
-	override focus(): void { }
-
-	override setFocusable(_focusable: boolean): void { }
+	override focus(): void {
+		// Not focusable: it is a label, not an interactive action.
+	}
 
 	protected override renderLabelContents(label: HTMLElement): void {
 		this._register(autorun(reader => {
@@ -1962,7 +2080,6 @@ export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsAction
 
 			dom.reset(
 				label,
-				...renderLabelWithIcons('$(diff-multiple)'),
 				dom.$('span.changes-diff-stats-files', undefined, filesLabel),
 				dom.$('span.working-set-lines-added', undefined, `+${additions}`),
 				dom.$('span.working-set-lines-removed', undefined, `-${deletions}`)

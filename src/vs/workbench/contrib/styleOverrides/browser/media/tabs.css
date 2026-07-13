@@ -29,20 +29,66 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	border-right: none !important;
+	background-clip: padding-box;
+	border-right: var(--vscode-spacing-size40) solid transparent !important;
 	border-radius: var(--vscode-cornerRadius-small);
+	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
+	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	font-size: 12px !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
-	margin-right: 4px !important;
 	--tab-border-top-color: transparent !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.sizing-fit {
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	justify-content: center;
+	padding: 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact > .tab-label {
+	flex: 0 1 auto;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label {
+	width: 16px;
+	min-width: 16px;
+	max-width: 16px;
+	flex: 0 0 16px;
+	transform: translateX(-1px);
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label::before {
+	padding-right: 0;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-container {
+	display: none;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-iconpath {
+	margin-right: 0;
+}
+
+.style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 10px 0 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.close-action-off:not(.dirty):not(.sticky-compact) {
+	padding: 0 8px 0 4px !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
 	width: auto !important;
 	min-width: 0 !important;
 	flex: 0 0 auto !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	width: 32px !important;
+	min-width: 32px !important;
+	max-width: 32px !important;
+	flex: 0 0 32px !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -75,6 +121,46 @@
 
 .style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
+}
+
+/* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, var(--vscode-editor-background)) !important;
+}
+
+.style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .sticky-tabs-background {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 7;
+	width: 0;
+	height: var(--editor-group-tab-height);
+	background-color: var(--vscode-editor-background);
+	pointer-events: none;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
+	z-index: 6;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.sticky-compact {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.sticky-compact.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background)) !important;
 }
 
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container,
@@ -182,13 +268,24 @@
  * Dim the foreground of inactive tabs so the active tab reads as the clear
  * focal point. The active tab keeps the full `--vscode-foreground` colour
  * (paired with the stronger active background above).
+ *
+ * Skip labels that carry a file-decoration color class so git/problem
+ * decoration colors still apply to the entire tab label (name + description),
+ * matching classic UI behavior. See https://github.com/microsoft/vscode/issues/325246
  */
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
 }
 
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+/* Ensure decoration color cascades to every part of the tab label. */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] a,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .label-description,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .monaco-highlighted-label {
+	color: inherit !important;
 }
 
 /*
@@ -225,4 +322,8 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
 	padding: 4px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
+	vertical-align: sub;
 }

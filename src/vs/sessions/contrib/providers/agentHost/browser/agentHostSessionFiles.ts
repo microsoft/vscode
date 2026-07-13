@@ -7,6 +7,7 @@ import { constObservable, derivedOpts, IObservable, mapObservableArrayCached } f
 import { compare as strCompare } from '../../../../../base/common/strings.js';
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import type { FileEdit } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import {
@@ -23,7 +24,7 @@ import {
 } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionFile, ISessionFileChange, ISessionWorkspace, SessionFileOperation, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
-import { createActiveSessionSubscriptionObs, selectMostRecentChatUri } from './agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -58,12 +59,27 @@ export interface ISessionOutputObs {
 	 */
 	readonly externalFiles: IObservable<readonly ISessionFile[]>;
 	/**
-	 * File changes produced by the session's **last turn** only — the in-progress
-	 * turn of the most recently modified chat, or (when idle) that chat's last
-	 * completed turn. Used by the chat input status pills to reflect just what the
-	 * most recent request produced.
+	 * Returns the file changes produced by a specific chat's **last turn** only,
+	 * keyed by that chat's AHP chat URI (the default chat's
+	 * {@link buildDefaultChatUri}, or a peer chat's protocol resource). Reduces
+	 * that chat's last-turn edits into per-file {@link ISessionFileChange |
+	 * changes} (with diff stats), mirroring the "Last Turn Changes" changeset
+	 * without depending on it, and excludes files outside the workspace/worktree.
+	 * Used by the chat input status pills to reflect just what the chat's most
+	 * recent request produced.
 	 */
-	readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]>;
+	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * Returns the last browser URL a browser tool call opened/navigated to in a
+	 * specific chat's **last turn**, keyed by that chat's AHP chat URI. Scans the
+	 * last turn's response parts for browser tool calls
+	 * ({@link BrowserChatToolReferenceName.OpenBrowserPage} /
+	 * {@link BrowserChatToolReferenceName.NavigatePage}) and returns the URL of
+	 * the last one, or `undefined` when the turn used no such tool. Used by the
+	 * chat input "Live Browser" pill to offer opening the page the agent is
+	 * working with.
+	 */
+	getLastTurnBrowserUrl(chatUri: URI): IObservable<string | undefined>;
 }
 
 /**
@@ -77,9 +93,13 @@ export interface ISessionOutputObs {
  *   chats/turns so that a file first created and then edited is reported as
  *   {@link SessionFileOperation.Created} while a deleted file is removed; only
  *   files outside the workspace folders are kept.
- * - {@link ISessionOutputObs.lastTurnChanges}: the last turn's edits reduced per
- *   file into {@link ISessionFileChange | changes} (with diff stats), mirroring
- *   the "Last Turn Changes" changeset without depending on it.
+ * - {@link ISessionOutputObs.getLastTurnChanges}: given a chat's AHP URI, that
+ *   chat's last turn's in-workspace/worktree edits reduced per file into
+ *   {@link ISessionFileChange | changes} (with diff stats), mirroring the
+ *   "Last Turn Changes" changeset without depending on it.
+ * - {@link ISessionOutputObs.getLastTurnBrowserUrl}: given a chat's AHP URI, the
+ *   URL of the last browser tool call in that chat's last turn, for the chat
+ *   input "Live Browser" pill.
  *
  * Computation only happens for the active, non-archived session: archived
  * sessions never open a live chat-state subscription, so no parsing work is
@@ -129,17 +149,6 @@ export function createSessionOutputObs(
 		return [...uris.values()];
 	});
 
-	// The chat that holds the session's "last turn": the most recently modified
-	// chat (its in-progress turn, or last completed turn when idle). Mirrors the
-	// "Last Turn Changes" changeset's chat selection via the shared helper.
-	const mostRecentChatUriObs = derivedOpts<URI>({ equalsFn: isEqual }, reader => {
-		if (!enabledObs.read(reader)) {
-			return URI.parse(buildDefaultChatUri(sessionUri));
-		}
-		const sessionState = sessionStateObs.read(reader).read(reader);
-		return selectMostRecentChatUri(sessionState, sessionUri);
-	});
-
 	// One observable of parsed edits per chat, subscribing to that chat's state.
 	//
 	// Completed turns (`chatState.turns`) are immutable once finalized, so each
@@ -157,12 +166,12 @@ export function createSessionOutputObs(
 			constObservable(chatUri),
 		);
 		const parse = createIncrementalChatFileEditsParser(mapDiffUri);
-		return derivedOpts<IChatFileEdits & { readonly chatUri: URI }>({ equalsFn: (a, b) => isEqual(a.chatUri, b.chatUri) && chatFileEditsEqual(a, b) }, reader => {
+		return derivedOpts<IChatFileEdits & { readonly chatUri: URI; readonly lastTurnBrowserUrl: string | undefined }>({ equalsFn: (a, b) => isEqual(a.chatUri, b.chatUri) && a.lastTurnBrowserUrl === b.lastTurnBrowserUrl && chatFileEditsEqual(a, b) }, reader => {
 			const chatState = chatStateObs.read(reader).read(reader);
 			if (!chatState || chatState instanceof Error) {
-				return { chatUri, allEdits: [], lastTurnEdits: [] };
+				return { chatUri, allEdits: [], lastTurnEdits: [], lastTurnBrowserUrl: undefined };
 			}
-			return { chatUri, ...parse(chatState) };
+			return { chatUri, lastTurnBrowserUrl: parseLastTurnBrowserUrl(chatState), ...parse(chatState) };
 		});
 	}, chatUri => chatUri.toString());
 
@@ -178,18 +187,30 @@ export function createSessionOutputObs(
 		return reduceSessionFiles(allEdits, folderRoots);
 	});
 
-	const lastTurnChanges = derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
-		const mostRecentChatUri = mostRecentChatUriObs.read(reader);
-		for (const chatEditsObs of editsPerChatObs.read(reader)) {
-			const chatEdits = chatEditsObs.read(reader);
-			if (isEqual(chatEdits.chatUri, mostRecentChatUri)) {
-				return reduceTurnChanges(chatEdits.lastTurnEdits);
+	const getLastTurnChanges = (chatUri: URI): IObservable<readonly ISessionFileChange[]> =>
+		derivedOpts<readonly ISessionFileChange[]>({ equalsFn: sessionFileChangesEqual }, reader => {
+			const folderRoots = getWorkspaceAndWorktreeRoots(workspaceObs.read(reader));
+			for (const chatEditsObs of editsPerChatObs.read(reader)) {
+				const chatEdits = chatEditsObs.read(reader);
+				if (isEqual(chatEdits.chatUri, chatUri)) {
+					return reduceTurnChanges(chatEdits.lastTurnEdits, folderRoots);
+				}
 			}
-		}
-		return [];
-	});
+			return [];
+		});
 
-	return { externalFiles, lastTurnChanges };
+	const getLastTurnBrowserUrl = (chatUri: URI): IObservable<string | undefined> =>
+		derivedOpts<string | undefined>({ equalsFn: (a, b) => a === b }, reader => {
+			for (const chatEditsObs of editsPerChatObs.read(reader)) {
+				const chatEdits = chatEditsObs.read(reader);
+				if (isEqual(chatEdits.chatUri, chatUri)) {
+					return chatEdits.lastTurnBrowserUrl;
+				}
+			}
+			return undefined;
+		});
+
+	return { externalFiles, getLastTurnChanges, getLastTurnBrowserUrl };
 }
 
 /**
@@ -223,6 +244,22 @@ export interface IChatFileEdits {
 	 * present, otherwise the most recently completed turn.
 	 */
 	readonly lastTurnEdits: readonly IParsedFileEdit[];
+}
+
+function pushUniqueRoot(roots: URI[], root: URI | undefined): void {
+	if (root && !roots.some(existing => isEqual(existing, root))) {
+		roots.push(root);
+	}
+}
+
+function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined): readonly URI[] {
+	const roots: URI[] = [];
+	for (const folder of workspace?.folders ?? []) {
+		pushUniqueRoot(roots, folder.root);
+		pushUniqueRoot(roots, folder.workingDirectory);
+		pushUniqueRoot(roots, folder.gitRepository?.workTreeUri);
+	}
+	return roots;
 }
 
 /**
@@ -308,7 +345,86 @@ export function parseResponseParts(responseParts: Turn['responseParts'], mapDiff
 }
 
 /**
- * Extracts the {@link FileEdit | file edits} from a tool call regardless of its
+ * The browser tool reference names whose input carries a `url` the "Live
+ * Browser" pill can open: opening a page and navigating an existing page. The
+ * other agentic browser tools (read, screenshot, click, …) operate on an
+ * already-open page and carry no URL.
+ */
+const BROWSER_URL_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
+	BrowserChatToolReferenceName.OpenBrowserPage,
+	BrowserChatToolReferenceName.NavigatePage,
+]);
+
+/**
+ * Returns the URL of the **last** URL-carrying browser tool call in a turn's
+ * response parts, or `undefined` when the turn contains none. Later calls win so
+ * the pill reflects the page the agent most recently opened/navigated to.
+ */
+export function parseBrowserUrlFromResponseParts(responseParts: Turn['responseParts']): string | undefined {
+	let url: string | undefined;
+	for (const part of responseParts) {
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			continue;
+		}
+		const partUrl = extractBrowserToolUrl(part.toolCall);
+		if (partUrl !== undefined) {
+			url = partUrl;
+		}
+	}
+	return url;
+}
+
+/**
+ * Returns the response parts of a chat's last turn — the in-progress
+ * `activeTurn` when present, otherwise the most recently completed turn.
+ */
+function getLastTurnResponseParts(chatState: IFileEditChatState): Turn['responseParts'] | undefined {
+	if (chatState.activeTurn) {
+		return chatState.activeTurn.responseParts;
+	}
+	const turns = chatState.turns;
+	if (turns && turns.length > 0) {
+		return turns[turns.length - 1].responseParts;
+	}
+	return undefined;
+}
+
+/** Parses the last browser URL of a chat's last turn from its output stream. */
+function parseLastTurnBrowserUrl(chatState: IFileEditChatState): string | undefined {
+	const responseParts = getLastTurnResponseParts(chatState);
+	return responseParts ? parseBrowserUrlFromResponseParts(responseParts) : undefined;
+}
+
+/**
+ * Extracts the `url` from a browser tool call's input, or `undefined` when the
+ * call is not a URL-carrying browser tool or has no usable URL. The input is the
+ * tool's raw JSON arguments (available once parameters are complete); a
+ * malformed or missing input yields `undefined`.
+ */
+function extractBrowserToolUrl(toolCall: ToolCallState): string | undefined {
+	if (!BROWSER_URL_TOOL_NAMES.has(toolCall.toolName)) {
+		return undefined;
+	}
+	// `toolInput` (the raw JSON arguments) is present on every tool call state
+	// except while the parameters are still streaming.
+	if (toolCall.status === ToolCallStatus.Streaming) {
+		return undefined;
+	}
+	const input = toolCall.toolInput;
+	if (typeof input !== 'string') {
+		return undefined;
+	}
+	let parsed: { url?: unknown };
+	try {
+		parsed = JSON.parse(input);
+	} catch {
+		return undefined;
+	}
+	const url = parsed?.url;
+	return typeof url === 'string' && url.length > 0 ? url : undefined;
+}
+
+/**
  * lifecycle state: completed/running results carry them in `content`, while a
  * tool call awaiting confirmation carries the planned edits in `edits.items`.
  */
@@ -465,11 +581,18 @@ interface IMutableTurnChange {
  *   preview) but still counted in the stats.
  * - Renames drop the source and surface the target as an edit of its
  *   before-content, matching the changeset's classification.
+ * - When roots are supplied, files outside every root are ignored.
  */
-export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessionFileChange2[] {
+export function reduceTurnChanges(edits: readonly IParsedFileEdit[], folderRoots?: readonly URI[]): IChatSessionFileChange2[] {
 	const byUri = new Map<string, IMutableTurnChange>();
 
+	const isInScope = (uri: URI): boolean =>
+		folderRoots === undefined || folderRoots.some(root => isEqualOrParent(uri, root));
+
 	const setCreated = (uri: URI, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
@@ -484,6 +607,9 @@ export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessi
 	};
 
 	const setModified = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
@@ -499,6 +625,9 @@ export function reduceTurnChanges(edits: readonly IParsedFileEdit[]): IChatSessi
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+		if (!isInScope(uri)) {
+			return;
+		}
 		const key = getComparisonKey(uri);
 		if (byUri.has(key)) {
 			// Created/edited earlier in the same turn and now deleted: nets out.

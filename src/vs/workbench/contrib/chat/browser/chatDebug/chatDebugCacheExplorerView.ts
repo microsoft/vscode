@@ -404,6 +404,21 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			this.renderSessionHealth(DOM.append(this.content, $('.chat-debug-cache-session-health')), report);
 		}
 
+		// When the request-side prompt was not captured (e.g. agent-host /
+		// Copilot CLI sessions, whose log records the model's output but not the
+		// request sent to it), the reported cache-hit numbers are still accurate
+		// but there is nothing to diff. Show the token-based performance only and
+		// skip the divergence analysis — running it against absent data would
+		// fabricate a "stable prefix" / "cache expiration" verdict.
+		const hasSignatureData = !!(a.system || a.tools || a.inputMessages.length || b.system || b.tools || b.inputMessages.length);
+		if (!hasSignatureData) {
+			this.renderTokenOnlySummary(a, b);
+			if (preserveScroll) {
+				this.content.scrollTop = prevScroll;
+			}
+			return;
+		}
+
 		const compareInputMessages = shouldCompareInputMessages(a, b);
 		const diff = compareInputMessages
 			? diffPromptSignature(a.inputMessages, b.inputMessages)
@@ -941,9 +956,6 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		row.appendChild(this.renderSideCard(b, localize('chatDebug.cache.requestTitle', "Request")));
 
 		const hit = computeCacheHit(b.event);
-		const inputTokens = b.event.inputTokens ?? 0;
-		const cachedTokens = b.event.cachedTokens ?? 0;
-		const lostTokens = Math.max(0, inputTokens - cachedTokens);
 
 		// Card border color tracks the worst finding \u2014 green/neutral when the
 		// loss is expected growth, red only for an avoidable break.
@@ -957,20 +969,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		headline.textContent = primary
 			? localize('chatDebug.cache.hitHeadlineVerdict', "{0}% cache hit \u2014 {1}", formatCachePct(hit), primary.title)
 			: localize('chatDebug.cache.hitHeadline', "{0}% cache hit", formatCachePct(hit));
-		const counts = DOM.append(breakCard, $('.chat-debug-cache-card-sub'));
-		counts.textContent = lostTokens > 0 && inputTokens > 0
-			? localize('chatDebug.cache.tokensReusedLost',
-				"{0} of {1} input tokens reused \u00b7 {2} uncached ({3}%)",
-				numberFormatter.value.format(cachedTokens),
-				numberFormatter.value.format(inputTokens),
-				numberFormatter.value.format(lostTokens),
-				formatCachePct((lostTokens / inputTokens) * 100),
-			)
-			: localize('chatDebug.cache.tokensReused',
-				"{0} of {1} input tokens reused",
-				numberFormatter.value.format(cachedTokens),
-				numberFormatter.value.format(inputTokens),
-			);
+		this.appendTokensReusedLine(breakCard, b.event);
 		if (b.requestShape.description) {
 			const shapeLine = DOM.append(breakCard, $('.chat-debug-cache-perf-line.chat-debug-cache-request-shape-note'));
 			shapeLine.textContent = b.requestShape.description;
@@ -1130,6 +1129,50 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			const shapeLine = DOM.append(note, $('.chat-debug-cache-perf-line.chat-debug-cache-request-shape-note'));
 			shapeLine.textContent = b.requestShape.description;
 		}
+	}
+
+	/**
+	 * Render the token-based cache performance for a request pair when the
+	 * request-side prompt signature (system, tools, input messages) was not
+	 * captured for the session — e.g. agent-host (Copilot CLI) sessions, whose
+	 * log records the model's output but not the request sent to it. The reported
+	 * cache-hit numbers are still accurate, but there is nothing to diff, so the
+	 * divergence-based root-cause analysis is deliberately skipped.
+	 */
+	private renderTokenOnlySummary(a: ISideData, b: ISideData): void {
+		const row = DOM.append(this.content, $('.chat-debug-cache-summary'));
+		row.appendChild(this.renderSideCard(a, localize('chatDebug.cache.previousRequest', "Previous request")));
+		row.appendChild(this.renderSideCard(b, localize('chatDebug.cache.requestTitle', "Request")));
+
+		const card = DOM.append(row, $('.chat-debug-cache-card.break'));
+		DOM.append(card, $('.chat-debug-cache-card-h', undefined, localize('chatDebug.cache.performance', "Cache performance")));
+		const headline = DOM.append(card, $('.chat-debug-cache-card-headline'));
+		headline.textContent = localize('chatDebug.cache.hitHeadline', "{0}% cache hit", formatCachePct(computeCacheHit(b.event)));
+		this.appendTokensReusedLine(card, b.event);
+		DOM.append(card, $('.chat-debug-cache-perf-rule'));
+		const note = DOM.append(card, $('.chat-debug-cache-perf-line.chat-debug-cache-request-shape-note'));
+		note.textContent = localize('chatDebug.cache.noSignatureNote', "The request-side prompt (system instructions, tool catalog, and input messages) was not captured for this session, so the prompt-signature diff and root-cause findings are unavailable. The cache-hit numbers above come from reported token usage.");
+	}
+
+	/** Appends the "{cached} of {input} input tokens reused" sub-line for a request. */
+	private appendTokensReusedLine(parent: HTMLElement, event: IChatDebugModelTurnEvent): void {
+		const inputTokens = event.inputTokens ?? 0;
+		const cachedTokens = event.cachedTokens ?? 0;
+		const lostTokens = Math.max(0, inputTokens - cachedTokens);
+		const line = DOM.append(parent, $('.chat-debug-cache-card-sub'));
+		line.textContent = lostTokens > 0 && inputTokens > 0
+			? localize('chatDebug.cache.tokensReusedLost',
+				"{0} of {1} input tokens reused \u00b7 {2} uncached ({3}%)",
+				numberFormatter.value.format(cachedTokens),
+				numberFormatter.value.format(inputTokens),
+				numberFormatter.value.format(lostTokens),
+				formatCachePct((lostTokens / inputTokens) * 100),
+			)
+			: localize('chatDebug.cache.tokensReused',
+				"{0} of {1} input tokens reused",
+				numberFormatter.value.format(cachedTokens),
+				numberFormatter.value.format(inputTokens),
+			);
 	}
 
 	private appendKv(parent: HTMLElement, key: string, value: string, copyable: boolean = false): void {

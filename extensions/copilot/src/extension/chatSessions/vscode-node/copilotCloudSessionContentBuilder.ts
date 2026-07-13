@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as pathLib from 'path';
-import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseMultiDiffPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatResult, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
@@ -14,7 +14,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
 import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
-import { getAuthorDisplayName } from '../vscode/copilotCodingAgentUtils';
+import { getAuthorDisplayName, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
 
 export interface SessionResponseLogChunk {
 	choices: Array<{
@@ -99,6 +99,57 @@ export interface ParsedToolCallDetails {
 	pastTenseMessage?: string;
 	originMessage?: string;
 	toolSpecificData?: StrReplaceEditorToolData | BashToolData;
+}
+
+/**
+ * Best-effort human-readable error detail for a terminally-failed task (v2). Prefers the last
+ * non-dismissed `session.error` event (`(errorType) message`), falling back to a `session.shutdown`
+ * event's `errorReason`. Returns undefined when no detail is available — e.g. an agent that failed
+ * to launch before emitting any error event, where the failure is only reflected in the task state.
+ * Scans the full event list because a `session.error` emitted during bootstrap (before the first
+ * user message) is suppressed from the rendered turn history.
+ */
+export function extractTaskErrorDetail(events: readonly AgentTaskSessionEvent[]): string | undefined {
+	const errorEvent = findLast(events, e => e.type === 'session.error' && !e.dismissed);
+	if (errorEvent) {
+		const data = errorEvent.data as { errorType?: string; message?: string };
+		const message = data.message?.trim();
+		if (message) {
+			return data.errorType ? `(${data.errorType}) ${message}` : message;
+		}
+	}
+	const shutdownEvent = findLast(events, e => e.type === 'session.shutdown' && !e.dismissed);
+	if (shutdownEvent) {
+		const data = shutdownEvent.data as { shutdownType?: string; errorReason?: string };
+		const reason = data.errorReason?.trim();
+		if (data.shutdownType === 'error' && reason) {
+			return reason;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * The notice shown for a terminally-stopped task (v2): `Copilot stopped: <reason>`. The reason is
+ * the concrete error detail when one is available (`session.error`/`session.shutdown`), otherwise a
+ * word derived from the terminal task state — "cancelled" for a user/agent cancellation and "timed
+ * out" for a timeout, neither of which emits an error event. Failed tasks with no detail fall back
+ * to a generic "an error occurred".
+ */
+export function formatTaskStoppedMessage(state: AgentTaskState, detail: string | undefined): string {
+	const reason = detail ?? defaultStopReasonForState(state);
+	return vscode.l10n.t('Copilot stopped: {0}', reason);
+}
+
+function defaultStopReasonForState(state: AgentTaskState): string {
+	switch (state) {
+		case 'cancelled':
+			return vscode.l10n.t('cancelled');
+		case 'timed_out':
+			return vscode.l10n.t('timed out');
+		default:
+			return vscode.l10n.t('an error occurred');
+	}
 }
 
 export class ChatSessionContentBuilder {
@@ -240,9 +291,26 @@ export class ChatSessionContentBuilder {
 					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
 				}
 
-				// Only the latest turn can still be in-progress.
-				const state = index === turns.length - 1 ? latestSession?.state : undefined;
-				history.push(...this.buildTaskResponseTurn(turn.events, state));
+				// Only the latest turn can still be in-progress. When the task itself terminally
+				// failed, surface a failure notice (with any available error detail) instead of a
+				// stuck progress spinner — the latest session state can still read as active (e.g.
+				// "Failed to launch agent"). Detail is extracted from the full event list because a
+				// bootstrap `session.error` is suppressed from the rendered turns above.
+				// Only the latest turn can still be in-progress. When the task terminally stopped,
+				// surface a "Copilot stopped: <reason>" notice instead of a stuck progress spinner —
+				// the latest session state can still read as active (e.g. "Failed to launch agent"
+				// or a cancelled turn). Detail is extracted from the full event list because a
+				// bootstrap `session.error` is suppressed from the rendered turns above; a cancelled
+				// or timed-out task emits no error event, so the reason falls back to the task state.
+				const isLatestTurn = index === turns.length - 1;
+				const state = isLatestTurn ? latestSession?.state : undefined;
+				let failureMessage: string | undefined;
+				if (isLatestTurn && isFailedTaskState(task.state)) {
+					const detail = extractTaskErrorDetail(events);
+					this._logService.trace(`[ChatSessionContentBuilder] task ${task.id} stopped (state=${task.state}); errorDetail=${detail ?? 'none'}`);
+					failureMessage = formatTaskStoppedMessage(task.state, detail);
+				}
+				history.push(...this.buildTaskResponseTurn(turn.events, state, failureMessage));
 			});
 
 			return history;
@@ -262,7 +330,7 @@ export class ChatSessionContentBuilder {
 	 *    with content, no `parentToolCallId`, no `toolRequests`); intermediate
 	 *    messages carry narration that would clutter the view.
 	 */
-	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined): ChatResponseTurn2[] {
+	private buildTaskResponseTurn(events: readonly AgentTaskSessionEvent[], state: AgentTaskSession['state'] | undefined, failureMessage?: string): ChatResponseTurn2[] {
 		const lastFinalMessage = findLast(events, e =>
 			!e.dismissed
 			&& e.type === 'assistant.message'
@@ -308,9 +376,15 @@ export class ChatSessionContentBuilder {
 		flushPendingAssistantMessage(ctx);
 
 		const parts = [...ctx.currentResponseParts];
-		if (parts.length === 0 && (state === 'in_progress' || state === 'queued')) {
-			// TODO: Handle in-progress sessions correctly
-			parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is in progress...')));
+		if (parts.length === 0) {
+			if (failureMessage !== undefined) {
+				// The task ended in an unsuccessful terminal state (e.g. "Failed to launch agent")
+				// without emitting any renderable events. Surface the failure instead of a spinner.
+				parts.push(new ChatResponseMarkdownPart(failureMessage));
+			} else if (state === 'in_progress' || state === 'queued') {
+				// TODO: Handle in-progress sessions correctly
+				parts.push(new ChatResponseProgressPart(vscode.l10n.t('Session is in progress...')));
+			}
 		}
 		return [new ChatResponseTurn2(parts, {}, this.type)];
 	}

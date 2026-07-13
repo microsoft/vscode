@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -37,6 +37,9 @@ export interface IAgentHostProxyResolver {
 	 * that runs in VS Code (Electron session) via the reverse channel.
 	 */
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
+	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
 export class AgentHostProxyResolver implements IAgentHostProxyResolver {
@@ -44,7 +47,9 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
-	private _resolveProxyURL: ((url: string) => Promise<string | undefined>) | undefined;
+	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
+	private _proxyAgentParams: ProxyAgentParams | undefined;
+	private _fetch: typeof globalThis.fetch | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -61,15 +66,24 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
-		return this._getResolveProxyURL()(url);
+		return this._getProxyResolver().resolveProxyURL(url);
 	}
 
-	private _getResolveProxyURL(): (url: string) => Promise<string | undefined> {
-		if (!this._resolveProxyURL) {
+	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+		if (!this._fetch) {
+			const proxyResolver = this._getProxyResolver();
+			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
+		}
+		return this._fetch(input, init);
+	}
+
+	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
+		if (!this._proxyResolver) {
 			// Mirror `workbench/api/node/proxyResolver.ts`.
 			const config = <T>(key: string): T | undefined => this._configurationService.getValue<T>(key);
 			const systemCertificatesV2 = () => config<boolean>('http.experimental.systemCertificatesV2') ?? false;
 			const systemCertificates = () => !!config<boolean>('http.systemCertificates');
+			// TODO @chrmarti: Add lookupProxyAuthorization.
 			const params: ProxyAgentParams = {
 				// The host proxy resolution runs in VS Code: reverse-call a connected
 				// renderer, whose IRequestService.resolveProxy hits the Electron
@@ -108,9 +122,10 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 				getNetworkInterfaceCheckInterval: () => (config<number>('http.experimental.networkInterfaceCheckInterval') ?? 300) * 1000,
 				env: process.env,
 			};
-			this._resolveProxyURL = createProxyResolver(params).resolveProxyURL;
+			this._proxyAgentParams = params;
+			this._proxyResolver = createProxyResolver(params);
 		}
-		return this._resolveProxyURL;
+		return this._proxyResolver;
 	}
 
 	private async _hostResolveProxy(url: string): Promise<string | undefined> {

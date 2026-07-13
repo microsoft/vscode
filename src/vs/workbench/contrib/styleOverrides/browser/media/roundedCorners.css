@@ -133,6 +133,25 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
+/*
+ * Diff editor "fake united slider": when the overview ruler is shown, the diff
+ * editor draws its own combined viewport slider (`.diffViewport`, spanning both
+ * overview rulers). The modified editor's real scrollbar slider sits over the
+ * right edge of that band. Rounding all four corners floats the right corners
+ * clear of the joined viewport and breaks the combined widget, so round only
+ * the left corners (facing the editor) and keep the right side flat/flush.
+ *
+ * Gate on `:has(> .diffOverview)` so this only applies when the combined slider
+ * is actually present: with `diffEditor.renderOverviewRuler` off there is no
+ * `.diffViewport`, so the real slider is the sole scrollbar and should stay
+ * rounded on all corners like every other scrollbar. The
+ * `modified-in-monaco-diff-editor` class lives on the `.monaco-editor` root, so
+ * target the slider as a descendant.
+ */
+.style-override .monaco-diff-editor:has(> .diffOverview) .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+}
+
 /* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
 .style-override .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
 	border-radius: var(--vscode-cornerRadius-small) !important;
@@ -259,4 +278,8 @@
 
 .style-override.monaco-workbench .terminal-resize-overlay {
 	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.style-override.monaco-workbench .monaco-count-badge {
+	border-radius: var(--vscode-cornerRadius-circle);
 }

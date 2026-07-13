@@ -33,8 +33,6 @@
 
 /* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	top: 2px;
-	left: 2px;
 	width: calc(var(--activity-bar-action-height, 32px) - 4px);
 	height: calc(var(--activity-bar-action-height, 32px) - 4px);
 }
@@ -249,6 +247,7 @@
  */
 .style-override.monaco-workbench .pane-composite-part:not(.empty) > .header {
 	border-bottom: none;
+	overflow: visible;
 }
 
 .style-override.monaco-workbench .pane-composite-part:not(.empty) > .footer {
@@ -285,8 +284,9 @@
 	top: 0px;
 }
 
-.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .codicon {
-	padding: 4px 0;
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before,
+.style-override.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label::before {
+	position: relative;
 }
 
 /*
@@ -320,4 +320,14 @@
 .style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact,
 .style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact {
 	overflow: visible;
+}
+
+.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 26px;
+	right: 2px;
+}
+
+.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
+	top: 17px;
+	right: 2px;
 }

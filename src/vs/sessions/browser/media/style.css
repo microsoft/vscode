@@ -215,174 +215,6 @@
 	box-shadow: none;
 }
 
-.agent-sessions-workbench .part.editor .multiDiffEntry {
-	padding: 0 8px;
-	box-sizing: border-box;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header {
-	cursor: pointer;
-	background: transparent;
-	position: relative;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	background: var(--vscode-agentsPanel-background);
-	z-index: -1;
-	pointer-events: none;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
-	border-radius: var(--vscode-cornerRadius-medium);
-	border: none;
-	background: var(--vscode-sideBarSectionHeader-background);
-	margin: 0;
-	align-items: center;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:not(.collapsed) .header-content {
-	border-bottom: none;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
-	font-size: var(--vscode-agents-fontSize-body1);
-	line-height: 22px;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container {
-	gap: 4px;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible {
-	outline: none;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus .header-content,
-.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible .header-content {
-	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
-	border-bottom: none;
-}
-
-.agent-sessions-workbench .part.editor .diff-hidden-lines .center {
-	box-shadow: none;
-	overflow: hidden;
-}
-
-/* The hidden-lines bar is split into two halves (original / modified) sitting
- * side by side. Round only the outer corners so the pair forms a single pill. */
-.agent-sessions-workbench .part.editor .editor.original .diff-hidden-lines .center {
-	border-top-left-radius: var(--vscode-cornerRadius-medium);
-	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
-}
-
-.agent-sessions-workbench .part.editor .editor.modified .diff-hidden-lines .center {
-	border-top-right-radius: var(--vscode-cornerRadius-medium);
-	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	min-width: 16px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	opacity: 0.9;
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.deleted {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-
-.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.renamed {
-	color: var(--vscode-gitDecoration-modifiedResourceForeground);
-}
-
-.agent-sessions-workbench .part.editor .title.tabs {
-	background-color: transparent !important;
-	--editor-group-tab-height: 26px !important;
-}
-
-/* Editor tabs: match chat composite bar tab style */
-.agent-sessions-workbench .part.editor .tabs-container > .tab {
-	background-color: transparent !important;
-	border-right: none !important;
-	border-radius: var(--vscode-cornerRadius-small);
-	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	box-shadow: none !important;
-	padding: 0 0 0 4px !important;
-	--tab-border-top-color: transparent !important;
-}
-
-/* Size tabs to their content and never shrink them, so that when more tabs
- * exist than fit the container they overflow and the horizontal scrollbar
- * appears (matching the default editor behaviour). The default `sizing-fit`
- * rule sets `width: 120px; min-width: fit-content; flex-shrink: 0;` — pinning
- * tabs at 120px. We instead let the width follow the label (`width: auto`)
- * while keeping `flex-shrink: 0` so tabs keep their content width and the tab
- * strip scrolls instead of squashing the tabs. */
-.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
-	width: auto !important;
-	min-width: 0 !important;
-	flex: 0 0 auto !important;
-}
-
-.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,
-.agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-container {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	min-width: 0;
-}
-
-/* Keep the close button reserved within the tab so it remains accessible when
- * the tab shrinks. Without this the action sits in an `overflow: hidden`
- * container that only reveals on hover, which combined with the smaller tab
- * makes the close target hard to hit. */
-.agent-sessions-workbench .part.editor .tabs-container > .tab > .tab-actions {
-	flex: 0 0 auto;
-	overflow: visible;
-}
-
-.agent-sessions-workbench .part.editor .tabs-container > .tabs-bar-add-tab {
-	position: sticky;
-	right: 0;
-	z-index: 9;
-	background: var(--vscode-agentsPanel-background);
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.agent-sessions-workbench .part.editor .tabs-and-actions-container {
-	--tabs-border-bottom-color: transparent !important;
-	align-items: center;
-	padding: 4px;
-}
-
-.agent-sessions-workbench .part.editor .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-}
-
-.agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-top-container,
-.agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-bottom-container {
-	display: none !important;
-}
-
 .agent-sessions-workbench:not(.nosidebar) .part.sessionspart {
 	margin-left: 0;
 }
@@ -409,9 +241,19 @@
 	--part-background: var(--vscode-editor-background);
 	--vscode-sideBar-background: var(--vscode-editor-background);
 	background: var(--vscode-editor-background);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 	z-index: 2;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-strokeThickness));
+	left: calc(-1 * var(--vscode-strokeThickness));
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-agentsPanel-border);
 }
 
 /* Divider under the editor header (spanning the editor content and docked detail)
@@ -419,13 +261,13 @@
  * The docked aux bar starts one divider below its bottom, so its background does
  * not overlay the line. */
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 }
 
 /* When the active editor has no header toolbars, put the divider under the tab
  * bar instead so the separator is always present below the header row. */
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) .tabs-and-actions-container {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border, transparent);
+.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 }
 

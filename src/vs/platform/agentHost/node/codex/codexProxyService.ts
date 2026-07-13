@@ -66,7 +66,40 @@ export const ICodexProxyService = createDecorator<ICodexProxyService>('codexProx
 interface ICodexProxyState {
 	/** Token cell — read fresh on each outbound request. */
 	githubToken: string;
+	/**
+	 * Most recent *primary* (non-reviewer) model id forwarded on this bind,
+	 * observed from normal turn requests. Used to remap the unsupported
+	 * auto-review reviewer model (see {@link CODEX_AUTO_REVIEW_MODEL}) onto a
+	 * model that is known to be supported by the Copilot CAPI. `undefined`
+	 * until the first primary request is seen.
+	 *
+	 * Bind-global, not per-session: the proxy is a single refcounted bind
+	 * shared by every concurrent Codex session and reviewer requests carry no
+	 * session identity, so this tracks the last primary model seen across all
+	 * sessions. Under the documented single-tenant assumption (one active model
+	 * at a time) that is correct; with two concurrent sessions on *different*
+	 * models where one uses Auto-review, the reviewer may run on the other
+	 * session's model. That only affects reviewer model choice, never
+	 * correctness of the primary turns (which are forwarded verbatim).
+	 */
+	lastPrimaryModel: string | undefined;
 }
+
+/**
+ * Model id the Codex app-server uses for its built-in auto-review reviewer
+ * (the "Auto-review" permissions preset routes eligible approvals through it).
+ *
+ * This is a specialized OpenAI model that is **not** part of the GitHub
+ * Copilot CAPI catalog, so forwarding it verbatim yields a 400
+ * `model_not_supported`. The app-server treats that as the review having
+ * *failed* and rejects the action inline ("Automatic approval review failed")
+ * without ever emitting an `item/autoApprovalReview/completed` notification —
+ * which breaks the entire Auto-review preset. We transparently remap it onto
+ * the session's primary model (see {@link ICodexProxyState.lastPrimaryModel})
+ * so the reviewer runs on a supported model; only the underlying model
+ * differs, the app-server's review instructions are unchanged.
+ */
+const CODEX_AUTO_REVIEW_MODEL = 'codex-auto-review';
 
 type ICodexProxyRuntime = ILoopbackProxyRuntime<ICodexProxyState>;
 
@@ -136,7 +169,7 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 	}
 
 	protected createState(githubToken: string): ICodexProxyState {
-		return { githubToken };
+		return { githubToken, lastPrimaryModel: undefined };
 	}
 
 	async start(githubToken: string): Promise<ICodexProxyHandle> {
@@ -214,6 +247,17 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 			writeJsonError(res, 400, 'invalid_request_error', `Failed to read request body: ${err instanceof Error ? err.message : String(err)}`);
 			return;
 		}
+
+		// Remap the unsupported auto-review reviewer model onto the session's
+		// primary model before forwarding, so the "Auto-review" preset works
+		// against the Copilot CAPI (which does not expose `codex-auto-review`).
+		// All downstream handling (dump, logging, forward) uses the outbound
+		// body so logs reflect exactly what is sent upstream.
+		const remap = remapCodexReviewerModel(body, runtime.state);
+		if (remap.remappedFrom) {
+			this._logService.info(`[${PROXY_USER_FACING_NAME}] remapped unsupported reviewer model '${remap.remappedFrom}' -> '${remap.remappedTo}'`);
+		}
+		body = remap.body;
 
 		const dumpDir = getDumpDir();
 		const dumpSeq = dumpDir ? nextDumpSeq() : undefined;
@@ -358,11 +402,47 @@ export class CodexProxyService extends LoopbackProxyServer<ICodexProxyState, str
 }
 
 /**
- * Build the headers forwarded to {@link ICopilotApiService.responses} from the
- * inbound codex request. Currently forwards `user-agent` (transformed via
- * {@link transformUserAgent}); the remaining outbound headers are supplied by
- * the API service itself.
+ * Compute the outbound `/v1/responses` body, transparently remapping the
+ * unsupported Codex auto-review reviewer model (see
+ * {@link CODEX_AUTO_REVIEW_MODEL}) onto the last-seen primary model. Records
+ * the primary model on `state` as a side effect so a later reviewer request
+ * can be remapped.
+ *
+ * Returns the original body untouched — and forwards verbatim, exactly as
+ * before — when it is unparseable, carries no `model`, already uses a primary
+ * model, or when no primary model has been observed yet (graceful
+ * degradation: the reviewer request still 400s, i.e. no worse than not
+ * remapping at all).
  */
+export function remapCodexReviewerModel(
+	body: string,
+	state: { lastPrimaryModel: string | undefined },
+): { readonly body: string; readonly remappedFrom?: string; readonly remappedTo?: string } {
+	let parsed: { model?: unknown };
+	try {
+		parsed = JSON.parse(body);
+	} catch {
+		return { body };
+	}
+	const model = typeof parsed.model === 'string' ? parsed.model : undefined;
+	if (!model) {
+		return { body };
+	}
+	if (model !== CODEX_AUTO_REVIEW_MODEL) {
+		// A normal turn request — remember its model so we can substitute it
+		// for a subsequent reviewer request.
+		state.lastPrimaryModel = model;
+		return { body };
+	}
+	const target = state.lastPrimaryModel;
+	if (!target) {
+		return { body };
+	}
+	(parsed as { model: string }).model = target;
+	return { body: JSON.stringify(parsed), remappedFrom: model, remappedTo: target };
+}
+
+
 function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string, string> {
 	const out: Record<string, string> = {};
 	const userAgent = inbound['user-agent'];

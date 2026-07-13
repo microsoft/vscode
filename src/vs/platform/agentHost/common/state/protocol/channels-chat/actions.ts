@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -483,6 +483,26 @@ export interface ChatTruncatedAction {
 	turnId?: string;
 }
 
+/**
+ * Loads older completed turns into this chat's state.
+ *
+ * Hosts dispatch this before responding to `fetchTurns`, and before applying
+ * any operation that references a turn older than the currently loaded window.
+ * `turns` is ordered oldest-first and is prepended to the current `turns`
+ * window. `turnsNextCursor` replaces the state's cursor; omit it when all
+ * retained turns are now loaded.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatTurnsLoadedAction {
+	type: ActionType.ChatTurnsLoaded;
+	/** Older completed turns loaded into the state, ordered oldest-first. */
+	turns: Turn[];
+	/** Opaque cursor for loading the next older page, if one remains. */
+	turnsNextCursor?: string;
+}
+
 // ─── Pending Message Actions ─────────────────────────────────────────────────
 
 /**
@@ -649,6 +669,7 @@ export type ChatAction =
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatTruncatedAction
+	| ChatTurnsLoadedAction
 	| ChatPendingMessageSetAction
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction

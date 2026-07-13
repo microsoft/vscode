@@ -264,8 +264,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	async canLoadWithoutDownload(): Promise<boolean> {
-		return true;
+		return this.canLoadWithoutDownloadResult;
 	}
+
+	/**
+	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
+	 * `true` (SDK already local). Set to `false` to simulate the cold-start
+	 * case where the SDK isn't downloaded yet — restore-reachable reads
+	 * ({@link listSessions}, {@link getSessionInfo} via `getSessionMetadata`,
+	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
+	 */
+	canLoadWithoutDownloadResult = true;
 
 	/**
 	 * Fake for {@link IClaudeAgentSdkService.getSessionInfo}. Tests stage
@@ -3783,6 +3792,58 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
+		// Regression: when a materialized Claude session is restored on
+		// startup (the renderer subscribes to the last-active session), the
+		// host's restore path calls `getSessionMetadata` -> `getSessionInfo`
+		// and `getSessionMessages`, both of which dynamically import the SDK.
+		// Before the fix that eagerly triggered a cold SDK download (with no
+		// progress interest registered, so no notification) purely from
+		// preselecting/restoring Claude — the download must only start on the
+		// first user message. `listSessions` was already guarded; this locks
+		// in the matching guard on the two other restore-reachable reads.
+		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
+		sdk.sessionList = [
+			{ sessionId: 'materialized', summary: 'Materialized Session', lastModified: 5000, createdAt: 4900, cwd: '/work' },
+		];
+		sdk.sessionMessagesById.set('materialized', forkSourceMessages('materialized'));
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, createTestAgentConfigService(disposables)],
+			[ICopilotApiService, new FakeCopilotApiService()],
+			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[ISessionDataService, createNullSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		const sessionUri = AgentSession.uri('claude', 'materialized');
+		const metadata = await agent.getSessionMetadata!(sessionUri);
+		const messages = await agent.getSessionMessages(sessionUri);
+		const sessions = await agent.listSessions();
+
+		assert.deepStrictEqual({
+			metadata,
+			messages,
+			sessions,
+			// The SDK must never be touched — no `getSessionInfo` /
+			// `getSessionMessages` calls => no dynamic import => no download.
+			getSessionInfoCalls: sdk.getSessionInfoCalls,
+			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
+		}, {
+			metadata: undefined,
+			messages: [],
+			sessions: [],
+			getSessionInfoCalls: [],
+			getSessionMessagesCalls: [],
+		});
+	});
+
 	test('shutdown is idempotent and returns the same memoized promise on concurrent calls', async () => {
 		// Phase 6+ INVARIANT: the SDK Query subprocess for each live
 		// session is aborted inside `shutdown()`. If two callers race
@@ -5856,6 +5917,85 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, instantiationService, fileService };
 	}
+
+	test('createSession seeds the eager activeClient customizations to the plugin manager', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const customizations = [makeClientCustomization('https://bundle', 'Synced')];
+		await agent.createSession({
+			session: AgentSession.uri('claude', 'eager'),
+			workingDirectory: URI.file('/work'),
+			activeClient: { clientId: 'client-1', tools: [], customizations },
+		});
+
+		// The eagerly-claimed active client's customizations must be synced at
+		// creation (mirrors the Copilot agent). Without this, built-in skills
+		// like `/create-pr` never reach the SDK: the workbench state already
+		// carries the active client, so no follow-up `session/activeClientSet`
+		// is dispatched to trigger the sync.
+		assert.deepStrictEqual(pm.syncCalls, [{ clientId: 'client-1', customizations }]);
+	});
+
+	test('createSession without an activeClient does not sync customizations', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		await agent.createSession({
+			session: AgentSession.uri('claude', 'no-eager'),
+			workingDirectory: URI.file('/work'),
+		});
+
+		assert.deepStrictEqual(pm.syncCalls, []);
+	});
+
+	test('createSession re-seeds the eager activeClient on reconnect to an existing session', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const customizations = [makeClientCustomization('https://bundle', 'Synced')];
+		const cfg = {
+			session: AgentSession.uri('claude', 'reconnect'),
+			workingDirectory: URI.file('/work'),
+			activeClient: { clientId: 'client-1', tools: [], customizations },
+		};
+		await agent.createSession(cfg);
+		// AgentService reissues createSession for the same URI on reconnect; the
+		// eager client must be re-applied even though the session already exists.
+		await agent.createSession(cfg);
+
+		assert.deepStrictEqual(pm.syncCalls, [
+			{ clientId: 'client-1', customizations },
+			{ clientId: 'client-1', customizations },
+		]);
+	});
+
+	test('createSession eager seeding suppresses orphan customization progress', async () => {
+		const pm = new FakeAgentPluginManager();
+		pm.syncResult = [makeSyncedRef('https://bundle', '/p/bundle')];
+		const { agent } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const updates: string[] = [];
+		disposables.add(agent.onDidSessionProgress(s => {
+			if (s.kind === 'action' && s.action.type === ActionType.SessionCustomizationUpdated) {
+				updates.push(s.action.customization.uri.toString());
+			}
+		}));
+
+		await agent.createSession({
+			session: AgentSession.uri('claude', 'quiet'),
+			workingDirectory: URI.file('/work'),
+			activeClient: { clientId: 'client-1', tools: [], customizations: [makeClientCustomization('https://bundle', 'Synced')] },
+		});
+
+		// The session state does not exist yet at create time, so the initial
+		// sync must be quiet — no orphan SessionCustomizationUpdated envelopes.
+		assert.deepStrictEqual(updates, []);
+	});
 
 	test('setClientCustomizations forwards each item as a SessionCustomizationUpdated action', async () => {
 		const pm = new FakeAgentPluginManager();
