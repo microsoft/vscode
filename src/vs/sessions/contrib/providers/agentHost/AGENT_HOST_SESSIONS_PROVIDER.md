@@ -155,7 +155,7 @@ A quick chat is a **single-chat session** (`supportsMultipleChats: false`, force
 3. Loads the chat model and seeds the selected model / custom agent into the input state so the pickers reflect the choice immediately.
 4. Snapshots existing cache keys, then `IChatService.sendRequest` (which the registered `AgentHostSessionHandler` routes to the backend).
 5. Publishes a skeleton session (title seeded from the first line of the query) via `onDidChangeSessions` as `_pendingSession`.
-6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session.
+6. Waits for the committed backend session (`_waitForNewSession`); on arrival the draft **graduates** (releases its eager subscription without firing `disposeSession`), config is preserved, `_pendingSession` is cleared, and `onDidReplaceSession` fires from skeleton → committed session. If commit detection times out or the connection is lost, the provisional skeleton is cleaned up and `sendRequest` rejects rather than returning an `InProgress` session that has no remaining lifecycle owner.
 
 For an already-committed session (including a newly-created peer chat), `sendRequest` loads and holds the target chat model through `IChatService.sendRequest`, applies the cached model/agent input state before dispatch, clears the draft afterwards, then clears the provider-side "new chat" flag so status returns to the host-reported value. Holding the model reference is required for peer chats opened by the lightweight new-chat composer, because no `ChatWidget` owns that model while the first message is dispatched.
 
@@ -177,7 +177,7 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 
 | File | Responsibility |
 |------|----------------|
-| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. |
+| `agentHostSessionConfigPicker.ts` | The per-session config picker (isolation, branch, and host-declared dynamic properties) backed by the dynamic-session-config API; includes `media/agentHostSessionConfigPicker.css`. On desktop the `isolation` property renders as a "Worktree" checkbox (checked = worktree, unchecked = folder) instead of a dropdown; the phone layout keeps the chip so it can route to the unified repo sheet. |
 | `agentHostAgentPicker.ts` | Custom-agent picker for a session. |
 | `agentHostModePicker.ts` | Agent mode enum picker (extends a shared `AgentHostSessionEnumPicker`), rendered immediately before approvals in the secondary toolbar for new and active sessions. |
 | `agentHostModelPicker.ts` | `getAgentHostModels` — filters language models by the session resource scheme. |

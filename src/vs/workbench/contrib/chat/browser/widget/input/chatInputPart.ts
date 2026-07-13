@@ -38,6 +38,7 @@ import { IEditorConstructionOptions } from '../../../../../../editor/browser/con
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorOptions, IEditorOptions, IEditorScrollbarOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../../editor/common/config/fontInfo.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -58,6 +59,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../plat
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -93,13 +95,13 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldPersistModelSelection, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel, shouldRestorePerTypeModelOnSessionSwitch, shouldSuppressModelPersistenceOnSessionSwitch, shouldWaitForSessionModel } from './chatModelSelectionLogic.js';
+import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelHiddenInPicker, isModelValidForSession, mergeModelsWithCache, resolveConfiguredModel, resolveModelFromSyncState, shouldDropAgnosticDraftModel, shouldPersistModelSelection, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel, shouldRestorePerTypeModelOnSessionSwitch, shouldSuppressModelPersistenceOnSessionSwitch, shouldWaitForSessionModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
-import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenAutomationsWorkspacePickerAction, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
+import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
@@ -107,7 +109,7 @@ import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentW
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
-import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate, IChatInputWorkspacePicker } from '../../chat.js';
+import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
@@ -128,6 +130,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts/chatContentPa
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
 import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
+import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../chatTerminalCommandPaste.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
@@ -141,7 +144,6 @@ import { IModePickerDelegate, isModeConsideredBuiltIn, ModePickerActionItem } fr
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
-import { WorkspacePickerInputActionItem } from './workspacePickerInputActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
@@ -192,15 +194,6 @@ export interface IChatInputPartOptions {
 	 * for their chat request. This is useful for empty window contexts.
 	 */
 	workspacePickerDelegate?: IWorkspacePickerDelegate;
-	/**
-	 * Optional workspace picker rendered as a chip in the PRIMARY toolbar
-	 * (between the mode picker and the model picker). Used by the automations
-	 * dialog so its existing `WorkspacePicker` instance can drive both the
-	 * form-row trigger and a toolbar chip from a single source of truth.
-	 * Gated by {@link ChatContextKeys.inAutomationsDialog} on the menu side
-	 * and a defensive null-check in `actionViewItemProvider`.
-	 */
-	workspacePickerInput?: IChatInputWorkspacePicker;
 	/**
 	 * Optional action view item provider for host-owned secondary toolbar
 	 * chips registered on {@link MenuId.ChatInputSecondary}. Used by the
@@ -697,6 +690,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IThemeService private readonly themeService: IThemeService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
@@ -1935,7 +1929,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 		const sessionFiltered = filterModelsForSession(allModels, sessionType, this.currentModeKind, this.location);
-		return sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
+		return sessionFiltered.filter(m => !isModelHiddenInPicker(m, id => this.languageModelsService.isModelHidden(id)));
 	}
 
 	/**
@@ -2620,6 +2614,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._widget?.viewModel?.model.sessionResource;
 	}
 
+	private getTerminalCommandPrefix(): string | undefined {
+		// The terminal command prefix is a static per-session-type capability
+		// advertised by the agent host. The input uses it (on the live text) to
+		// switch to monospace and warn on command pastes.
+		const sessionResource = this.getCurrentSessionResource();
+		return sessionResource ? this.chatSessionsService.getCapabilitiesForSessionType(getChatSessionType(sessionResource))?.terminalCommandPrefix : undefined;
+	}
+
+	private updateInputEditorFontFamily(): void {
+		if (!this._inputEditor) {
+			return;
+		}
+
+		const isCommand = isTerminalCommandInput(this._inputEditor.getModel()?.getLineContent(1) || '', this.getTerminalCommandPrefix());
+		this._inputEditor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : DEFAULT_FONT_FAMILY });
+	}
+
+	private handleTerminalCommandPaste(e: ClipboardEvent): void {
+		handleTerminalCommandPaste(e, this._inputEditor, this.getTerminalCommandPrefix(), this.dialogService, this.storageService);
+	}
+
 	private areAllOptionsValid(sessionResource: URI, visibleOptionGroups: readonly IChatSessionProviderOptionGroup[]): boolean {
 		for (const optionGroup of visibleOptionGroups) {
 			const currentOption = this.chatSessionsService.getSessionOption(sessionResource, optionGroup.id);
@@ -2980,6 +2995,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
 		try {
+			this.updateInputEditorFontFamily();
 			this.resetPendingDelegationForViewModelChange();
 			this.refreshViewModelScopedState();
 			this.clearQuestionCarouselIfSessionChanged(e);
@@ -3271,6 +3287,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID, PlaceholderTextContribution.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		this.updateInputEditorFontFamily();
+		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 		options.overflowWidgetsDomNode?.classList.add('hideSuggestTextIcons');
@@ -3305,6 +3323,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			this._updateInputContentContextKeys();
+
+			// Update monospace state as the command prefix is typed/removed.
+			this.updateInputEditorFontFamily();
 
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
@@ -3404,17 +3425,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
-				} else if (action.id === OpenAutomationsWorkspacePickerAction.ID && action instanceof MenuItemAction) {
-					// Toolbar chip for an externally-owned workspace picker
-					// (today: the automations dialog's single picker instance,
-					// also rendered in the dialog form row). Defensive guard:
-					// the menu's `when` clause should already gate visibility,
-					// but if a host registers the menu contribution without
-					// supplying the picker we hide rather than throw.
-					if (this.options.workspacePickerInput) {
-						return this.instantiationService.createInstance(WorkspacePickerInputActionItem, action, this.options.workspacePickerInput, undefined);
-					}
-					return new HiddenActionViewItem(action);
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
 					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {

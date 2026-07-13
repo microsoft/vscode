@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
@@ -77,8 +78,8 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.userMessageText(session, '', '3'); // dropped: no content
-		reporter.userMessageText(session, 'hello agent', '3'); // emitted
+		reporter.userMessageText(session, '', 3); // dropped: no content
+		reporter.userMessageText(session, 'hello agent', 3); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
@@ -97,8 +98,8 @@ suite('AgentHostTelemetryReporter', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
-		reporter.modelMessageText(session, '', '3', 'svc-1'); // dropped: no content
-		reporter.modelMessageText(session, 'sure, here you go', '3', 'svc-1'); // emitted
+		reporter.modelMessageText(session, '', 3, 'svc-1'); // dropped: no content
+		reporter.modelMessageText(session, 'sure, here you go', 3, 'svc-1'); // emitted
 
 		const expected: IRestrictedCall = {
 			eventName: 'conversation.messageText',
@@ -113,4 +114,89 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
 		assert.deepStrictEqual(service.internalEvents, [expected]);
 	});
+
+	test('toolCallDetails emits toolCallDetailsExternal + toolCallDetailsInternal aggregate whenever tools were available, and no-ops when none were', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.toolCallDetails({
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			toolCounts: {}, availableTools: [],
+			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
+		}); // dropped: no tools were available
+		reporter.toolCallDetails({
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			toolCounts: {}, availableTools: ['grep', 'edit'],
+			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
+		}); // emitted: tools available, even though no tool calls were made
+		reporter.toolCallDetails({
+			session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', model: 'gpt-x', responseType: 'success',
+			toolCounts: { grep: 2, edit: 1 }, availableTools: ['grep', 'edit'],
+			numRequests: 2, totalToolCalls: 3, parallelToolCallRounds: 1, parallelToolCallsTotal: 2,
+		}); // emitted
+
+		assert.deepStrictEqual(service.enhancedEvents, [{
+			eventName: 'toolCallDetailsExternal',
+			properties: {
+				conversationId: AgentSession.id(session),
+				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				responseType: 'success',
+				model: 'gpt-x',
+				toolCounts: JSON.stringify({}),
+				availableTools: JSON.stringify(['grep', 'edit']),
+			},
+		}, {
+			eventName: 'toolCallDetailsExternal',
+			properties: {
+				conversationId: AgentSession.id(session),
+				requestId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
+				responseType: 'success',
+				model: 'gpt-x',
+				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
+				availableTools: JSON.stringify(['grep', 'edit']),
+			},
+		}]);
+		assert.strictEqual(service.internalEvents.length, 2);
+		assert.strictEqual(service.internalEvents[0].eventName, 'toolCallDetailsInternal');
+		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
+	});
+
+	test('skillContentRead emits plaintext skill metadata to enhanced + internal, maps plugin identity + hashes content, and no-ops without a name', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.skillContentRead({ name: '', path: '/skills/x/SKILL.md', content: 'body', source: 'project', pluginName: undefined, pluginVersion: undefined }); // dropped: no name
+		reporter.skillContentRead({
+			name: 'pdf', path: '/plugins/pdf/SKILL.md', content: 'skill body',
+			source: 'plugin', pluginName: 'pdf-plugin', pluginVersion: '1.2.3',
+		}); // emitted
+
+		const expected: IRestrictedCall = {
+			eventName: 'skillContentRead',
+			properties: {
+				skillName: 'pdf',
+				skillPath: '/plugins/pdf/SKILL.md',
+				skillExtensionId: 'pdf-plugin',
+				skillExtensionVersion: '1.2.3',
+				skillStorage: 'plugin',
+				skillContentHash: String(hash('skill body')),
+			},
+		};
+		assert.deepStrictEqual(service.enhancedEvents, [expected]);
+		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('skillContentRead drops the version when no plugin name is known, matching the extension', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.skillContentRead({ name: 'local', path: '/skills/local/SKILL.md', content: 'c', source: 'project', pluginName: undefined, pluginVersion: '9.9.9' });
+
+		assert.strictEqual(service.enhancedEvents.length, 1);
+		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');
+		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
+	});
 });
+

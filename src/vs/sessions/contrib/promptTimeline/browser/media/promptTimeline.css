@@ -8,14 +8,36 @@
 	top: 0;
 	right: 0;
 	bottom: var(--prompt-timeline-bottom, 0);
-	width: 36px;
+	width: var(--prompt-timeline-rail-width, 36px);
 	pointer-events: none;
 	z-index: 10;
 }
 
-/* Anchors the rail overlay to the chat widget container (added/removed with the rail's lifecycle). */
+/* Anchors the rail overlay to the chat widget container (added/removed with the rail's lifecycle).
+ * Rail geometry is published as variables here (the common ancestor of both the rail and the
+ * transcript rows) so the content reservation below can be derived from the rail's real width
+ * plus a guaranteed minimum gap, instead of a hand-tuned number. */
 .prompt-timeline-host {
 	position: relative;
+	--prompt-timeline-rail-width: 36px;
+	/* Minimum clear space guaranteed between the message content and the rail marks. */
+	--prompt-timeline-content-gap: 24px;
+	/* Gutter reserved for the transcript's native scrollbar (its ~10px width + a small gap) so the
+	 * marks sit to its left and it stays grabbable. */
+	--prompt-timeline-scrollbar-gutter: 16px;
+}
+
+/* Reserve room on the transcript's right edge so message content clears the rail's marks.
+ * The chat "card" rows (sessions style.css) pad only 32px on the right — where the marks sit — so
+ * bubbles crowd the pills. We reserve the rail's full width plus the minimum gap, but only while
+ * the rail is mounted. `.prompt-timeline-host` is added to the same `.interactive-session`
+ * element, so the compound plus the card-rule scope wins on specificity without touching the base
+ * layout when the rail is absent. */
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session .interactive-item-container,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session > .chat-suggest-next-widget {
+	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap));
 }
 
 .prompt-timeline-rail.hidden {
@@ -159,10 +181,10 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler (proportional marks + the scrollbar slider as a you-are-here thumb). */
+/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler. Marks sit in a gutter to the LEFT of the transcript's native scrollbar (via the right inset) so the pills never overlap the slider and the scrollbar stays grabbable. The gutter is set from the real scrollbar width by the contribution; the fallback covers the default 10px slider + a small gap. */
 .prompt-timeline-ruler-marks {
 	position: absolute;
-	inset: 0;
+	inset: 0 var(--prompt-timeline-scrollbar-gutter, 16px) 0 0;
 	pointer-events: none;
 }
 
@@ -186,13 +208,24 @@
 	display: none;
 }
 
+/* Glide any residual drift (marks correct as rows measure) once the initial layout is in place. Enabled by JS after a structural rebuild so new marks don't slide in. */
+.prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
+	transition: top 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-marks.glide .prompt-timeline-ruler-mark {
+		transition: none;
+	}
+}
+
 /* The visible mark: a short bar, neutral unless the turn changed code. */
 .prompt-timeline-ruler-bar {
 	display: flex;
 	overflow: hidden;
 	width: 12px;
-	height: 2px;
-	border-radius: 1px;
+	height: 3px;
+	border-radius: 2px;
 	background-color: var(--vscode-scrollbarSlider-background);
 	transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
 }
@@ -212,49 +245,44 @@
 	background-color: var(--vscode-editorOverviewRuler-deletedForeground);
 }
 
-.prompt-timeline-ruler-mark:hover .prompt-timeline-ruler-bar {
+/* Hover, active and keyboard-focus share one "emphasized pill" so the bar barely changes size
+ * between states. The diff colours are always preserved. */
+.prompt-timeline-ruler-mark:hover .prompt-timeline-ruler-bar,
+.prompt-timeline-ruler-mark.active .prompt-timeline-ruler-bar,
+.prompt-timeline-rail .prompt-timeline-ruler-mark:focus-visible .prompt-timeline-ruler-bar {
 	width: 16px;
-	height: 3px;
+	height: 4px;
+}
+
+/* Neutral (no-edit) marks brighten on hover; edited marks keep their green/red. */
+.prompt-timeline-ruler-mark:hover .prompt-timeline-ruler-bar:not(.edited) {
 	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
-/* Active = the prompt currently in view. */
+/* Active = the single selected prompt (the one in view / just revealed). A crisp border hugging
+ * the pill (outline-offset 0 sits on the pill edge, so it reads as the pill's own border rather
+ * than a glowy floating box). Colours kept. There is only ever one active mark. */
 .prompt-timeline-ruler-mark.active .prompt-timeline-ruler-bar {
-	width: 18px;
-	height: 3px;
-	background-color: var(--vscode-focusBorder);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 0;
 }
 
-.prompt-timeline-ruler-mark.active .prompt-timeline-ruler-bar .seg-add,
-.prompt-timeline-ruler-mark.active .prompt-timeline-ruler-bar .seg-del {
-	background-color: transparent;
-}
-
-.prompt-timeline-rail .prompt-timeline-ruler-mark:focus {
+/* Keyboard focus is a DISTINCT, secondary cursor: a dashed ring offset off the pill, clearly
+ * different from the solid selected border so a focused-but-not-selected mark never reads as a
+ * second selection. Only shown for keyboard (:focus-visible), so a mouse click draws nothing.
+ * The button's own outline is suppressed because the workbench draws a focus outline on any
+ * focused `[tabindex="0"]` element (style.css `.monaco-workbench [tabindex="0"]:focus`), which
+ * ties our plain `.rail .mark:focus`; qualifying through `.prompt-timeline-ruler-marks` raises
+ * our specificity above it so the 22x24 button never boxes over the transcript. Our focus cue
+ * lives on the small bar instead. */
+.prompt-timeline-rail .prompt-timeline-ruler-marks .prompt-timeline-ruler-mark:focus,
+.prompt-timeline-rail .prompt-timeline-ruler-marks .prompt-timeline-ruler-mark:focus-visible {
 	outline: none;
 }
 
 .prompt-timeline-rail .prompt-timeline-ruler-mark:focus-visible .prompt-timeline-ruler-bar {
-	outline: 1px solid var(--vscode-focusBorder);
+	outline: 1px dashed var(--vscode-focusBorder);
 	outline-offset: 2px;
-}
-
-/* The you-are-here thumb reuses the scrollbar slider. */
-.prompt-timeline-ruler-thumb {
-	position: absolute;
-	right: 2px;
-	width: 6px;
-	border-radius: 3px;
-	background-color: var(--vscode-scrollbarSlider-background);
-	pointer-events: none;
-}
-
-.prompt-timeline-ruler-thumb.hidden {
-	display: none;
-}
-
-.prompt-timeline-rail-ruler:hover .prompt-timeline-ruler-thumb {
-	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 @media (prefers-reduced-motion: reduce) {

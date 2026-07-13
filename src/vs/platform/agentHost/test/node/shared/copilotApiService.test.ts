@@ -247,6 +247,30 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
 		});
 
+		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				discoveryCount: 1,
+			});
+		});
+
 		test('falls back to default API base when endpoints.api is missing', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),

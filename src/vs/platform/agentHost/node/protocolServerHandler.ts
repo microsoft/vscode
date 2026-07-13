@@ -282,6 +282,10 @@ export interface IProtocolServerConfig {
 	 */
 	readonly completionTriggerCharacters?: readonly string[];
 	/**
+	 * Prefix that marks a user message as a host terminal command.
+	 */
+	readonly terminalCommandPrefix?: string;
+	/**
 	 * Optional emitter to use as the source for the OTLP logs channel
 	 * advertised via `InitializeResult.telemetry.logs`. When present, this
 	 * handler will route `subscribe`/`unsubscribe` requests on
@@ -543,6 +547,7 @@ export class ProtocolServerHandler extends Disposable {
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters,
+				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 			},
 		};
@@ -1396,10 +1401,14 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getNetworkDiagnosticsInfo':
+				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'diagnosticsFetch':
+				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:
 				return undefined;
 		}

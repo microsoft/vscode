@@ -166,6 +166,14 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
+	padding-left: 4px;
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-left: 4px;
+}
+
 /*
  * When the status bar is hidden every floating card sits directly against the window
  * bottom edge. Double the bottom margin (4px → 8px) to match the doubled outer gutter

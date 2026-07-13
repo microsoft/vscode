@@ -98,3 +98,13 @@
 .style-override .suggest-input-container .monaco-editor .editor-scrollable::after {
 	display: none;
 }
+
+/* =============================================================================
+ * Interactive input editors (e.g. the chat input) also live inside the editor
+ * part but should read as plain inputs, not as scrolling editor surfaces.
+ * Suppress the edge fades there so the input keeps a flat background and never
+ * shows the editor-coloured rectangle.
+ * ========================================================================== */
+.style-override .part.editor .interactive-input-editor .editor-scrollable::after {
+	display: none;
+}

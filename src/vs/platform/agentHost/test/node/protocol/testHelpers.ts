@@ -5,8 +5,10 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { createRequire } from 'module';
+import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
+import { CapiReplayProxy, type CapiReplayMode } from './capiReplayProxy.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
@@ -210,6 +212,12 @@ export interface IServerHandle {
 	port: number;
 	/** Present when the server was started with a mock LLM; exposes request count for assertions. */
 	mockLlm?: IMockLlmServerHandleWithLog;
+	/**
+	 * Present when the server was started with `capiReplay`. Stop it (ideally in
+	 * `suiteTeardown`, before killing the process) to flush recorded exchanges to
+	 * the fixture and surface strict-mode cache misses.
+	 */
+	capiReplay?: CapiReplayProxy;
 }
 
 interface IMockLlmServerHandle {
@@ -228,6 +236,12 @@ interface IMockLlmServerModule {
 	registerScenario(id: string, definition: unknown): void;
 }
 
+/** A mock-LLM scenario to register before recording (see `mock-llm-server.ts`). */
+export interface IMockScenario {
+	readonly id: string;
+	readonly definition: unknown;
+}
+
 function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'free'): string {
 	return Buffer.from(JSON.stringify({
 		token: 'smoketest-fake-token',
@@ -242,7 +256,7 @@ function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'f
 	})).toString('base64');
 }
 
-async function startMockLlmServer(): Promise<IMockLlmServerHandleWithLog> {
+async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise<IMockLlmServerHandleWithLog> {
 	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
 	const nodeRequire = createRequire(import.meta.url);
 	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
@@ -250,6 +264,9 @@ async function startMockLlmServer(): Promise<IMockLlmServerHandleWithLog> {
 		type: 'multi-turn',
 		turns: [{ kind: 'echo-last-message' }],
 	});
+	for (const scenario of scenarios ?? []) {
+		mockModule.registerScenario(scenario.id, scenario.definition);
+	}
 	const messages: string[] = [];
 	const serverHandle = await mockModule.startServer(0, { logger: msg => messages.push(msg), verbose: true, captureRequests: true });
 	return { ...serverHandle, logMessages: messages };
@@ -304,8 +321,35 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
-	const mockLlmServer = options?.mockLlm ? await startMockLlmServer() : undefined;
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+	// `capiReplay` records/replays in front of the mock LLM server, so it implies
+	// a mock upstream even when `mockLlm` was not explicitly requested — unless
+	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
+	const realCapture = options?.capiReplay?.real === true;
+	const mockLlmServer = (options?.mockLlm || (options?.capiReplay && !realCapture)) ? await startMockLlmServer(options?.mockScenarios) : undefined;
+	let capiReplayProxy: CapiReplayProxy | undefined;
+	if (options?.capiReplay) {
+		capiReplayProxy = new CapiReplayProxy(realCapture ? {
+			fixturePath: options.capiReplay.fixturePath,
+			mode: options.capiReplay.mode,
+			workDir: options.capiReplay.workDir,
+			homeDir: options.homeDir,
+			userName: userInfo().username,
+			// Real hosts (consumer defaults); override for Enterprise/Business accounts.
+			githubUpstreamUrl: process.env['AGENT_HOST_RECORD_GITHUB_URL'] || 'https://api.github.com',
+			capiUpstreamUrl: process.env['AGENT_HOST_RECORD_CAPI_URL'] || 'https://api.githubcopilot.com',
+		} : {
+			fixturePath: options.capiReplay.fixturePath,
+			mode: options.capiReplay.mode,
+			workDir: options.capiReplay.workDir,
+			homeDir: options.homeDir,
+			userName: userInfo().username,
+			upstreamUrl: mockLlmServer!.url,
+		});
+		await capiReplayProxy.start();
+	}
+	// The agent host talks to the proxy (when replaying) or directly to the mock.
+	const capiUrl = capiReplayProxy?.url ?? mockLlmServer?.url;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
@@ -322,26 +366,34 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 				HOME: options.homeDir,
 				USERPROFILE: options.homeDir,
 			} : {}),
-			// Codex defaults to disabled; opt it in for the real-SDK suite when a
+			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
 			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
-			...(mockLlmServer ? {
+			...(realCapture ? {
+				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
+				// the proxy. The real GitHub token flows via the `authenticate`
+				// protocol call (record) or a placeholder (replay), not via env.
+				COPILOT_API_URL: capiUrl,
+				COPILOT_DEBUG_GITHUB_API_URL: capiUrl,
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: capiUrl,
+			} : mockLlmServer ? {
 				GITHUB_PAT: 'smoketest-fake-pat',
 				IS_SCENARIO_AUTOMATION: '1',
-				// Real-SDK Copilot tests run against responses-capable models
+				// Agent host e2e Copilot tests run against responses-capable models
 				// (e.g. gpt-5.3-codex) that are "pro"-gated in the mock /models
 				// fixture, so mint a pro-plan token for this harness.
-				VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(mockLlmServer.url, 'pro'),
+				VSCODE_COPILOT_CHAT_TOKEN: buildCopilotChatToken(capiUrl!, 'pro'),
 				// Route the Copilot SDK's GitHub API calls (token refresh, model
-				// discovery, etc.) at the mock instead of api.github.com, which
-				// would 401 with the fake token.
-				COPILOT_DEBUG_GITHUB_API_URL: mockLlmServer.url,
-				COPILOT_API_URL: mockLlmServer.url,
+				// discovery, etc.) at the mock/proxy instead of api.github.com,
+				// which would 401 with the fake token.
+				COPILOT_DEBUG_GITHUB_API_URL: capiUrl,
+				COPILOT_API_URL: capiUrl,
 				GITHUB_COPILOT_API_TOKEN: 'smoketest-fake-agent-host-token',
 				// Route the agent host's shared CAPI client (used by the Codex /
-				// agent-host harnesses for model discovery + requests) at the mock
-				// instead of api.github.com, which would 401 with the fake token.
-				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockLlmServer.url,
+				// agent-host harnesses for model discovery + requests) at the
+				// mock/proxy instead of api.github.com, which would 401 with the
+				// fake token.
+				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: capiUrl,
 			} : {}),
 		};
 		let child: ChildProcess;
@@ -352,6 +404,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			});
 		} catch (err) {
 			void mockLlmServer?.close();
+			void capiReplayProxy?.stop().catch(() => undefined);
 			throw err;
 		}
 		let mockClosed = false;
@@ -360,6 +413,10 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 				return;
 			}
 			mockClosed = true;
+			// Flush any recording before closing the upstream. Swallow strict
+			// cache-miss errors here — tests that want them call `capiReplay.stop()`
+			// explicitly in teardown.
+			await capiReplayProxy?.stop().catch(() => undefined);
 			try {
 				await mockLlmServer.close();
 			} catch {
@@ -381,7 +438,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			const match = text.match(/READY:(\d+)/);
 			if (match) {
 				clearTimeout(timer);
-				resolve({ process: child, port: parseInt(match[1], 10), mockLlm: mockLlmServer });
+				resolve({ process: child, port: parseInt(match[1], 10), mockLlm: mockLlmServer, capiReplay: capiReplayProxy });
 			}
 		});
 
@@ -389,7 +446,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			// Intentionally swallowed - the test runner fails if console.error is used.
 			// Server logs go to the agent host's logger (under
 			// `<userDataPath>/logs/<timestamp>/agenthost-server.log`); check
-			// there when investigating real-SDK test failures.
+			// there when investigating agent host e2e test failures.
 		});
 
 		child.on('error', err => {

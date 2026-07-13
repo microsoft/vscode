@@ -34,6 +34,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
+import { setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -220,6 +221,10 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		// Capture the input draft before the load window opens so text typed
+		// during loading is preserved when the model binds. See #325323.
+		const inputBeforeLoad = this.widget?.getInput() ?? '';
+
 		// Show loading indicator early for non-local sessions to prevent layout shifts
 		let isContributedChatSession = false;
 		const chatSessionType = input.getSessionType();
@@ -273,7 +278,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				editorModel.model.inputModel.setState(options.modelInputState);
 			}
 
-			this.updateModel(editorModel.model);
+			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {

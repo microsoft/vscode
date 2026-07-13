@@ -110,6 +110,15 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
+	test('does not blink when a queued block becomes visible then re-surfaces without ever being consumed', () => {
+		const { model, blockedModel, sessionsService } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([needsInput(s1)]);
+		sessionsService.setVisible([s1]);
+		sessionsService.setVisible([]);
+		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: ['s1'], blink: false });
+	});
+
 	test('does not blink when a queued block unblocks before the blink plays', () => {
 		const { model, blockedModel } = createModel();
 		const s1 = new TestSession('s1');

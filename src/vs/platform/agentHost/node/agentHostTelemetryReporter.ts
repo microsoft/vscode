@@ -5,6 +5,7 @@
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -80,6 +81,37 @@ export interface IAgentHostToolInvokedReport {
 	toolSourceKind: string;
 	result: ToolInvokedResult;
 	invocationTimeMs: number;
+}
+
+export interface IAgentHostToolCallDetailsReport {
+	session: string;
+	turnId: string;
+	model: string | undefined;
+	responseType: string;
+	/** Count of invocations keyed by tool name, across all rounds in the turn. */
+	toolCounts: Record<string, number>;
+	/** Names of the tools offered to the model for this turn. */
+	availableTools: readonly string[];
+	/** Number of model-call rounds in the turn, including the final tool-free response round (matches the extension's `toolCallRounds.length`). */
+	numRequests: number;
+	totalToolCalls: number;
+	parallelToolCallRounds: number;
+	parallelToolCallsTotal: number;
+}
+
+export interface IAgentHostSkillContentReadReport {
+	/** The skill name. */
+	name: string;
+	/** Path to the SKILL.md file. */
+	path: string;
+	/** Full skill content; hashed (never sent raw), matching the extension. */
+	content: string;
+	/** Where the skill was discovered (project, personal-copilot, plugin, builtin, …). */
+	source: string | undefined;
+	/** Name of the plugin the skill came from, when applicable (AH-native analog of the extension's skill extension id). */
+	pluginName: string | undefined;
+	/** Version of the plugin the skill came from, when applicable. */
+	pluginVersion: string | undefined;
 }
 
 export interface IAgentHostToolCallStalledEvent {
@@ -216,9 +248,9 @@ export class AgentHostTelemetryReporter {
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The user's prompt text. No-ops when empty.
-	 * @param turnId The SDK turn identifier this message belongs to, mapped to the extension's `turnIndex` field.
+	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here (a non-numeric id lands empty).
 	 */
-	userMessageText(session: string, content: string, turnId: string): void {
+	userMessageText(session: string, content: string, turnIndex: number): void {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -226,7 +258,7 @@ export class AgentHostTelemetryReporter {
 		const properties = multiplexProperties({
 			source: 'user',
 			conversationId: AgentSession.id(session),
-			...(turnId ? { turnIndex: turnId } : {}),
+			turnIndex: String(turnIndex),
 			messageText: content,
 		});
 		const measurements = { messageCharLen: content.length };
@@ -243,10 +275,10 @@ export class AgentHostTelemetryReporter {
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The assistant's response text. No-ops when empty.
-	 * @param turnId The SDK turn identifier this message belongs to, mapped to the extension's `turnIndex` field.
+	 * @param turnIndex The 0-based ordinal of the turn this message belongs to, matching the extension's numeric `turnIndex` (`conversation.turns.length`). CTS parses `turn_index` as an integer, so a numeric ordinal is required here.
 	 * @param serviceRequestId The model call's `x-copilot-service-request-id`, mapped to `headerRequestId`.
 	 */
-	modelMessageText(session: string, content: string, turnId: string, serviceRequestId: string | undefined): void {
+	modelMessageText(session: string, content: string, turnIndex: number, serviceRequestId: string | undefined): void {
 		const restricted = this._restricted;
 		if (!restricted || !content) {
 			return;
@@ -254,13 +286,93 @@ export class AgentHostTelemetryReporter {
 		const properties = multiplexProperties({
 			source: 'model',
 			conversationId: AgentSession.id(session),
-			...(turnId ? { turnIndex: turnId } : {}),
+			turnIndex: String(turnIndex),
 			...(serviceRequestId ? { headerRequestId: serviceRequestId } : {}),
 			messageText: content,
 		});
 		const measurements = { messageCharLen: content.length };
 		restricted.sendEnhancedGHTelemetryEvent('conversation.messageText', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('conversation.messageText', properties, measurements);
+	}
+
+	/**
+	 * Mirrors the Copilot extension's restricted `toolCallDetailsExternal` / `toolCallDetailsInternal`
+	 * events (`chatParticipantTelemetry.ts` -> `sendToolCallingTelemetry`) — the per-turn tool-call
+	 * aggregate. The extension emits it once at the end of a turn's tool-calling loop; the agent host
+	 * accumulates the same counts across the turn's `assistant.message` rounds and emits on turn
+	 * completion. The tool-definition token count, per-round token/char counts, invalid-round count,
+	 * and turn index (the extension emits it only as a non-landing measurement) are not surfaced at the
+	 * AH turn boundary and are omitted. Like the extension, this fires for every turn that had tools
+	 * available — even one that made no tool calls (empty `toolCounts`) — and no-ops only when no tools
+	 * were offered.
+	 *
+	 * @param report The per-turn tool-call aggregate.
+	 */
+	toolCallDetails(report: IAgentHostToolCallDetailsReport): void {
+		const restricted = this._restricted;
+		if (!restricted || report.availableTools.length === 0) {
+			return;
+		}
+		const session = isAhpChatChannel(report.session) ? parseRequiredSessionUriFromChatUri(report.session) : report.session;
+		const properties = multiplexProperties({
+			conversationId: AgentSession.id(session),
+			requestId: report.turnId,
+			messageId: report.turnId,
+			responseType: report.responseType,
+			...(report.model ? { model: report.model } : {}),
+			toolCounts: JSON.stringify(report.toolCounts),
+			availableTools: JSON.stringify(report.availableTools),
+		});
+		const measurements = {
+			numRequests: report.numRequests,
+			availableToolCount: report.availableTools.length,
+			totalToolCalls: report.totalToolCalls,
+			parallelToolCallRounds: report.parallelToolCallRounds,
+			parallelToolCallsTotal: report.parallelToolCallsTotal,
+		};
+		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
+		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/**
+	 * Mirrors the Copilot extension's restricted `skillContentRead` event (`skillTelemetry.ts` ->
+	 * `sendSkillContentReadTelemetry`) — records which skill file was loaded into the conversation.
+	 * The extension emits it from the skill/readFile tools; the agent host observes the equivalent
+	 * boundary at the SDK `skill.invoked` event, whose payload already carries the content (hashed
+	 * here, never sent raw), the discovery `source`, and the plugin identity. The extension's
+	 * `skillExtensionId` / `skillExtensionVersion` encode the contributing *VS Code extension*, which
+	 * does not exist in the agent host; the AH-native provenance is the plugin, so `pluginName` /
+	 * `pluginVersion` fill those columns. No-ops when the skill name is empty.
+	 *
+	 * @param report The invoked skill's metadata (from the SDK `skill.invoked` payload).
+	 */
+	skillContentRead(report: IAgentHostSkillContentReadReport): void {
+		const restricted = this._restricted;
+		if (!restricted || !report.name) {
+			return;
+		}
+		const contentHash = report.content ? String(hash(report.content)) : '';
+		const skillStorage = report.source ?? '';
+		// Match the extension: the version is only reported when the (plugin) id is known, so we
+		// never emit a `skillExtensionVersion` without a corresponding `skillExtensionId`.
+		const skillExtensionVersion = report.pluginName ? (report.pluginVersion ?? '') : '';
+		const plaintextProps = {
+			skillName: report.name,
+			skillPath: report.path,
+			skillExtensionId: report.pluginName ?? '',
+			skillExtensionVersion,
+			skillStorage,
+			skillContentHash: contentHash,
+		};
+		restricted.sendGHTelemetryEvent('skillContentRead', {
+			skillNameHash: String(hash(report.name)),
+			skillExtensionIdHash: report.pluginName ? String(hash(report.pluginName)) : '',
+			skillExtensionVersion,
+			skillStorage,
+			skillContentHash: contentHash,
+		});
+		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
+		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {

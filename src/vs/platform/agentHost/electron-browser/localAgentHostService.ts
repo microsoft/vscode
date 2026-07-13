@@ -16,14 +16,16 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
+import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, parseChatUri, type RootState } from '../common/state/sessionState.js';
@@ -72,6 +74,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
 	private _authenticationSettled = false;
+	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
+	private readonly _initializeResult: ISettableObservable<InitializeResult | undefined> = observableValue('agentHostInitializeResult', undefined);
 
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
@@ -84,6 +88,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+	}
+
+	get initializeResult(): IObservable<InitializeResult | undefined> {
+		return this._initializeResult;
 	}
 
 	constructor(
@@ -175,6 +183,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
 		const client = store.add(new MessagePortClient(port, this.clientId));
 		registerAgentHostClientChannels(client, this._instantiationService, this._logService, this._ahpLogger, this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true);
+
+		// The in-process (local) transport does not perform the AHP `initialize`
+		// handshake, so synthesize a minimal InitializeResult carrying the only
+		// field meaningful to clients here: the terminal command prefix. It is
+		// hardcoded to match the host's `BANG_COMMAND_PREFIX` (`!`) — the local
+		// host runs the same bundled code, so there is no need for an extra RPC
+		// round-trip. Set before `complete(client)` so any session created
+		// afterwards observes it.
+		this._initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], terminalCommandPrefix: '!' }, undefined);
+
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
@@ -284,6 +302,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._proxy.authenticate(params);
 	}
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._proxy.getNetworkDiagnosticsInfo();
+	}
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._proxy.diagnosticsFetch(url);
+	}
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._proxy.listSessions();
 	}
@@ -312,7 +336,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	getCompletionTriggerCharacters(): Promise<readonly string[]> {
 		return this._completionTriggerCharactersOnce ??= this._proxy.getCompletionTriggerCharacters();
 	}
-	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
@@ -370,7 +393,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._subscribedResources.set(key, count - 1);
 		}
 	}
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
@@ -398,7 +421,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this.clientId, seq);
 	}

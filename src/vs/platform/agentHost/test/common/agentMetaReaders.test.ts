@@ -9,7 +9,8 @@ import { readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCal
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { getCommandArgumentHint, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, type AgentCustomization, type ToolCallState } from '../../common/state/sessionState.js';
-import type { SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import type { SessionModelInfo, SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 
 /** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
 function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
@@ -128,6 +129,29 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(getCommandArgumentHint({ argumentHint: 5 }), undefined);
 			assert.strictEqual(getCommandArgumentHint({ command: 'rename' }), undefined);
 			assert.strictEqual(getCommandArgumentHint(undefined), undefined);
+		});
+	});
+
+	suite('agent model BYOK identifier meta', () => {
+		/** Wraps a `_meta` bag in a minimal {@link SessionModelInfo}. */
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a model identifier through _meta', () => {
+			const meta = createAgentModelByokMeta('openrouter/OpenRouter 2/aion-labs/aion-3.0');
+			assert.deepStrictEqual(meta, { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' });
+			assert.strictEqual(readAgentModelByokIdentifier(model(meta)), 'openrouter/OpenRouter 2/aion-labs/aion-3.0');
+		});
+
+		test('omits the bag entirely when there is no identifier', () => {
+			assert.strictEqual(createAgentModelByokMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model({})), undefined);
+		});
+
+		test('ignores a wrong-typed identifier value', () => {
+			assert.strictEqual(readAgentModelByokIdentifier(model({ byokModelIdentifier: 42 })), undefined);
 		});
 	});
 });

@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -42,6 +42,7 @@ import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otl
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
+import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
@@ -94,6 +95,8 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
+	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
 interface IPendingRequest {
@@ -181,7 +184,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * {@link connect} and re-captured after a soft-reconnect that pulled
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
-	private _initializeResult: InitializeResult | undefined;
+	private readonly _initializeResult = observableValue<InitializeResult | undefined>('agentHostInitializeResult', undefined);
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -282,12 +285,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	/**
 	 * The latest `initialize` response from the host, or `undefined` if
-	 * the handshake has not completed yet. Callers read fields they care
-	 * about (e.g. `telemetry`, `completionTriggerCharacters`,
-	 * `defaultDirectory`) directly off this object — keeping the result
-	 * intact avoids adding a new getter every time the protocol grows.
+	 * the handshake has not completed yet. Exposed observably so callers can
+	 * react as advertised capabilities (telemetry, `completionTriggerCharacters`,
+	 * `terminalCommandPrefix`, ...) arrive.
 	 */
-	get initializeResult(): InitializeResult | undefined {
+	get initializeResult(): IObservable<InitializeResult | undefined> {
 		return this._initializeResult;
 	}
 
@@ -442,6 +444,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		});
 		this._serverSeq = result.serverSeq;
 
+		this._initializeResult.set(result, undefined);
+
 		// Hydrate root state from the initial snapshot
 		for (const snapshot of result.snapshots ?? []) {
 			if (isAhpRootChannel(snapshot.resource)) {
@@ -458,7 +462,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		}
 
-		this._initializeResult = result;
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
 		this._updateTerminalAutoApproveEnabled();
@@ -850,7 +853,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Empty when the remote host did not announce any.
 	 */
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
-		return this._initializeResult?.completionTriggerCharacters ?? [];
+		return this._initializeResult.get()?.completionTriggerCharacters ?? [];
 	}
 
 	/**
@@ -866,6 +869,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async shutdown(): Promise<void> {
 		await this._sendExtensionRequest('shutdown');
+	}
+
+	/**
+	 * List the endpoints the remote agent host suggests probing for connectivity.
+	 */
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._sendExtensionRequest('getNetworkDiagnosticsInfo');
+	}
+
+	/**
+	 * Probe connectivity from the remote agent host to a single `url`.
+	 */
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._sendExtensionRequest('diagnosticsFetch', { url });
 	}
 
 	/**

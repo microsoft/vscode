@@ -106,7 +106,7 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
-	test('preserves SDK shell_exit content on replayed tool completion', async () => {
+	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },
@@ -136,7 +136,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('preserves non-zero shell_exit even when SDK tool completion succeeded', async () => {
+	test('preserves non-zero terminal completion even when SDK tool completion succeeded', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'bash' }] } },

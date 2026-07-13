@@ -43,8 +43,9 @@ export interface IAgentHostCustomizationService {
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
 	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
-	 * caller, and the {@link IAgentHostMcpServer.logOutputChannelId} of the
-	 * host backing the session. Returns an empty array for sessions not
+	 * caller, lifecycle actions, and the
+	 * {@link IAgentHostMcpServer.logOutputChannelId} of the host backing the
+	 * session. Returns an empty array for sessions not
 	 * backed by an agent host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
@@ -96,6 +97,8 @@ export interface IAgentHostCustomizationTarget {
 	readonly rootConfig?: RootConfigState;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
 	setCustomizationEnabled(rawId: string, enabled: boolean): void;
+	startMcpServer(rawId: string): Promise<void>;
+	stopMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
@@ -142,6 +145,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				state: c.state,
 				logOutputChannelId: target.logOutputChannelId,
 				setEnabled: (enabled: boolean) => target.setCustomizationEnabled(c.id, enabled),
+				start: () => target.startMcpServer(c.id),
+				stop: () => target.stopMcpServer(c.id),
 			}));
 	}
 
@@ -280,6 +285,20 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 					id: rawId,
 					enabled,
 				});
+			},
+			startMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerStartRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
+			},
+			stopMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerStopRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
 			},
 			setRootConfigValue: (property, value) => {
 				target.connection.dispatch(ROOT_STATE_URI, {
