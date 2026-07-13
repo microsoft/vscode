@@ -10,7 +10,7 @@ import { basenameOrAuthority, dirname, hasTrailingPathSeparator } from '../../..
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
@@ -277,7 +277,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		const icon = item.iconPathDto;
 		if (ThemeIcon.isThemeIcon(icon) && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon))) {
 			const fileKind = ThemeIcon.isFolder(icon) || hasTrailingPathSeparator(resourceUri) ? FileKind.FOLDER : FileKind.FILE;
-			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri, fileKind));
+			const iconClasses = new Lazy(() => getFileIconInfo(this.modelService, this.languageService, resourceUri, fileKind).classes);
 			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
 		} else {
 			this.expandIconPath(item);

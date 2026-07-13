@@ -19,7 +19,7 @@ import { ITextModel } from '../../editor/common/model.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { ILabelService } from '../../platform/label/common/label.js';
-import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo, FileIconInfo } from '../../editor/common/services/getFileIconInfo.js';
 import { Disposable, dispose, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { normalizeDriveLetter } from '../../base/common/labels.js';
@@ -305,6 +305,7 @@ class ResourceLabelWidget extends IconLabel {
 	private options: IResourceLabelOptions | undefined = undefined;
 
 	private computedIconClasses: string[] | undefined = undefined;
+	private computedIconAttributes: Readonly<Record<string, string>> | undefined = undefined;
 	private computedLanguageId: string | undefined = undefined;
 	private computedPathLabel: string | undefined = undefined;
 	private computedWorkspaceFolderLabel: string | undefined = undefined;
@@ -607,6 +608,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.options = undefined;
 		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
+		this.computedIconAttributes = undefined;
 		this.computedPathLabel = undefined;
 
 		this.setLabel('');
@@ -623,6 +625,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (options.updateIcon) {
 			this.computedIconClasses = undefined;
+			this.computedIconAttributes = undefined;
 		}
 
 		if (!this.label) {
@@ -670,7 +673,9 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+				const iconInfo: FileIconInfo = getFileIconInfo(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+				this.computedIconClasses = iconInfo.classes;
+				this.computedIconAttributes = iconInfo.attributes;
 			}
 
 			if (URI.isUri(this.options.icon)) {
@@ -678,6 +683,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
+			iconLabelOptions.extraAttributes = this.computedIconAttributes;
 		}
 
 		if (this.options?.extraClasses) {
@@ -735,6 +741,7 @@ class ResourceLabelWidget extends IconLabel {
 		this.options = undefined;
 		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
+		this.computedIconAttributes = undefined;
 		this.computedPathLabel = undefined;
 		this.computedWorkspaceFolderLabel = undefined;
 	}

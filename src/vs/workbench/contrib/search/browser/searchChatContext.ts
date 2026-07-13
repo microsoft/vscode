@@ -22,7 +22,7 @@ import { basename, dirname, joinPath, relativePath } from '../../../../base/comm
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getFileIconInfo } from '../../../../editor/common/services/getFileIconInfo.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind, FileType, IFileService } from '../../../../platform/files/common/files.js';
@@ -214,7 +214,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 		return {
 			label: basename(resource),
 			description: this._labelService.getUriLabel(dirname(resource), { relative: true }),
-			iconClasses: getIconClasses(this._modelService, this._languageService, resource, kind),
+			iconClasses: getFileIconInfo(this._modelService, this._languageService, resource, kind).classes,
 			asAttachment: () => {
 				return {
 					kind: kind === FileKind.FILE ? 'file' : 'directory',
