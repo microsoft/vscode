@@ -264,7 +264,7 @@
 	gap: 4px;
 }
 
-/* "New Chat" button pinned after the tab strip. */
+/* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
 .chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
 	flex-shrink: 0;
 	display: flex;
@@ -277,8 +277,10 @@
 }
 
 .chat-composite-bar-new-chat .action-item .action-label {
-	width: 22px;
-	height: 22px;
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -296,17 +298,20 @@
 	outline-offset: -1px;
 }
 
-/* Chat tab bar action menu (e.g. the Conversations dropdown) right-aligned at the end of the strip. */
+/* Chat tab bar action menu (e.g. the Conversations dropdown) grouped with the
+	New Chat button right after the tab strip. */
 .chat-composite-bar-tabs-row > .chat-composite-bar-action-menu {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	margin-left: auto;
+	margin-left: 4px;
 }
 
 .chat-composite-bar-action-menu .action-item .action-label {
-	width: 22px;
-	height: 22px;
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;

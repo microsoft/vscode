@@ -66,6 +66,21 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * An archived session is read-only: its interactive chats must hide their
+ * composer. `Hidden` chats are internal workers filtered out of the UI, so they
+ * stay hidden — archiving only downgrades `Full` chats to `ReadOnly`. When not
+ * archived, the chat keeps its own interactivity.
+ */
+export function effectiveChatInteractivity(isArchived: boolean, interactivity: ChatInteractivity): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	return isArchived ? ChatInteractivity.ReadOnly : interactivity;
+}
+
 export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
@@ -252,6 +267,9 @@ export interface ISessionChangeset {
 	readonly originalCheckpointRef: IObservable<string | undefined>;
 	/** Reference to the modified checkpoint for this changeset. */
 	readonly modifiedCheckpointRef: IObservable<string | undefined>;
+	/** The capabilities of this changeset. */
+	readonly capabilities?: ISessionChangesetCapabilities;
+
 	/**
 	 * Invoke an operation declared in {@link operations}. `target` must be
 	 * provided for resource-scoped operations and omitted for changeset-
@@ -259,6 +277,11 @@ export interface ISessionChangeset {
 	 * the corresponding {@link ISessionChangesetOperation.scopes}.
 	 */
 	invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void>;
+
+	/**
+	 * Sets the review state for a list of resources when the changeset supports review.
+	 */
+	setReviewState?(resources: readonly URI[], reviewed: boolean): void;
 }
 
 export type ISessionChangesetOperationTarget =
@@ -309,6 +332,11 @@ export interface ISessionChangesetOperation {
 	 * with the target resource's basename when applicable.
 	 */
 	readonly confirmation?: string | IMarkdownString;
+}
+
+export interface ISessionChangesetCapabilities {
+	/** Whether the changeset supports review workflow. */
+	readonly review?: boolean;
 }
 
 /**
@@ -390,6 +418,14 @@ export interface IChat {
 	 * this omit the observable.
 	 */
 	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * The URL of the last browser tool call in the chat's **last turn**, derived
+	 * from the chat's live output stream so consumers — e.g. the chat input
+	 * "Live Browser" pill — can offer opening the page the agent is working with.
+	 * `undefined` when the last turn used no URL-carrying browser tool; providers
+	 * that cannot determine this omit the observable.
+	 */
+	readonly lastTurnBrowserUrl?: IObservable<string | undefined>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

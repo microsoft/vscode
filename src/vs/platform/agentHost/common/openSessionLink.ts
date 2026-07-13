@@ -24,6 +24,9 @@ export const CREATE_SESSION_TOOL_NAME = 'create_session';
 /** Name of the `create_chat` server tool. */
 export const CREATE_CHAT_TOOL_NAME = 'create_chat';
 
+/** Name of the `send_message` server tool. */
+export const SEND_MESSAGE_TOOL_NAME = 'send_message';
+
 /**
  * Whether {@link toolName} (as seen on a tool call) matches {@link bareName}.
  * Accepts the bare name and a transport prefix such as Claude's
@@ -41,6 +44,11 @@ export function isCreateSessionTool(toolName: string): boolean {
 /** Whether {@link toolName} refers to the `create_chat` server tool. */
 export function isCreateChatTool(toolName: string): boolean {
 	return matchesToolName(toolName, CREATE_CHAT_TOOL_NAME);
+}
+
+/** Whether {@link toolName} refers to the `send_message` server tool. */
+export function isSendMessageTool(toolName: string): boolean {
+	return matchesToolName(toolName, SEND_MESSAGE_TOOL_NAME);
 }
 
 /** Builds an {@link AGENT_HOST_SESSION_LINK_SCHEME} link for a backend session URI. */

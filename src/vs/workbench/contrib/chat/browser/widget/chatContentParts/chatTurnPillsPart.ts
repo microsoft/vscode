@@ -32,6 +32,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
@@ -131,6 +132,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(this._renderChangesHeader(header, stats, showChanges));
 		this._register(this._renderPreviewAction(header, previewFiles, showPreview, resourceLabels));
 		this._register(this._renderChevron(header, details, showChanges));
+		this._register(dom.addDisposableListener(header, 'click', () => {
+			root.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		}));
 
 		// Only feed diffs into the list when the changes summary is shown, so the
 		// disclosure stays empty when just the preview action is enabled. Each
@@ -147,12 +151,21 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 	private _renderChangesHeader(header: HTMLElement, stats: IObservable<IDiffStats>, showChanges: IObservable<boolean>): IDisposable {
 		const filesLabel = header.appendChild($('span.chat-file-changes-label'));
-		const counts = header.appendChild($('span.chat-file-changes-counts', { 'aria-hidden': 'true' }));
+		const counts = header.appendChild(document.createElement('button'));
+		counts.classList.add('chat-file-changes-counts');
+		counts.type = 'button';
 		const addedLabel = counts.appendChild($('span.insertions'));
 		const removedLabel = counts.appendChild($('span.deletions'));
-		const viewAll = this._renderViewAllFileChangesButton(header);
 
-		return combinedDisposable(viewAll, autorun(reader => {
+		const hoverDisposable = this._hoverService.setupDelayedHover(counts, () => ({
+			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+		}));
+		const clickDisposable = dom.addDisposableListener(counts, 'click', (e) => {
+			this._openChanges();
+			dom.EventHelper.stop(e, true);
+		});
+
+		return combinedDisposable(hoverDisposable, clickDisposable, autorun(reader => {
 			const { files, insertions, deletions } = stats.read(reader);
 			const fileCountLabel = files === 1
 				? localize('chat.turnChanges.oneFile', '1 file changed')
@@ -160,6 +173,12 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			filesLabel.textContent = fileCountLabel;
 			addedLabel.textContent = `+${insertions}`;
 			removedLabel.textContent = `-${deletions}`;
+			counts.setAttribute('aria-label', localize(
+				'chat.turnChanges.viewAllAccessible',
+				'View all file changes, {0} lines added, {1} lines deleted',
+				insertions,
+				deletions
+			));
 			header.setAttribute('aria-label', localize(
 				'chat.turnChanges.accessibleSummary',
 				'{0}, {1} lines added, {2} lines deleted',
@@ -171,26 +190,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			const show = showChanges.read(reader);
 			filesLabel.classList.toggle('hidden', !show);
 			counts.classList.toggle('hidden', !show);
-			viewAll.element.classList.toggle('hidden', !show);
 		}));
-	}
-
-	private _renderViewAllFileChangesButton(header: HTMLElement): { readonly element: HTMLElement } & IDisposable {
-		const button = header.appendChild(document.createElement('button'));
-		button.classList.add('chat-view-changes-icon');
-		button.type = 'button';
-		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
-		button.setAttribute('aria-label', localize('chat.viewTurnFileChangesSummary', 'View All File Changes'));
-		const hoverDisposable = this._hoverService.setupDelayedHover(button, () => ({
-			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
-		}));
-
-		const clickDisposable = dom.addDisposableListener(button, 'click', (e) => {
-			this._openChanges();
-			dom.EventHelper.stop(e, true);
-		});
-
-		return { element: button, dispose: () => combinedDisposable(hoverDisposable, clickDisposable).dispose() };
 	}
 
 	private _renderPreviewAction(header: HTMLElement, previewFiles: IObservable<readonly IPreviewFile[]>, showPreview: IObservable<boolean>, resourceLabels: ResourceLabels): IDisposable {
@@ -229,8 +229,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 
 		const setExpansionState = () => {
 			header.setAttribute('aria-expanded', String(details.open));
-			chevron.classList.toggle('codicon-chevron-right', !details.open);
-			chevron.classList.toggle('codicon-chevron-down', details.open);
+			chevron.classList.toggle('expanded', details.open);
 		};
 		setExpansionState();
 

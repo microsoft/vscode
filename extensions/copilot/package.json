@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.57.0",
+  "version": "0.58.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.129.0",
+    "vscode": "^1.130.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -1967,9 +1967,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2153,9 +2154,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -2306,9 +2308,10 @@
                     "type": "string",
                     "enum": [
                       "chat-completions",
-                      "responses"
+                      "responses",
+                      "messages"
                     ],
-                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
+                    "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. `messages` sends the Anthropic Messages `output_config.effort` field. When unset the format follows the URL: `/responses` → nested, `/messages` → `output_config.effort`, otherwise top-level."
                   },
                   "requestHeaders": {
                     "type": "object",
@@ -7258,7 +7261,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.69-0",
+    "@github/copilot": "^1.0.70-0",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
@@ -7317,5 +7320,14 @@
       "flags": "verified"
     },
     "publisherDisplayName": "GitHub"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "keytar@7.9.0": true,
+    "@playwright/browser-chromium@1.61.1": true,
+    "@vscode/vsce-sign@2.0.5": true,
+    "protobufjs": false,
+    "fsevents@2.3.3": true,
+    "fsevents@2.3.2": true
   }
 }

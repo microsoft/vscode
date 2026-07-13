@@ -67,6 +67,8 @@ The **view** counterpart, **`SessionsService`** (services, `services/sessions/br
 ```
 open existing:  view.openSession(uri, { preserveFocus })
                   → view arranges visible slot (activeSession = active slot) + focuses    // focus skipped when preserveFocus
+external link:   workbench openSessionByResource(uri)
+                  → Agents-window opener participant → view.openSession(uri)
 new session:    composer → view.openNewSession({ folderUri, ... })  // view: management.createNewSession() (model draft) + activates it
                   → view observes activeSession == draft → shows draft slot
 delegate:       command → management.createNewSession({ providerId, sessionTypeId })
@@ -206,6 +208,8 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
+Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+
 ---
 
 ## Data Flow
@@ -254,6 +258,14 @@ the sent chat the active chat by reacting to the send events. When
 `onWillSendRequest` notification, so the view's send-follow never navigates the
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
+
+For agent-host sessions, the floating turn-status pills above the chat input read
+the viewed chat's `lastTurnChanges` while the turn streams. The changes count,
+diff, and preview list are scoped to files under the session workspace folder or
+its working directory/worktree; edits outside those roots are treated as external
+files and do not inflate the pill or show as preview candidates. The preview pill
+itself stays a compact resource label (file icon + name); preview wording is kept
+to tooltips and actions, not rendered as visible pill text.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"
@@ -553,6 +565,18 @@ Backend state change (turn complete, status update, etc.)
 Providers may fire `onDidReplaceSession` when a temporary (untitled) session is atomically replaced by a committed one after the first turn.
 
 Provider add notifications are authoritative upserts. A provisional `listSessions()` entry may already be cached when the backend publishes its materialized project and working directory, so providers update the existing session adapter in place and report it as changed rather than replacing its identity.
+
+### Automation Run Lifecycle
+
+`AutomationRunner` exposes separate dispatch and lifecycle promises. It resolves
+dispatch after recording the committed session resource on the run row, then
+observes `ISession.status` until it reaches a terminal state. `InProgress`,
+`Untitled`, and `NeedsInput` all keep the automation run `running`; `Completed`
+completes the run and `Error` fails it.
+Scheduler cancellation also stops the observation and fails the run. On timeout,
+the scheduler records the timeout failure before cancelling the observation, so
+neither path leaves a live observable subscription even though the session may
+remain active.
 
 ---
 

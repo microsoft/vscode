@@ -5,8 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -20,16 +20,13 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
-import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
 const openChangesViewActionOptions: IAction2Options = {
@@ -126,7 +123,7 @@ registerAction2(OpenPullRequestAction);
 const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
+	SinglePaneLayoutEnabledContext
 );
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
@@ -145,9 +142,11 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 
 /**
  * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
- * in the single-pane title bar (right side — the session actions area). The custom action
- * view item is registered for {@link Menus.TitleBarSessionMenu} via IActionViewItemService
- * in changesView.ts. The bar hides itself when its underlying menu has no actions.
+ * in the single-pane editor tabs title (the editor-actions area of the docked tab bar).
+ * The custom action view item is provided by the Changes editor pane
+ * ({@link SessionChangesEditor.getActionViewItem}) when the Changes editor is active,
+ * so the anchor is gated on the same. The bar hides itself when its underlying menu has
+ * no actions.
  */
 class ChangesHeaderActionsAction extends Action2 {
 	constructor() {
@@ -156,13 +155,11 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 5,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+					singlePaneChangesEditorTitle,
 					SessionHasChangesContext
 				)
 			},
@@ -299,39 +296,37 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 
 registerAction2(ExpandAllSessionChangesDiffsAction);
 
-class ToggleSessionChangesInlineViewAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.toggleInlineView';
+// The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
+// user's keybinding for it carries over here (issue #324765). The sessions override of
+// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
+// which the Changes editor observes.
 
-	constructor() {
-		super({
-			id: ToggleSessionChangesInlineViewAction.ID,
-			title: localize2('agentSessions.toggleInlineView', "Toggle Inline View"),
-			icon: Codicon.diffSidebyside,
-			f1: false,
-			toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
-			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: '1_diff',
-				order: 20,
-				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext)
-			}
-		});
-	}
+// Primary header button with state-specific titles: "Show Side by Side Diff" when
+// currently inline, and (checked) "Show Inline Diff" when currently side by side.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		icon: Codicon.diffSidebyside,
+		toggled: {
+			condition: EditorContextKeys.multiDiffEditorRenderSideBySide,
+			title: localize('showInlineDiff', "Show Inline Diff"),
+		},
+	},
+	group: '1_diff',
+	order: 20,
+	when: singlePaneChangesEditorTitleVisible
+});
 
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
-		const pane = resolvedContext.groupedEditors[0]?.group.activeEditorPane ?? accessor.get(IEditorService).activeEditorPane;
-		if (pane instanceof SessionChangesEditor) {
-			pane.toggleInlineView();
-		}
-	}
-}
-
-registerAction2(ToggleSessionChangesInlineViewAction);
+// Discoverable in the command palette while the Changes editor is visible.
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize2('toggleDiffView', "Toggle Diff View"),
+		category: localize2('changes', "Changes"),
+	},
+	when: singlePaneChangesEditorTitleVisible
+});
 
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';

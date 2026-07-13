@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.5.2';
+export const PROTOCOL_VERSION = '0.6.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -35,6 +35,7 @@ export const PROTOCOL_VERSION = '0.5.2';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+	'0.6.0',
 	'0.5.2',
 	'0.5.1',
 ]);
@@ -132,7 +133,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChangesetStatusChanged]: '0.2.0',
 	[ActionType.ChangesetFileSet]: '0.2.0',
 	[ActionType.ChangesetFileRemoved]: '0.2.0',
-	[ActionType.ChangesetFilesReviewedChanged]: '0.5.2',
+	[ActionType.ChangesetFilesReviewChanged]: '0.6.0',
 	[ActionType.ChangesetContentChanged]: '0.4.0',
 	[ActionType.ChangesetOperationsChanged]: '0.2.0',
 	[ActionType.ChangesetOperationStatusChanged]: '0.3.0',

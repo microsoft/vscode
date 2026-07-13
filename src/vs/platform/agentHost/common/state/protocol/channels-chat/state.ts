@@ -766,6 +766,7 @@ export const enum ResponsePartKind {
 	ToolCall = 'toolCall',
 	Reasoning = 'reasoning',
 	SystemNotification = 'systemNotification',
+	InputRequest = 'inputRequest',
 }
 
 /**
@@ -828,7 +829,37 @@ export type ResponsePart =
 	| ResourceReponsePart
 	| ToolCallResponsePart
 	| ReasoningResponsePart
-	| SystemNotificationResponsePart;
+	| SystemNotificationResponsePart
+	| InputRequestResponsePart;
+
+/**
+ * A resolved input request (elicitation) recorded in the turn transcript.
+ *
+ * While an input request is open it lives in {@link ChatState.inputRequests}
+ * as live, interactive state (see {@link ChatInputRequest}). When the request
+ * completes via `chat/inputCompleted`, the reducer removes it from
+ * `inputRequests` and appends this part to the active turn so the decision
+ * survives in history. This mirrors how a tool-call confirmation persists in
+ * its {@link ToolCallResponsePart} (via `confirmed` / `selectedOption` on the
+ * terminal {@link ToolCallState}): the live surface drives in-flight UX, the
+ * terminal outcome is durable and backfillable via `fetchTurns`.
+ *
+ * No part is recorded when an outstanding request is *abandoned* (the turn
+ * completes, is cancelled, errors, or is truncated) rather than *completed*.
+ *
+ * @category Response Parts
+ */
+export interface InputRequestResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.InputRequest;
+	/**
+	 * The resolved request, carrying its `id`, `message`, `url`, `questions`,
+	 * and the final `answers` synced/submitted at completion.
+	 */
+	request: ChatInputRequest;
+	/** How the request was resolved: `accept`, `decline`, or `cancel`. */
+	response: ChatInputResponseKind;
+}
 
 /**
  * A system notification surfaced as part of the response stream.
@@ -845,6 +876,16 @@ export interface SystemNotificationResponsePart {
 	kind: ResponsePartKind.SystemNotification;
 	/** The text of the system notification */
 	content: StringOrMarkdown;
+	/**
+	 * Additional provider-specific metadata for this notification.
+	 *
+	 * A host MAY attach a machine-readable descriptor of what triggered the
+	 * notification so clients can categorize, icon, group, filter, or localize
+	 * it without parsing `content`. Clients MAY look for well-known keys here to
+	 * provide enhanced UI, and MUST render coherently from `content` alone when
+	 * `_meta` is absent or unrecognized.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 

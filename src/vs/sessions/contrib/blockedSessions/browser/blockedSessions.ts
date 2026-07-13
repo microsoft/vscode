@@ -9,7 +9,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { computePullRequestIconStatus } from '../../github/browser/pullRequestIconStatus.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState } from '../../github/common/types.js';
 
 /**
  * Why a session is surfaced as "blocked" (i.e. needs the user's attention).
@@ -19,8 +19,6 @@ export const enum BlockedSessionReason {
 	NeedsInput = 'needsInput',
 	/** The session's pull request has failing CI checks. */
 	FailingCI = 'failingCI',
-	/** The session's pull request has unresolved review comments. */
-	UnresolvedComments = 'unresolvedComments',
 }
 
 /** A blocked session paired with the reason it needs attention. */
@@ -34,8 +32,7 @@ export interface IBlockedSession {
  * attention. A session is considered blocked when it:
  *
  * - needs input (`SessionStatus.NeedsInput`), or
- * - has failing CI checks while not in progress, or
- * - has unresolved pull request comments while not in progress.
+ * - has failing CI checks while not in progress.
  *
  * Archived (done) sessions are never reported as blocked.
  */
@@ -95,8 +92,7 @@ export class BlockedSessions extends Disposable {
 			return BlockedSessionReason.NeedsInput;
 		}
 
-		// CI failures and pull request comments only count while the session is
-		// not actively in progress.
+		// CI failures only count while the session is not actively in progress.
 		if (status === SessionStatus.InProgress) {
 			return undefined;
 		}
@@ -112,12 +108,13 @@ export class BlockedSessions extends Disposable {
 			return undefined;
 		}
 
-		const prStatus = computePullRequestIconStatus(reader, this._gitHubService, gitHubInfo.owner, gitHubInfo.repo, livePR);
-		if (prStatus.hasFailingChecks) {
-			return BlockedSessionReason.FailingCI;
+		if (livePR.isDraft || livePR.state !== GitHubPullRequestState.Open) {
+			return undefined;
 		}
-		if (prStatus.hasUnresolvedComments) {
-			return BlockedSessionReason.UnresolvedComments;
+
+		const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
+		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
+			return BlockedSessionReason.FailingCI;
 		}
 		return undefined;
 	}

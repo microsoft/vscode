@@ -2983,8 +2983,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			kind: SpanKind.INTERNAL,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 				[GenAiAttr.TOOL_NAME]: toolCall.toolName,
 				[GenAiAttr.TOOL_CALL_ID]: toolCall.toolCallId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 			},
 			parentTraceContext: parentContext,
@@ -3079,6 +3081,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
 				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),

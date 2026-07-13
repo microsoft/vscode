@@ -82,6 +82,7 @@ export interface ICopilotUtilityChatCompletionRequest {
  * stamps onto requests).
  */
 interface ICopilotUserResponse {
+	readonly login?: string;
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
@@ -94,6 +95,8 @@ interface ICopilotUserResponse {
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	/** GitHub login returned by `/copilot_internal/user`, when present. */
+	readonly login?: string;
 	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
 	readonly telemetryEndpoint?: string;
 	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
@@ -512,6 +515,9 @@ export interface ICopilotApiService {
 	 * hardcoded default.
 	 */
 	resolveApiEndpoint(githubToken: string): Promise<string | undefined>;
+
+	/** Resolve the GitHub login cached from `/copilot_internal/user`. */
+	resolveUserLogin?(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -865,6 +871,10 @@ export class CopilotApiService implements ICopilotApiService {
 		return (await this._getEntryForToken(githubToken)).apiEndpoint;
 	}
 
+	async resolveUserLogin(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).login;
+	}
+
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._clientsByToken.get(githubToken);
@@ -963,6 +973,7 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
 		};

@@ -97,12 +97,6 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			}
 			const coordinator = this._register(new SinglePaneDockedTabsCoordinator(this._sessionChangesService));
 
-			// Managed tabs (Changes multi-diff, Files placeholder) surface their
-			// content in the detail panel, so opening them must not reveal the editor
-			// area. Own that policy here rather than hardcoding editor ids in the core
-			// workbench.
-			this._register(this._layoutService.setEditorRevealOnOpenExclusion(editor => coordinator.isManagedEditor(editor)));
-
 			this._register(this._instantiationService.createInstance(SinglePaneManagedTabsStrategy, this._ctx, coordinator));
 			this._register(this._instantiationService.createInstance(SinglePaneEditorAreaCollapseStrategy, this._ctx, coordinator));
 			this._register(this._instantiationService.createInstance(SinglePaneQuickChatEditorHideStrategy, this._ctx));

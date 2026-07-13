@@ -29,9 +29,16 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
-/** The exposed `syncProvider` is the same instance the service uses to resolve customizations; the contribution wires it into its harness so opt-out toggles propagate. */
+/**
+ * The exposed `syncProvider` is the same instance the service uses to resolve
+ * customizations; the contribution wires it into its harness so opt-out toggles
+ * propagate. The `bundler` is exposed so the contribution can recover the
+ * original provenance of files flattened into the synthetic synced bundle (via
+ * {@link SyncedCustomizationBundler.getOrigin}).
+ */
 export interface IAgentRegistration extends IDisposable {
 	readonly syncProvider: ICustomizationSyncProvider;
+	readonly bundler: SyncedCustomizationBundler;
 }
 
 export interface IAgentHostActiveClientService {
@@ -141,6 +148,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		store.add(this._setCustomizations(sessionType, customizations));
 		return {
 			syncProvider,
+			bundler,
 			dispose: () => store.dispose(),
 		};
 	}

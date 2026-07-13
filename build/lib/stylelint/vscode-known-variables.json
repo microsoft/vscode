@@ -961,6 +961,7 @@
 		"--prompt-timeline-scrollbar-gutter",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
+		"--sessions-voice-icon-glow-color",
 		"--chat-current-response-min-height",
 		"--chat-smooth-delay",
 		"--chat-smooth-duration",

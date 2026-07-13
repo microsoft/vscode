@@ -22,7 +22,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../../common/chatImageExtraction.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
-import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../../../common/model/chatViewModel.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
@@ -297,6 +297,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _isInThinkingContainer: boolean = false;
 	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
+	private readonly _forceExpandTerminalOutput: boolean;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -334,6 +335,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._elementIndex = context.elementIndex;
 		this._contentIndex = context.contentIndex;
 		this._sessionResource = context.element.sessionResource;
+		this._forceExpandTerminalOutput = isResponseVM(context.element) && context.element.isTerminalCommand;
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 		this._terminalData = terminalData;
@@ -485,7 +487,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		// Only auto-expand in thinking containers if there's actual output to show
 		const hasStoredOutput = !!terminalData.terminalCommandOutput;
-		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
+		const storedExpandedState = expandedStateByInvocation.get(toolInvocation);
+		const hasStoredExpandedState = expandedStateByInvocation.has(toolInvocation);
+		if (storedExpandedState || (!hasStoredExpandedState && this._forceExpandTerminalOutput) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
@@ -559,7 +563,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const isSkipped = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation)?.type === ToolConfirmKind.Skipped;
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
-		const initialExpanded = !isComplete || hasError;
+		const initialExpanded = !isComplete || hasError || this._forceExpandTerminalOutput;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
 			ChatTerminalThinkingCollapsibleWrapper,
@@ -797,6 +801,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return !this._outputView.isExpanded &&
 			!this._userToggledOutput &&
 			!this._store.isDisposed &&
+			(!this._forceExpandTerminalOutput || !expandedStateByInvocation.has(this.toolInvocation)) &&
 			!expandedStateByInvocation.get(this.toolInvocation);
 	}
 
@@ -990,7 +995,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.markCollapsibleWrapperComplete();
 
 		// Auto-collapse on success (exit code 0)
-		if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+		if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._forceExpandTerminalOutput) {
 			this._toggleOutput(false);
 		}
 
@@ -1004,7 +1009,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const didChange = await this._outputView.toggle(expanded);
 		const isExpanded = this._outputView.isExpanded;
-		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded);
+		// Only drop the title's bottom border/radius when the output section is
+		// actually rendered below the title to visually close the box. Display-only
+		// invocations (e.g. a denied command with no terminal session or output) never
+		// append the output section (see constructor), so removing the title's bottom
+		// border here would leave an open-bottomed box.
+		const hasOutputSection = !!this._outputView.domNode.parentElement;
+		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded && hasOutputSection);
 		this._toolbarOutputExpanded = isExpanded;
 		this._updateToolbarActions();
 		if (didChange) {
@@ -1719,6 +1730,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._setCodeFormattedTitle();
 		this._updateShowLink();
 		this.setExpanded(initialExpanded);
+	}
+
+	protected override shouldAnimateContent(): boolean {
+		return true;
 	}
 
 	private _setCodeFormattedTitle(): void {

@@ -14,7 +14,7 @@ import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedA
 
 import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatActivityChangedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
 
-import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetFilesReviewedChangedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
+import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetFilesReviewChangedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
 import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemovedAction, AnnotationsEntrySetAction, AnnotationsEntryRemovedAction } from '../channels-annotations/actions.js';
 
@@ -85,7 +85,7 @@ export const enum ActionType {
 	ChangesetStatusChanged = 'changeset/statusChanged',
 	ChangesetFileSet = 'changeset/fileSet',
 	ChangesetFileRemoved = 'changeset/fileRemoved',
-	ChangesetFilesReviewedChanged = 'changeset/filesReviewedChanged',
+	ChangesetFilesReviewChanged = 'changeset/filesReviewChanged',
 	ChangesetContentChanged = 'changeset/contentChanged',
 	ChangesetOperationsChanged = 'changeset/operationsChanged',
 	ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
@@ -202,7 +202,7 @@ export type StateAction =
 	| ChangesetStatusChangedAction
 	| ChangesetFileSetAction
 	| ChangesetFileRemovedAction
-	| ChangesetFilesReviewedChangedAction
+	| ChangesetFilesReviewChangedAction
 	| ChangesetContentChangedAction
 	| ChangesetOperationsChangedAction
 	| ChangesetOperationStatusChangedAction

@@ -18,11 +18,13 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -40,6 +42,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { NewChatVoiceController } from './newChatVoice.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -60,6 +63,7 @@ import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -71,6 +75,8 @@ import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
+import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -80,6 +86,7 @@ const OTEL_DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitor
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
+const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 
 interface IDraftState {
 	inputText: string;
@@ -290,6 +297,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
 			supportsBackground?: boolean;
+			/**
+			 * Keep this composer a valid voice target even while a created session
+			 * is active. Used by the in-session "new chat" composer so dictation
+			 * creates a parallel chat instead of routing to the parent session's
+			 * chat widget. The welcome composer leaves this unset.
+			 */
+			voiceRoutesWhileSessionActive?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -298,8 +312,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
@@ -321,7 +337,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session));
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, undefined));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
@@ -452,6 +468,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return localize('chatInput', "Chat input");
 	}
 
+	private _getTerminalCommandPrefix(): string | undefined {
+		const session = this.options.session.get();
+		return session ? this.chatSessionsService.getCapabilitiesForSessionType(getChatSessionType(session.resource))?.terminalCommandPrefix : undefined;
+	}
+
+	private _handleTerminalCommandPaste(e: ClipboardEvent): void {
+		handleTerminalCommandPaste(e, this._editor, this._getTerminalCommandPrefix(), this.dialogService, this.storageService);
+	}
+
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		const minHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
@@ -474,7 +499,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			readOnly: false,
 			ariaLabel: this._getAriaLabel(),
 			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
-			fontFamily: 'system-ui, -apple-system, sans-serif',
+			fontFamily: NEW_CHAT_INPUT_FONT_FAMILY,
 			fontSize: 13,
 			lineHeight: 20,
 			cursorWidth: 1,
@@ -506,6 +531,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
+		this._register(autorun(reader => {
+			// Re-evaluate when the attached session changes; content changes are
+			// handled by the model-content listener below.
+			this.options.session.read(reader);
+			this._updateEditorFontFamily();
+		}));
+		// Attach to the container (not `getDomNode()`, which is null until the
+		// editor has a model) so the capture-phase paste veto is always wired up.
+		this._register(dom.addDisposableListener(this._editorContainer, dom.EventType.PASTE, e => this._handleTerminalCommandPaste(e), true));
 
 		// Ensure suggest widget renders above the input (not clipped by container)
 		SuggestController.get(this._editor)?.forceRenderingAbove();
@@ -592,7 +626,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
+			this._updateEditorFontFamily();
 		}));
+	}
+
+	/**
+	 * The input is monospace only while a terminal command is being composed:
+	 * the attached session advertises a prefix AND the current input begins with
+	 * it. Otherwise it uses the normal new-chat input font.
+	 */
+	private _updateEditorFontFamily(): void {
+		const isCommand = isTerminalCommandInput(this._editor.getModel()?.getLineContent(1) || '', this._getTerminalCommandPrefix());
+		this._editor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : NEW_CHAT_INPUT_FONT_FAMILY });
 	}
 
 	private _createAttachButton(container: HTMLElement): void {
@@ -632,6 +677,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
+
+		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
+		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
+		// Keep the session picker usable when optional voice initialization fails.
+		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
+		try {
+			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
+				toolbarContainer: voiceContainer,
+				inputContainer: container,
+				composer: this,
+			}));
+		} catch (error) {
+			this.logService.error('Failed to create new-session voice controls:', error);
+		}
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
 		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
@@ -820,6 +879,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._editor?.focus();
 	}
 
+	/** See {@link INewChatVoiceComposer.routesWhileSessionActive}. */
+	get routesWhileSessionActive(): boolean {
+		return this.options.voiceRoutesWhileSessionActive === true;
+	}
+
 	prefillInput(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();
@@ -833,6 +897,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	sendQuery(text: string): void {
+		// A submit is already in flight (e.g. a rapid second transcript before the
+		// session is created); don't clobber the in-flight text or double-submit.
+		if (this._sending) {
+			return;
+		}
 		const model = this._editor?.getModel();
 		if (model) {
 			model.setValue(text);

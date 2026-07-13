@@ -319,6 +319,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
+	private readonly thinkingDisplayMode: ThinkingDisplayMode;
 	private autoScrollEnabled: boolean = true;
 	private scrollableElement: DomScrollableElement | undefined;
 	private lastExtractedTitle: string | undefined;
@@ -351,12 +352,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly showProgressDetails: boolean;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
+	private collapsedTitleBeforeExpansion: string | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
 	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
+	private containsReasoning: boolean;
+	private containsGroupedItems: boolean = false;
+	private reasoningDurationMs: number | undefined;
 
 	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
@@ -405,17 +410,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const initialText = extractTextFromPart(content);
+		const containsReasoning = initialText.trim().length > 0;
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header.initial', 'Thinking');
 
 		super(extractedTitle, context, undefined, hoverService, configurationService);
 
+		this.containsReasoning = containsReasoning;
+		this.reasoningDurationMs = content.reasoningDurationMs;
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
 		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
 			&& (this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
 		const configuredMode = getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService);
+		this.thinkingDisplayMode = configuredMode;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
@@ -530,19 +539,30 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this._collapseButton) {
 			this._register(this._collapseButton.onDidClick(() => {
-				if (this.streamingCompleted || this.fixedScrollingMode) {
+				if (this.fixedScrollingMode) {
+					if (this.streamingCompleted) {
+						this.domNode.classList.add('chat-thinking-fixed-mode-animated');
+					}
+					return;
+				}
+
+				if (this.streamingCompleted) {
 					return;
 				}
 
 				const expanded = this.isExpanded();
 				if (expanded) {
 					// Just expanded: show plain 'Working' with no detail
+					this.collapsedTitleBeforeExpansion = this.lastExtractedTitle;
 					this.setTitle(this.defaultTitle, true);
 					this.currentTitle = this.defaultTitle;
 				} else {
-					// Just collapsed: show latest tool/thinking title with 'Working:' prefix
-					if (this.lastExtractedTitle) {
-						this.setTitle(this.lastExtractedTitle);
+					// Restore the title that was visible before expansion. Tool state
+					// updates can become less descriptive while the section is open.
+					const collapsedTitle = this.collapsedTitleBeforeExpansion ?? this.lastExtractedTitle;
+					this.collapsedTitleBeforeExpansion = undefined;
+					if (collapsedTitle) {
+						this.setTitle(collapsedTitle);
 					} else {
 						this.setTitle(this.defaultTitle, true);
 						this.currentTitle = this.defaultTitle;
@@ -554,6 +574,32 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	protected override shouldInitEarly(): boolean {
 		return this.fixedScrollingMode && !this.streamingCompleted;
+	}
+
+	protected override shouldAnimateContent(): boolean {
+		return !this.fixedScrollingMode;
+	}
+
+	protected override shouldPrepareContentAnimation(): boolean {
+		return !this.fixedScrollingMode;
+	}
+
+	protected override contentDidInitialize(): void {
+		if (this.fixedScrollingMode && this.streamingCompleted && this.scrollableElement) {
+			const scrollableDomNode = this.scrollableElement.getDomNode();
+			scrollableDomNode.style.maxHeight = '0px';
+			scrollableDomNode.getBoundingClientRect();
+		}
+	}
+
+	protected override expansionDidChange(expanded: boolean): void {
+		if (this.fixedScrollingMode && this.streamingCompleted) {
+			if (expanded) {
+				this.syncDimensionsAndScheduleScroll();
+			} else {
+				this.updateCompletedScrollAnimationState(false);
+			}
+		}
 	}
 
 	// @TODO: @justschen Convert to template for each setting?
@@ -642,7 +688,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const wrapperResizeObserver = this._register(new DisposableResizeObserver('ChatThinkingContentPart.wrapper', (entries) => {
 				if (entries[0]) {
 					this.lastKnownContentHeight = this.wrapper.scrollHeight;
-					if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
+					if (this.streamingCompleted && this.isExpanded()) {
+						this.updateScrollDimensionsForCompletion();
+					} else if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
 						this.updateScrollDimensionsFromCache();
 					}
 				}
@@ -707,6 +755,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.pendingScrollDisposable = scheduleAtNextAnimationFrame(getWindow(this.domNode), () => {
 			this.pendingScrollDisposable = undefined;
 			if (this._store.isDisposed) {
+				return;
+			}
+			if (this.streamingCompleted) {
+				this.updateScrollDimensionsForCompletion();
 				return;
 			}
 			this.refreshContentHeight();
@@ -775,7 +827,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (contentHeight > viewportHeight) {
 			const newScrollTop = contentHeight - viewportHeight;
 			this.lastKnownScrollTop = newScrollTop;
+			// Prevent reveal-on-scroll behavior from interfering with explicit bottom pinning.
+			this.scrollableElement.setRevealOnScroll(false);
 			this.scrollableElement.setScrollPosition({ scrollTop: newScrollTop });
+			this.scrollableElement.setRevealOnScroll(true);
 		}
 	}
 
@@ -789,19 +844,30 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const contentHeight = this.wrapper.scrollHeight;
 		this.lastKnownContentHeight = contentHeight;
-		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
-		const viewportWidth = this.scrollableElement.getDomNode().clientWidth;
+		const scrollableDomNode = this.scrollableElement.getDomNode();
+		scrollableDomNode.style.maxHeight = `${contentHeight}px`;
+		const viewportWidth = scrollableDomNode.clientWidth;
 		this.scrollableElement.setScrollDimensions({
 			width: viewportWidth,
 			scrollWidth: viewportWidth,
-			height: viewportHeight,
+			height: contentHeight,
 			scrollHeight: contentHeight
 		});
+		this.lastKnownScrollTop = 0;
+		this.scrollableElement.setRevealOnScroll(false);
+		this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+		this.scrollableElement.setRevealOnScroll(true);
+		this.updateCompletedScrollAnimationState(this.isExpanded());
+	}
 
-		if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
-			this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+	private updateCompletedScrollAnimationState(expanded: boolean): void {
+		if (!this.scrollableElement) {
+			return;
 		}
+		const scrollableDomNode = this.scrollableElement.getDomNode();
+		scrollableDomNode.style.maxHeight = expanded ? `${this.lastKnownContentHeight}px` : '0px';
+		scrollableDomNode.inert = !expanded;
 	}
 
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
@@ -846,16 +912,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		const displayTitle = this.getFinalizedDisplayTitle(title);
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 
-		const firstSpaceIndex = title.indexOf(' ');
+		const firstSpaceIndex = displayTitle.indexOf(' ');
 		if (firstSpaceIndex === -1) {
 			// Single word title, no need to split
-			labelElement.textContent = title;
+			labelElement.textContent = displayTitle;
 		} else {
-			const verb = title.substring(0, firstSpaceIndex);
-			const rest = title.substring(firstSpaceIndex);
+			const verb = displayTitle.substring(0, firstSpaceIndex);
+			const rest = displayTitle.substring(firstSpaceIndex);
 
 			const verbSpan = $('span');
 			verbSpan.textContent = verb;
@@ -877,13 +944,38 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 				const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
 				const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
-				this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+				this.setAriaLabel(localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", displayTitle, insertionsFragment, deletionsFragment));
 			} else {
-				this._collapseButton.element.ariaLabel = title;
+				this.setAriaLabel(displayTitle);
 			}
 		} else {
-			this._collapseButton.element.ariaLabel = title;
+			this.setAriaLabel(displayTitle);
 		}
+	}
+
+	private getFinalizedDisplayTitle(title: string): string {
+		if (this.thinkingDisplayMode !== ThinkingDisplayMode.Collapsed || !this.containsReasoning || this.containsGroupedItems || !this.reasoningDurationMs) {
+			return title;
+		}
+
+		const seconds = Math.ceil(this.reasoningDurationMs / 1000);
+		const duration = localize('chat.thinking.duration.seconds', "{0}s", seconds);
+		return localize('chat.thinking.titleWithDuration', "{0} - {1}", title, duration);
+	}
+
+	public hasReasoningContent(): boolean {
+		return this.containsReasoning;
+	}
+
+	public hasGroupedItems(): boolean {
+		return this.containsGroupedItems;
+	}
+
+	private recordReasoningContent(content: string): void {
+		if (!content.trim()) {
+			return;
+		}
+		this.containsReasoning = true;
 	}
 
 	private setDropdownClickable(clickable: boolean): void {
@@ -992,6 +1084,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		this.content = content;
+		this.reasoningDurationMs = content.reasoningDurationMs;
 
 		// Update any pending lazy thinking item with matching ID so that
 		// when materialized, it will have the latest streaming content
@@ -1003,6 +1096,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const raw = extractTextFromPart(content);
+		this.recordReasoningContent(raw);
 		const next = raw;
 		if (next === this.currentThinkingValue) {
 			return;
@@ -1090,15 +1184,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
+		this.setContentAnimationEnabled(!this.fixedScrollingMode);
 
 		// Now that streaming is complete, render any aggregated images that were
 		// deferred while scrolling was pinned in fixed scrolling mode.
 		this.flushPendingExternalResources();
-
-		if (this.wrapperResizeObserverDisposable) {
-			this.wrapperResizeObserverDisposable.dispose();
-			this.wrapperResizeObserverDisposable = undefined;
-		}
 
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
@@ -1554,6 +1644,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		eagerDisposable?: IDisposable,
 	): void {
 		this.processPendingRemovals();
+		this.containsGroupedItems = true;
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
@@ -2210,6 +2301,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 		this.appendedItemCount++;
 		this.allThinkingParts.push(content);
+		this.recordReasoningContent(extractTextFromPart(content));
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		// Observe the new textContainer for child resizes in fixed scrolling mode
 		if (this.childResizeObserver && this.fixedScrollingMode && !this.streamingCompleted) {

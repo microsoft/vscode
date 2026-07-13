@@ -7,10 +7,10 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
+import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
 import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -80,6 +80,47 @@ const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toStri
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+
+suite('ChangesetStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('optimistically applies and reconciles file review state', () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					before: { uri: 'file:///test.txt', content: { uri: 'file:///before.txt' } },
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const subscription = disposables.add(new ChangesetStateSubscription(changesetUri, 'c1', () => 1, noop));
+		subscription.handleSnapshot(state, 0);
+
+		const action: ClientChangesetAction = {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		};
+		const clientSeq = subscription.applyOptimistic(action);
+		const optimisticState = subscription.value as ChangesetState;
+		subscription.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+		assert.deepStrictEqual({
+			optimisticReviewed: optimisticState.files[0].reviewed,
+			verifiedBeforeEcho: state.files[0].reviewed,
+			verifiedAfterEcho: subscription.verifiedValue?.files[0].reviewed,
+			pendingCleared: subscription.value === subscription.verifiedValue,
+		}, {
+			optimisticReviewed: true,
+			verifiedBeforeEcho: undefined,
+			verifiedAfterEcho: true,
+			pendingCleared: true,
+		});
+	});
+
+});
 
 // RootStateSubscription
 
@@ -551,7 +592,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState; fromSeq: number }> = async (resource) => {
 		subscribedResources.push(resource.toString());
 		const key = resource.toString();
 		if (key.startsWith('copilot:')) {
@@ -714,6 +755,40 @@ suite('AgentSubscriptionManager', () => {
 		assert.strictEqual((ref.object.value as SessionState).title, 'Dispatched');
 		// verifiedValue unchanged
 		assert.strictEqual(ref.object.verifiedValue!.title, 'Test');
+
+		ref.dispose();
+	});
+
+	test('dispatchOptimistic applies to matching changeset subscription', async () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state, fromSeq: 0 }));
+		const uri = URI.parse(changesetUri);
+		const ref = mgr.getSubscription<ChangesetState>(StateComponents.Changeset, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		});
+
+		assert.deepStrictEqual({
+			clientSeq,
+			optimisticReviewed: (ref.object.value as ChangesetState).files[0].reviewed,
+			verifiedReviewed: ref.object.verifiedValue?.files[0].reviewed,
+		}, {
+			clientSeq: 1,
+			optimisticReviewed: true,
+			verifiedReviewed: undefined,
+		});
 
 		ref.dispose();
 	});
