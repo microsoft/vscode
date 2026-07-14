@@ -33,6 +33,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
@@ -50,7 +51,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isEditorLocalAgentEnabled } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -147,6 +148,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1067,11 +1069,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * Returns `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService);
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace);
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace);
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1100,8 +1103,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
-		const defaultType = getComputedDefaultSessionType(this.configurationService, this.chatSessionsService);
-		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getComputedDefaultSessionType(this.configurationService, this.chatSessionsService, workspace);
+		const prefersAgentHostCopilot = !isEditorLocalAgentEnabled(this.configurationService, workspace)
 			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
 		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
 			&& getChatSessionType(sessionResource) === localChatSessionType

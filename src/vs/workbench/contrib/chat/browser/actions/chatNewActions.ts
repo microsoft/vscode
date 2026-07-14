@@ -26,6 +26,7 @@ import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export interface INewEditSessionActionContext {
 
@@ -319,6 +320,7 @@ async function runNewChatAction(
 	const configurationService = accessor.get(IConfigurationService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const storageService = accessor.get(IStorageService);
+	const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 	const { editingSession, chatWidget: widget } = context ?? {};
 	if (!widget) {
@@ -335,7 +337,7 @@ async function runNewChatAction(
 	await editingSession?.stop();
 
 	// Create a new session, preserving the session type (or using the specified one)
-	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService, chatSessionsService, storageService);
+	await clearChatSessionPreservingType(widget, viewsService, sessionType, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace());
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

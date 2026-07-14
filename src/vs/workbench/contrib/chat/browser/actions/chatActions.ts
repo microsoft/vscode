@@ -37,6 +37,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -577,7 +578,7 @@ export function registerChatActions() {
 	 * honoring the remembered harness preference and then the configured default.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService));
+		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace());
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);
@@ -1762,10 +1763,10 @@ export interface IClearEditingSessionConfirmationOptions {
  * Clears the current chat session and starts a new one using the shared
  * new-session harness resolver.
  */
-export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService, storageService: IStorageService): Promise<void> {
+export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService, storageService: IStorageService, workspace: IWorkspace): Promise<void> {
 	const currentResource = widget.viewModel?.model.sessionResource;
 	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-	const newSessionType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, { explicitOverride: sessionType, currentSessionType });
+	const newSessionType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, { explicitOverride: sessionType, currentSessionType });
 	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
 		// For the sidebar, we need to explicitly load a session with the same type
 		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });
