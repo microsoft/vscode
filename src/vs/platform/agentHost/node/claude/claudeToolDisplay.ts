@@ -348,10 +348,8 @@ function firstShellLine(input: unknown): string | undefined {
 }
 
 /**
- * Reads the `status` field of a `TaskUpdate` call and narrows it to the three
- * values that change the rendered verb ("Starting" / "Completing" / "Deleting").
- * Any other or absent value yields `undefined`, so the caller falls back to the
- * generic "Updating" / "Updated" message.
+ * Narrows a `TaskUpdate` call's `status` to the values that change the rendered
+ * verb; any other or absent value yields `undefined` (generic "Updating" verb).
  */
 function readTaskUpdateStatus(input: unknown): 'in_progress' | 'completed' | 'deleted' | undefined {
 	const status = readStringField(input, 'status');
