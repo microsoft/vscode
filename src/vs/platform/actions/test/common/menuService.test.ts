@@ -214,4 +214,56 @@ suite('MenuService', function () {
 		assert.throws(() => new MenuId(id));
 		assert.ok(menu === MenuId.for(id));
 	});
+
+	test('getMenuItems cache stability and invalidation', function () {
+		const stable1 = MenuRegistry.getMenuItems(testMenuId);
+		const stable2 = MenuRegistry.getMenuItems(testMenuId);
+		assert.strictEqual(stable1, stable2);
+
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'c1', title: 'cache invalidation on append' }
+		}));
+		const afterAppend1 = MenuRegistry.getMenuItems(testMenuId);
+		const afterAppend2 = MenuRegistry.getMenuItems(testMenuId);
+		assert.notStrictEqual(stable1, afterAppend1);
+		assert.strictEqual(stable1.length + 1, afterAppend1.length);
+		assert.strictEqual(afterAppend1, afterAppend2);
+
+		const cmdDisposable = disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'c2', title: 'cache invalidation on remove' }
+		}));
+		const beforeRemove = MenuRegistry.getMenuItems(testMenuId);
+		cmdDisposable.dispose();
+		const afterRemove1 = MenuRegistry.getMenuItems(testMenuId);
+		const afterRemove2 = MenuRegistry.getMenuItems(testMenuId);
+		assert.notStrictEqual(beforeRemove, afterRemove1);
+		assert.strictEqual(beforeRemove.length - 1, afterRemove1.length);
+		assert.strictEqual(afterRemove1, afterRemove2);
+	});
+
+	test('getMenuItems cache stability and invalidation for Command Palette', function () {
+		const stable1 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		const stable2 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		assert.strictEqual(stable1, stable2);
+
+		disposables.add(MenuRegistry.addCommand({
+			id: 'c1', title: 'cPalette cache invalidation on add'
+		}));
+		const afterAdd1 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		const afterAdd2 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		assert.notStrictEqual(stable1, afterAdd1);
+		assert.strictEqual(stable1.length + 1, afterAdd1.length);
+		assert.strictEqual(afterAdd1, afterAdd2);
+
+		const cmdDisposable = disposables.add(MenuRegistry.addCommand({
+			id: 'c2', title: 'cPalette cache invalidation on remove'
+		}));
+		const beforeRemove = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		cmdDisposable.dispose();
+		const afterRemove1 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		const afterRemove2 = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+		assert.notStrictEqual(beforeRemove, afterRemove1);
+		assert.strictEqual(beforeRemove.length - 1, afterRemove1.length);
+		assert.strictEqual(afterRemove1, afterRemove2);
+	});
 });
