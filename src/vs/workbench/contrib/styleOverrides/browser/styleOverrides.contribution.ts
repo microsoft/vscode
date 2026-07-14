@@ -31,7 +31,6 @@ import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
 import './media/sashHandles.css';
-import './media/scrollShadows.css';
 import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';

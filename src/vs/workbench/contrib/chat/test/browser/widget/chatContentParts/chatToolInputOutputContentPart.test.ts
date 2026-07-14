@@ -16,6 +16,7 @@ import { IDisposableReference } from '../../../../browser/widget/chatContentPart
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
+import { ChatToolOutputContentSubPart } from '../../../../browser/widget/chatContentParts/chatToolOutputContentSubPart.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 
 suite('ChatCollapsibleInputOutputContentPart', () => {
@@ -114,6 +115,77 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			},
 			collapsedInert: true,
 			expandedDuringToggle: ['false', 'true'],
+		});
+	});
+
+	test('renders titled outputs separately', () => {
+		const renderedTexts: string[] = [];
+		const editorPool = Object.create(EditorPool.prototype) as EditorPool;
+		Object.defineProperty(editorPool, 'get', {
+			value: () => {
+				const codeBlockPart = Object.create(CodeBlockPart.prototype) as CodeBlockPart;
+				Object.defineProperties(codeBlockPart, {
+					element: { value: mainWindow.document.createElement('div') },
+					render: { value: (data: { text: string }) => renderedTexts.push(data.text) },
+					uri: { value: URI.parse('test://codeblock') },
+				});
+				return {
+					object: codeBlockPart,
+					isStale: () => false,
+					dispose: () => { },
+				} satisfies IDisposableReference<CodeBlockPart>;
+			}
+		});
+		const element = Object.assign(Object.create(null), {
+			id: 'response',
+			sessionResource: URI.parse('chat-session://test/session'),
+		}) as IChatResponseViewModel;
+		const context: IChatContentPartRenderContext = {
+			element,
+			elementIndex: 0,
+			container: mainWindow.document.createElement('div'),
+			content: [],
+			contentIndex: 0,
+			inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+			editorPool,
+			codeBlockStartIndex: 0,
+			treeStartIndex: 0,
+			diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+			currentWidth: observableValue('testWidth', 500),
+			onDidChangeVisibility: Event.None,
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const part = store.add(instantiationService.createInstance(
+			ChatToolOutputContentSubPart,
+			context,
+			[
+				{
+					kind: 'code',
+					title: 'https://example.com/first',
+					data: 'First result',
+					languageId: 'plaintext',
+					options: {},
+					codeBlockIndex: 0,
+					ownerMarkdownPartId: 'test',
+				},
+				{
+					kind: 'code',
+					title: 'https://example.com/second',
+					data: 'Second result',
+					languageId: 'plaintext',
+					options: {},
+					codeBlockIndex: 1,
+					ownerMarkdownPartId: 'test',
+				},
+			],
+		));
+
+		assert.deepStrictEqual({
+			titles: [...part.domNode.querySelectorAll('.chat-confirmation-widget-title')].map(element => element.textContent),
+			renderedTexts,
+		}, {
+			titles: ['https://example.com/first', 'https://example.com/second'],
+			renderedTexts: ['First result', 'Second result'],
 		});
 	});
 });

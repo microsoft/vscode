@@ -9,6 +9,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
+import type { IStatelessNextEditModelTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { LogServiceImpl } from '../../../../platform/log/common/logService';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -18,6 +19,11 @@ import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offse
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { NextEditCache } from '../../node/nextEditCache';
 import { NextEditFetchRequest } from '../../node/nextEditProvider';
+
+const testModelTelemetry: IStatelessNextEditModelTelemetry = {
+	modelName: 'test-patch-model',
+	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02' }),
+};
 
 /**
  * Regression test from a real scenario:
@@ -159,7 +165,7 @@ describe('NextEditCache rebase — Fibonacci scenario', () => {
 			],
 			StringEdit.single(new StringReplacement(new OffsetRange(classStart, classEndAtRequest18), 'class Fibonacci {\n\t')),
 			makeSource(),
-			{ isFromCursorJump: false, cursorOffset: classEndAtRequest18 },
+			{ isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: classEndAtRequest18 },
 		);
 
 		assert(cachedEdit !== undefined, 'setKthNextEdit should return the cached edit');
@@ -173,5 +179,6 @@ describe('NextEditCache rebase — Fibonacci scenario', () => {
 
 		assert(rebaseResult.edit !== undefined, 'should rebase successfully');
 		assert(rebaseResult.edit.rebasedEdit !== undefined, 'should have a rebased edit for the class body');
+		assert.strictEqual(rebaseResult.edit.modelTelemetry, testModelTelemetry, 'should preserve model attribution on the rebased edit');
 	});
 });

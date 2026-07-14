@@ -2807,6 +2807,89 @@ suite('AgentHostChatContribution', () => {
 		}));
 	});
 
+	// ---- "Preparing session…" migration status --------------------------
+
+	suite('preparing session status', () => {
+
+		// Counts the "Preparing session…" shimmer status parts emitted so far.
+		function preparingStatusCount(collected: IChatProgress[][]): number {
+			return collected.flat().filter(p => p.kind === 'progressMessage' && !!textOf(p.content)?.includes('Preparing session')).length;
+		}
+
+		// Makes the import store hand back an imported conversation for the next
+		// `take`, so `_invokeAgent` takes the migration branch that arms the status.
+		function stubImportedConversation(instantiationService: TestInstantiationService): void {
+			const importStore = instantiationService.get(IAgentHostImportConversationStore);
+			importStore.take = () => ({ turns: [] });
+		}
+
+		test('normal (non-imported) session never emits the status even past the 500ms threshold', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+
+			// Well past the 500ms threshold while the turn is still in flight.
+			await timeout(600);
+			assert.strictEqual(preparingStatusCount(collected), 0, 'normal session must never emit "Preparing session…"');
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.strictEqual(preparingStatusCount(collected), 0);
+		}));
+
+		test('imported (migration) create emits the status only after 500ms', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			stubImportedConversation(instantiationService);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+
+			// startTurn already advanced ~10ms — under the threshold, so nothing yet.
+			assert.strictEqual(preparingStatusCount(collected), 0, 'must not emit before 500ms');
+			await timeout(480);
+			assert.strictEqual(preparingStatusCount(collected), 0, 'still under 500ms — must not emit');
+			await timeout(30);
+			assert.strictEqual(preparingStatusCount(collected), 1, 'must emit once the 500ms threshold elapses');
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('first real progress cancels the pending status before it fires', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			stubImportedConversation(instantiationService);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+
+			// Real progress arrives before the threshold and must cancel the timer.
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'hello' } } as ChatAction);
+			await timeout(600);
+			assert.strictEqual(preparingStatusCount(collected), 0, 'first real progress must cancel the pending status');
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('an early rejection cancels the pending status', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			stubImportedConversation(instantiationService);
+			// Reject during create-and-subscribe, after the status timer is armed
+			// but before any real progress streams.
+			agentHostService.createSession = async () => { throw new Error('boom'); };
+
+			const collected: IChatProgress[][] = [];
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/import-reject' });
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Hi', sessionResource }),
+				parts => collected.push(parts), [], CancellationToken.None,
+			);
+			await assert.rejects(turnPromise);
+
+			await timeout(600);
+			assert.strictEqual(preparingStatusCount(collected), 0, 'an early rejection must dispose the pending status via finally');
+		}));
+	});
+
 	// ---- Progress event → chat progress conversion ----------------------
 
 	suite('progress routing', () => {
@@ -2843,6 +2926,40 @@ suite('AgentHostChatContribution', () => {
 
 			const notifications = collected.flat().filter(part => part.kind === 'systemNotification');
 			assert.deepStrictEqual(notifications.map(part => part.content.value), ['Background command completed']);
+		}));
+
+		test('Auto model routing metadata becomes a live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: {
+						autoModeResolved: {
+							chosenModel: 'gpt-5.4-mini',
+							predictedLabel: 'no_reasoning',
+							confidence: 0.98,
+						},
+					},
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'autoModeResolution'), [{
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.4-mini',
+				resolvedModelName: 'GPT-5.4 mini',
+				predictedLabel: 'no_reasoning',
+				confidence: 0.98,
+			}]);
 		}));
 
 		test('live turn marks chat session complete after turnComplete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

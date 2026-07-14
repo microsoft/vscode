@@ -20,6 +20,10 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.agent-sessions-workbench .monaco-action-bar .action-item .action-label.separator {
+	margin: 0px 4px !important;
+}
+
 .agent-sessions-workbench .monaco-dropdown-with-default {
 	border-radius: var(--vscode-cornerRadius-small);
 }

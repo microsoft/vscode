@@ -193,7 +193,7 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 				case BYOKUtilityModelDefault.MainAgent:
 					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, this._mainAgentBYOKModel);
 				case BYOKUtilityModelDefault.None:
-					throw new Error(`No utility model is configured for '${family}' while the selected main agent model is BYOK.`);
+					throw new Error(`No utility model is configured for '${family}' while the selected main agent model is BYOK. Configure '${family === 'copilot-utility' ? 'chat.utilityModel' : 'chat.utilitySmallModel'}' or set 'chat.byokUtilityModelDefault' to 'mainAgent' or 'copilot'.`);
 				case BYOKUtilityModelDefault.Copilot:
 					break;
 			}

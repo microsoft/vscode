@@ -386,8 +386,25 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
-		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
-		if (this.family.toLowerCase().includes('gemini-3')) {
+		// Apply an explicit reasoning effort for models that declare supported
+		// levels. Unlike the Responses and Messages APIs (which map this in their
+		// own body builders), the CAPI chat-completions path does not, so the UI
+		// thinking-effort selection (surfaced via modelCapabilities) and the
+		// ReasoningEffortOverride setting would otherwise be dropped. The override
+		// setting takes precedence over the UI selection; both are validated
+		// against the levels the model advertises.
+		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
+		if (declaredLevels) {
+			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? options.modelCapabilities?.reasoningEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
+				body.reasoning_effort = candidateEffort;
+			}
+		}
+
+		// Force low reasoning effort for Gemini 3 models when the experiment is
+		// enabled, unless the user has already selected an explicit effort above.
+		if (body.reasoning_effort === undefined && this.family.toLowerCase().includes('gemini-3')) {
 			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
 				ConfigKey.EnableGemini3LowReasoningEffort,
 				this._expService
