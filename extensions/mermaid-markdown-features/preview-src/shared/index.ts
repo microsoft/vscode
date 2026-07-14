@@ -60,16 +60,14 @@ export function markVsCodeContextAsError(el: HTMLElement): void {
 	el.dataset.vscodeContext = JSON.stringify({ ...context, mermaidError: true });
 }
 
-function looksLikeRenderedMermaidOutput(text: string): boolean {
-	return text.startsWith('#dmermaid-')
-		|| text.includes('@keyframes')
-		|| text.includes('flowchartTitleText');
+function hasRenderedMermaidOutput(mermaidContainer: HTMLElement): boolean {
+	return !!mermaidContainer.querySelector(':scope > svg, :scope > .mermaid-error');
 }
 
 function resolveMermaidSource(mermaidContainer: HTMLElement): string {
 	const rawText = (mermaidContainer.textContent ?? '').trim();
 
-	if (rawText && !looksLikeRenderedMermaidOutput(rawText)) {
+	if (rawText && !hasRenderedMermaidOutput(mermaidContainer)) {
 		mermaidContainer.dataset.vscodeMermaidSource = rawText;
 		return rawText;
 	}
