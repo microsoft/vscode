@@ -820,7 +820,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
 		_isHidden?: boolean,
-		_parent?: ExtHostSourceControl
+		_parent?: ExtHostSourceControl,
+		_name?: string
 	) {
 		this.#proxy = proxy;
 
@@ -831,7 +832,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri, _name);
 
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
@@ -1005,7 +1006,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined, name: string | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -1019,7 +1020,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl, name);
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
