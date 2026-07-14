@@ -16,16 +16,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -34,68 +35,13 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
+import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.';
-
-/** Maximum number of cached session summaries persisted per host. */
-const CACHED_SESSIONS_MAX_PER_HOST = 100;
-
-/**
- * Serialized shape of an {@link IAgentSessionMetadata} suitable for
- * persisting via {@link IStorageService}. URIs are stored as strings
- * and diffs are intentionally omitted (they are re-populated when the
- * connection refreshes sessions).
- */
-interface ISerializedSessionMetadata {
-	readonly session: string;
-	readonly startTime: number;
-	readonly modifiedTime: number;
-	readonly summary?: string;
-	readonly model?: IAgentSessionMetadata['model'];
-	readonly workingDirectory?: string;
-	readonly isRead?: boolean;
-	readonly isArchived?: boolean;
-	/** @deprecated Legacy name for `isArchived`. */
-	readonly isDone?: boolean;
-	readonly project?: { readonly uri: string; readonly displayName: string };
-}
-
-function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetadata {
-	return {
-		session: meta.session.toString(),
-		startTime: meta.startTime,
-		modifiedTime: meta.modifiedTime,
-		summary: meta.summary,
-		model: meta.model,
-		workingDirectory: meta.workingDirectory?.toString(),
-		isRead: meta.isRead,
-		isArchived: meta.isArchived,
-		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
-	};
-}
-
-function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
-	try {
-		return {
-			session: URI.parse(raw.session),
-			startTime: raw.startTime,
-			modifiedTime: raw.modifiedTime,
-			summary: raw.summary,
-			model: raw.model,
-			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
-			isRead: raw.isRead,
-			isArchived: raw.isArchived ?? raw.isDone,
-			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
-		};
-	} catch {
-		return undefined;
-	}
-}
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
@@ -129,7 +75,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
  * - **sessionId** - `{providerId}:{resource}` - the provider-scoped ID used by
  *   {@link ISessionsProvider} methods.
  * - Protocol operations (e.g. `disposeSession`) use the canonical agent
- *   session URI (`copilot:///abc123`), reconstructed via {@link AgentSession.uri}.
+ *   session URI (`copilot:///abc123`), reconstructed via `AgentSession.uri`.
  */
 export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 
@@ -140,6 +86,10 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
+
+	protected override getLogOutputChannelId(): string | undefined {
+		return remoteAgentHostLogOutputChannelId(this.remoteAddress);
+	}
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -172,20 +122,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
-	 * Set when {@link _sessionCache} has changed since the last persist.
-	 * The actual write happens on the next `onWillSaveState` signal from
-	 * {@link IStorageService} so that bursts of notifications do not
-	 * repeatedly re-serialize the whole cache.
-	 */
-	private _cacheDirty = false;
-	/**
-	 * Snapshot of the source metadata for each adapter in {@link _sessionCache},
-	 * keyed by raw session ID. Captured in {@link createAdapter} and re-used by
-	 * {@link _persistCache} to serialize sessions without having to reconstruct
-	 * every `IAgentSessionMetadata` field from observables.
-	 */
-	private readonly _metaByRawId = new Map<string, IAgentSessionMetadata>();
-	/**
 	 * When `true`, the provider has been marked unreachable and sessions are
 	 * hidden from {@link getSessions}, even though {@link _sessionCache} and
 	 * persistent storage are retained. Cleared when a new connection is wired
@@ -210,10 +146,12 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
+		@IDialogService dialogService: IDialogService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsManagementService, activeClientService, storageService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -237,29 +175,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
 
-		this._loadCachedSessions();
-
-		this._register(this._onDidChangeSessions.event(e => {
-			if (this._unpublished) {
-				return;
-			}
-			if (e.added.length > 0 || e.removed.length > 0 || e.changed.length > 0) {
-				this._cacheDirty = true;
-			}
-			for (const removed of e.removed) {
-				const rawId = this._rawIdFromChatId(removed.sessionId);
-				if (rawId) {
-					this._metaByRawId.delete(rawId);
-				}
-			}
-		}));
-
-		this._register(this._storageService.onWillSaveState(() => {
-			if (this._cacheDirty) {
-				this._persistCache();
-				this._cacheDirty = false;
-			}
-		}));
+		this._enableSessionCachePersistence(this._storageKey);
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
@@ -268,9 +184,13 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
 
-	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
-		this._metaByRawId.set(AgentSession.id(meta.session), meta);
-		return super.createAdapter(meta);
+	/**
+	 * Suspend cache-change tracking while sessions are unpublished (offline) so
+	 * the on-disk snapshot survives an unreachable host. See
+	 * {@link unpublishCachedSessions}.
+	 */
+	protected override _shouldTrackSessionCacheChanges(): boolean {
+		return !this._unpublished;
 	}
 
 	protected _adapterOptions() {
@@ -458,57 +378,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}
 	}
 
-	/** Load persisted session summaries into {@link _sessionCache}. */
-	private _loadCachedSessions(): void {
-		const parsed = this._storageService.getObject(this._storageKey, StorageScope.APPLICATION);
-		if (!Array.isArray(parsed)) {
-			return;
-		}
-		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
-			const meta = deserializeMetadata(entry);
-			if (!meta) {
-				continue;
-			}
-			const rawId = AgentSession.id(meta.session);
-			if (this._sessionCache.has(rawId)) {
-				continue;
-			}
-			const cached = this.createAdapter(meta);
-			this._sessionCache.set(rawId, cached);
-		}
-	}
-
-	/**
-	 * Persist the current {@link _sessionCache} to storage, capping at
-	 * {@link CACHED_SESSIONS_MAX_PER_HOST} most-recently-modified entries.
-	 * Mutable fields are read from each adapter's observables and overlaid on
-	 * top of the original metadata snapshot captured in {@link _metaByRawId}.
-	 */
-	private _persistCache(): void {
-		const entries: ISerializedSessionMetadata[] = [];
-		for (const [rawId, adapter] of this._sessionCache) {
-			const base = this._metaByRawId.get(rawId);
-			if (!base) {
-				continue;
-			}
-			entries.push(serializeMetadata({
-				...base,
-				summary: adapter.title.get() || base.summary,
-				modifiedTime: adapter.updatedAt.get().getTime(),
-				model: adapter.modelSelection ?? base.model,
-				isRead: adapter.isRead.get(),
-				isArchived: adapter.isArchived.get(),
-			}));
-		}
-		if (entries.length === 0) {
-			this._storageService.remove(this._storageKey, StorageScope.APPLICATION);
-			return;
-		}
-		entries.sort((a, b) => b.modifiedTime - a.modifiedTime);
-		const limited = entries.slice(0, CACHED_SESSIONS_MAX_PER_HOST);
-		this._storageService.store(this._storageKey, JSON.stringify(limited), StorageScope.APPLICATION, StorageTarget.USER);
-	}
-
 	// -- Session-type sync ---------------------------------------------------
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
@@ -524,7 +393,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	// -- Workspaces ----------------------------------------------------------
 
 	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitHubInfo, gitState);
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {

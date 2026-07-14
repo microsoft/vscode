@@ -29,7 +29,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -138,8 +138,11 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly restrictedToSkus?: string[] | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
+	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
+	public readonly warningText?: Record<string, string> | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -171,10 +174,11 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
-			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice ?? 0, contextMax: normalized.default.contextMax },
-			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice ?? 0, contextMax: normalized.longContext.contextMax } : undefined,
+			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
+			longContext: normalized.longContext ? { inputPrice: normalized.longContext.inputPrice, outputPrice: normalized.longContext.outputPrice, cacheReadTokenPrice: normalized.longContext.cachePrice, cacheWriteTokenPrice: normalized.longContext.cacheWritePrice, contextMax: normalized.longContext.contextMax } : undefined,
 		} : undefined;
 		this.priceCategory = modelMetadata.model_picker_price_category;
+		this.modelPickerCategory = modelMetadata.model_picker_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -188,6 +192,13 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
+		this.warningText = modelMetadata.warning_text;
+		this.promo = modelMetadata.billing?.promo ? {
+			id: modelMetadata.billing.promo.id,
+			discountPercent: modelMetadata.billing.promo.discount_percent,
+			endsAt: modelMetadata.billing.promo.ends_at,
+			message: modelMetadata.billing.promo.message,
+		} : undefined;
 	}
 
 	// TODO: Thread enableThinking through the fetch pipeline (INetworkRequestOptions / chatMLFetcher positional params)
@@ -269,7 +280,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	}
 
 	public get degradationReason(): string | undefined {
-		return this.modelMetadata.warning_messages?.at(0)?.message ?? this.modelMetadata.info_messages?.at(0)?.message;
+		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
 	public get apiType(): string {
@@ -384,6 +395,12 @@ export class ChatEndpoint implements IChatEndpoint {
 			if (lowReasoningEnabled) {
 				body.reasoning_effort = 'low';
 			}
+		}
+
+		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
+		if (isKimiFamily(this)) {
+			body.temperature = 1;
+			body.top_p = 0.95;
 		}
 
 		return body;

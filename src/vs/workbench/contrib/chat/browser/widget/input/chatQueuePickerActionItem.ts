@@ -25,7 +25,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ChatSubmitAction } from '../../actions/chatExecuteActions.js';
+import { ChatSubmitAction, type IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../actions/chatQueueActions.js';
 
 /**
@@ -62,7 +62,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
-			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowUp : Codicon.add),
+			ThemeIcon.asClassName(isSteerDefault ? Codicon.newLine : Codicon.add),
 			!!this.contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
@@ -116,7 +116,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction.label = isSteer
 			? localize('chat.steerWithMessage', "Steer with Message")
 			: localize('chat.queueMessage', "Add to Queue");
-		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.arrowUp : Codicon.add);
+		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.newLine : Codicon.add);
 	}
 
 	private _runDefaultAction(): void {
@@ -217,7 +217,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			tooltip: '',
 			enabled: true,
 			checked: isSteerDefault,
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			class: undefined,
 			keybinding: steerKeybinding,
 			hover: {
@@ -239,7 +239,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				content: localize('chat.sendImmediately.hover', "Cancel the current request and send this message immediately."),
 			},
 			run: () => {
-				this.commandService.executeCommand(ChatSubmitAction.ID);
+				this.commandService.executeCommand(ChatSubmitAction.ID, { acceptInputOptions: { cancelCurrentRequest: true } } satisfies IChatExecuteActionContext);
 			}
 		};
 

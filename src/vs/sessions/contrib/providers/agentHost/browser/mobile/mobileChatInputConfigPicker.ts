@@ -22,13 +22,15 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelProviderIcons.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
+import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../../services/sessions/common/session.js';
-import { ISessionInputContext } from '../../../../chat/browser/sessionInputContext.js';
+import { ISessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
@@ -201,8 +203,8 @@ class MobileChatInputConfigPicker extends Disposable {
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
-				value,
-				label: modeSchema.enumLabels?.[index] ?? value,
+				value: String(value),
+				label: modeSchema.enumLabels?.[index] ?? String(value),
 				description: modeSchema.enumDescriptions?.[index],
 			}))
 			: [];
@@ -263,6 +265,9 @@ class MobileChatInputConfigPicker extends Disposable {
 		const currentModel = resolvedModelId
 			? ctx.modelItems.find(m => m.identifier === resolvedModelId)
 			: undefined;
+		if (currentModel) {
+			dom.append(this._triggerElement, renderIcon(getModelProviderIcon(currentModel)));
+		}
 		const labelText = currentModel?.metadata.name
 			?? localize('mobileChatInputConfigPicker.autoLabel', "Auto");
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.chat-input-picker-label'));
@@ -389,7 +394,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -412,7 +417,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -421,9 +426,9 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// layouts it replaces the standalone mode + model pickers with a single
 		// bottom sheet. Publish this as a neutral context key so the core model
 		// picker can gate itself out without depending on agent-host identity.
-		const usesCombinedPicker = ActiveSessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
-			const session = sessionsManagementService.activeSession.read(reader);
+			const session = sessionsService.activeSession.read(reader);
 			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
 		}));
 
@@ -431,7 +436,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			Menus.NewSessionConfig,
 			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
 				return new MobileChatInputConfigPickerActionViewItem(picker);
 			},

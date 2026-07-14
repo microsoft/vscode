@@ -12,16 +12,27 @@ import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	findDefaultModel,
+	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
+	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
+	getModelPickerUnavailableReason,
+	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
+	resolveConfiguredModel,
 	resolveModelFromSyncState,
+	shouldDropAgnosticDraftModel,
+	shouldPersistModelSelection,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
 	shouldRestoreLateArrivingModel,
 	shouldRestorePersistedModel,
+	shouldRestorePerTypeModelOnSessionSwitch,
+	shouldShowCacheBreakHint,
+	shouldSuppressModelPersistenceOnSessionSwitch,
+	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 
 /**
@@ -88,6 +99,20 @@ function createSessionModel(
 		targetChatSessionType: sessionType,
 		...overrides,
 	});
+}
+
+/**
+ * Creates a model served by a specific (typically BYOK) vendor, with the identifier prefixed by that vendor
+ * (e.g. `ollama/deepseek`). Mirrors how the language model registry qualifies non-Copilot models.
+ */
+function createVendorModel(
+	vendor: string,
+	id: string,
+	name: string,
+	overrides?: Partial<ILanguageModelChatMetadata>,
+): ILanguageModelChatMetadataAndIdentifier {
+	const model = createModel(id, name, { vendor, family: vendor, isBYOK: true, ...overrides });
+	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
 suite('ChatModelSelectionLogic', () => {
@@ -1657,6 +1682,542 @@ suite('ChatModelSelectionLogic', () => {
 				location: ChatAgentLocation.Chat, currentModeKind: ChatModeKind.Ask,
 				sessionType: undefined,
 			}, allModels), false);
+		});
+
+		// Repro for #321037: on first launch the restored Copilot selection is reset to a BYOK model. The Copilot
+		// vendor depends on the Copilot token, which round-trips slower than fast/local BYOK providers (Ollama,
+		// Cerebras). So the Copilot vendor resolves an EMPTY live list first while the BYOK vendors already have live
+		// models. `mergeModelsWithCache` then treats Copilot's empty resolution as authoritative and evicts the cached
+		// Copilot models that were used to restore the selection — leaving only BYOK models, which triggers a
+		// reset-to-default that clobbers the user's persisted Copilot choice.
+		test('startup race #321037: Copilot vendor resolves empty before BYOK, restored selection must survive', () => {
+			// The user's persisted choice (a Copilot model) and its siblings, seeded into the cache from the previous
+			// session.
+			const persistedId = 'copilot/claude-opus-4.6-1m';
+			const cachedCopilot = [
+				createModel('claude-opus-4.6-1m', 'Claude Opus 4.6 (1M)'),
+				createModel('gpt-5.5', 'GPT-5.5'),
+			];
+
+			// Fast/local BYOK providers that publish live models immediately.
+			const liveByok = [
+				createVendorModel('ollama', 'deepseek-v3.1', 'DeepSeek V3.1'),
+				createVendorModel('cerebras', 'zai-glm-4.7', 'GLM 4.7'),
+			];
+
+			// Copilot contributed a vendor but resolved an EMPTY live list (token not ready yet); the BYOK vendors
+			// resolved with models. All three are therefore "resolved".
+			const contributedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+			const resolvedVendors = new Set(['copilot', 'ollama', 'cerebras']);
+
+			const available = computeAvailableModels(
+				liveByok,
+				[...cachedCopilot, ...liveByok],
+				contributedVendors,
+				undefined,
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+				resolvedVendors,
+			);
+
+			// DESIRED: the user's restored Copilot model is still selectable during the race, so no reset-to-BYOK
+			// happens and the persisted choice is kept. CURRENT (bug): Copilot cache is evicted, only BYOK remains, the
+			// model is considered unavailable and gets reset to a BYOK default.
+			assert.ok(
+				available.some(m => m.identifier === persistedId),
+				'restored Copilot model should remain available while its vendor is still activating',
+			);
+			assert.strictEqual(
+				shouldResetOnModelListChange(persistedId, available),
+				false,
+				'must not reset the restored Copilot selection during the startup race',
+			);
+
+			// And the fallback default must not be a BYOK model (which is what gets persisted today, clobbering the user
+			// choice on the next launch).
+			const fallback = findDefaultModel(available, ChatAgentLocation.Chat);
+			assert.notStrictEqual(
+				fallback?.metadata.isBYOK,
+				true,
+				'reset fallback should not be a BYOK model',
+			);
+		});
+	});
+
+	suite('resolveConfiguredModel', () => {
+
+		test('returns undefined for empty or whitespace configured value', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel(undefined, [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('', [gpt]), undefined);
+			assert.strictEqual(resolveConfiguredModel('   ', [gpt]), undefined);
+		});
+
+		test('resolves "auto" (case-insensitive) to the synthetic auto model', () => {
+			const auto = createModel('auto', 'Auto');
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt, auto])?.metadata.id, 'auto');
+			assert.strictEqual(resolveConfiguredModel('AUTO', [gpt, auto])?.metadata.id, 'auto');
+		});
+
+		test('returns undefined for "auto" when no auto model exists', () => {
+			const gpt = createModel('gpt', 'GPT');
+			assert.strictEqual(resolveConfiguredModel('auto', [gpt]), undefined);
+		});
+
+		test('resolves a full model id (case-insensitive)', () => {
+			const gpt = createModel('gpt-5', 'GPT-5');
+			const claude = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus' });
+			assert.strictEqual(resolveConfiguredModel('claude-opus-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+			assert.strictEqual(resolveConfiguredModel('CLAUDE-OPUS-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
+		});
+
+		test('resolves a family name to the highest-version model in that family', () => {
+			const opus45 = createModel('claude-opus-4.5', 'Claude Opus 4.5', { family: 'opus', version: '4.5' });
+			const opus46 = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			const opus410 = createModel('claude-opus-4.10', 'Claude Opus 4.10', { family: 'opus', version: '4.10' });
+			const gemini = createModel('gemini-2', 'Gemini 2', { family: 'gemini', version: '2.0' });
+			assert.strictEqual(resolveConfiguredModel('opus', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('OPUS', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
+			assert.strictEqual(resolveConfiguredModel('gemini', [opus45, opus46, opus410, gemini])?.metadata.id, 'gemini-2');
+		});
+
+		test('full id match takes precedence over family match', () => {
+			const opusLatest = createModel('opus', 'Opus alias', { family: 'opus', version: '1.0' });
+			const opusNewer = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
+			// The configured value "opus" matches the model whose id is exactly "opus"
+			// rather than being treated as a family lookup.
+			assert.strictEqual(resolveConfiguredModel('opus', [opusNewer, opusLatest])?.metadata.id, 'opus');
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
+			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
+		});
+	});
+
+	suite('getModelPickerUnavailableReason', () => {
+		const gpt = createModel('gpt-4o', 'GPT-4o');
+
+		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
+			return getModelPickerUnavailableReason({
+				trustInitialized: opts.trustInitialized ?? true,
+				trusted: opts.trusted ?? true,
+				pickerModels: opts.pickerModels ?? [],
+				liveModelIds: opts.liveModelIds ?? [],
+				requiresSetup: opts.requiresSetup ?? false,
+			});
+		}
+
+		test('untrusted with no usable models is Restricted', () => {
+			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('trusted with no usable models and setup required is SetupRequired', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
+		});
+
+		test('undefined until trust has initialized', () => {
+			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
+		});
+
+		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
+		});
+
+		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('cached models that are not live do not mask an unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
+		});
+
+		test('restricted takes precedence over setup required', () => {
+			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
+		});
+
+		test('accepts a Set of live ids', () => {
+			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
+		});
+	});
+
+	suite('shouldShowCacheBreakHint', () => {
+
+		function show(opts: { dismissed?: boolean; cacheWarm?: boolean; noModelsAvailable?: boolean; excludeAutoModel?: boolean; selectedModelIsAuto?: boolean }): boolean {
+			return shouldShowCacheBreakHint({
+				dismissed: opts.dismissed ?? false,
+				cacheWarm: opts.cacheWarm ?? true,
+				noModelsAvailable: opts.noModelsAvailable ?? false,
+				excludeAutoModel: opts.excludeAutoModel ?? true,
+				selectedModelIsAuto: opts.selectedModelIsAuto ?? false,
+			});
+		}
+
+		test('shown only for a warm cache with a real model to switch to', () => {
+			assert.deepStrictEqual(
+				{
+					default: show({}),
+					dismissed: show({ dismissed: true }),
+					coldCache: show({ cacheWarm: false }),
+					// Signed out / Restricted Mode / empty list: nothing to switch to.
+					noModels: show({ noModelsAvailable: true }),
+					autoInModelPicker: show({ selectedModelIsAuto: true }),
+					// The options picker: reasoning effort / context size reset the cache under Auto too.
+					autoInOptionsPicker: show({ selectedModelIsAuto: true, excludeAutoModel: false }),
+					// A suppressing condition still wins in the options picker.
+					noModelsInOptionsPicker: show({ noModelsAvailable: true, excludeAutoModel: false }),
+				},
+				{
+					default: true,
+					dismissed: false,
+					coldCache: false,
+					noModels: false,
+					autoInModelPicker: false,
+					autoInOptionsPicker: true,
+					noModelsInOptionsPicker: false,
+				}
+			);
+		});
+	});
+
+	/**
+	 * Regression coverage for the "new/reused agent-host chat editor reverts the model to the
+	 * pool default (Auto/Haiku) instead of the remembered per-harness model, AND corrupts the
+	 * persisted per-type key so it's wrong after restart too" bug.
+	 *
+	 * The fix's invariant: switching the input to a session must never WRITE the per-session-type
+	 * model storage key; it may only set the model in-memory and RESTORE it from the key. Only an
+	 * explicit user action (after the switch completes) persists. These tests lock the extracted
+	 * decisions plus a storage-write "ledger" that replays the real session-switch sequence —
+	 * including a NEGATIVE control that reproduces the v1 hazard (persisting during the switch) to
+	 * prove the ledger genuinely catches it rather than being theatre.
+	 *
+	 * NOTE: `ChatInputPart` has 29 DI dependencies and no unit harness, so these tests exercise
+	 * the extracted pure decisions and a faithful sequence simulation, not the DOM wiring.
+	 * Manual repro (pick a model, open a new editor, restart) remains the final gate.
+	 */
+	suite('agent-host per-type model restore on session switch (regression)', () => {
+		const sessionType = 'agent-host-claude';
+		const perTypeKey = `chat.currentLanguageModel.panel.${sessionType}`;
+		const generalKey = 'chat.currentLanguageModel.panel';
+
+		// Cross-pool draft model leaked from a prior general chat.
+		const agnosticAuto = createModel('auto', 'Auto'); // `copilot/auto`, no target
+		// The agent-host pool: its own default + the user's picked Opus.
+		const agentHostHaiku: ILanguageModelChatMetadataAndIdentifier = {
+			...createSessionModel('claude-haiku-4.5', 'Claude Haiku 4.5', sessionType, { isDefaultForLocation: { [ChatAgentLocation.Chat]: true } }),
+			identifier: 'agent-host-claude:claude-haiku-4.5',
+		};
+		const agentHostOpus: ILanguageModelChatMetadataAndIdentifier = {
+			...createSessionModel('claude-opus-4.8', 'Claude Opus 4.8', sessionType),
+			identifier: 'agent-host-claude:claude-opus-4.8',
+		};
+		const agentHostPool = [agentHostHaiku, agentHostOpus];
+		const allMerged = [agnosticAuto, agentHostHaiku, agentHostOpus];
+
+		suite('predicates', () => {
+			test('suppress persistence for every empty own-pool session switch (regardless of incoming model)', () => {
+				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(true, true), true);   // fresh own-pool
+				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(false, true), false);  // non-empty (reopened)
+				assert.strictEqual(shouldSuppressModelPersistenceOnSessionSwitch(true, false), false);  // general/local
+			});
+
+			test('restore per-type model only for a FRESH untitled own-pool session (no incoming model)', () => {
+				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, true, false), true);   // fresh untitled
+				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, true, true), false);   // carries its own model (transfer/restored)
+				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(false, true, false), false); // non-empty
+				assert.strictEqual(shouldRestorePerTypeModelOnSessionSwitch(true, false, false), false); // general/local
+			});
+
+			test('persist a model selection only when requested AND not during a session switch', () => {
+				assert.strictEqual(shouldPersistModelSelection(true, false), true);   // explicit user pick, no switch
+				assert.strictEqual(shouldPersistModelSelection(true, true), false);   // during a switch → never persist
+				assert.strictEqual(shouldPersistModelSelection(false, false), false); // transient (storeSelection=false)
+			});
+
+			test('drop a cross-pool draft model in either direction; keep an in-pool one', () => {
+				assert.strictEqual(shouldDropAgnosticDraftModel(agnosticAuto, allMerged, sessionType), true);   // general model → agent-host session
+				assert.strictEqual(shouldDropAgnosticDraftModel(agentHostOpus, allMerged, undefined), true);    // agent-host model → general session (reverse leak)
+				assert.strictEqual(shouldDropAgnosticDraftModel(agentHostOpus, allMerged, sessionType), false); // in-pool
+				assert.strictEqual(shouldDropAgnosticDraftModel(undefined, allMerged, sessionType), false);     // no draft model
+			});
+		});
+
+		/**
+		 * Faithful storage-write ledger: writes a key only when {@link shouldPersistModelSelection}
+		 * allows, exactly like `chatInputPart.setCurrentLanguageModel`. Returns the in-memory model
+		 * and the storage map so tests can assert both the picker value and the persisted key.
+		 */
+		function runSessionSwitchSequence(opts: {
+			isEmpty: boolean;
+			ownsPool: boolean;
+			hadIncomingModel: boolean;
+			key: string;
+			storedModel: ILanguageModelChatMetadataAndIdentifier | undefined; // persisted per-type value at bind time
+			draftModel: ILanguageModelChatMetadataAndIdentifier | undefined;  // shared agnostic draft's model
+			pool: ILanguageModelChatMetadataAndIdentifier[];                  // models available to this session at bind
+			poolDefault: ILanguageModelChatMetadataAndIdentifier;
+			startingInMemory: ILanguageModelChatMetadataAndIdentifier;        // reused-widget stale model
+			/** When true, reproduce the v1 hazard: never suppress persistence during the bind. */
+			persistDuringSessionSwitch?: boolean;
+		}): { storage: Map<string, string>; inMemory: ILanguageModelChatMetadataAndIdentifier; keyAfterSessionSwitch: string | undefined } {
+			const storage = new Map<string, string>();
+			if (opts.storedModel) {
+				storage.set(opts.key, opts.storedModel.identifier);
+			}
+			let inMemory = opts.startingInMemory;
+
+			const suppress = opts.persistDuringSessionSwitch ? false : shouldSuppressModelPersistenceOnSessionSwitch(opts.isEmpty, opts.ownsPool);
+			const restore = shouldRestorePerTypeModelOnSessionSwitch(opts.isEmpty, opts.ownsPool, opts.hadIncomingModel);
+
+			const setModel = (model: ILanguageModelChatMetadataAndIdentifier, storeSelection: boolean) => {
+				inMemory = model;
+				if (shouldPersistModelSelection(storeSelection, suppress)) {
+					storage.set(opts.key, model.identifier);
+				}
+			};
+
+			// 1. Draft sync during the switch. A cross-pool draft model is stripped, so the switch
+			//    falls back to the pool default; an in-pool draft model would apply as-is.
+			const draftModel = shouldDropAgnosticDraftModel(opts.draftModel, opts.pool, opts.ownsPool ? sessionType : undefined)
+				? undefined
+				: opts.draftModel;
+			if (draftModel) {
+				setModel(draftModel, /*storeSelection*/ true);
+			} else {
+				// _syncFromModel/_setEmptyModelState land on the pool default during the switch.
+				setModel(opts.poolDefault, /*storeSelection*/ true);
+			}
+
+			// Snapshot of the key at the end of the switch, BEFORE the authoritative restore.
+			// The invariant is that a correct (suppressed) switch leaves this equal to the stored
+			// value; the v1 hazard clobbers it here.
+			const keyAfterSessionSwitch = storage.get(opts.key);
+
+			// 2. [CVVM].2 restore (view model now assigned; session type correct).
+			if (restore && opts.storedModel && opts.pool.some(m => m.identifier === opts.storedModel!.identifier)) {
+				setModel(opts.storedModel, /*storeSelection*/ true);
+			}
+
+			return { storage, inMemory, keyAfterSessionSwitch };
+		}
+
+		test('Repro A (copilotcli-style): cross-pool `auto` draft, key=Opus → key stays Opus, picker=Opus', () => {
+			const { storage, inMemory, keyAfterSessionSwitch } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: true, hadIncomingModel: false,
+				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
+				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
+			});
+			assert.strictEqual(keyAfterSessionSwitch, agentHostOpus.identifier, 'no write during the switch may reach the per-type key');
+			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier, 'per-type key must not be clobbered during the switch');
+			assert.strictEqual(inMemory.identifier, agentHostOpus.identifier, 'picker must show the remembered Opus');
+		});
+
+		test('Repro B (reused widget): stale in-memory Haiku, key=Opus → key stays Opus, picker=Opus', () => {
+			const { storage, inMemory } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: true, hadIncomingModel: false,
+				key: perTypeKey, storedModel: agentHostOpus, draftModel: undefined,
+				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agentHostHaiku,
+			});
+			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier);
+			assert.strictEqual(inMemory.identifier, agentHostOpus.identifier);
+		});
+
+		test('a session that carries its own model (transfer/restored) keeps it and does not clobber the key', () => {
+			const { storage, inMemory } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: true, hadIncomingModel: true, // has its own model
+				key: perTypeKey, storedModel: agentHostOpus, draftModel: agentHostHaiku,
+				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agentHostHaiku,
+			});
+			// Suppression still on (empty own-pool) → key not written during the switch; restore skipped → keeps its own Haiku.
+			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier, 'key preserved');
+			assert.strictEqual(inMemory.identifier, agentHostHaiku.identifier, 'incoming model honored in-memory');
+		});
+
+		test('cold pool on session switch: restore is deferred and the key is not clobbered', () => {
+			// Pool empty during the switch (targeted models not loaded). Restore can't resolve yet;
+			// the switch falls to (a suppressed) default and the key stays Opus for the late wait to restore.
+			const { storage } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: true, hadIncomingModel: false,
+				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
+				pool: [], poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
+			});
+			assert.strictEqual(storage.get(perTypeKey), agentHostOpus.identifier);
+		});
+
+		test('reverse leak: an agent-host model in the general draft does not clobber the general key', () => {
+			const generalGpt = createDefaultModelForLocation('gpt', 'GPT', ChatAgentLocation.Chat);
+			const { storage } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: false, hadIncomingModel: false, // general/local session
+				key: generalKey, storedModel: generalGpt, draftModel: agentHostOpus,
+				pool: [generalGpt], poolDefault: generalGpt, startingInMemory: generalGpt,
+			});
+			// A general session switch is NOT suppressed, but the cross-pool agent-host draft model
+			// is stripped, so the general default (== stored) applies and the general key is not corrupted.
+			assert.strictEqual(storage.get(generalKey), generalGpt.identifier);
+		});
+
+		test('NEGATIVE control: reproducing the v1 hazard (persist during the switch) DOES clobber the key', () => {
+			// Proves the ledger is a genuine guard: with persistence NOT suppressed during the switch
+			// (the v1 behavior), the cross-pool `auto` draft resolves to the pool default and
+			// overwrites the remembered Opus during the switch — exactly the reported corruption.
+			// (The later restore step is what v1's mistimed init defeated; the faithful signal is
+			// the key state at the end of the switch.)
+			const { keyAfterSessionSwitch } = runSessionSwitchSequence({
+				isEmpty: true, ownsPool: true, hadIncomingModel: false,
+				key: perTypeKey, storedModel: agentHostOpus, draftModel: agnosticAuto,
+				pool: agentHostPool, poolDefault: agentHostHaiku, startingInMemory: agnosticAuto,
+				persistDuringSessionSwitch: true,
+			});
+			assert.strictEqual(keyAfterSessionSwitch, agentHostHaiku.identifier, 'v1 clobbers the key to the pool default during the switch');
+			assert.notStrictEqual(keyAfterSessionSwitch, agentHostOpus.identifier);
+		});
+
+		/**
+		 * Cold-restore wait: a restored session persists its own model (e.g. Opus), but at restart
+		 * the agent-host pool loads late. `shouldWaitForSessionModel` decides whether to WAIT for
+		 * the session's own model to arrive instead of persisting a transient pool default (Haiku)
+		 * over it — the second half of the "reverts to Haiku after restart" fix.
+		 */
+		suite('shouldWaitForSessionModel (cold-restore wait)', () => {
+			test('waits when the session model targets this pool but is not loaded yet', () => {
+				// Cold pool: nothing loaded.
+				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, []), true);
+				// Partial pool: the pool default (Haiku) loaded but the remembered Opus has not.
+				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, [agnosticAuto, agentHostHaiku]), true);
+			});
+
+			test('does NOT wait once the session model is available (normal apply path handles it)', () => {
+				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, sessionType, allMerged), false);
+			});
+
+			test('does NOT wait for a model that does not belong to this session pool (would wait forever)', () => {
+				// A general/cross-pool model in an agent-host session: not our pool → default instead.
+				assert.strictEqual(shouldWaitForSessionModel(agnosticAuto, sessionType, [agentHostHaiku]), false);
+				// A model targeting a DIFFERENT agent-host type.
+				const otherType = { ...agentHostOpus, metadata: { ...agentHostOpus.metadata, targetChatSessionType: 'agent-host-copilotcli' } };
+				assert.strictEqual(shouldWaitForSessionModel(otherType, sessionType, []), false);
+				// No session type at all.
+				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, undefined, []), false);
+			});
+		});
+	});
+
+	suite('BYOK agent-host visibility (isModelHiddenInPicker / getAgentHostByokManageModelsIdentifier)', () => {
+
+		// Mirrors the agent-host copy produced by `AgentHostLanguageModelProvider` after a
+		// BYOK model round-trips the bridge: it is surfaced under the agent-host vendor with
+		// `identifier = <agent-host-vendor>:<vendor>/<id>` and carries the original LM service
+		// identifier (`byokModelIdentifier`, the "Manage Models" visibility key) that the node
+		// agent host forwarded across the bridge via `_meta`.
+		function createAgentHostByokModel(vendor: string, modelId: string, manageModelsIdentifier: string): ILanguageModelChatMetadataAndIdentifier {
+			const sessionType = 'agent-host-copilotcli';
+			const appendedId = `${vendor}/${modelId}`;
+			return {
+				identifier: `${sessionType}:${appendedId}`,
+				metadata: {
+					extension: new ExtensionIdentifier('vscode.chat'),
+					id: appendedId,
+					name: modelId,
+					vendor: sessionType,
+					version: '1.0',
+					family: appendedId,
+					maxInputTokens: 128000,
+					maxOutputTokens: 4096,
+					isDefaultForLocation: {},
+					isUserSelectable: true,
+					targetChatSessionType: sessionType,
+					modelGroup: { id: vendor },
+					byokModelIdentifier: manageModelsIdentifier,
+					capabilities: { toolCalling: true, agentMode: true },
+				} as ILanguageModelChatMetadata,
+			};
+		}
+
+		// A native harness model (e.g. Copilot CLI's own model) carries no
+		// `byokModelIdentifier`; it is toggled under its own identifier.
+		function createNativeAgentHostModel(modelId: string): ILanguageModelChatMetadataAndIdentifier {
+			const sessionType = 'agent-host-copilotcli';
+			return {
+				identifier: `${sessionType}:${modelId}`,
+				metadata: {
+					extension: new ExtensionIdentifier('vscode.chat'),
+					id: modelId,
+					name: modelId,
+					vendor: sessionType,
+					version: '1.0',
+					family: modelId,
+					maxInputTokens: 128000,
+					maxOutputTokens: 4096,
+					isDefaultForLocation: {},
+					isUserSelectable: true,
+					targetChatSessionType: sessionType,
+					modelGroup: { id: 'copilotcli' },
+					capabilities: { toolCalling: true, agentMode: true },
+				} as ILanguageModelChatMetadata,
+			};
+		}
+
+		test('returns the carried Manage Models identifier for a groupless BYOK copy', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'anthropic/claude-sonnet-4');
+		});
+
+		test('returns the carried grouped identifier verbatim (group name + slashes preserved)', () => {
+			// OpenRouter under a user-configured group "OpenRouter 2"; the model id itself has a slash.
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+		});
+
+		test('returns undefined for native harness models (no carried identifier)', () => {
+			const model = createNativeAgentHostModel('claude-haiku-4.5');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+		});
+
+		test('returns undefined for non-agent-host models', () => {
+			const model = createModel('gpt-5', 'GPT-5');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+		});
+
+		test('hides a grouped BYOK copy via its carried registered identifier', () => {
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			// The user hid the model in Manage Models, which stored the grouped identifier.
+			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('hides a groupless BYOK copy via its carried identifier', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hidden = new Set(['anthropic/claude-sonnet-4']);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('shows an agent-host BYOK copy when nothing is hidden', () => {
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			assert.strictEqual(isModelHiddenInPicker(model, () => false), false);
+		});
+
+		test('also hides when the agent-host copy identifier itself is hidden', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hidden = new Set([model.identifier]);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('filters out a hidden grouped BYOK model but keeps visible peers', () => {
+			const visible = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hiddenModel = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
+			const result = [visible, hiddenModel].filter(m => !isModelHiddenInPicker(m, id => hidden.has(id)));
+			assert.deepStrictEqual(result.map(m => m.identifier), ['agent-host-copilotcli:anthropic/claude-sonnet-4']);
 		});
 	});
 });

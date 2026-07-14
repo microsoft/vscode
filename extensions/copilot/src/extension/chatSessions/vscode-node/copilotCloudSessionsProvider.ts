@@ -5,7 +5,7 @@
 
 import * as pathLib from 'path';
 import * as vscode from 'vscode';
-import type { AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
 import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -25,7 +25,7 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { DeferredPromise, retry, RunOnceScheduler } from '../../../util/vs/base/common/async';
+import { DeferredPromise, retry, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
@@ -34,13 +34,14 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
-import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
-import { CloudAgentBackend, PullArtifactRef } from '../vscode/cloudAgentBackend';
+import { CONTINUE_TRUNCATION, extractTitle, getAuthorDisplayName, getRepoId, isActiveTaskState, SessionIdForPr, SessionIdForTask, toOpenPullRequestWebviewUri, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
+import { CloudAgentBackend, PullArtifactRef, TaskCloudAgentBackend, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
-import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { CloudBackendInstrumentation, CloudBackendVersion } from './cloudBackendTelemetry';
+import { TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -149,6 +150,36 @@ export function parseSessionLogChunksSafely(rawText: string, logService: ILogSer
 	}
 }
 
+/**
+ * Map a Task API lifecycle state (v2) directly to a {@link vscode.ChatSessionStatus}. Unlike v1's
+ * PR-derived status (which routes through the lossy `SessionInfo['state']`), this keeps the
+ * non-terminal "agent handed the turn back" states distinct from active work: `idle` (agent
+ * finished its turn, nothing pending) renders as Completed and `waiting_for_user` (agent paused for
+ * input) renders as NeedsInput. Only `queued`/`in_progress` are genuinely InProgress — collapsing
+ * `idle`/`waiting_for_user` into InProgress made settled tasks look like they were still running.
+ */
+export function taskStateToChatSessionStatus(state: AgentTaskState): vscode.ChatSessionStatus {
+	switch (state) {
+		case 'queued':
+		case 'in_progress':
+			return vscode.ChatSessionStatus.InProgress;
+		case 'waiting_for_user':
+			return vscode.ChatSessionStatus.NeedsInput;
+		case 'idle':
+		case 'completed':
+			return vscode.ChatSessionStatus.Completed;
+		case 'failed':
+		case 'timed_out':
+		case 'cancelled':
+			return vscode.ChatSessionStatus.Failed;
+		default:
+			// Forward-compat fallback: a state outside the known union (e.g. a state added
+			// server-side after this build) must not yield an invalid `undefined` status. Treat
+			// unknowns as InProgress — the conservative "agent may still own the turn" assumption.
+			return vscode.ChatSessionStatus.InProgress;
+	}
+}
+
 const CUSTOM_AGENTS_OPTION_GROUP_ID = 'customAgents';
 const MODELS_OPTION_GROUP_ID = 'models';
 const PARTNER_AGENTS_OPTION_GROUP_ID = 'partnerAgents';
@@ -164,8 +195,11 @@ const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
+const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
 /** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
 const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
+/** Context key gating the chat-input "Open pull request" toolbar action: true once the viewed cloud task has a pull request. */
+const CAN_OPEN_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanOpenPullRequest';
 const USER_SELECTED_REPOS_KEY = 'userSelectedRepositories';
 const USER_SELECTED_REPOS_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
@@ -297,6 +331,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
 	private readonly _createPullRequestInFlightTaskIds = new Set<string>();
+	// Task id whose content currently drives the chat-input pull-request toolbar gates
+	// ({@link CAN_CREATE_PULL_REQUEST_CONTEXT_KEY} / {@link CAN_OPEN_PULL_REQUEST_CONTEXT_KEY}). Used so
+	// the gates can be re-applied as the viewed task changes state (settles, gains a PR) without a
+	// session switch, and to ignore stale updates once the user navigates away.
+	private _activeToolbarTaskId: string | undefined;
 	private readonly plainTextRenderer = new PlainTextRenderer();
 	private readonly gitOperationsManager = new CopilotCloudGitOperationsManager(this.logService, this._gitService, this._gitExtensionService);
 
@@ -333,6 +372,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	// runtime "not supported" throws on the type surface.
 	private readonly _backend: CloudAgentBackend;
 
+	/** Resolved Cloud Agent backend version (`v1` Jobs API | `v2` Task API) for this provider instance. */
+	private readonly _backendVersion: CloudBackendVersion;
+
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IGitService private readonly _gitService: IGitService,
@@ -354,15 +396,21 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	) {
 		super();
 
-		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting.
-		// Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to the experimental Task API backend.
+		// Select Cloud Agent backend based on the `chat.cloudAgentBackend.version` setting. This is an
+		// experiment-based setting, so the rollout can be ramped and instantly rolled back remotely via
+		// ExP without shipping a build. Default 'v1' keeps existing Jobs API behavior; 'v2' opts in to
+		// the Task API backend.
 		// Note: read once at construction — changes to the setting require an extension host reload to take effect.
-		const backendVersion = configurationService.getConfig(ConfigKey.CloudAgentBackendVersion);
+		const backendVersion = configurationService.getExperimentBasedConfig(ConfigKey.CloudAgentBackendVersion, this._experimentationService);
+		this._backendVersion = backendVersion;
+		// Shared, version-tagged telemetry/OTel surface so v1 and v2 emit identical funnel and guardrail
+		// signals — this is what makes the rollout observable and comparable apples-to-apples.
+		const instrumentation = new CloudBackendInstrumentation(backendVersion, this.telemetry, this._otelService);
 		if (backendVersion === 'v2') {
 			const taskApiClient = new TaskApiHttpClient(capiClientService, this._authenticationService, this.logService);
-			this._backend = new TaskApiBackend(taskApiClient, this.logService);
+			this._backend = new TaskApiBackend(taskApiClient, this.logService, this._octoKitService, instrumentation);
 		} else {
-			this._backend = new JobsApiBackend(this._octoKitService, this.logService, this.telemetry, this._otelService);
+			this._backend = new JobsApiBackend(this._octoKitService, this.logService, instrumentation);
 		}
 
 		this.registerCommands();
@@ -607,6 +655,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}));
 
 		this._register(vscode.commands.registerCommand(CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleCreatePullRequestForTaskCommand(sessionItemOrResource)));
+		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleOpenPullRequestForTaskCommand(sessionItemOrResource)));
 	}
 
 	private getRefreshIntervalTime(hasHistoricalSessions: boolean): number {
@@ -1034,9 +1083,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							inputCost: pricing?.default.inputPrice,
 							outputCost: pricing?.default.outputPrice,
 							cacheCost: pricing?.default.cachePrice,
+							cacheWriteCost: pricing?.default.cacheWritePrice,
 							longContextInputCost: pricing?.longContext?.inputPrice,
 							longContextOutputCost: pricing?.longContext?.outputPrice,
 							longContextCacheCost: pricing?.longContext?.cachePrice,
+							longContextCacheWriteCost: pricing?.longContext?.cacheWritePrice,
 							priceCategory: model.model_picker_price_category,
 							capabilities: {
 								vision: model.capabilities?.supports?.vision ?? false,
@@ -1247,9 +1298,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			//   `pullArtifact` (so we know it's a Task API entry); PR-less Jobs entries are skipped.
 			const sessionItems = await Promise.all(sessionList.map(async entry => {
 				const pr = entry.pullRequest
-					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact) : undefined);
+					?? (entry.pullArtifact ? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, undefined, this.telemetry) : undefined);
 				const sessionItem = entry.latestSession;
 				const createdAt = validateISOTimestamp(sessionItem.created_at);
+
+				// Task-backed entries (v2) carry their raw lifecycle state; map it directly so the
+				// agent's post-turn states (`idle`/`waiting_for_user`) don't render as InProgress.
+				// Jobs API (v1) entries fall back to the PR-derived session state.
+				const status = entry.taskState !== undefined
+					? taskStateToChatSessionStatus(entry.taskState)
+					: this.getSessionStatusFromSession(sessionItem);
 
 				// Task-shaped card path (v2 with no resolvable PR yet, or PR-less by design).
 				if (!pr) {
@@ -1258,10 +1316,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						return undefined;
 					}
 					const taskId = entry.latestSession.id;
+					// For a settled, PR-less task that pushed a branch, surface its changed files
+					// (base...head compare) so the changed-files toolbar — and the inline "Create
+					// pull request" action contributed to it — can render.
+					const changes = entry.diffRefs
+						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
+						: undefined;
 					return {
 						resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) }),
 						label: entry.latestSession.name || taskId,
-						status: this.getSessionStatusFromSession(sessionItem),
+						status,
+						...(changes?.length ? { changes } : {}),
 						...(createdAt ? {
 							timing: {
 								created: createdAt,
@@ -1299,7 +1364,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				const session = {
 					resource,
 					label: pr.title,
-					status: this.getSessionStatusFromSession(sessionItem),
+					status,
 					badge: this.getPullRequestBadge(repoIds, pr),
 					tooltip: this.createPullRequestTooltip(pr),
 					...(createdAt ? {
@@ -1357,9 +1422,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		// Reset the input-toolbar "Create pull request" gate; provideTaskChatSessionContent
-		// re-enables it only for a settled, PR-less task.
+		// Reset the input-toolbar pull-request gates; provideTaskChatSessionContent re-enables
+		// "Create pull request" for a settled, PR-less task and "Open pull request" once it has a PR.
+		this._activeToolbarTaskId = undefined;
 		this.setCanCreatePullRequestContext(false);
+		this.setCanOpenPullRequestContext(false);
 		const identity = this._backend.parseSessionId(resource);
 
 		// Task-keyed (v2): render exactly one task as a turn-by-turn thread from `task.sessions[]`.
@@ -1509,7 +1576,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
 		if (taskContent.pullArtifact) {
-			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])]);
+			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
@@ -1522,11 +1589,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
-		const isSettled = !!latestTurn?.state && latestTurn.state !== 'in_progress' && latestTurn.state !== 'queued';
-		// Gate the chat-input "Create pull request" toolbar action: offer it only while this
-		// settled task has produced no pull request yet.
-		this.setCanCreatePullRequestContext(isSettled && !taskContent.pullArtifact);
-		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
+		// Mark this task as the one driving the chat-input pull-request toolbar gates, then apply
+		// them from its current state. Kept in sync as the task changes via
+		// updatePullRequestToolbarContext (active-response settle, follow-up, PR creation).
+		this._activeToolbarTaskId = taskId;
+		this.setPullRequestToolbarContext(taskContent);
+		// Only stream a live response when the task itself is still running. A terminally-failed
+		// task (e.g. "Failed to launch agent") can leave its latest turn's session state stuck at
+		// `in_progress`/`queued`; without the task-level guard the streamer would poll forever and
+		// the view would show a perpetual "Session is in progress…" spinner.
+		const activeResponseCallback = isActiveTaskState(taskContent.task.state)
+			&& latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
 			? this._createTaskStreamCallback(taskId, { mode: 'current', seedEventIds: new Set(events.map(e => e.id)) })
 			: undefined;
 
@@ -1555,6 +1628,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				await streamer.stream(stream, taskId, baseline, token);
 			} finally {
 				this.refresh();
+				// The turn settled: re-apply the toolbar gates so "Create pull request" appears for a
+				// now-settled PR-less task (or flips to "Open pull request") without a session switch.
+				await this.updatePullRequestToolbarContext(taskId);
 			}
 		};
 	}
@@ -2095,9 +2171,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * Handle a click on the chat input "Create pull request" toolbar action (contributed to
 	 * `chat/input/editing/sessionToolbar` and registered as
 	 * {@link CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID}). The toolbar passes the session resource
-	 * as the first argument, from which we resolve the task id. Calls the Task API's `create-pr`
-	 * endpoint, then refreshes the session so the next render shows a proper PR card (resolved
-	 * via `pullArtifact`) and hides the toolbar action.
+	 * as the first argument, from which we resolve the task id. Shows a "Creating pull request"
+	 * progress notification while the Task API's `create-pr` endpoint runs and the PR is reflected
+	 * on the task; on success it shows no further message and instead flips the toolbar action to
+	 * "Open pull request" (which opens the PR in the browser) by updating the context keys in place.
+	 * The session list reconciles to a PR-keyed item on the next background refresh.
 	 */
 	private async handleCreatePullRequestForTaskCommand(sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri): Promise<void> {
 		const backend = this._backend;
@@ -2114,58 +2192,92 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		// Re-entrancy guard: ignore repeat invocations while a create-PR request for this task is
 		// still in flight (e.g. the toolbar action triggered again before the first call settled)
-		// so we don't submit duplicate PRs. Also hide the toolbar action immediately; it is
-		// restored on failure below, and on success `refresh()` re-evaluates the context key.
+		// so we don't submit duplicate PRs. Hide the toolbar action immediately; it is restored on
+		// failure below, and on success it is replaced by the "Open pull request" action.
 		if (this._createPullRequestInFlightTaskIds.has(taskId)) {
 			return;
 		}
 		this._createPullRequestInFlightTaskIds.add(taskId);
 		this.setCanCreatePullRequestContext(false);
 
+		let createdPrNumber: number | undefined;
 		try {
 			await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Creating pull request') },
 				async () => {
-					// TODO: The `create-pr` endpoint requires `{owner, repo}` in its path, which we
-					// derive best-effort from the task's `html_url`. This may need another resolution
-					// strategy for payloads that omit `html_url` once the backend supports repo ids.
+					// The backend creates the PR for the full task, resolving `{owner, repo}` itself
+					// (from the task's `html_url`, falling back to a GitHub lookup by `repository.id`).
 					const taskContent = await backend.fetchTaskContent(taskId);
-					const repo = parseRepoFromTaskUrl(taskContent?.task.html_url);
-					if (!repo) {
-						throw new Error(vscode.l10n.t('Unable to determine the repository for this task.'));
+					if (!taskContent) {
+						throw new Error(vscode.l10n.t('Unable to load the task to create a pull request.'));
 					}
-					const result = await backend.createPullRequestForTask(repo.owner, repo.name, taskId);
+					const result = await backend.createPullRequestForTask(taskContent.task);
+					createdPrNumber = result?.number;
 					/* __GDPR__
 						"copilotcloud.chat.createPRFromTask" : {
-							"owner": "joshspicer",
+							"owner": "osortega",
 							"comment": "Event sent when the user invokes the 'Create pull request' toolbar action on a settled v2 cloud task without a pull request.",
 							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the create-pull-request call succeeded or failed." }
 						}
 					*/
 					this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
-						outcome: 'success'
+						outcome: !!result ? 'success' : 'failure'
 					});
-					const prNumber = (result as { pull_request?: { number?: number } } | undefined)?.pull_request?.number;
-					if (typeof prNumber === 'number') {
-						vscode.window.showInformationMessage(vscode.l10n.t('Pull request #{0} created.', prNumber));
-					} else {
-						vscode.window.showInformationMessage(vscode.l10n.t('Pull request created.'));
-					}
+					// Wait until the new PR is reflected on the task as a `pull` artifact so the gate
+					// update below sees `hasPullRequest` and flips to the "Open pull request" action.
+					await this._waitForTaskPullRequestReflected(backend, taskId);
 				},
 			);
+			// Cache the PR→task mapping so a PR-keyed session re-render can reverse-resolve to this
+			// task immediately while the new PR is still propagating through the list/index.
+			if (typeof createdPrNumber === 'number') {
+				this._taskIdByPrNumber.set(createdPrNumber, taskId);
+			}
 		} catch (error) {
 			this.logService.error(`[handleCreatePullRequestForTaskCommand] Failed to create PR for task ${taskId}: ${error}`);
 			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
 				outcome: 'failure'
 			});
 			vscode.window.showErrorMessage(vscode.l10n.t('Failed to create pull request: {0}', error instanceof Error ? error.message : String(error)));
-			// The task is still settled and PR-less, so re-enable the toolbar action for a retry.
-			this.setCanCreatePullRequestContext(true);
+			// The task is still settled and PR-less, so re-enable the toolbar action for a retry
+			// (only when it still drives the toolbar — the user may have navigated away).
+			if (this._activeToolbarTaskId === taskId) {
+				this.setCanCreatePullRequestContext(true);
+			}
 			return;
 		} finally {
 			this._createPullRequestInFlightTaskIds.delete(taskId);
 		}
-		this.refresh();
+		// NOTE: intentionally NOT calling refresh() here. Refreshing rebuilds the session list, which
+		// flips this task's item from task-keyed (`/task/<id>`, carrying compare-based `changes`) to
+		// PR-keyed (`/<prNumber>`). The still-open task editor keeps its `/task/<id>` resource, so
+		// after the flip its session model has no changes and the changed-files widget — which HOSTS
+		// this toolbar — unmounts (the toolbar vanishes). Instead we re-apply the gates so the
+		// "Open pull request" action replaces "Create" in place; the list reconciles on the next
+		// background refresh.
+		await this.updatePullRequestToolbarContext(taskId);
+	}
+
+	/**
+	 * After `create-pr` is acknowledged, GitHub may take a moment to associate the pull request
+	 * with the task. Poll the task until its `pull` artifact appears so the subsequent
+	 * {@link refresh} resolves the PR and computes its file-change diff in the same paint. Bounded;
+	 * resolves once the artifact is reflected or the attempts are exhausted (the refresh happens
+	 * either way — the task still surfaces its compare-based changes in the meantime).
+	 */
+	private async _waitForTaskPullRequestReflected(backend: TaskCloudAgentBackend, taskId: string): Promise<void> {
+		const maxAttempts = 10;
+		const pollIntervalMs = 1500;
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			if (attempt > 0) {
+				await timeout(pollIntervalMs);
+			}
+			const taskContent = await backend.fetchTaskContent(taskId);
+			if (taskContent?.pullArtifact) {
+				return;
+			}
+		}
+		this.logService.warn(`[handleCreatePullRequestForTaskCommand] Pull request for task ${taskId} not reflected after ${maxAttempts} attempts; continuing without it.`);
 	}
 
 	/**
@@ -2174,6 +2286,104 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 */
 	private setCanCreatePullRequestContext(canCreate: boolean): void {
 		void vscode.commands.executeCommand('setContext', CAN_CREATE_PULL_REQUEST_CONTEXT_KEY, canCreate);
+	}
+
+	/**
+	 * Toggle the {@link CAN_OPEN_PULL_REQUEST_CONTEXT_KEY} context key that gates the chat-input
+	 * "Open pull request" toolbar action (shown once the task has a PR; opens it in the browser).
+	 */
+	private setCanOpenPullRequestContext(canOpen: boolean): void {
+		void vscode.commands.executeCommand('setContext', CAN_OPEN_PULL_REQUEST_CONTEXT_KEY, canOpen);
+	}
+
+	/**
+	 * Apply the chat-input pull-request toolbar gates from a task-content snapshot. "Create pull
+	 * request" shows only for a settled task with no PR and no create request in flight; "Open pull
+	 * request" shows once the task has a PR. The two are mutually exclusive.
+	 */
+	private setPullRequestToolbarContext(taskContent: TaskContent): void {
+		const sessions = taskContent.task.sessions;
+		const latestTurn = sessions?.[sessions.length - 1];
+		const isSettled = !!latestTurn?.state && latestTurn.state !== 'in_progress' && latestTurn.state !== 'queued';
+		const hasPullRequest = !!taskContent.pullArtifact;
+		const isCreatingPr = !!taskContent.task.id && this._createPullRequestInFlightTaskIds.has(taskContent.task.id);
+		this.setCanCreatePullRequestContext(isSettled && !hasPullRequest && !isCreatingPr);
+		this.setCanOpenPullRequestContext(hasPullRequest);
+	}
+
+	/**
+	 * Re-evaluate the toolbar gates for a task whose state may have changed (a turn settled, a PR
+	 * was created) by re-fetching its content. No-op unless the task still drives the toolbar (the
+	 * user hasn't navigated away), so stale updates can't clobber another session's gates.
+	 */
+	private async updatePullRequestToolbarContext(taskId: string): Promise<void> {
+		if (this._activeToolbarTaskId !== taskId) {
+			return;
+		}
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
+			return;
+		}
+		const taskContent = await backend.fetchTaskContent(taskId);
+		if (!taskContent || this._activeToolbarTaskId !== taskId) {
+			return;
+		}
+		this.setPullRequestToolbarContext(taskContent);
+	}
+
+	/**
+	 * Resolve the task id backing a session resource, accepting both task-keyed (`task/<id>`) and
+	 * PR-keyed (`/<prNumber>`) URIs; the latter is reverse-resolved to its task on the Task backend.
+	 */
+	private async resolveTaskIdFromSessionResource(resource: vscode.Uri | undefined): Promise<string | undefined> {
+		if (!resource) {
+			return undefined;
+		}
+		const taskParsed = SessionIdForTask.parse(resource);
+		if (taskParsed) {
+			return taskParsed.taskId;
+		}
+		const prNumber = SessionIdForPr.parse(resource)?.prNumber ?? SessionIdForPr.parsePullRequestNumber(resource);
+		if (typeof prNumber === 'number' && !isNaN(prNumber)) {
+			return this.resolveTaskIdForPrNumber(prNumber);
+		}
+		return undefined;
+	}
+
+	/**
+	 * Handle a click on the chat input "Open pull request" toolbar action (contributed to
+	 * `chat/input/editing/sessionToolbar` and registered as
+	 * {@link OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID}). Resolves the task's pull request and opens it
+	 * in the default browser, falling back to the task page when the PR isn't resolvable yet.
+	 */
+	private async handleOpenPullRequestForTaskCommand(sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri): Promise<void> {
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
+			return;
+		}
+		const resource = sessionItemOrResource instanceof vscode.Uri ? sessionItemOrResource : sessionItemOrResource?.resource;
+		// The session resource may be task-keyed (`task/<id>`) or, once a PR exists, PR-keyed
+		// (`/<prNumber>`). Resolve both; fall back to the task currently driving the toolbar.
+		const taskId = await this.resolveTaskIdFromSessionResource(resource) ?? this._activeToolbarTaskId;
+		if (!taskId) {
+			this.logService.error('[handleOpenPullRequestForTaskCommand] Could not resolve task id from the session resource.');
+			return;
+		}
+		const taskContent = await backend.fetchTaskContent(taskId);
+		if (!taskContent) {
+			vscode.window.showErrorMessage(vscode.l10n.t('Unable to load the task to open its pull request.'));
+			return;
+		}
+		let url = taskContent.task.html_url;
+		if (taskContent.pullArtifact) {
+			const pr = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])], this.telemetry);
+			url = pr?.url ?? url;
+		}
+		if (!url) {
+			vscode.window.showErrorMessage(vscode.l10n.t('Could not determine the pull request URL for this task.'));
+			return;
+		}
+		await vscode.env.openExternal(vscode.Uri.parse(url));
 	}
 
 	private setWorkspaceContext(key: string, value: string) {
@@ -2395,7 +2605,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 				"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
 				"partnerAgent": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The partner agent name (e.g., Copilot, Claude, Codex)." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." }
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The selected model ID." },
+				"backendVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Cloud agent backend version: v1 (Jobs API) or v2 (Task API)." }
 			}
 		*/
 		this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.invoke', {
@@ -2403,9 +2614,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			hasChatSessionItem: String(!!context.chatSessionContext?.chatSessionItem),
 			isUntitled: String(context.chatSessionContext?.isUntitled),
 			partnerAgent: partnerAgent?.name ?? 'unknown',
-			model: modelId ?? 'unknown'
+			model: modelId ?? 'unknown',
+			backendVersion: this._backendVersion
 		});
-		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown');
+		GenAiMetrics.incrementCloudSessionCount(this._otelService, partnerAgent?.name ?? 'unknown', this._backendVersion);
 		emitCloudSessionInvokeEvent(this._otelService, partnerAgent?.name ?? 'unknown', modelId ?? 'unknown', request.id);
 
 		// Follow up

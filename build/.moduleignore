@@ -28,6 +28,10 @@ fsevents/test/**
 @vscode/deviceid/*.yml
 !@vscode/deviceid/build/Release/*.node
 
+@vscode/fs-copyfile/binding.gyp
+@vscode/fs-copyfile/build/**
+@vscode/fs-copyfile/src/**
+!@vscode/fs-copyfile/build/Release/*.node
 
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
@@ -175,6 +179,9 @@ prebuild-install/**/*
 **/test/**
 **/tests/**
 
+# Signing artifacts
+**/_manifest/**
+
 **/History.md
 **/CHANGELOG.md
 **/README.md
@@ -224,6 +231,10 @@ zone.js/dist/**
 @github/copilot/mxc-bin/**
 @github/copilot/sharp/**
 @github/copilot/**/keytar.node
+
+# os-theme is pulled in by @github/copilot but the CLI does not use its native addon.
+# See https://github.com/microsoft/vscode-engineering/issues/3087.
+@os-theme/**
 
 # @github/copilot platform binaries - not needed
 @github/copilot-darwin-arm64/**

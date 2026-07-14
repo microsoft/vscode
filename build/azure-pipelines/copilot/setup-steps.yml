@@ -3,28 +3,6 @@ steps:
     inputs:
       versionSpec: "22.21.x"
 
-  - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
-
-  - pwsh: |
-      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
-    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Setup distro auth (Windows)
-
-  - script: |
-      mkdir -p .build
-      cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
-    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Setup distro auth (non-Windows)
-
   - pwsh: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     workingDirectory: $(Build.SourcesDirectory)
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))

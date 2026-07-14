@@ -15,8 +15,8 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { inputPlaceholderForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
@@ -56,15 +56,6 @@ function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart
 
 	const nextPart = parsedRequest[partIdx + 1];
 	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
-}
-
-function getRangeForPlaceholder(part: IParsedChatRequestPart) {
-	return {
-		startLineNumber: part.editorRange.startLineNumber,
-		endLineNumber: part.editorRange.endLineNumber,
-		startColumn: part.editorRange.endColumn + 1,
-		endColumn: 1000
-	};
 }
 
 class InputEditorDecorations extends Disposable {
@@ -193,9 +184,7 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private getPlaceholderColor(): string | undefined {
-		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(inputPlaceholderForeground);
-		return transparentForeground?.toString();
+		return getInputPlaceholderColor(this.themeService);
 	}
 
 	private triggerInputEditorDecorationsUpdate(): void {
@@ -217,6 +206,11 @@ class InputEditorDecorations extends Disposable {
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {
 			this.updateAriaPlaceholder(undefined);
+			// No bound view model yet (e.g. session still loading): clear any stale
+			// placeholder decoration so it doesn't render over typed text. See #325323.
+			if (inputValue) {
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+			}
 			return;
 		}
 
@@ -261,7 +255,7 @@ class InputEditorDecorations extends Disposable {
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
 			if (agentPart.agent.description && exactlyOneSpaceAfterPart(parsedRequest, agentPart)) {
 				placeholderDecoration = [{
-					range: getRangeForPlaceholder(agentPart),
+					range: getRangeForPlaceholder(agentPart.editorRange),
 					renderOptions: {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.description,
@@ -279,7 +273,7 @@ class InputEditorDecorations extends Disposable {
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
 			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
-					range: getRangeForPlaceholder(agentSubcommandPart),
+					range: getRangeForPlaceholder(agentSubcommandPart.editorRange),
 					renderOptions: {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description,
@@ -295,7 +289,7 @@ class InputEditorDecorations extends Disposable {
 			// Agent subcommand with no other text - show the placeholder
 			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
-					range: getRangeForPlaceholder(agentSubcommandPart),
+					range: getRangeForPlaceholder(agentSubcommandPart.editorRange),
 					renderOptions: {
 						after: {
 							contentText: agentSubcommandPart.command.description,
@@ -333,10 +327,10 @@ class InputEditorDecorations extends Disposable {
 		if (slashPromptPart && promptSlashCommand) {
 			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
-				const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
+				const description = promptSlashCommand.argumentHint;
 				if (description) {
 					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
-						range: getRangeForPlaceholder(slashPromptPart),
+						range: getRangeForPlaceholder(slashPromptPart.editorRange),
 						renderOptions: {
 							after: {
 								contentText: description,

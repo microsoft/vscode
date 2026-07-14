@@ -205,8 +205,10 @@ export function handleAssistantMessage(
 				kind: SpanKind.INTERNAL,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+					[GenAiAttr.CONVERSATION_ID]: sessionId,
 					[GenAiAttr.TOOL_NAME]: item.name,
 					[GenAiAttr.TOOL_CALL_ID]: item.id,
+					[CopilotChatAttr.SESSION_ID]: sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
 				},
 				parentTraceContext: spanParentContext,
@@ -504,6 +506,8 @@ export function handleHookStarted(
 		kind: SpanKind.INTERNAL,
 		attributes: {
 			[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
+			[GenAiAttr.CONVERSATION_ID]: sessionId,
+			[CopilotChatAttr.SESSION_ID]: sessionId,
 			[CopilotChatAttr.HOOK_TYPE]: message.hook_event,
 			'copilot_chat.hook_command': message.hook_name,
 			'copilot_chat.hook_id': message.hook_id,

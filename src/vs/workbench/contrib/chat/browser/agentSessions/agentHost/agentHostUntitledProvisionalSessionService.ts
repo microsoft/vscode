@@ -54,17 +54,22 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_AUTO_APPROVE_VALUES, KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -179,6 +184,13 @@ interface IEntry {
 	 */
 	config: Record<string, unknown>;
 	/**
+	 * Working directory the provisional backend session was created with. A
+	 * created session's cwd is immutable, so when the user picks a different
+	 * folder the entry is recreated; this lets a folder change no-op when the
+	 * cwd is unchanged.
+	 */
+	workingDirectory?: URI;
+	/**
 	 * Latest re-resolved config (schema + values) for this provisional, set
 	 * by {@link applyConfigChange} after each value change. Cleared when the
 	 * entry is rebound or disposed.
@@ -208,6 +220,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 	) {
 		super();
 
@@ -226,6 +241,18 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// Drop any tombstone for the abandoned untitled URI so the
 				// set doesn't grow unbounded across the workbench lifetime.
 				this._rebound.delete(sessionResource);
+			}
+		}));
+
+		// A session's working directory is fixed at creation time. When the user
+		// picks a different folder for a not-yet-started session that already has
+		// a provisional backend session (built up by config chips), recreate that
+		// provisional at the new cwd so chip schemas resolve against it. The
+		// service owns this reaction so concurrent chip instances don't race.
+		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
+			const folder = this._newSessionFolderService.getFolder(sessionResource);
+			if (folder && this._entries.has(sessionResource)) {
+				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
 	}
@@ -266,6 +293,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			if (settled) {
 				return settled;
 			}
+			// Don't eagerly spawn a provisional backend session in an
+			// untrusted target folder — that would start an agent in the
+			// folder before the user has opted in. This pre-warm is a silent
+			// optimization; trust is requested interactively on first Send
+			// (see AgentHostSessionHandler).
+			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+				return undefined;
+			}
 			const backendSession = this._toBackendUri(sessionResource, provider);
 			const initialConfig = this._getInitialConfig();
 			try {
@@ -274,8 +309,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					session: backendSession,
 					workingDirectory,
 					config: initialConfig,
+					progressToken: generateUuid(),
 				});
-				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) } });
+				this._entries.set(sessionResource, { backendSession: created, config: { ...(initialConfig ?? {}) }, workingDirectory });
 				this._onDidChange.fire(sessionResource);
 				return created;
 			} catch (err) {
@@ -290,6 +326,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 		});
 		return work;
+	}
+
+	/**
+	 * Whether the folder the provisional agent would run in is trusted. When a
+	 * working directory is known (it may be a standalone folder outside the
+	 * open workspace, e.g. a per-session folder), gate on that folder's trust;
+	 * otherwise fall back to whole-workspace trust.
+	 */
+	private async _isTargetFolderTrusted(workingDirectory: URI | undefined): Promise<boolean> {
+		if (workingDirectory) {
+			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workingDirectory);
+			return trusted;
+		}
+		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	async tryRebind(
@@ -323,6 +373,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const config = oldEntry.config;
 		const newBackendSession = this._toBackendUri(newSessionResource, provider);
 
+		// If a conversation was imported ("Continue in…") into this session, seed
+		// it as real editable history on the rebound (real) session. The stash was
+		// moved from the untitled resource to `newSessionResource` at graduation.
+		// Carry the source session's model so the imported session resumes on the
+		// same model instead of the host default (the normal per-turn model path
+		// is skipped for imports, which materialize eagerly at create time).
+		const imported = this._importConversationStore.take(newSessionResource);
+
 		let created: URI;
 		try {
 			created = await this._agentHostService.createSession({
@@ -330,6 +388,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				session: newBackendSession,
 				workingDirectory,
 				config,
+				...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+				progressToken: generateUuid(),
 			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
@@ -339,7 +399,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// Atomically swap entries: insert the new entry, drop the old one.
 		// Order matters — the old entry's `dispose` below must not race with
 		// the picker's `onDidChange` re-render reading the new entry.
-		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, resolvedConfig: oldEntry.resolvedConfig });
+		this._entries.set(newSessionResource, { backendSession: created, config: { ...config }, workingDirectory, resolvedConfig: oldEntry.resolvedConfig });
 		this._entries.delete(oldSessionResource);
 		this._resolvedConfigs.delete(oldSessionResource);
 		this._resolvedConfigRequestSeq.delete(oldSessionResource);
@@ -357,6 +417,69 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		});
 
 		return created;
+	}
+
+	/**
+	 * Recreate the provisional backend session for `sessionResource` at a new
+	 * working directory, preserving the user's config choices. A created
+	 * session's cwd is immutable, so the only way to honor a folder change is to
+	 * dispose and recreate. Reuses the same deterministic backend URI so the
+	 * chat-resource-to-backend mapping stays stable. Sequencer-queued so it
+	 * settles in order with config-chip changes for the same resource.
+	 */
+	private _changeWorkingDirectory(sessionResource: URI, newWorkingDirectory: URI): Promise<void> {
+		return this._sequencer.queue(sessionResource.toString(), async () => {
+			const entry = this._entries.get(sessionResource);
+			if (!entry) {
+				return;
+			}
+			if (entry.workingDirectory?.toString() === newWorkingDirectory.toString()) {
+				return;
+			}
+			// Read the stripped backend provider scheme (e.g. `copilot`), not
+			// the full `agent-host-*` chat-resource scheme.
+			const provider = entry.backendSession.scheme;
+			const config = { ...entry.config };
+			try {
+				await this._agentHostService.disposeSession(entry.backendSession);
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to dispose provisional before cwd change ${entry.backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			let created: URI;
+			try {
+				created = await this._agentHostService.createSession({
+					provider,
+					session: entry.backendSession,
+					workingDirectory: newWorkingDirectory,
+					config,
+					progressToken: generateUuid(),
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to recreate provisional at new cwd: ${err instanceof Error ? err.message : String(err)}`);
+				// The old provisional is gone; drop the entry so the next
+				// getOrCreate rebuilds it from scratch.
+				this._entries.delete(sessionResource);
+				this._onDidChange.fire(sessionResource);
+				return;
+			}
+			this._entries.set(sessionResource, { backendSession: created, config, workingDirectory: newWorkingDirectory, resolvedConfig: entry.resolvedConfig });
+			// Re-resolve config against the new cwd so chip schemas refresh.
+			try {
+				const resolved = await this._agentHostService.resolveSessionConfig({
+					provider,
+					workingDirectory: newWorkingDirectory,
+					config: { ...config },
+				});
+				const current = this._entries.get(sessionResource);
+				if (current && current.backendSession.toString() === created.toString()) {
+					current.config = { ...current.config, ...resolved.values };
+					current.resolvedConfig = resolved;
+				}
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] schema re-resolve after cwd change failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			this._onDidChange.fire(sessionResource);
+		});
 	}
 
 	async disposeSession(sessionResource: URI): Promise<void> {
@@ -519,8 +642,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * drops the workbench defaults.
 	 *
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
-	 * - `autoApprove`: seeded from `chat.permissions.default`, clamped to
-	 *   `'default'` when the `chat.tools.global.autoApprove` policy is off.
+	 * - `mode` / `autoApprove`: seeded from the single
+	 *   `chat.defaultConfiguration` object setting (`mode` and
+	 *   `approvals` properties). The approval seed is clamped to `'default'`
+	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
@@ -530,13 +656,24 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
-		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+
+		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
 		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-		if (typeof configured === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+
+		const configuredApprovals = configuredDefaults?.approvals;
+		if (typeof configuredApprovals === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(configuredApprovals)) {
 			const policyRestricted = policyValue === false;
-			config[SessionConfigKey.AutoApprove] = policyRestricted ? 'default' : configured;
+			// Bypass and (legacy) Autopilot auto-approve at least some tool
+			// calls, so clamp anything but Default under policy.
+			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
 		}
-		return config;
+
+		const configuredMode = configuredDefaults?.mode;
+		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
+			config[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		return migrateLegacyAutopilotConfig(config);
 	}
 }
 

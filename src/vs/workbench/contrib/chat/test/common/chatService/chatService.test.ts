@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -45,11 +46,11 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -59,7 +60,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -197,7 +198,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -974,6 +975,118 @@ suite('ChatService', () => {
 		assert.ok(invokedMessages[1].includes('queued request'));
 	});
 
+	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
+		const firstStarted = new DeferredPromise<void>();
+		const secondInvoked = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				} else {
+					secondInvoked.complete();
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+		await firstStarted.p;
+
+		const queued = await testService.sendRequest(model.sessionResource, 'queued message', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		const pendingId = model.getPendingRequests()[0].request.id;
+		await testService.sendPendingRequestImmediately(model.sessionResource, pendingId);
+		await secondInvoked.p;
+
+		assert.strictEqual(invokedMessages.length, 2);
+		assert.ok(invokedMessages[1].includes('queued message'));
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('sendPendingRequestImmediately re-sends a steering message as a turn on agent host sessions', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const firstStarted = new DeferredPromise<void>();
+		const secondInvoked = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					firstStarted.complete();
+					await new Promise<void>(resolve => {
+						const listener = token.onCancellationRequested(() => { listener.dispose(); resolve(); });
+					});
+				} else {
+					secondInvoked.complete();
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, slowAgent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const response = await testService.sendRequest(sessionResource, 'first request', { agentId: sessionType });
+		ChatSendResult.assertSent(response);
+		await firstStarted.p;
+
+		// Steering stays pending here since agent host queues are server-managed.
+		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentId: sessionType, queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		const pendingId = model.getPendingRequests()[0].request.id;
+
+		// Must cancel the current turn AND send the steering message (was dropped before).
+		await testService.sendPendingRequestImmediately(sessionResource, pendingId);
+		await secondInvoked.p;
+
+		assert.strictEqual(invokedMessages.length, 2);
+		assert.ok(invokedMessages[1].includes('steering message'));
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
 	test('race condition: processNextPendingRequest dequeues before commit handler runs', async () => {
 		// This reproduces the race where:
 		// 1. Request 1 completes → .finally() calls processNextPendingRequest immediately
@@ -1158,6 +1271,216 @@ suite('ChatService', () => {
 		);
 	});
 
+	suite('untitled session materialization is idempotent/serialized (avoids duplicate sessions)', () => {
+		const remoteScheme = 'remoteProvider';
+
+		/**
+		 * Registers a content provider + default agent for `remoteScheme`, wires the
+		 * given `createNewChatSessionItem`/`invoke` implementations, and returns a
+		 * freshly created (but not-yet-acquired) ChatService plus an untitled resource.
+		 */
+		function setupUntitledRemote(opts: {
+			createItem: IChatSessionsService['createNewChatSessionItem'];
+			invoke?: IChatAgentImplementation['invoke'];
+			provideContent?: IChatSessionContentProvider['provideChatSessionContent'];
+		}): { service: ChatService; untitledResource: URI; mockSessionsService: MockChatSessionsService } {
+			const mockSessionsService = new MockChatSessionsService();
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+				provideChatSessionContent: opts.provideContent ?? ((resource: URI) => Promise.resolve({
+					sessionResource: resource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => { },
+				})),
+			}));
+			mockSessionsService.createNewChatSessionItem = opts.createItem;
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+			const remoteAgent: IChatAgentImplementation = { invoke: opts.invoke ?? (async () => ({})) };
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, remoteAgent));
+
+			const service = createChatService();
+			const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-materialize' });
+			return { service, untitledResource, mockSessionsService };
+		}
+
+		function realItem(resource: URI): IChatSessionItem {
+			return { resource, label: 'Test Session', timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined } };
+		}
+
+		test('two concurrent sends create a single real session and reject the duplicate', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
+			let createCount = 0;
+			// Keep the agent turn pending so the first send's request stays in
+			// `_pendingRequests`, making the converged second send's rejection
+			// deterministic.
+			const agentGate = new DeferredPromise<void>();
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => { createCount++; return realItem(realResource); },
+				invoke: async () => { await agentGate.p; return {}; },
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			// Fire two sends on the same untitled resource without awaiting between
+			// them, so both reach the materialization path concurrently.
+			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const [r1, r2] = await Promise.all([p1, p2]);
+
+			assert.strictEqual(createCount, 1, 'createNewChatSessionItem must run exactly once');
+			assert.deepStrictEqual([r1.kind, r2.kind].sort(), ['rejected', 'sent'], 'one send is accepted, the duplicate is rejected');
+			assert.ok(service.getSession(realResource), 'exactly one real session is materialized');
+
+			agentGate.complete();
+			const sent = ChatSendResult.isSent(r1) ? r1 : r2;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		});
+
+		test('a late send still addressed to the untitled resource re-targets the real session', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-late' });
+			let createCount = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => { createCount++; return realItem(realResource); },
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r1);
+			await r1.data.responseCompletePromise;
+
+			const realModel = service.getSession(realResource) as ChatModel;
+			assert.ok(realModel, 'real session exists after first send');
+			const requestsAfterFirst = realModel.getRequests().length;
+
+			// A second send arriving on the stale untitled resource (before the UI
+			// swapped to the real resource) must NOT materialize a second session,
+			// and must report the real resource as the new session so the caller
+			// swaps its UI to the real session (mirroring the first send).
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r2);
+			await r2.data.responseCompletePromise;
+
+			assert.strictEqual(createCount, 1, 'no second materialization for a stale untitled send');
+			assert.strictEqual(r2.newSessionResource?.toString(), realResource.toString(), 'late re-target reports the real resource as the new session');
+			assert.strictEqual(realModel.getRequests().length, requestsAfterFirst + 1, 'second request is routed to the real session');
+		});
+
+		test('a failed materialization does not poison the latch (retry re-attempts)', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-retry' });
+			let createCount = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => {
+					createCount++;
+					if (createCount === 1) {
+						throw new Error('boom');
+					}
+					return realItem(realResource);
+				},
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			await assert.rejects(service.sendRequest(untitledResource, 'first', { agentId: remoteScheme }), /boom/);
+
+			// The in-flight entry must have been cleared so a retry materializes.
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r2);
+			await r2.data.responseCompletePromise;
+
+			assert.strictEqual(createCount, 2, 'retry re-attempts materialization');
+			assert.ok(service.getSession(realResource), 'retry produces the real session');
+		});
+
+		test('a concurrent waiter does not inherit the first send\'s materialization failure', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-shared-failure' });
+			let createCount = 0;
+			const gate = new DeferredPromise<void>();
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => { createCount++; await gate.p; throw new Error('boom'); },
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const p1 = service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			const p2 = service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			gate.complete();
+
+			const firstOutcome = await p1.then(() => 'resolved', () => 'rejected');
+			const r2 = await p2;
+
+			assert.strictEqual(firstOutcome, 'rejected', 'the originating send surfaces the failure');
+			ChatSendResult.assertSent(r2);
+			assert.strictEqual(createCount, 1, 'the waiter did not start a second materialization');
+			assert.ok(!service.getSession(realResource), 'no real session was created');
+			await r2.data.responseCompletePromise;
+		});
+
+		test('disposing a materialized untitled session clears its re-target mapping', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-dispose' });
+			let createCount = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => { createCount++; return realItem(realResource); },
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+
+			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r1);
+			await r1.data.responseCompletePromise;
+			assert.ok(service.getSession(realResource), 'real session exists after first send');
+
+			// Disposing the untitled session (the UI swap in production) must drop
+			// the untitled→real mapping so it cannot grow unbounded or redirect.
+			untitledRef.dispose();
+			await timeout(0);
+
+			await assert.rejects(
+				service.sendRequest(untitledResource, 'second', { agentId: remoteScheme }),
+				/Unknown session/,
+				'the stale untitled resource no longer re-targets the real session',
+			);
+
+			// The real session remains usable.
+			const r3 = await service.sendRequest(realResource, 'third', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r3);
+			await r3.data.responseCompletePromise;
+			assert.strictEqual(createCount, 1, 'no extra materialization occurred');
+		});
+
+		test('a load failure after alias registration does not poison the late-send re-target', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-loadfail' });
+			let createCount = 0;
+			let failRealLoad = true;
+			const { service, untitledResource, mockSessionsService } = setupUntitledRemote({
+				createItem: async () => { createCount++; return realItem(realResource); },
+				// Fail the first load of the real session (e.g. provider raced/unregistered),
+				// then succeed so a retry can complete.
+				provideContent: (resource: URI) => {
+					if (resource.toString() === realResource.toString() && failRealLoad) {
+						failRealLoad = false;
+						return Promise.reject(new Error('load boom'));
+					}
+					return Promise.resolve({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } });
+				},
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			// First send registers the inverse alias, then the real session's load
+			// fails. The forward mapping must NOT have been published (it is only
+			// published after a successful load), so nothing re-targets a session
+			// that was never created.
+			await assert.rejects(service.sendRequest(untitledResource, 'first', { agentId: remoteScheme }), /load boom/);
+			assert.strictEqual(mockSessionsService.getMaterializedSessionResource(untitledResource), undefined, 'no poisoned untitled→real mapping after a load failure');
+
+			// A subsequent send must NOT throw `Unknown session` (the poisoning
+			// symptom); it re-materializes cleanly now that the load succeeds.
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			ChatSendResult.assertSent(r2);
+			await r2.data.responseCompletePromise;
+			assert.strictEqual(createCount, 2, 'second send re-materializes after the failed attempt');
+			assert.ok(service.getSession(realResource), 'second send produces the real session');
+		});
+	});
+
 	test('sendRequest passes agent host session capabilities to the request parser', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
@@ -1198,13 +1521,13 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestAgentPart', text: undefined },
-			{ type: 'ChatRequestTextPart', text: undefined },
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'agent', text: undefined },
+			{ kind: 'text', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 
@@ -1293,11 +1616,11 @@ suite('ChatService', () => {
 
 		const model = testService.getSession(sessionResource) as ChatModel;
 		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 
@@ -1336,11 +1659,11 @@ suite('ChatService', () => {
 		testDisposables.add(ref);
 
 		assert.deepStrictEqual(ref.object.getRequests()[0].message.parts.map(part => ({
-			type: part.constructor.name,
+			kind: part.kind,
 			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
 		})), [
-			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
-			{ type: 'ChatRequestTextPart', text: undefined },
+			{ kind: 'prompt', text: 'skill' },
+			{ kind: 'text', text: undefined },
 		]);
 	});
 
@@ -1790,7 +2113,7 @@ suite('ChatService', () => {
 			assert.strictEqual(model.lastRequest?.response?.isComplete, true, 'Non-streaming session should complete response at load time');
 		});
 
-		test.skip('draft input is restored after disposing and reloading a remote session', async () => {
+		test('draft input is restored after disposing and reloading a remote session', async () => {
 			const { resource } = setupRemoteProvider({ history: [] });
 
 			const testService = createChatService();
@@ -1815,6 +2138,92 @@ suite('ChatService', () => {
 			const model2 = ref2.object as ChatModel;
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
+
+		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
+			const historyModelId = 'history-model';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'History Model', vendor: 'copilot', version: '1.0', family: 'history',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true }
+			};
+			// Resolve only the model the session actually used in its history.
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+
+			const testService = createChatService();
+
+			// Load, then seed an unsent draft AND a stale model selection that must NOT survive reload.
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: 'stale-model', metadata: { ...historyMetadata, id: 'stale-model', name: 'Stale Model' } },
+			});
+
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+			assert.deepStrictEqual(
+				{ inputText: restored?.inputText, selectedModel: restored?.selectedModel?.identifier },
+				{ inputText: 'unsent draft', selectedModel: historyModelId },
+				'Draft text is restored and the model comes from session history, not the stale persisted selection'
+			);
+		});
+
+		test('restored draft preserves the model configuration (effort/context) of the history model', async () => {
+			const historyModelId = 'history-model';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'History Model', vendor: 'copilot', version: '1.0', family: 'history',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true }
+			};
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+
+			const testService = createChatService();
+
+			// Load, then seed an unsent draft together with the per-model configuration the
+			// user picked (e.g. high thinking effort + 1M context window) for that same model.
+			const modelConfiguration = { thinkingEffort: 'high', contextSize: 1_000_000 };
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: historyModelId, metadata: historyMetadata },
+				modelConfiguration,
+			});
+
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+			assert.deepStrictEqual(
+				{ selectedModel: restored?.selectedModel?.identifier, modelConfiguration: restored?.modelConfiguration },
+				{ selectedModel: historyModelId, modelConfiguration },
+				'Model and its configuration (effort + context window) are restored from the persisted draft for the history model'
+			);
 		});
 	});
 
@@ -1910,6 +2319,44 @@ suite('ChatService', () => {
 	});
 });
 
+suite('backfillRestoredPickerState', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (modeId: string, selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: modeId, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('backfills a model dropped at cold restore from the per-session stored selection', () => {
+		const result = backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, model('agent-host-claude:opus')), AGENT);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+	});
+
+	test('keeps the chosen model when present (never overrides it with the stored one)', () => {
+		const result = backfillRestoredPickerState(state(AGENT, model('agent-host-claude:opus')), state(AGENT, model('agent-host-claude:haiku')), AGENT);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+	});
+
+	test('promotes a stored custom agent over the default Agent only, never over an explicit mode', () => {
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'custom-uri', 'default Agent → stored custom agent');
+		assert.strictEqual(backfillRestoredPickerState(state('other-uri', undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'other-uri', 'explicit mode is not overridden');
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, undefined), AGENT)?.mode.id, AGENT, 'stored default Agent leaves chosen Agent');
+	});
+
+	test('returns the chosen state unchanged when there is no stored state', () => {
+		const chosen = state(AGENT, undefined);
+		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+});
+
 
 function toSnapshotExportData(model: IChatModel) {
 	const exp = model.toExport();
@@ -1917,7 +2364,7 @@ function toSnapshotExportData(model: IChatModel) {
 		...exp,
 		requests: exp.requests.map(r => {
 			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
-			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, elapsedMs: _elapsedMs, completionTokens: _completionTokens, ...rest } = r;
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, elapsedMs: _elapsedMs, completionTokens: _completionTokens, promptTokens: _promptTokens, outputBuffer: _outputBuffer, promptTokenDetails: _promptTokenDetails, copilotCredits: _copilotCredits, ...rest } = r;
 			return {
 				...rest,
 				modelState: {

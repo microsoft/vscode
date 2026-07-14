@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, TerminalSandboxService, type ISandboxDependencyInstallTerminal } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -160,6 +161,7 @@ suite('TerminalSandboxService - network domains', () => {
 		callCount = 0;
 		status: ISandboxDependencyStatus = {
 			bubblewrapInstalled: true,
+			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
 		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
@@ -223,9 +225,7 @@ suite('TerminalSandboxService - network domains', () => {
 				},
 				network: {
 					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
-					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
-					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
-					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+					...(policy.network ? { enforcementMode: 'capabilities' } : {}),
 				},
 				ui: {
 					disable: !(policy.ui?.allowWindows ?? false),
@@ -302,6 +302,7 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
 			socatInstalled: true,
 		};
 
@@ -313,6 +314,54 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
+	});
+
+	test('should report the repair action when bubblewrap is unusable', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: true,
+			bubblewrapUsable: false,
+			bubblewrapError: 'No permissions to create namespace',
+			socatInstalled: true,
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
+		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should run the approved bubblewrap remediation command', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
+			let sentCommand: string | undefined;
+			const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+			const terminal: ISandboxDependencyInstallTerminal = {
+				sendText: async command => {
+					sentCommand = command;
+					commandFinishedEmitter.fire({ exitCode: 0 });
+				},
+				focus: () => { },
+				capabilities: {
+					get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+					onDidAddCapability: Event.None,
+				},
+				onDidInputData: Event.None,
+				onDisposed: Event.None,
+			};
+			const result = await sandboxService.runSandboxRemediation(remediation, undefined, CancellationToken.None, {
+				createTerminal: async () => terminal,
+				focusTerminal: async () => { },
+			});
+			strictEqual(result.exitCode, 0);
+			return sentCommand;
+		};
+
+		strictEqual(
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction),
+			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
+		);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -369,7 +418,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(configContent, 'Config file should be created');
 
 		const config = JSON.parse(configContent);
-		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false, allowUnixSockets: true });
 		strictEqual(config.allowPty, true, 'Non-network runtime settings should still be merged');
 	});
 
@@ -397,7 +446,7 @@ suite('TerminalSandboxService - network domains', () => {
 		});
 	});
 
-	test('should add command-specific runtime values for signed git commits', async () => {
+	test('should add command-specific runtime values for standalone git commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const configPath = await sandboxService.getSandboxConfigPath();
 
@@ -410,23 +459,56 @@ suite('TerminalSandboxService - network domains', () => {
 			return JSON.parse(configContent);
 		}
 
-		const signedCommitConfig = await getConfigAfterWrap('git commit -S -m "test"', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
-		strictEqual(signedCommitConfig.network.allowAllUnixSockets, true, 'Explicitly signed git commits should allow Unix sockets for GPG signing');
+		for (const [command, args] of [
+			['git commit -S -m "test"', ['commit', '-S', '-m', 'test']],
+			['git rebase main', ['rebase', 'main']],
+			['git push', ['push']],
+			['git status', ['status']],
+		] as const) {
+			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
+			strictEqual(config.network.allowAllUnixSockets, true, `${command} should allow Unix sockets for config-driven GPG signing`);
+		}
 
-		const signedCommitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit --gpg-sign=key -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '--gpg-sign=key', '-m', 'test'] }]);
-		strictEqual(signedCommitWithGlobalOptionConfig.network.allowAllUnixSockets, true, 'Signed git commits with global options should allow Unix sockets for GPG signing');
-
-		const unsignedCommitConfig = await getConfigAfterWrap('git commit -m "test"', [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
-		strictEqual(Object.prototype.hasOwnProperty.call(unsignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Unsigned git commits should not allow all Unix sockets');
+		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedGitConfig.network, 'allowAllUnixSockets'), false, 'Chained Git commands should not allow all Unix sockets for the entire invocation');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(npmConfig.network, 'allowAllUnixSockets'), false, 'Commands without a matching Unix socket runtime rule should not allow all Unix sockets');
 	});
 
 	test('should skip command-specific runtime values when rule condition is false', () => {
-		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['rebase', 'main'] }]);
 
-		deepStrictEqual(config, {}, 'Signed git commit runtime values should not apply on Windows');
+		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
+	});
+
+	test('should add GnuPG runtime values for chains of compatible commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+			{ keyword: 'git', args: ['rebase', 'main'] },
+			{ keyword: 'gh', args: ['pr', 'list'] },
+			{ keyword: 'gpg', args: ['--list-keys'] },
+			{ keyword: 'gpg2', args: ['--list-keys'] },
+		]);
+
+		deepStrictEqual(config, {
+			network: {
+				allowAllUnixSockets: true
+			},
+			filesystem: {
+				allowRead: ['~/.gnupg'],
+				allowWrite: ['~/.gnupg']
+			}
+		});
+	});
+
+	test('should skip unsafe command-specific runtime values for chained commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
+
+		deepStrictEqual(config, {
+			filesystem: {
+				allowWrite: ['~/.volta/']
+			}
+		});
 	});
 
 	test('should preserve user runtime settings over command-specific runtime values', async () => {
@@ -440,7 +522,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const configPath = await sandboxService.getSandboxConfigPath();
 
 		ok(configPath, 'Config path should be defined');
-		await sandboxService.wrapCommand('git commit -S -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
+		await sandboxService.wrapCommand('git rebase main', false, 'bash', undefined, [{ keyword: 'git', args: ['rebase', 'main'] }]);
 
 		const configContent = createdFiles.get(configPath);
 		ok(configContent, 'Config file should be rewritten for the command');
@@ -456,15 +538,15 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(configPath, 'Config path should be defined');
 		const initialCreateFileCount = createFileCount;
 
-		await sandboxService.wrapCommand('git commit -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
-		const afterUnsignedCommitCount = createFileCount;
-		strictEqual(afterUnsignedCommitCount, initialCreateFileCount + 1, 'First git commit command should rewrite the config once');
+		await sandboxService.wrapCommand('npm install', false, 'bash', undefined, [{ keyword: 'npm', args: ['install'] }]);
+		const afterNpmCount = createFileCount;
+		strictEqual(afterNpmCount, initialCreateFileCount + 1, 'First npm command should rewrite the config once');
 
-		await sandboxService.wrapCommand('git commit -S -m "test"', false, 'bash', undefined, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
-		strictEqual(createFileCount, afterUnsignedCommitCount + 1, 'Switching to a signed git commit should rewrite the config for runtime settings');
+		await sandboxService.wrapCommand('git rebase main', false, 'bash', undefined, [{ keyword: 'git', args: ['rebase', 'main'] }]);
+		strictEqual(createFileCount, afterNpmCount + 1, 'Switching to a Git command should rewrite the config for GPG runtime settings');
 
 		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be rewritten for the signed commit');
+		ok(configContent, 'Config file should be rewritten for the Git command');
 		strictEqual(JSON.parse(configContent).network.allowAllUnixSockets, true);
 	});
 
@@ -593,6 +675,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
 		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Sandbox config should not include command-specific node write allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
+		ok(!config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Sandbox config should not include the GitHub CLI config before a Git command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
 		ok(config.filesystem.allowRead.includes('/app'), 'Sandbox config should include the VS Code app root');
@@ -601,7 +684,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
@@ -635,6 +718,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
 		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
+		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Node commands should not include the GitHub CLI config');
 
 		await sandboxService.wrapCommand('git status', false, 'bash', undefined, [{ keyword: 'git', args: ['status'] }]);
 		const gitConfigContent = createdFiles.get(configPath);
@@ -642,6 +726,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
+		ok(gitConfig.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config');
 		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command details');
 		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command details');
 	});
@@ -659,30 +744,28 @@ suite('TerminalSandboxService - network domains', () => {
 			return JSON.parse(configContent);
 		}
 
-		const commitConfig = await getConfigAfterWrap('git commit -S -m "test"', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
-		ok(commitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commit should include GPG read allow-list paths');
-		ok(commitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commit should include GPG write allow-list paths');
-		ok(commitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commit should still include generic git read allow-list paths');
-
-		const commitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit -S -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '-S', '-m', 'test'] }]);
-		ok(commitWithGlobalOptionConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commit with global options should include GPG read allow-list paths');
-		ok(commitWithGlobalOptionConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commit with global options should include GPG write allow-list paths');
+		for (const [command, args] of [
+			['git commit -S -m "test"', ['commit', '-S', '-m', 'test']],
+			['git rebase main', ['rebase', 'main']],
+			['git push', ['push']],
+			['git status', ['status']],
+		] as const) {
+			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
+			ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should include GPG read allow-list paths`);
+			ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should include GPG write allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic Git read allow-list paths`);
+			ok(config.filesystem.allowRead.includes('/home/user/.config/gh/config.yml'), `${command} should include the GitHub CLI config`);
+			ok(!config.filesystem.allowWrite.includes('/home/user/.config/gh/config.yml'), `${command} should not make the GitHub CLI config writable`);
+		}
 
 		const gpgConfig = await getConfigAfterWrap('gpg --list-keys', [{ keyword: 'gpg', args: ['--list-keys'] }]);
 		ok(gpgConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'GPG commands should include GPG read allow-list paths');
 		ok(!gpgConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'GPG commands should not include GPG write allow-list paths');
 		ok(!gpgConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'GPG commands should not include generic git read allow-list paths');
 
-		for (const [command, args] of [
-			['git status', ['status']],
-			['git fetch', ['fetch']],
-			['git push', ['push']],
-		] as const) {
-			const config = await getConfigAfterWrap(command, [{ keyword: 'git', args }]);
-			ok(!config.filesystem.allowRead.includes('/home/user/.gnupg'), `${command} should not include GPG read allow-list paths`);
-			ok(!config.filesystem.allowWrite.includes('/home/user/.gnupg'), `${command} should not include GPG write allow-list paths`);
-			ok(config.filesystem.allowRead.includes('/home/user/.gitconfig'), `${command} should still include generic git read allow-list paths`);
-		}
+		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
+		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
+		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Chained Git commands should not include GPG write allow-list paths');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
@@ -763,6 +846,25 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths on macOS');
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths on macOS');
+	});
+
+	test('should allow Git commands to read the GitHub CLI config on macOS', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Macintosh
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		await sandboxService.wrapCommand('git push', false, 'zsh', undefined, [{ keyword: 'git', args: ['push'] }]);
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be rewritten for the Git command');
+
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowRead.includes('~/.config/gh/config.yml'), 'Git commands should include the GitHub CLI config on macOS');
+		ok(!config.filesystem.allowWrite.includes('~/.config/gh/config.yml'), 'Git commands should not make the GitHub CLI config writable on macOS');
 	});
 
 	test('should not expand home paths in macOS filesystem sandbox config paths', async () => {
@@ -1329,7 +1431,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1354,10 +1457,9 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.version, '0.6.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
-		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
@@ -1374,7 +1476,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting is enabled', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,

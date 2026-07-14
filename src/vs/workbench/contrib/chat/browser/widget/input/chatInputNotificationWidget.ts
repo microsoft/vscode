@@ -22,6 +22,18 @@ import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
 
+type ChatInputNotificationTelemetryEvent = {
+	id: string;
+	telemetryId?: string;
+};
+
+type ChatInputNotificationTelemetryClassification = {
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the chat input notification.' };
+	telemetryId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The feature-provided identifier for the notification message that was shown or dismissed.' };
+	owner: 'rfeltis';
+	comment: 'Tracks chat input notification visibility and user dismissals.';
+};
+
 const severityToClass: Record<ChatInputNotificationSeverity, string> = {
 	[ChatInputNotificationSeverity.Info]: 'severity-info',
 	[ChatInputNotificationSeverity.Warning]: 'severity-warning',
@@ -44,6 +56,7 @@ export class ChatInputNotificationWidget extends Disposable {
 	readonly domNode: HTMLElement;
 
 	private readonly _contentDisposables = this._register(new DisposableStore());
+	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 
 	/**
 	 * Optional provider that returns the current session type of the owning
@@ -80,13 +93,18 @@ export class ChatInputNotificationWidget extends Disposable {
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		// Announce what this chat input actually renders, so session-scoped
+		// notifications are only spoken in a matching session (de-duped by the service).
+		this._notificationService.announceRendered(notification);
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
+			this._lastShownTelemetryData = undefined;
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
+		this._logShownTelemetry(notification);
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
@@ -162,7 +180,10 @@ export class ChatInputNotificationWidget extends Disposable {
 			// browser has finished propagating the click event. Otherwise
 			// blur handlers fired by removing the button from focus can
 			// move/remove nodes that `clearNode` then trips over.
-			const dismiss = () => queueMicrotask(() => this._notificationService.dismissNotification(notification.id));
+			const dismiss = () => queueMicrotask(() => {
+				this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(notification));
+				this._notificationService.dismissNotification(notification.id);
+			});
 			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.CLICK, dismiss));
 			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
@@ -217,5 +238,21 @@ export class ChatInputNotificationWidget extends Disposable {
 				}
 			}
 		}
+	}
+
+	private _logShownTelemetry(notification: IChatInputNotification): void {
+		const data = this._getTelemetryData(notification);
+		if (this._lastShownTelemetryData?.id === data.id && this._lastShownTelemetryData.telemetryId === data.telemetryId) {
+			return;
+		}
+		this._lastShownTelemetryData = data;
+		this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationShown', data);
+	}
+
+	private _getTelemetryData(notification: IChatInputNotification): ChatInputNotificationTelemetryEvent {
+		return {
+			id: notification.id,
+			telemetryId: notification.telemetryId,
+		};
 	}
 }

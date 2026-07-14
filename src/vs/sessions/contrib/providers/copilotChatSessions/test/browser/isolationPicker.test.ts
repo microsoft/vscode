@@ -8,9 +8,9 @@ import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -21,21 +21,16 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../servi
 import { CopilotChatSessionsProvider } from '../../browser/copilotChatSessionsProvider.js';
 import { IsolationMode, IsolationPicker } from '../../browser/isolationPicker.js';
 
-interface IIsolationActionItem {
-	readonly mode: IsolationMode;
-	readonly checked?: boolean;
-}
-
-function showPicker(container: HTMLElement): void {
-	const trigger = container.querySelector<HTMLElement>('a.action-label');
-	assert.ok(trigger);
-	trigger.click();
+function getCheckbox(container: HTMLElement): HTMLElement {
+	const checkbox = container.querySelector<HTMLElement>('.monaco-checkbox');
+	assert.ok(checkbox, 'expected a worktree checkbox to be rendered');
+	return checkbox;
 }
 
 function createPicker(
 	disposables: DisposableStore,
 	mode: IsolationMode,
-	actionWidgetItems: IActionListItem<IIsolationActionItem>[],
+	setModeCalls: IsolationMode[],
 ): IsolationPicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const activeSession = {
@@ -56,16 +51,13 @@ function createPicker(
 		getSession: () => ({
 			gitRepository: { state: gitState },
 			isolationMode,
+			setIsolationMode: (next: IsolationMode) => {
+				setModeCalls.push(next);
+				isolationMode.set(next, undefined);
+			},
 		}),
 	});
 
-	instantiationService.stub(IActionWidgetService, {
-		isVisible: false,
-		hide: () => { },
-		show: <T>(_id: string, _supportsPreview: boolean, items: IActionListItem<T>[]) => {
-			actionWidgetItems.splice(0, actionWidgetItems.length, ...(items as IActionListItem<IIsolationActionItem>[]));
-		},
-	});
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	instantiationService.stub(ISessionsManagementService, {
@@ -77,6 +69,7 @@ function createPicker(
 		getProvider: () => provider,
 	} as unknown as ISessionsProvidersService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	return disposables.add(instantiationService.createInstance(IsolationPicker, sessionObs));
 }
@@ -90,35 +83,42 @@ suite('IsolationPicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('marks folder as checked when workspace isolation is selected', () => {
-		const actionWidgetItems: IActionListItem<IIsolationActionItem>[] = [];
-		const picker = createPicker(disposables, 'workspace', actionWidgetItems);
+	test('checkbox unchecked when workspace isolation is selected', () => {
+		const picker = createPicker(disposables, 'workspace', []);
 		const container = document.createElement('div');
 		picker.render(container);
-		showPicker(container);
 
-		assert.deepStrictEqual(
-			actionWidgetItems.map(item => ({ label: item.label, checked: item.item?.checked })),
-			[
-				{ label: 'Worktree', checked: undefined },
-				{ label: 'Folder', checked: true },
-			],
-		);
+		assert.strictEqual(getCheckbox(container).getAttribute('aria-checked'), 'false');
 	});
 
-	test('marks worktree as checked when worktree isolation is selected', () => {
-		const actionWidgetItems: IActionListItem<IIsolationActionItem>[] = [];
-		const picker = createPicker(disposables, 'worktree', actionWidgetItems);
+	test('checkbox checked when worktree isolation is selected', () => {
+		const picker = createPicker(disposables, 'worktree', []);
 		const container = document.createElement('div');
 		picker.render(container);
-		showPicker(container);
 
-		assert.deepStrictEqual(
-			actionWidgetItems.map(item => ({ label: item.label, checked: item.item?.checked })),
-			[
-				{ label: 'Worktree', checked: true },
-				{ label: 'Folder', checked: undefined },
-			],
-		);
+		assert.strictEqual(getCheckbox(container).getAttribute('aria-checked'), 'true');
+	});
+
+	test('toggling the checkbox updates the session isolation mode', () => {
+		const setModeCalls: IsolationMode[] = [];
+		const picker = createPicker(disposables, 'worktree', setModeCalls);
+		const container = document.createElement('div');
+		picker.render(container);
+
+		getCheckbox(container).click();
+
+		assert.deepStrictEqual(setModeCalls, ['workspace']);
+		assert.strictEqual(getCheckbox(container).getAttribute('aria-checked'), 'false');
+	});
+
+	test('keeps the same checkbox element across toggles', () => {
+		const picker = createPicker(disposables, 'worktree', []);
+		const container = document.createElement('div');
+		picker.render(container);
+
+		const before = getCheckbox(container);
+		before.click();
+
+		assert.strictEqual(getCheckbox(container), before, 'checkbox element should be reused so focus is preserved');
 	});
 });

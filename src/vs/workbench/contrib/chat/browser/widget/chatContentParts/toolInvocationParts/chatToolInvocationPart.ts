@@ -5,8 +5,8 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
@@ -21,9 +21,11 @@ import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInst
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
+import { ChatSessionCreatedResultSubPart } from './chatSessionCreatedResultSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
-import { ChatMissingSandboxDepsConfirmationSubPart } from './chatMissingSandboxDepsConfirmationSubPart.js';
+import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
+import { ChatAgentFeedbackReviewConfirmationSubPart } from './chatAgentFeedbackReviewConfirmationSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
@@ -32,6 +34,32 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
+
+/**
+ * Value equality for {@link IMcpAppRenderData}, used so the App's derived
+ * render data stays stable across state ticks that don't actually change what
+ * the webview renders — otherwise re-reading `state` (to react to in-place
+ * `toolSpecificData` mutations) would recreate the webview on every progress
+ * update.
+ */
+function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRenderData | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	if (a.kind !== b.kind || a.resourceUri !== b.resourceUri || a.input !== b.input || a.sessionResource.toString() !== b.sessionResource.toString()) {
+		return false;
+	}
+	if (a.kind === 'agentHost' && b.kind === 'agentHost') {
+		return a.serverId === b.serverId && a.channel === b.channel;
+	}
+	if (a.kind === 'local' && b.kind === 'local') {
+		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
+	}
+	return false;
+}
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -43,7 +71,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
 		if (this.mcpAppPart) {
-			codeblocks.push(...this.mcpAppPart.codeblocks);
+			codeblocks.push(...this.mcpAppPart.value?.codeblocks ?? []);
 		}
 		return codeblocks;
 	}
@@ -53,7 +81,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private subPart!: BaseChatToolInvocationSubPart;
-	private mcpAppPart: ChatMcpAppSubPart | undefined;
+	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
 
 	private readonly _onDidRemount = this._register(new Emitter<void>());
 
@@ -91,6 +119,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.chatTodoListService.setTodos(sessionResource, todos);
 		}
 
+		let appData: IObservable<IMcpAppRenderData | undefined> = constObservable(undefined);
 		if (toolInvocation.kind === 'toolInvocation') {
 			const initialState = toolInvocation.state.get().type;
 			const initialDataKind = toolInvocation.toolSpecificDataKind.get();
@@ -101,6 +130,28 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					render();
 				}
 			}));
+
+			appData = derivedOpts<IMcpAppRenderData | undefined>({
+				owner: this,
+				equalsFn: mcpAppRenderDataEquals,
+			}, reader => {
+				// Read `state` alongside `toolSpecificDataKind` so the App
+				// re-derives when `toolSpecificData` is mutated in place — e.g.
+				// `mcpAppData` attached on the confirmation -> running
+				// transition, which bumps `state` via
+				// `notifyToolSpecificDataChanged()` but leaves the kind (`input`)
+				// unchanged. `equalsFn` keeps the webview stable across state
+				// ticks that don't change the render data.
+				reader.readObservable(toolInvocation.state);
+				reader.readObservable(toolInvocation.toolSpecificDataKind);
+				const data = this.getMcpAppRenderData();
+				if (!data) {
+					return undefined;
+				}
+
+				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
+				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
+			});
 		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
@@ -128,7 +179,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
 				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
 				this.subPart instanceof ChatModifiedFilesConfirmationSubPart ||
-				this.subPart instanceof ChatMissingSandboxDepsConfirmationSubPart ||
+				this.subPart instanceof ChatSandboxPrerequisiteConfirmationSubPart ||
 				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
 				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
 			this.domNode.classList.toggle('has-confirmation', isConfirmation);
@@ -136,33 +187,28 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.add(this.subPart.onNeedsRerender(render));
 		};
 
-		const mcpAppRenderData = this.getMcpAppRenderData();
-		if (mcpAppRenderData) {
-			const shouldRender = derived(r => {
-				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, r);
-				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped;
-			});
+		let appDomNode: HTMLElement = document.createElement('div');
+		this.domNode.appendChild(appDomNode);
 
-			let appDomNode: HTMLElement = document.createElement('div');
-			this.domNode.appendChild(appDomNode);
+		this._register(autorun(r => {
+			const data = appData.read(r);
+			if (!data) {
+				this.mcpAppPart.clear();
+				dom.clearNode(appDomNode);
+				return;
+			}
 
-			this._register(autorun(r => {
-				if (shouldRender.read(r)) {
-					this.mcpAppPart = r.store.add(this.instantiationService.createInstance(
-						ChatMcpAppSubPart,
-						this.toolInvocation,
-						this._onDidRemount.event,
-						context,
-						mcpAppRenderData,
-					));
-					appDomNode.replaceWith(this.mcpAppPart.domNode);
-					appDomNode = this.mcpAppPart.domNode;
-				} else {
-					this.mcpAppPart = undefined;
-					dom.clearNode(appDomNode);
-				}
-			}));
-		}
+			this.mcpAppPart.value = this.instantiationService.createInstance(
+				ChatMcpAppSubPart,
+				this.toolInvocation,
+				this._onDidRemount.event,
+				context,
+				data,
+			);
+
+			appDomNode.replaceWith(this.mcpAppPart.value.domNode);
+			appDomNode = this.mcpAppPart.value.domNode;
+		}));
 
 		render();
 	}
@@ -180,12 +226,14 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(this.toolInvocation.toolSpecificData) && this.toolInvocation.toolSpecificData.missingSandboxDependencies?.length) {
-					return this.instantiationService.createInstance(ChatMissingSandboxDepsConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
+				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(this.toolInvocation.toolSpecificData) && (this.toolInvocation.toolSpecificData.missingSandboxDependencies?.length || this.toolInvocation.toolSpecificData.sandboxRemediations?.length)) {
+					return this.instantiationService.createInstance(ChatSandboxPrerequisiteConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
 					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.listPool);
+				} else if (this.toolInvocation.toolSpecificData?.kind === 'agentFeedbackReviewConfirmation') {
+					return this.instantiationService.createInstance(ChatAgentFeedbackReviewConfirmationSubPart, this.toolInvocation, this.context);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				}
@@ -193,6 +241,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context);
 			}
+		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'sessionCreated') {
+			return this.instantiationService.createInstance(ChatSessionCreatedResultSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 		}
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
@@ -273,9 +325,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				: JSON.stringify(toolSpecificData.rawInput, null, 2);
 
 			return {
-				resourceUri: toolSpecificData.mcpAppData.resourceUri,
-				serverDefinitionId: toolSpecificData.mcpAppData.serverDefinitionId,
-				collectionId: toolSpecificData.mcpAppData.collectionId,
+				...toolSpecificData.mcpAppData,
 				input: rawInput,
 				sessionResource: this.context.element.sessionResource,
 			};

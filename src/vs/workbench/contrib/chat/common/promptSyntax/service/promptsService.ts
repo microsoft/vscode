@@ -117,13 +117,14 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
+	builtIn = 'builtin',
 }
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IBuiltinPromptPath;
 
 
 export interface IPromptPathBase {
@@ -151,6 +152,11 @@ export interface IPromptPathBase {
 	 * Identifier of the contributing plugin (only when storage === PromptsStorage.plugin).
 	 */
 	readonly pluginUri?: URI;
+
+	/**
+	 * Human-readable name of the contributing plugin, used for plugin-scoped slash command names.
+	 */
+	readonly pluginLabel?: string;
 
 	/**
 	 * The source that produced this prompt path.
@@ -193,11 +199,24 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly source: PromptFileSource.Plugin;
 }
 
+/**
+ * Prompt path for built-in prompts bundled with the application (e.g. skills
+ * shipped with the Agents app). These are read-only and provided by
+ * {@link IPromptsService.listPromptFiles}/`listPromptFilesForStorage`.
+ */
+export interface IBuiltinPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.builtIn;
+}
+
+export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath {
+	return obj.storage === PromptsStorage.builtIn;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 } | {
-	readonly storage: PromptsStorage.local | PromptsStorage.user;
+	readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.builtIn;
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
@@ -351,6 +370,7 @@ export interface IChatPromptSlashCommand {
 	readonly userInvocable: boolean;
 	readonly extension?: IExtensionDescription;
 	readonly pluginUri?: URI;
+	readonly pluginLabel?: string;
 	/**
 	 * Optional session types that describe when this slash command should be offered.
 	 */
@@ -430,6 +450,10 @@ export interface IAgentSkill {
 	 * Optional plugin URI describing where this skill originated.
 	 */
 	readonly pluginUri?: URI;
+	/**
+	 * Optional plugin display name describing where this skill originated.
+	 */
+	readonly pluginLabel?: string;
 	/**
 	 * Optional extension metadata describing where this skill originated.
 	 */
@@ -651,6 +675,11 @@ export interface IPromptsService extends IDisposable {
 	 * Event that is triggered when the list of instruction files changes.
 	 */
 	readonly onDidChangeInstructions: Event<void>;
+
+	/**
+	 * Event that is triggered when the list of agent instruction files changes.
+	 */
+	readonly onDidChangeAgentInstructions: Event<void>;
 
 	/**
 	 * Finds all available custom agents

@@ -14,7 +14,7 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionsPartService, IToggleMaximizeSessionEvent } from './sessionsPartService.js';
+import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../services/sessions/browser/sessionsPartService.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -22,7 +22,7 @@ import { ISessionsPartService, IToggleMaximizeSessionEvent } from './sessionsPar
  * singleton so the part registers itself with the workbench layout service
  * before the workbench starts laying out parts.
  *
- * The part is a passive renderer: the {@link ISessionsViewService} drives the
+ * The part is a passive renderer: the {@link ISessionsService} drives the
  * grid via {@link updateVisibleSessions}/{@link focusSession} and listens to
  * {@link onDidFocusSession}. The part observes neither the model nor the view.
  */

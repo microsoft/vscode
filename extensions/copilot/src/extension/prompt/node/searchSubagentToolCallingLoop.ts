@@ -108,7 +108,10 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			// errors, and any future caller that invokes the loop without the agent gate
 			try {
 				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
-				const searchAgentEndpoint = allEndpoints.find(e => e.family === SEARCH_AGENT_FAMILY);
+				const searchAgentEndpoints = allEndpoints.filter(e => e.family === SEARCH_AGENT_FAMILY);
+				const searchAgentEndpoint = modelName
+					? (searchAgentEndpoints.find(e => e.model === modelName) ?? searchAgentEndpoints[0])
+					: searchAgentEndpoints[0];
 				if (searchAgentEndpoint instanceof ChatEndpoint) {
 					return this.instantiationService.createInstance(SearchAgentChatEndpoint, searchAgentEndpoint.modelMetadata);
 				}

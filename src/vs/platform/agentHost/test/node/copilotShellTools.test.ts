@@ -9,7 +9,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
@@ -40,11 +40,13 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	commandDetectionSupported = false;
 	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
 	private readonly _onCommandFinished = new Emitter<ICommandFinishedEvent>();
+	private readonly _onData = new Emitter<string>();
 	private readonly _onExit = new Emitter<number>();
 	private readonly _onClaimChanged = new Emitter<TerminalClaim>();
 	private readonly _onDidSendText = new Emitter<void>();
 	readonly onDidSendText = this._onDidSendText.event;
 	private readonly _altBufferPromises: DeferredPromise<void>[] = [];
+	private _content: string | undefined;
 
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		this.created.push({ params, options: { ...options, shell: options?.shell ?? this.defaultShell } });
@@ -57,7 +59,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 		this.writeInput(uri, formatTerminalText(data, options));
 		this._onDidSendText.fire();
 	}
-	onData(): IDisposable { return Disposable.None; }
+	onData(_uri: string, cb: (data: string) => void): IDisposable { return this._onData.event(cb); }
 	onExit(_uri: string, cb: (exitCode: number) => void): IDisposable { return this._onExit.event(cb); }
 	onClaimChanged(_uri: string, cb: (claim: TerminalClaim) => void): IDisposable { return this._onClaimChanged.event(cb); }
 	onCommandFinished(_uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable {
@@ -77,7 +79,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 		});
 		return deferred.p;
 	}
-	getContent(): string | undefined { return undefined; }
+	getContent(): string | undefined { return this._content; }
 	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(uri: string): boolean { return this.existingTerminalUris.has(uri); }
 	getExitCode(): number | undefined { return undefined; }
@@ -87,8 +89,10 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getTerminalState(): undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
 	fireCommandFinished(event: ICommandFinishedEvent): void { this._onCommandFinished.fire(event); }
+	fireData(data: string): void { this._onData.fire(data); }
 	fireExit(exitCode: number): void { this._onExit.fire(exitCode); }
 	fireClaimChanged(claim: TerminalClaim): void { this._onClaimChanged.fire(claim); }
+	setContent(content: string | undefined): void { this._content = content; }
 	fireDidEnterAltBuffer(): void {
 		for (const promise of [...this._altBufferPromises]) {
 			promise.complete();
@@ -117,11 +121,14 @@ suite('CopilotShellTools', () => {
 			onDidRootConfigChange: emitter.event,
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectory: () => undefined,
+			isWorkingDirectoryPending: () => false,
+			resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 			getSessionConfigValues: () => undefined,
 			updateSessionConfig: () => { /* no-op */ },
 			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],
 			updateRootConfig: () => { /* no-op */ },
 			persistRootConfig: () => { /* no-op */ },
+			whenIdle: async () => { /* no-op */ },
 		};
 		return {
 			service,
@@ -383,6 +390,41 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.sentTexts[1].options.bracketedPasteMode, undefined);
 		assert.strictEqual(terminalManager.writes[0].data, ' echo first\recho second\r');
 		assert.match(terminalManager.writes[1].data, /^echo "<<<COPILOT_SENTINEL_[a-f0-9]+_EXIT_\$\?>>>"\r$/);
+	});
+
+	test('primary shell tool ignores echoed sentinel command text', async () => {
+		const { instantiationService, terminalManager } = createServices();
+
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'echo MOCKED_AGENT_HOST_SANDBOX_RESPONSE', timeout: 1000 },
+		};
+		const resultPromise = bashTool.handler!({ command: 'echo MOCKED_AGENT_HOST_SANDBOX_RESPONSE', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
+		await waitForSentTexts(terminalManager, 2);
+
+		const sentinelMatch = terminalManager.writes[1].data.match(/<<<COPILOT_SENTINEL_([a-f0-9]+)_EXIT_\$\?>>/);
+		assert.ok(sentinelMatch, 'sentinel marker should be present');
+		const sentinelId = sentinelMatch[1];
+		const content = [
+			' echo MOCKED_AGENT_HOST_SANDBOX_RESPONSE',
+			'MOCKED_AGENT_HOST_SANDBOX_RESPONSE',
+			`echo "<<<COPILOT_SENTINEL_${sentinelId}_EXIT_$?>>>"`,
+			`<<<COPILOT_SENTINEL_${sentinelId}_EXIT_0>>>`,
+		].join('\r\n');
+		terminalManager.setContent(content);
+		terminalManager.fireData(content);
+
+		const result = await resultPromise;
+		assert.strictEqual(result.resultType, 'success');
+		assert.match(result.textResultForLlm, /Exit code: 0/);
+		assert.match(result.textResultForLlm, /MOCKED_AGENT_HOST_SANDBOX_RESPONSE/);
 	});
 
 	test('primary shell tool forces bracketed paste with shell integration', async () => {
@@ -940,39 +982,4 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.sentTexts.length, 0, 'Disallowed command should not be sent to the terminal');
 	});
 
-	test('primary shell tool skips confirmation when autoApproveUnsandboxedCommands is enabled', async function () {
-		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AutoApproveUnsandboxedCommands, true);
-		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
-		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
-		const tools = await createShellTools(shellManager, terminalManager, new NullLogService(), async request => {
-			confirmationRequests.push(request);
-			return true;
-		});
-		const bashTool = tools.find(tool => tool.name === 'bash');
-		assert.ok(bashTool);
-
-		const invocation: ToolInvocation = {
-			sessionId: 'session-1',
-			toolCallId: 'tool-1',
-			toolName: 'bash',
-			arguments: { command: 'curl https://example.com' },
-		};
-		const resultPromise = bashTool.handler!({ command: 'curl https://example.com' }, invocation);
-		await terminalManager.commandFinishedListenerRegistered.p;
-		terminalManager.fireCommandFinished({
-			commandId: 'cmd-1',
-			exitCode: 0,
-			command: 'curl https://example.com',
-			output: '',
-		});
-		const result = await resultPromise as ToolResultObject;
-
-		assert.strictEqual(confirmationRequests.length, 0, 'No confirmation should have been requested when auto-approve is enabled');
-		assert.ok(terminalManager.sentTexts.length >= 1, 'Auto-approved command should be sent to the terminal unsandboxed');
-		assert.ok(terminalManager.sentTexts.every(entry => !entry.data.includes('sandbox-runtime')), 'Auto-approved command should run unsandboxed');
-		assert.strictEqual(result.resultType, 'success');
-	});
 });

@@ -104,19 +104,47 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_RELEASE
-    displayName: "Release build if successful"
+    displayName: "Release build if successful (ONLY FOR INSIDER)"
     type: boolean
     default: false
   - name: VSCODE_STEP_ON_IT
     displayName: "Skip tests"
     type: boolean
     default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    displayName: "Use legacy OSS Notice"
+    type: boolean
+    default: false
+  # SDK -> VS Code integration: override the Copilot dependencies to a version
+  # already published to the private feed. 'none'/'auto' = normal build.
+  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+  - name: VSCODE_SDK_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    type: string
+    default: none
+  - name: VSCODE_CLI_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    type: string
+    default: auto
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
+  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
+  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
+  # and the override script infers the CLI when it is empty.
+  - name: VSCODE_SDK_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
+  - name: VSCODE_CLI_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -143,6 +171,16 @@ variables:
     value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  # Derived as an explicit lowercase string literal so downloadNotice.ts's
+  # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
+  # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
+  # fail that comparison. Checkbox on => keep legacy notice ('false' = no
+  # overwrite); off => apply CG notice ('true').
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: 'false'
+    ${{ else }}:
+      value: 'true'
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
@@ -164,7 +202,7 @@ variables:
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
-    value: true
+    value: false
   - name: ComponentDetection.Timeout
     value: 600
   - name: Codeql.SkipTaskAutoInjection
@@ -180,11 +218,49 @@ resources:
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
       tsa:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
@@ -725,7 +801,7 @@ extends:
                   container: ubuntu-24
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:

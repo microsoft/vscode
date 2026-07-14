@@ -13,6 +13,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
 import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
 import { resolveCommonProperties } from '../../telemetry/common/commonProperties.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../telemetry/common/gdprTypings.js';
@@ -21,6 +22,8 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -30,9 +33,11 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly logService: ILogService;
 	readonly disposables: DisposableStore;
 	readonly disableTelemetry?: boolean;
+	readonly fetchFn?: typeof globalThis.fetch;
+	readonly requestService?: IRequestService;
 }
 
-export interface IAgentHostTelemetryService extends ITelemetryService {
+export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
 }
 
@@ -41,7 +46,17 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	private _telemetryLevel = TelemetryLevel.USAGE;
 
-	constructor(private readonly _delegate: ITelemetryService) {
+	/**
+	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
+	 * to `false` so nothing restricted is sent until an authenticated token confirms the opt-in,
+	 * keeping public users off the enhanced pipeline the way the Copilot extension does.
+	 */
+	private _restrictedTelemetryEnabled = false;
+
+	constructor(
+		private readonly _delegate: ITelemetryService,
+		private readonly _restricted?: IAgentHostRestrictedTelemetry,
+	) {
 		super();
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
@@ -108,6 +123,42 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._delegate.publicLogError2(eventName, data);
 	}
 
+	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendGHTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._restrictedTelemetryEnabled) {
+			return;
+		}
+		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
+	}
+
+	setCopilotTrackingId(trackingId: string | undefined): void {
+		this._restricted?.setCopilotTrackingId(trackingId);
+	}
+
+	setRestrictedTelemetryEndpoint(endpointUrl: string | undefined): void {
+		this._restricted?.setRestrictedTelemetryEndpoint(endpointUrl);
+	}
+
+	setRestrictedTelemetryEnabled(enabled: boolean): void {
+		this._restrictedTelemetryEnabled = enabled;
+		// Mirror onto the sender so the restricted-table writer enforces the same `rt` gate
+		// independently (defense in depth), matching the extension's opted-in-only reporter.
+		this._restricted?.setRestrictedTelemetryEnabled(enabled);
+	}
+
 	setExperimentProperty(name: string, value: string): void {
 		this._delegate.setExperimentProperty(name, value);
 	}
@@ -130,7 +181,7 @@ export function updateAgentHostTelemetryLevelFromConfig(telemetryService: ITelem
 	telemetryService.updateTelemetryLevel(telemetryLevelValue);
 }
 
-function isAgentHostTelemetryService(telemetryService: ITelemetryService): telemetryService is IAgentHostTelemetryService {
+export function isAgentHostTelemetryService(telemetryService: ITelemetryService): telemetryService is IAgentHostTelemetryService {
 	return typeof (telemetryService as IAgentHostTelemetryService).updateTelemetryLevel === 'function';
 }
 
@@ -148,23 +199,31 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	];
 	const internalTelemetry = isInternalTelemetry(productService, configurationService);
 	if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-		const collectorAppender = new OneDataSystemAppender(undefined, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+		const collectorAppender = new OneDataSystemAppender(options.requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 		disposables.add(toDisposable(() => { void collectorAppender.flush(); }));
 		appenders.push(collectorAppender);
 	}
 
+	// Prefer the host-forwarded identifiers (see `agentHostTelemetryEnv`) so the
+	// agent host reports the same persisted machineId/sqmId/devDeviceId as the
+	// workbench. Fall back to computing them live when not provided (e.g. the
+	// remote/server agent host, which does not forward them).
 	const [machineId, sqmId, devDeviceId] = await Promise.all([
-		getMachineId(error => logService.error(error)),
-		getSqmMachineId(error => logService.error(error)),
-		getDevDeviceId(error => logService.error(error)),
+		process.env[AgentHostMachineIdEnvKey] || getMachineId(error => logService.error(error)),
+		process.env[AgentHostSqmIdEnvKey] || getSqmMachineId(error => logService.error(error)),
+		process.env[AgentHostDevDeviceIdEnvKey] || getDevDeviceId(error => logService.error(error)),
 	]);
+
+	const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date);
 
 	const telemetryService = new TelemetryService({
 		appenders,
 		sendErrorTelemetry: true,
-		commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date),
+		commonProperties,
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
 	}, configurationService, productService);
 
-	return disposables.add(new AgentHostTelemetryService(telemetryService));
+	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, undefined, options.fetchFn);
+
+	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
 }
