@@ -352,11 +352,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			// The Branch chip skips the hover: when read-only it just
-			// mirrors the current/default branch name (already visible as
-			// the label), and when editable the schema description reads
-			// awkwardly as a hover.
-			const tooltip = property === SessionConfigKey.Branch ? undefined : (schema.description ?? schema.title);
+			// The read-only Branch chip skips the hover: it just mirrors the
+			// current/default branch name (already visible as the label),
+			// and the schema description reads awkwardly as a hover for a
+			// fixed value. The editable Branch chip (worktree isolation)
+			// keeps its description, which is useful context there.
+			const tooltip = (property === SessionConfigKey.Branch && isReadOnly) ? undefined : (schema.description ?? schema.title);
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
