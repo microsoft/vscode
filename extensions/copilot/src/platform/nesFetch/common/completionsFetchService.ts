@@ -88,7 +88,7 @@ export interface ICompletionsFetchService {
 
 	fetch(
 		url: string,
-		secretKey: string,
+		secretKey: string | undefined,
 		params: Completions.ModelParams,
 		requestId: string,
 		ct: CancellationToken,

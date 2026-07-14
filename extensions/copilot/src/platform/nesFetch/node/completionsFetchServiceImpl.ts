@@ -46,7 +46,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 	public async fetch(
 		url: string,
-		secretKey: string,
+		secretKey: string | undefined,
 		params: IFetchRequestParams,
 		requestId: string,
 		ct: CancellationToken,
@@ -69,7 +69,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 			})
 		};
 
-		const fetchResponse = await this._fetchFromUrl(url, options, ct);
+		const fetchResponse = await this._fetchFromUrl(url, options, ct, !!secretKey);
 
 		if (fetchResponse.isError()) {
 			this._logCompletionsRequest(url, params, requestId, startTimeMs, fetchResponse);
@@ -101,7 +101,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		}
 	}
 
-	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
+	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken, isCopilotHostedRequest = true): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
 
 		const fetchAbortCtl = this.fetcherService.makeAbortController();
 
@@ -121,12 +121,12 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 			const response = await this.fetcherService.fetch(url, request);
 
-			if (response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
+			if (isCopilotHostedRequest && response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
 				this.authService.resetCopilotToken();
 			}
 
 			if (response.status !== 200) {
-				if (response.status === 402) {
+				if (isCopilotHostedRequest && response.status === 402) {
 					// When we receive a 402, we have exceed the free tier quota
 					// This is stored on the token so let's refresh it
 					if (!this.authService.copilotToken?.isCompletionsQuotaExceeded) {
@@ -147,7 +147,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 				statusText: response.statusText,
 				headers: response.headers,
 				body: responseStream,
-				requestId: getRequestId(response.headers),
+				requestId: getRequestIdForRequest(response.headers, isCopilotHostedRequest),
 				response,
 			});
 
@@ -286,19 +286,20 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 	private getHeaders(
 		requestId: string,
-		secretKey: string,
+		secretKey: string | undefined,
 		headerOverrides: Record<string, string> = {},
 	): Record<string, string> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
-			'x-policy-id': 'nil',
-			Authorization: 'Bearer ' + secretKey,
 			'X-Request-Id': requestId,
-			'X-GitHub-Api-Version': '2025-04-01',
-			...headerOverrides,
 		};
+		if (secretKey) {
+			headers['x-policy-id'] = 'nil';
+			headers.Authorization = 'Bearer ' + secretKey;
+			headers['X-GitHub-Api-Version'] = '2025-04-01';
+		}
 
-		return headers;
+		return { ...headers, ...headerOverrides };
 	}
 }
 
@@ -330,4 +331,18 @@ async function collectAsyncIterableToString(iterable: AsyncIterable<string>): Pr
 		parts.push(part);
 	}
 	return parts.join('');
+}
+
+function getRequestIdForRequest(headers: IHeaders, isCopilotHostedRequest: boolean): RequestId {
+	if (isCopilotHostedRequest) {
+		return getRequestId(headers);
+	}
+	return {
+		headerRequestId: '',
+		gitHubRequestId: '',
+		completionId: '',
+		created: 0,
+		serverExperiments: '',
+		deploymentId: '',
+	};
 }

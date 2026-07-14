@@ -14,6 +14,7 @@ export { packageJson };
 export const ConfigKey = {
 	Enable: 'enable',
 	UserSelectedCompletionModel: 'selectedCompletionModel',
+	CustomCompletionModels: 'customCompletionModels',
 
 	ShowEditorCompletions: 'editor.showEditorCompletions',
 	EnableAutoCompletions: 'editor.enableAutoCompletions',
@@ -298,6 +299,7 @@ const configDefaults = new Map<ConfigKeyType, unknown>([
 	// These are defaults from package.json
 	[ConfigKey.Enable, { '*': true, 'plaintext': false, 'markdown': false, 'scminput': false }],
 	[ConfigKey.UserSelectedCompletionModel, ''],
+	[ConfigKey.CustomCompletionModels, []],
 
 	// These are advanced defaults from package.json
 	[ConfigKey.DebugOverrideEngineLegacy, ''],

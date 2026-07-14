@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { commands, env } from 'vscode';
+import { commands, env, workspace } from 'vscode';
 import { SyncDescriptor } from '../../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
+import { ConfigKey } from '../../../lib/src/config';
+import { CopilotConfigPrefix } from '../../../lib/src/constants';
 import { AvailableModelsManager, ICompletionsModelManagerService } from '../../../lib/src/openai/model';
 import { ModelPickerManager } from './../modelPicker';
 import { createExtensionTestingContext } from './context';
@@ -98,6 +100,18 @@ suite('ModelPickerManager unit tests', function () {
 		// Test that we updated the user configuration with the selected model
 		assert(setModelStub.calledOnce, 'setUserSelectedCompletionModel should be called once');
 		assert.strictEqual(setModelStub.firstCall.args[0], secondItem.modelId);
+	});
+
+	test('custom completion model selection writes global user setting', async function () {
+		const updateStub = sandbox.stub().resolves();
+		sandbox.stub(workspace, 'getConfiguration')
+			.withArgs(CopilotConfigPrefix)
+			.returns({ update: updateStub } as unknown as ReturnType<typeof workspace.getConfiguration>);
+
+		await modelPicker.setUserSelectedCompletionModel('model-b');
+
+		assert(updateStub.calledOnce, 'configuration update should be called once');
+		assert.deepStrictEqual(updateStub.firstCall.args, [ConfigKey.UserSelectedCompletionModel, 'model-b', true]);
 	});
 
 	test('selecting the learn more link tries to open the learn more url', async function () {

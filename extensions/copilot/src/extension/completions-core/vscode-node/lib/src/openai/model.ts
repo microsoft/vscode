@@ -16,7 +16,8 @@ import { ConfigKey, getConfig } from '../config';
 import { ICompletionsFeaturesService } from '../experiments/featuresService';
 import { ICompletionsLogTargetService, LogLevel } from '../logger';
 import { TelemetryWithExp } from '../telemetry';
-import { CompletionHeaders } from './fetch';
+import { getCustomCompletionModels } from './customCompletionModels';
+import type { CompletionHeaders } from './fetch';
 
 export const ICompletionsModelManagerService = createServiceIdentifier<ICompletionsModelManagerService>('ICompletionsModelManagerService');
 export interface ICompletionsModelManagerService {
@@ -34,6 +35,7 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 	fetchedModelData: ICompletionModelInformation[] = [];
 	customModels: string[] = [];
 	editorPreviewFeaturesDisabled: boolean = false;
+	private readonly _loggedIgnoredCustomCompletionModelIds = new Set<string>();
 	private readonly _onDidChangeModels = this._register(new Emitter<void>());
 	readonly onDidChangeModels = this._onDidChangeModels.event;
 
@@ -93,8 +95,34 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 			this.fetchedModelData,
 			this.editorPreviewFeaturesDisabled
 		);
+		const hostedModels = AvailableModelsManager.mapCompletionModels(filteredResult);
+		const hostedModelIds = new Set(hostedModels.map(model => model.modelId));
+		const modelIds = new Set(hostedModelIds);
+		const customModels: ModelItem[] = [];
+		for (const model of this._instantiationService.invokeFunction(getCustomCompletionModels)) {
+			if (modelIds.has(model.id)) {
+				const collisionType = hostedModelIds.has(model.id) ? 'hosted' : 'custom';
+				const logKey = `${collisionType}:${model.id}`;
+				if (!this._loggedIgnoredCustomCompletionModelIds.has(logKey)) {
+					this._loggedIgnoredCustomCompletionModelIds.add(logKey);
+					this._logService.logIt(LogLevel.INFO, `Ignoring custom completion model ${model.id} because it conflicts with a ${collisionType} completion model.`);
+				}
+				continue;
+			}
+			modelIds.add(model.id);
+			customModels.push({
+				modelId: model.id,
+				label: model.name ?? model.id,
+				preview: false,
+				tokenizer: model.tokenizer ?? TokenizerName.o200k,
+				custom: true,
+			});
+		}
 
-		return AvailableModelsManager.mapCompletionModels(filteredResult);
+		return [
+			...hostedModels,
+			...customModels,
+		];
 	}
 
 	getTokenizerForModel(modelId: string): TokenizerName {
@@ -133,9 +161,10 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 
 	getCurrentModelRequestInfo(featureSettings: TelemetryWithExp | undefined = undefined): ModelRequestInfo {
 		const defaultModelId = this.getDefaultModelId();
+		const genericModelItems = this.getGenericCompletionModels();
 		let userSelectedCompletionModel = this._instantiationService.invokeFunction(getUserSelectedModelConfiguration);
 		if (userSelectedCompletionModel) {
-			const genericModels = this.getGenericCompletionModels().map(model => model.modelId);
+			const genericModels = genericModelItems.map(model => model.modelId);
 			if (!genericModels.includes(userSelectedCompletionModel)) {
 				if (genericModels.length > 0) {
 					this._logService.logIt(
@@ -167,6 +196,10 @@ export class AvailableModelsManager extends Disposable implements ICompletionsMo
 				return new ModelRequestInfo(customEngine, 'exp');
 			}
 
+			if (genericModelItems.find(model => model.modelId === userSelectedCompletionModel)?.custom) {
+				return new ModelRequestInfo(userSelectedCompletionModel, 'custommodel');
+			}
+
 			return new ModelRequestInfo(userSelectedCompletionModel, 'modelpicker');
 		}
 
@@ -187,6 +220,7 @@ export interface ModelItem {
 	label: string;
 	preview: boolean;
 	tokenizer: string;
+	custom?: boolean;
 }
 
 export type ModelChoiceSourceTelemetryValue =
