@@ -84,6 +84,22 @@ import { AgentHostReviewService } from './agentHostReviewService.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+const HOST_OWNED_SESSION_CONFIG_KEYS = [
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
+	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeIncludeFiles,
+] as const;
+
+function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string, T> {
+	const result = { ...config };
+	for (const key of HOST_OWNED_SESSION_CONFIG_KEYS) {
+		delete result[key];
+	}
+	return result;
+}
+
 /**
  * Grace period before an idle resource watch is torn down after its last
  * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
@@ -485,6 +501,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.setWorktreeIsolation(worktree);
 	}
 
+	private _toProviderConfig<T extends { readonly config?: Record<string, unknown> }>(request: T): T {
+		if (!this._worktree || !request.config) {
+			return request;
+		}
+		return { ...request, config: omitHostOwnedSessionConfig(request.config) };
+	}
+
 	/**
 	 * Host-owned first-send hook (invoked by {@link AgentSideEffects} before the
 	 * agent locks its subprocess cwd). Resolves the working directory the session
@@ -672,7 +695,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _startSessionPrompt(session: URI, chat: URI, prompt: string): Promise<void> {
 		const message: Message = { text: prompt, origin: { kind: MessageKind.User } };
-		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), message } as const;
+		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
 	}
@@ -1221,7 +1244,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let created: IAgentCreateSessionResult | undefined;
 		try {
-			created = await provider.createSession(config);
+			created = await provider.createSession(config ? this._toProviderConfig(config) : undefined);
 			if (deferWorktreeCreation && created.provisional) {
 				this._worktree?.notePending(AgentSession.id(created.session));
 			}
@@ -1530,7 +1553,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// so without this a fresh worktree session's isolation is `undefined` at
 			// create time — the pending mark below is skipped and the send falls back
 			// to folder even though the user picked worktree.
-			const resolved = await this._withIsolationSchema(await provider.resolveSessionConfig(params), params);
+			const resolved = await this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
@@ -1544,65 +1567,44 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return this._withIsolationSchema(await provider.resolveSessionConfig(params), params);
+		return this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
 	}
 
 	/**
 	 * Host-owned contribution of the shared `isolation` (folder / worktree),
 	 * `branch`, `worktreeBranchPrefix`, and `worktreeIncludeFiles` session-config
-	 * properties on top of whatever an agent returned from `resolveSessionConfig`. This is what lets
-	 * every agent — including future ones — get the isolation picker for free.
-	 * Additive-if-absent: an agent that still contributes these keys itself is
-	 * left untouched, so the migration to host ownership is safe either way.
+	 * properties on top of whatever an agent returned from `resolveSessionConfig`. Provider-returned
+	 * properties and values with these keys are replaced by the host contribution.
 	 */
 	private async _withIsolationSchema(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		if (!this._worktree) {
 			return result;
 		}
-		const hasIsolation = result.schema.properties[SessionConfigKey.Isolation] !== undefined;
-		const hasBranch = result.schema.properties[SessionConfigKey.Branch] !== undefined;
-		const hasWorktreeBranchPrefix = result.schema.properties[SessionConfigKey.WorktreeBranchPrefix] !== undefined;
-		const hasWorktreeIncludeFiles = result.schema.properties[SessionConfigKey.WorktreeIncludeFiles] !== undefined;
 		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
-		if (hasIsolation
-			&& (hasBranch || !iso.branchProperty)
-			&& (hasWorktreeBranchPrefix || !iso.worktreeBranchPrefixProperty)
-			&& (hasWorktreeIncludeFiles || !iso.worktreeIncludeFilesProperty)) {
-			return result;
-		}
-		// Isolation goes first (UI ordering) when the host contributes it.
-		const properties: Record<string, SessionConfigPropertySchema> = hasIsolation
-			? { ...result.schema.properties }
-			: { [SessionConfigKey.Isolation]: iso.isolationProperty.protocol, ...result.schema.properties };
-		if (iso.branchProperty && !hasBranch) {
+		const properties: Record<string, SessionConfigPropertySchema> = {
+			[SessionConfigKey.Isolation]: iso.isolationProperty.protocol,
+			...omitHostOwnedSessionConfig(result.schema.properties),
+		};
+		if (iso.branchProperty) {
 			properties[SessionConfigKey.Branch] = iso.branchProperty.protocol;
 		}
-		if (iso.worktreeBranchPrefixProperty && !hasWorktreeBranchPrefix) {
+		if (iso.worktreeBranchPrefixProperty) {
 			properties[SessionConfigKey.WorktreeBranchPrefix] = iso.worktreeBranchPrefixProperty.protocol;
 		}
-		if (iso.worktreeIncludeFilesProperty && !hasWorktreeIncludeFiles) {
+		if (iso.worktreeIncludeFilesProperty) {
 			properties[SessionConfigKey.WorktreeIncludeFiles] = iso.worktreeIncludeFilesProperty.protocol;
 		}
-		const values = { ...result.values };
-		if (!hasIsolation && values[SessionConfigKey.Isolation] === undefined) {
-			values[SessionConfigKey.Isolation] = iso.isolationValue;
+		const values = omitHostOwnedSessionConfig(result.values);
+		values[SessionConfigKey.Isolation] = iso.isolationValue;
+		if (iso.branchProperty && iso.branchValue !== undefined) {
+			values[SessionConfigKey.Branch] = iso.branchValue;
 		}
-		if (iso.branchProperty && !hasBranch && iso.branchDefault !== undefined && values[SessionConfigKey.Branch] === undefined) {
-			values[SessionConfigKey.Branch] = iso.branchDefault;
-		}
-		// Echo the client-seeded `worktreeBranchPrefix` back so it rides the
-		// resolved config and survives isolation toggles (worktree → folder →
-		// worktree). It has no default; when the client doesn't supply one it
-		// simply stays unset.
-		if (iso.worktreeBranchPrefixProperty && !hasWorktreeBranchPrefix
-			&& typeof params.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string'
-			&& values[SessionConfigKey.WorktreeBranchPrefix] === undefined) {
+		if (iso.worktreeBranchPrefixProperty && typeof params.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string') {
 			values[SessionConfigKey.WorktreeBranchPrefix] = params.config[SessionConfigKey.WorktreeBranchPrefix];
 		}
-		if (iso.worktreeIncludeFilesProperty && !hasWorktreeIncludeFiles
+		if (iso.worktreeIncludeFilesProperty
 			&& Array.isArray(params.config?.[SessionConfigKey.WorktreeIncludeFiles])
-			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
-			&& values[SessionConfigKey.WorktreeIncludeFiles] === undefined) {
+			&& params.config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')) {
 			values[SessionConfigKey.WorktreeIncludeFiles] = params.config[SessionConfigKey.WorktreeIncludeFiles];
 		}
 		return { schema: { ...result.schema, properties }, values };
@@ -1619,7 +1621,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return provider.sessionConfigCompletions(params);
+		return provider.sessionConfigCompletions(this._toProviderConfig(params));
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {

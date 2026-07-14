@@ -220,17 +220,29 @@
 }
 
 /*
- * Floating cards use a 4px leading margin and 2px trailing margin, placing the
- * visual midpoint of their 6px gap 1px past the grid boundary. Shift only grid
- * sashes to that midpoint; part-internal sashes and the hidden-panel reveal sash
- * retain their own geometry.
+ * Floating cards use a 4px leading margin (`--vscode-spacing-size40`) and a 2px
+ * trailing margin (`--vscode-spacing-size20`), so adjacent cards are separated by a
+ * 6px gap (`--vscode-spacing-size60`). A grid sash is centered on the grid boundary
+ * but, at the default 4px size, is narrower than the gap and — because the two card
+ * margins differ — leaves uneven dead space, so its hover highlight activates at a
+ * different distance from each card edge. Grow only grid sashes to at least the gap
+ * width (never below the configured `--vscode-sash-size`) and re-centre them on the
+ * gap's midpoint. Because the midpoint offset is half the margin difference — a
+ * constant, independent of the sash size — and the growth is symmetric, the hit
+ * region reaches both card edges and the highlight (`:before`, itself centred in the
+ * sash) stays centred in the gap for any configured sash size. Part-internal sashes
+ * and the hidden-panel reveal sash retain their own geometry.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash) {
-	transform: translateX(1px);
+	/* Thickness: at least the gap, but never smaller than the configured sash size. */
+	width: max(var(--vscode-sash-size), var(--vscode-spacing-size60));
+	/* Shift onto the gap midpoint (half the margin difference), compensating for the symmetric growth. */
+	transform: translateX(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-size20)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size60)) - var(--vscode-sash-size)) / 2));
 }
 
 .monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash) {
-	transform: translateY(1px);
+	height: max(var(--vscode-sash-size), var(--vscode-spacing-size60));
+	transform: translateY(calc((var(--vscode-spacing-size40) - var(--vscode-spacing-size20)) / 2 - (max(var(--vscode-sash-size), var(--vscode-spacing-size60)) - var(--vscode-sash-size)) / 2));
 }
 
 /*

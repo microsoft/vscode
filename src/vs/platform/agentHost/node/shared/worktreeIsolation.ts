@@ -141,7 +141,7 @@ export interface IIsolationConfigContribution {
 	/**
 	 * Read-only carrier for the client's `git.branchPrefix`. Declared for both
 	 * isolations (like `branch`) so the value rides `_config.values` and
-	 * survives isolation toggles; the agent only *consumes* it for worktree
+	 * survives isolation toggles; the host only consumes it for worktree
 	 * isolation (see {@link WorktreeIsolation.resolveWorkingDirectory}).
 	 */
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
@@ -149,6 +149,7 @@ export interface IIsolationConfigContribution {
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 	readonly isolationValue: 'folder' | 'worktree';
 	readonly branchDefault: string | undefined;
+	readonly branchValue: string | undefined;
 }
 
 /** Parameters for {@link WorktreeIsolation.resolveWorkingDirectory}. */
@@ -317,11 +318,15 @@ export class WorktreeIsolation extends Disposable {
 
 		let branchProperty: ISchemaProperty<string> | undefined;
 		let branchDefault: string | undefined;
+		let branchValue: string | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		if (gitInfo) {
 			const branchReadOnly = isolationValue === 'folder';
 			branchDefault = isolationValue === 'worktree' ? gitInfo.defaultBranch : gitInfo.currentBranch;
+			branchValue = isolationValue === 'worktree' && typeof request.config?.[SessionConfigKey.Branch] === 'string'
+				? request.config[SessionConfigKey.Branch] as string
+				: branchDefault;
 			branchProperty = schemaProperty<string>({
 				type: 'string',
 				title: localize('agentHost.sessionConfig.branch', "Branch"),
@@ -334,15 +339,14 @@ export class WorktreeIsolation extends Disposable {
 				sessionMutable: false,
 			});
 
-			// Carrier for the client's `git.branchPrefix`: the agent prepends it
+			// Carrier for the client's `git.branchPrefix`: the host prepends it
 			// to the branch it creates for an isolated worktree. Declared for
 			// both isolations (like `branch`), so the value rides
 			// `_config.values` and survives isolation toggles — a user who flips
-			// worktree → folder → worktree keeps the prefix, and it reaches the
-			// agent via the send-time config snapshot. It has no
+			// worktree → folder → worktree keeps the prefix. It has no
 			// `enum`/`enumDynamic`, so the config picker treats it as
 			// non-pickable and never surfaces it as a chip: the client seeds it
-			// (from `git.branchPrefix`), the user never edits it, and the agent
+			// (from `git.branchPrefix`), the user never edits it, and the host
 			// only *consumes* it for worktree isolation (see
 			// {@link resolveWorkingDirectory}).
 			worktreeBranchPrefixProperty = schemaProperty<string>({
@@ -366,7 +370,7 @@ export class WorktreeIsolation extends Disposable {
 			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**

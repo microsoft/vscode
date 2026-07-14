@@ -51,6 +51,8 @@ export interface ChatTurnStartedAction {
 	type: ActionType.ChatTurnStarted;
 	/** Turn identifier */
 	turnId: string;
+	/** ISO 8601 timestamp when this turn started. */
+	startedAt: string;
 	/** The new message */
 	message: Message;
 	/** If this turn was auto-started from a queued message, the ID of that message */
@@ -330,6 +332,13 @@ export interface ChatTurnCompleteAction {
 	/** Turn identifier */
 	turnId: string;
 	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
+	/**
 	 * Additional provider-specific metadata for this action.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -353,6 +362,13 @@ export interface ChatTurnCancelledAction {
 	/** Turn identifier */
 	turnId: string;
 	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
+	/**
 	 * Additional provider-specific metadata for this action.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -374,6 +390,13 @@ export interface ChatErrorAction {
 	type: ActionType.ChatError;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
 	/** Error details */
 	error: ErrorInfo;
 	/**

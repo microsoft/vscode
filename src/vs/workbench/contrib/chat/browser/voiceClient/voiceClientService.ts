@@ -22,6 +22,7 @@ import {
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
+	IVoiceBargeIn,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -63,6 +64,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onAudioResponse = this._register(new Emitter<IVoiceAudioResponse>());
 	readonly onAudioResponse: Event<IVoiceAudioResponse> = this._onAudioResponse.event;
+
+	private readonly _onBargeIn = this._register(new Emitter<IVoiceBargeIn>());
+	readonly onBargeIn: Event<IVoiceBargeIn> = this._onBargeIn.event;
 
 	private readonly _onToolCall = this._register(new Emitter<IVoiceToolCall>());
 	readonly onToolCall: Event<IVoiceToolCall> = this._onToolCall.event;
@@ -230,6 +234,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				committed?: string;
 				reason?: string;
 				turn_id?: string;
+				interrupted_turn_id?: string;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -253,6 +258,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				case 'speech_started':
 					this._onSpeechStarted.fire({});
+					break;
+				case 'barge_in':
+					this._onBargeIn.fire({
+						turnId: msg.turn_id ?? '',
+						interruptedTurnId: msg.interrupted_turn_id ?? '',
+					});
 					break;
 				case 'transcription':
 					this._onTranscription.fire({ text: msg.text ?? '', status: (msg.status as 'partial' | 'final') ?? 'final', committed: msg.committed as string ?? '' });

@@ -33,10 +33,10 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { MessageAttachmentKind, MessageKind, buildDefaultChatUri, ToolCallConfirmationReason, ToolResultContentType, type MessageAttachment } from '../../../common/state/sessionState.js';
 import { ActionType, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
-	capiReplayFor, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
+	AgentHostE2EServerLease, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	type IAgentHostE2EProviderConfig,
 } from './agentHostE2ETestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from './testHelpers.js';
 
 const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Copilot',
@@ -59,40 +59,24 @@ defineAgentHostE2ETests(COPILOT_CONFIG);
 
 suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
-	let server: IServerHandle;
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, { homeDir: homedir() });
 
-	// Per-test server fronted by the record/replay proxy: these tests replay
-	// committed fixtures by default (tokenless) and record against real CAPI
-	// with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite.
+	// The lease fronts the server with the record/replay proxy: these tests
+	// replay committed fixtures by default (tokenless) and record against real
+	// CAPI with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite. In
+	// replay the lease reuses one server across the suite and swaps the fixture
+	// per test; while recording it starts a fresh server per test.
 	setup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer({
-			homeDir: homedir(),
-			capiReplay: capiReplayFor(COPILOT_CONFIG.provider, this.currentTest?.title ?? 'unknown'),
-		});
-		client = new TestProtocolClient(server.port);
-		await client.connect();
+		({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 	});
 
 	teardown(async function () {
 		this.timeout(60_000);
-		for (const session of createdSessions) {
-			try {
-				await client.call('disposeSession', { session }, 30_000);
-			} catch { /* best-effort */ }
-		}
-		createdSessions.length = 0;
-		client.close();
-		// Flush the recording / surface strict replay cache-misses; kill even if
-		// the strict check throws.
-		try {
-			await server?.capiReplay?.stop();
-		} finally {
-			server?.process.kill();
-		}
+		await lease.release(createdSessions);
 
 		for (const dir of tempDirs) {
 			try {
@@ -133,6 +117,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'Call the get_magic_word tool and then tell me the exact magic word it returned.',
 					origin: { kind: MessageKind.User },
@@ -195,6 +180,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
 			90_000);
 		assert.ok(isActionNotification(completion, 'chat/turnComplete'), 'client tool turn should complete without an error');
+	});
+
+	suiteTeardown(async function () {
+		this.timeout(60_000);
+		await lease.dispose();
 	});
 
 	test('usage reports include Copilot cost metadata', async function () {

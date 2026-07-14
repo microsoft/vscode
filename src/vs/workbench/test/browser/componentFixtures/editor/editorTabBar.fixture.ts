@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, Dimension } from '../../../../../base/browser/dom.js';
-import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -14,28 +14,31 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { localize2 } from '../../../../../nls.js';
-import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from '../../../../common/theme.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
+import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
+import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
+import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/styleOverrides/browser/media/tabs.css';
@@ -143,6 +146,10 @@ function defaultEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+function nestedActiveEditorSpecs(): IEditorSpec[] {
+	return defaultEditorSpecs().map((spec, index) => ({ ...spec, active: index === 0 }));
+}
+
 /** Two editors sharing a name but living in different folders (to show descriptions). */
 function duplicateNameEditorSpecs(): IEditorSpec[] {
 	return [
@@ -187,6 +194,14 @@ function stickyEditorSpecs(): IEditorSpec[] {
 		{ resource: file('/project/src/app/index.ts'), pinned: true, active: true },
 		{ resource: file('/project/src/app/components/button.tsx'), pinned: true },
 	];
+}
+
+function allStickyEditorSpecs(): IEditorSpec[] {
+	return stickyEditorSpecs().map((spec, index) => ({ ...spec, sticky: true, active: index === 0 }));
+}
+
+function allUnstickyEditorSpecs(): IEditorSpec[] {
+	return stickyEditorSpecs().map((spec, index) => ({ ...spec, sticky: false, active: index === 0 }));
 }
 
 /** Editors with several tabs in the multi-selection (active + additional selected). */
@@ -247,31 +262,27 @@ function registerFixtureDecorations(decorationsService: IDecorationsService, sto
 // Editor-title toolbar actions
 // ============================================================================
 
-/**
- * Contributes fake actions to `MenuId.EditorTitle` so the editor-actions toolbar
- * renders through the real menu path (like production): one in the `navigation`
- * group (shown inline) and one in a non-navigation group (shown in the overflow
- * `...` menu). None declare a `when` clause so they survive context filtering.
- */
-function registerFixtureEditorTitleActions(store: DisposableStore): void {
-	store.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		command: {
-			id: 'fixture.splitEditorRight',
-			title: localize2('fixtureSplitEditorRight', 'Split Editor Right'),
-			icon: Codicon.splitHorizontal,
-		},
-		group: 'navigation',
-		order: 1,
-	}));
-	store.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		command: {
-			id: 'fixture.openEditor',
-			title: localize2('fixtureOpenEditor', 'Open Editor...'),
-			icon: Codicon.goToFile,
-		},
-		group: '1_fixture',
-		order: 1,
-	}));
+function createFixtureEditorTitleActions(store: DisposableStore, menuId: MenuId): IToolbarActions {
+	if (menuId !== MenuId.EditorTitle) {
+		return { primary: [], secondary: [] };
+	}
+
+	return {
+		primary: [
+			store.add(new Action(
+				'fixture.splitEditorRight',
+				localize('fixtureSplitEditorRight', "Split Editor Right"),
+				ThemeIcon.asClassName(Codicon.splitHorizontal)
+			))
+		],
+		secondary: [
+			store.add(new Action(
+				'fixture.openEditor',
+				localize('fixtureOpenEditor', "Open Editor..."),
+				ThemeIcon.asClassName(Codicon.goToFile)
+			))
+		]
+	};
 }
 
 // ============================================================================
@@ -282,6 +293,10 @@ interface IRenderOptions {
 	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
 	readonly editors?: IEditorSpec[];
+	readonly breadcrumbs?: {
+		readonly filePath?: 'on' | 'off' | 'last';
+		readonly icons?: boolean;
+	};
 	readonly width?: number;
 	/** Whether this group is the active group. Inactive groups exercise the
 	 *  `alwaysShowEditorActions` filtering and unfocused tab styling. */
@@ -329,9 +344,13 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	const isGroupActive = options.active ?? true;
 	const partOptions = createPartOptions(options.partOptions);
 
-	// Breadcrumbs are disabled so the tab bar renders without the breadcrumbs picker/model deps.
 	const configurationService = new TestConfigurationService();
-	configurationService.setUserConfiguration('breadcrumbs', { enabled: false });
+	configurationService.setUserConfiguration('breadcrumbs', {
+		enabled: Boolean(options.breadcrumbs),
+		filePath: options.breadcrumbs?.filePath ?? 'on',
+		symbolPath: 'off',
+		icons: options.breadcrumbs?.icons ?? true,
+	});
 	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, options.modernUI);
 
 	const instantiationService = workbenchInstantiationService({
@@ -345,15 +364,14 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	instantiationService.stub(ITreeViewsDnDService, new TreeViewsDnDService());
 	instantiationService.stub(INotebookDocumentService, new NotebookDocumentWorkbenchService());
 
-	// Real menu service (the harness stubs an empty one) + fake `MenuId.EditorTitle` actions so the
-	// editor-actions toolbar is populated through the production menu path. A real context key service
-	// is required too: the mock's `contextMatchesRules` rejects every item (even those without a
-	// `when`), which would filter our actions out of the menu.
 	const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IContextKeyService, contextKeyService);
-	const menuService = disposableStore.add(instantiationService.createInstance(MenuService));
-	instantiationService.stub(IMenuService, menuService);
-	registerFixtureEditorTitleActions(disposableStore);
+
+	if (options.breadcrumbs) {
+		instantiationService.stub(IBreadcrumbsService, new BreadcrumbsService());
+		instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { }());
+		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(file('/project'))));
+	}
 
 	// Real decorations service + provider so resource labels get deterministic badges/colors
 	// (the `decorations` setting then has something to toggle).
@@ -365,13 +383,8 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	const model = disposableStore.add(instantiationService.createInstance(EditorGroupModel, undefined));
 	populateModel(model, options.editors ?? defaultEditorSpecs(), disposableStore);
 
-	// Builds the editor-title actions from the real menu, mirroring `EditorGroupView.createEditorActions`:
-	// `navigation`-group items become primary (inline), all others become secondary (overflow `...`).
 	const createEditorActions = (disposables: DisposableStore, menuId: MenuId) => {
-		const menu = disposables.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
-		const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
-		const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true, renderShortTitle: true }), 'navigation', shouldInlineGroup);
-		return { actions, onDidChange: menu.onDidChange };
+		return { actions: createFixtureEditorTitleActions(disposables, menuId), onDidChange: Event.None };
 	};
 
 	// Lightweight stand-ins for the production `EditorGroupView` / `EditorPart` views.
@@ -379,6 +392,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 		relayoutFn: () => void = () => { };
 		override get id() { return model.id; }
 		override get count() { return model.count; }
+		override get stickyCount() { return model.stickyCount; }
 		override get activeEditor() { return model.activeEditor; }
 		override get activeEditorPane() { return undefined; }
 		override get selectedEditors() { return model.selectedEditors; }
@@ -474,11 +488,17 @@ function createFixtures(modernUI: boolean) {
 		Default: defineComponentFixture({ render: render(modernUI, {}) }),
 
 		// showTabs
-		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' } }) }),
+		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
 		ShowTabsNone: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'none' } }) }),
 
 		// pinnedTabsOnSeparateRow
-		PinnedTabsOnSeparateRow: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
+		PinnedTabsOnSeparateRowAllPinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allStickyEditorSpecs() }) }),
+		PinnedTabsOnSeparateRowAllUnpinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allUnstickyEditorSpecs() }) }),
+		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
+
+		// breadcrumbs
+		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
+		BreadcrumbsIconsOff: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { icons: false } }) }),
 
 		// tabSizing
 		TabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),

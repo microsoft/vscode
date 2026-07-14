@@ -2976,6 +2976,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'new-model' } },
 			},
 			serverSeq: 1,
@@ -3005,6 +3006,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
 				type: ActionType.ChatTurnComplete,
+				turnId: 'turn-1',
+				duration: 1000,
 			},
 			serverSeq: 1,
 			origin: undefined,

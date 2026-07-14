@@ -516,6 +516,7 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
