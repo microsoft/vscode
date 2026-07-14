@@ -233,6 +233,44 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 		await session.close();
 	});
 
+	test('CDP Target.createTarget falls back when bootstrap tab is closed', async function () {
+		this.timeout(30_000);
+
+		const doc = await workspace.openTextDocument({ content: 'anchor' });
+		await window.showTextDocument(doc, { viewColumn: ViewColumn.One });
+
+		const bootstrap = await window.openBrowserTab('about:blank', {
+			viewColumn: ViewColumn.Two,
+			preserveFocus: true,
+		});
+
+		const session = await bootstrap.startCDPSession();
+		const { cdpSend } = createHarness(session);
+
+		const browserAttach = await cdpSend('Target.attachToBrowserTarget');
+		const browserSessionId = browserAttach.sessionId;
+
+		await bootstrap.close();
+		assert.strictEqual(window.browserTabs.length, 0);
+
+		const opened = new Promise<vscode.BrowserTab>(resolve => {
+			const disposable = window.onDidOpenBrowserTab(tab => {
+				disposable.dispose();
+				resolve(tab);
+			});
+		});
+
+		await cdpSend('Target.createTarget', { url: 'about:blank' }, browserSessionId);
+		const cdpTab = await opened;
+
+		assert.strictEqual(window.browserTabs.length, 1);
+		assert.strictEqual(tabCountInColumn(ViewColumn.One), 2, 'CDP tab should fall back to the active column');
+		assert.strictEqual(tabCountInColumn(ViewColumn.Two), 0, 'bootstrap column should be empty');
+
+		await cdpTab.close();
+		await session.close();
+	});
+
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
 	// isn't added to the local `file://` trust allowlist, and the harness

@@ -436,7 +436,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		} else if (opts.parentViewId) {
 			targetGroup = this._findEditorGroupForView(opts.parentViewId);
 			if (targetGroup === undefined) {
-				return; // If the parent isn't open, don't open the child either
+				// Bootstrap/parent tab was closed; fall back to normal placement.
+				targetGroup = await this.getPreferredGroup();
 			}
 		} else {
 			// Keep the browser docked in the main editor area even when editors
