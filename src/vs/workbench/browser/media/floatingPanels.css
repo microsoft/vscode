@@ -220,17 +220,25 @@
 }
 
 /*
- * Floating cards use a 4px leading margin and 2px trailing margin, placing the
- * visual midpoint of their 6px gap 1px past the grid boundary. Shift only grid
- * sashes to that midpoint; part-internal sashes and the hidden-panel reveal sash
- * retain their own geometry.
+ * Floating cards use a 4px leading margin and 2px trailing margin, so adjacent
+ * cards are separated by a 6px gap. A grid sash is only 4px wide and centered on
+ * the grid boundary; because the two card margins differ (2px vs 4px) the 4px sash
+ * leaves uneven dead space inside the 6px gap, so its hover highlight activates at
+ * a different distance from each card edge (e.g. immediately from the 2px side but
+ * only near the centre from the 4px side). Expand only grid sashes to span the full
+ * 6px gap — their inline offset already starts at the gap's leading edge
+ * (boundary: 2px = `--vscode-spacing-size20`), so growing the width/height to
+ * `--vscode-spacing-size20 + --vscode-spacing-size40` reaches the trailing card edge. The hover highlight (`:before`)
+ * stays a centered 4px line, so the visual is unchanged while the hit region now
+ * meets both card edges symmetrically. Part-internal sashes and the hidden-panel
+ * reveal sash retain their own geometry.
  */
 .monaco-workbench.floating-panels .monaco-sash.vertical:not(.part .monaco-sash) {
-	transform: translateX(1px);
+	width: var(--vscode-spacing-size60);
 }
 
 .monaco-workbench.floating-panels:not(.nopanel) .monaco-sash.horizontal:not(.part .monaco-sash) {
-	transform: translateY(1px);
+	height: var(--vscode-spacing-size60);
 }
 
 /*
