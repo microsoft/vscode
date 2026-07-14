@@ -161,8 +161,8 @@
 /* Inset and vertically center the status bar items within its floating gutter. */
 .monaco-workbench.floating-panels .part.statusbar {
 	padding: var(--vscode-spacing-size40);
-	padding-top: calc(var(--vscode-spacing-size40) - 1px); /* 1px for the border-top of the status bar */
-	padding-bottom: calc(var(--vscode-spacing-size40) + 1px); /* 1px for the border-bottom of the status bar */
+	padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness)); /* offset for the border-top of the status bar */
+	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
 }
 
 .monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
