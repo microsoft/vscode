@@ -60,6 +60,47 @@ function createMicrosoftSession(accessToken = 'ms-token'): AuthenticationSession
 	};
 }
 
+// A GitHub session whose id matches the default account's `sessionId` so the service can resolve
+// its access token as the RFC 8693 `subject_token` for the marketplace token exchange.
+function createGitHubSession(accessToken = 'gh-subject-token'): AuthenticationSession {
+	return {
+		id: 'session-1',
+		accessToken,
+		account: { id: 'gh-account-1', label: 'testuser' },
+		scopes: [],
+	};
+}
+
+// RFC 9728 Protected Resource Metadata for the GitHub auth-enabled scheme. The advertised
+// authorization server is the marketplace's own embedded AS (same origin as the service URL) so it
+// passes the same-origin HTTPS token-target guard; the exchange scope is `access_as_user`.
+function createGitHubProtectedResourceMetadata() {
+	return {
+		resource: 'https://marketplace.example.com',
+		authorization_servers: ['https://marketplace.example.com'],
+		scopes_supported: ['access_as_user'],
+	};
+}
+
+// RFC 8414 Authorization Server Metadata for the marketplace's embedded AS, advertising the
+// token-exchange endpoint used by the GitHub scheme.
+function createAuthorizationServerMetadata() {
+	return {
+		issuer: 'https://marketplace.example.com',
+		token_endpoint: 'https://marketplace.example.com/connect/token',
+	};
+}
+
+// True when a request targets the marketplace AS's RFC 8414 metadata endpoint.
+function isAuthorizationServerMetadataRequest(url: string | undefined): boolean {
+	return !!url?.includes('/.well-known/oauth-authorization-server');
+}
+
+// True when a request targets the marketplace AS's token-exchange endpoint.
+function isTokenExchangeRequest(url: string | undefined): boolean {
+	return !!url?.includes('/connect/token');
+}
+
 // Gallery manifest response stub
 function createGalleryManifest(includeEligibility = false) {
 	return {
@@ -96,6 +137,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let defaultAccount: IDefaultAccount | null;
 	let microsoftSessions: AuthenticationSession[];
 	let microsoftResourceSessions: AuthenticationSession[] | undefined;
+	let githubSessions: AuthenticationSession[];
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
 	let entraAuthEnabled: boolean;
@@ -104,6 +146,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		defaultAccount = null;
 		microsoftSessions = [];
 		microsoftResourceSessions = undefined;
+		githubSessions = [];
 		requestHandler = () => mockResponse(200, createGalleryManifest());
 		storageData = new Map();
 		entraAuthEnabled = true;
@@ -196,6 +239,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 						return microsoftResourceSessions ?? microsoftSessions;
 					}
 					return microsoftSessions;
+				}
+				if (providerId === 'github') {
+					return githubSessions;
 				}
 				return [];
 			}
@@ -620,6 +666,217 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).eligible, false);
+	});
+
+	// --- GitHub auth-enabled scheme (RFC 8693 token exchange) ---
+
+	test('GitHub provider — auth-disabled (open index) → Available, no bearer, no token exchange', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession()];
+		let exchangeRequests = 0;
+		let indexPresentedToken = false;
+		requestHandler = (options) => {
+			if (isTokenExchangeRequest(options.url)) {
+				exchangeRequests++;
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			if (options.headers?.['Authorization']) {
+				indexPresentedToken = true;
+			}
+			// Default deployment: the index is open and served anonymously (200).
+			return mockResponse(200, createGalleryManifest());
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		// An open index needs no bearer: no token is negotiated, exposed, or exchanged.
+		assert.strictEqual(await service.getAccessToken(), undefined);
+		assert.strictEqual(exchangeRequests, 0);
+		assert.strictEqual(indexPresentedToken, false);
+	});
+
+	test('GitHub provider — auth-gated index → PRM discovery + RFC 8693 token exchange → Available with negotiated token', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let exchangeBody: string | undefined;
+		let eligibilityPosts = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// The GitHub session token is exchanged at the marketplace AS for a resource-bound
+				// token; the raw GitHub token is only ever sent here, never to the resource server.
+				exchangeBody = options.data as string | undefined;
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			if (options.url?.includes('eligibility')) {
+				eligibilityPosts++;
+				return mockResponse(200, { eligible: true });
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			// The gated index only accepts the negotiated resource token; the anonymous probe is
+			// challenged with a 401 carrying the RFC 9728 resource_metadata pointer.
+			if (auth === 'Bearer gh-resource-token') {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		// The negotiated resource token is exposed for protected marketplace API requests.
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+		// The exchange carried the RFC 8693 grant with the GitHub session token as the subject.
+		const params = new URLSearchParams(exchangeBody ?? '');
+		assert.strictEqual(params.get('grant_type'), 'urn:ietf:params:oauth:grant-type:token-exchange');
+		assert.strictEqual(params.get('subject_token'), 'gh-subject-token');
+		assert.strictEqual(params.get('subject_token_type'), 'urn:ietf:params:oauth:token-type:access_token');
+		assert.strictEqual(params.get('resource'), 'https://marketplace.example.com');
+		assert.strictEqual(params.get('scope'), 'access_as_user');
+		// The GitHub scheme renders no server-side eligibility verdict: no /eligibility POST.
+		assert.strictEqual(eligibilityPosts, 0);
+	});
+
+	test('GitHub provider — auth-gated index but no GitHub session (no subject token) → RequiresSignIn', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		// No session backing the default account → no subject token can be resolved for the
+		// exchange, so negotiation cannot complete and the user is asked to (re-)sign in.
+		githubSessions = [];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let exchangeRequests = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				exchangeRequests++;
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		// With no subject token there is nothing to exchange — the AS is never contacted.
+		assert.strictEqual(exchangeRequests, 0);
+		// A 401 is not a durable verdict, so no negative result is cached.
+		assert.strictEqual(storageData.get('marketplace.cachedAccess'), undefined);
+	});
+
+	test('GitHub provider — negotiated token still forbidden on retry (403) → AccessDenied (cached ineligible)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession()];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		// The exchange succeeds and a resource token is minted, but the identity is still
+		// forbidden from the index (403) — a durable denial that is cached.
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (auth === 'Bearer gh-resource-token') {
+				return mockResponse(403, { message: 'forbidden' });
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).eligible, false);
+	});
+
+	test('GitHub provider — token exchange fails (AS rejects) → RequiresSignIn (not cached)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession()];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		// The AS rejects the exchange (e.g. the GitHub token is not accepted upstream). No resource
+		// token can be obtained silently, so — like the no-session case — negotiation re-throws the
+		// original 401 and the user is asked to (re-)sign in. This is not a durable verdict.
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(400, { error: 'invalid_grant' });
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(await service.getAccessToken(), undefined);
+		assert.strictEqual(storageData.get('marketplace.cachedAccess'), undefined);
+	});
+
+	test('GitHub provider — auth-enabled: onDidChangeSessions(github) recovers from RequiresSignIn once a session appears', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		// Start with no GitHub session: the gated index cannot be negotiated (no subject token),
+		// so the initial validation lands on RequiresSignIn.
+		githubSessions = [];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (auth === 'Bearer gh-resource-token') {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+
+		// The user signs in: a GitHub session appears and fires onDidChangeSessions('github').
+		// Re-validation negotiates a resource token and the marketplace becomes Available.
+		githubSessions = [createGitHubSession()];
+		onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+		// The re-negotiation chain (checkAccess → subject-token → PRM → AS metadata → exchange →
+		// index) spans several async hops; poll until access is established.
+		for (let i = 0; i < 50 && service.extensionGalleryManifestStatus !== ExtensionGalleryManifestStatus.Available; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
 	});
 
 	test('Microsoft provider — eligibility endpoint forbids (403) → AccessDenied (cached ineligible)', async () => {
