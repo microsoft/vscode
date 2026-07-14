@@ -697,6 +697,47 @@ suite('LocalAgentsSessionsController', () => {
 			});
 		});
 
+		test('should include changed existing sessions in addedOrUpdated on refresh', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('updated-session');
+				const timing = createTestTiming();
+				const detail = {
+					sessionResource,
+					title: 'Original Title',
+					lastMessageDate: timing.created,
+					isActive: false,
+					lastResponseState: ResponseModelState.Complete,
+					timing
+				};
+
+				mockChatService.setLiveSessionItems([]);
+				mockChatService.setHistorySessionItems([detail]);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 1);
+
+				const fired: { addedOrUpdated?: readonly IChatSessionItem[]; removed?: readonly URI[] }[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => fired.push(delta)));
+
+				mockChatService.setHistorySessionItems([{ ...detail, title: 'Updated Title' }]);
+				await controller.refresh(CancellationToken.None);
+
+				assert.deepStrictEqual(
+					fired.map(delta => ({
+						addedOrUpdated: (delta.addedOrUpdated ?? []).map(item => item.label),
+						removed: (delta.removed ?? []).map(resource => resource.toString()),
+					})),
+					[{ addedOrUpdated: ['Updated Title'], removed: [] }]
+				);
+				assert.strictEqual(controller.items[0].label, 'Updated Title');
+
+				// A refresh without content changes must stay silent.
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(fired.length, 1);
+			});
+		});
+
 		test('should add a newly started session once it gets its first request', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = createController();

@@ -75,7 +75,8 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 		const removed: URI[] = [];
 
 		for (const item of newItems) {
-			if (!this._items.has(item.resource)) {
+			const existing = this._items.get(item.resource);
+			if (!existing || !existing.isEqual(item)) {
 				addedOrUpdated.push(item);
 			}
 		}
@@ -131,8 +132,6 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				this._modelListeners.deleteAndDispose(sessionResource);
 			}
 
-			// Dispose unloads the model from memory; rebuild from live + history so the
-			// session stays listed unless it was actually deleted (#325448).
 			if (e.sessionResources.some(resource => getChatSessionType(resource) === this.chatSessionType)) {
 				void this.refresh(CancellationToken.None);
 			}
