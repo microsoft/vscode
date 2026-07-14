@@ -890,6 +890,10 @@ export interface Submodule {
 	url: string;
 }
 
+export function getSubmoduleDisplayName(submodule: Submodule): string | undefined {
+	return submodule.name !== submodule.path ? submodule.name : undefined;
+}
+
 export function parseGitmodules(raw: string): Submodule[] {
 	const result: Submodule[] = [];
 
