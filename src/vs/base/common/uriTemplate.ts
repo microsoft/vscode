@@ -263,14 +263,10 @@ export class UriTemplate {
 		} else if (isParam) {
 			// For param, if value is empty string, just append ;name
 			joined = vals.length ? prefix + vals.map(v => v.replace(/=\s*$/, '')).join(';') : '';
-		} else if (isForm) {
-			joined = vals.length ? prefix + vals.join('&') : '';
-		} else if (isFormCont) {
+		} else if (isForm || isFormCont) {
 			joined = vals.length ? prefix + vals.join('&') : '';
 		} else if (isFragment) {
 			joined = prefix + vals.join(',');
-		} else if (isReserved) {
-			joined = vals.join(',');
 		} else {
 			joined = vals.join(',');
 		}
