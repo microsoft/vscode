@@ -146,6 +146,10 @@ function defaultEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+function nestedActiveEditorSpecs(): IEditorSpec[] {
+	return defaultEditorSpecs().map((spec, index) => ({ ...spec, active: index === 0 }));
+}
+
 /** Two editors sharing a name but living in different folders (to show descriptions). */
 function duplicateNameEditorSpecs(): IEditorSpec[] {
 	return [
@@ -493,7 +497,7 @@ function createFixtures(modernUI: boolean) {
 		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
 
 		// breadcrumbs
-		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' } }) }),
+		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
 		BreadcrumbsIconsOff: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { icons: false } }) }),
 
 		// tabSizing
