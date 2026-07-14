@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -43,6 +44,40 @@ export interface ISessionTypeItem {
 const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
 const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
 
+export function createSessionTypePickerAction(
+	action: IAction,
+	sessionTypeItem: ISessionTypeItem,
+	currentType: AgentSessionTarget,
+	availability: SessionTypeAvailability,
+	enabled: boolean,
+	category: IActionWidgetDropdownAction['category'],
+	sourceDescription: string | undefined,
+	icon: ThemeIcon,
+	run: () => void,
+): IActionWidgetDropdownAction {
+	const unavailable = availability !== SessionTypeAvailability.Available;
+	const description = getSessionTypeUnavailableDescription(availability) ?? sourceDescription;
+	const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
+	const ariaDescription = description ? renderAsPlaintext(description) : undefined;
+	const ariaHoverDescription = hoverDescription ? renderAsPlaintext(hoverDescription) : undefined;
+	return {
+		...action,
+		id: sessionTypeItem.commandId,
+		label: sessionTypeItem.label,
+		checked: currentType === sessionTypeItem.type,
+		icon,
+		enabled: unavailable ? false : enabled,
+		category,
+		description,
+		ariaDescription: ariaDescription && ariaHoverDescription
+			? localize('chat.sessionTarget.ariaDescription', "{0}. {1}", ariaDescription, ariaHoverDescription)
+			: undefined,
+		tooltip: '',
+		hover: { content: hoverDescription },
+		run: async () => run(),
+	};
+}
+
 /**
  * Action view item for selecting a session target in the chat interface.
  * This picker allows switching between different chat session types for new/empty sessions.
@@ -76,29 +111,17 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
 					const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
-					const unavailable = availability !== SessionTypeAvailability.Available;
-					const description = getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem);
-					const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
-					const ariaDescription = typeof description === 'string' ? description : description?.value;
-					const ariaHoverDescription = typeof hoverDescription === 'string' ? hoverDescription : hoverDescription?.value;
-					actions.push({
-						...action,
-						id: sessionTypeItem.commandId,
-						label: sessionTypeItem.label,
-						checked: currentType === sessionTypeItem.type,
-						icon: this._getSessionIcon(sessionTypeItem),
-						enabled: unavailable ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
-						category: this._getSessionCategory(sessionTypeItem),
-						description,
-						ariaDescription: ariaDescription && ariaHoverDescription
-							? localize('chat.sessionTarget.ariaDescription', "{0}. {1}", ariaDescription, ariaHoverDescription)
-							: undefined,
-						tooltip: '',
-						hover: { content: hoverDescription },
-						run: async () => {
-							this._run(sessionTypeItem);
-						},
-					});
+					actions.push(createSessionTypePickerAction(
+						action,
+						sessionTypeItem,
+						currentType,
+						availability,
+						this._isSessionTypeEnabled(sessionTypeItem.type),
+						this._getSessionCategory(sessionTypeItem),
+						this._getSessionDescription(sessionTypeItem),
+						this._getSessionIcon(sessionTypeItem),
+						() => this._run(sessionTypeItem),
+					));
 				}
 
 				return actions;
