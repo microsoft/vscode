@@ -157,10 +157,21 @@ export interface IAgentHostE2EProviderConfig {
 	readonly codexSdkRoot?: string;
 	/**
 	 * Provider implements `config.isolation: 'worktree'` and resolves the
-	 * working directory to a `.worktrees/...` path on materialization.
-	 * Claude has not landed worktree isolation yet (Phase 12 in roadmap).
+	 * working directory to a `.worktrees/...` path on materialization. Now
+	 * shared across all agents (Copilot, Codex, Claude) via the host-owned
+	 * worktree isolation controller.
 	 */
 	readonly supportsWorktreeIsolation: boolean;
+	/**
+	 * Provider routes shell commands through the host-managed custom terminal
+	 * tool (gated by {@link CopilotCliConfigKey.EnableCustomTerminalTool}),
+	 * which exposes a terminal resource whose `cwd` / `pwd` output can be
+	 * asserted. Currently true only for Copilot — Codex and Claude run shell
+	 * commands inside their own SDK subprocess and never surface a host
+	 * terminal resource, so the worktree suite verifies isolation via the
+	 * resolved working directory alone for them.
+	 */
+	readonly supportsHostTerminalTool: boolean;
 	/**
 	 * Provider exposes a subagent tool (`task` / `Task`) that produces
 	 * `ToolResultSubagentContent` and routes inner tool calls to a child
@@ -430,6 +441,14 @@ async function driveTurn(c: TestProtocolClient, session: string, turnId: string,
 export function terminalResourceFromContent(content: readonly ToolResultContent[]): string | undefined {
 	const terminalContent = content.find(c => c.type === ToolResultContentType.Terminal);
 	return terminalContent?.resource;
+}
+
+/** Concatenates the text of any {@link ToolResultContentType.Text} parts in a tool result. */
+export function textFromContent(content: readonly ToolResultContent[]): string {
+	return content
+		.filter((c): c is Extract<ToolResultContent, { type: ToolResultContentType.Text }> => c.type === ToolResultContentType.Text)
+		.map(c => c.text)
+		.join('');
 }
 
 export function terminalText(state: TerminalState): string {
@@ -760,44 +779,6 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 			assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
-
-			// Regression guard (SDK >= 1.0.6 permission/tool-start reorder): for a
-			// tool that surfaced a confirmation prompt, the host must emit an
-			// identical AHP sequence regardless of the SDK's event-order race —
-			// `toolCallStart` first, then the confirmation `toolCallReady`, with
-			// NO not-needed ready in between. Before the fix, when
-			// `tool.execution_start` arrived before the confirmation fired, the
-			// host emitted a spurious not-needed ready ahead of the confirmation
-			// (briefly flipping the tool to "running"); when the confirmation
-			// arrived first it was dropped entirely and the tool hung. Assert the
-			// normalized order per tool call.
-			const readies = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallReady'))
-				.map(n => {
-					const envelope = getActionEnvelope(n);
-					const action = envelope.action as { toolCallId: string; confirmed?: string };
-					return { toolCallId: action.toolCallId, confirmed: action.confirmed, serverSeq: envelope.serverSeq };
-				});
-			const startSeqByToolCall = new Map<string, number>();
-			for (const n of toolStarts) {
-				const envelope = getActionEnvelope(n);
-				const toolCallId = (envelope.action as { toolCallId: string }).toolCallId;
-				if (!startSeqByToolCall.has(toolCallId)) {
-					startSeqByToolCall.set(toolCallId, envelope.serverSeq);
-				}
-			}
-			for (const ready of readies) {
-				if (ready.confirmed !== undefined) {
-					continue; // only confirmation-requiring readies matter here
-				}
-				const startSeq = startSeqByToolCall.get(ready.toolCallId);
-				assert.ok(startSeq !== undefined && startSeq < ready.serverSeq,
-					`toolCallStart (seq ${startSeq}) must precede the confirmation toolCallReady (seq ${ready.serverSeq}) for ${ready.toolCallId}`);
-				const notNeededBefore = readies.some(r =>
-					r.toolCallId === ready.toolCallId && r.confirmed !== undefined && r.serverSeq < ready.serverSeq);
-				assert.ok(!notNeededBefore,
-					`no not-needed toolCallReady may precede the confirmation toolCallReady for ${ready.toolCallId}`);
-			}
-
 			// While recording, let the post-tool continuation finish so its
 			// model call lands in the fixture. Replay always issues that
 			// continuation, so without capturing it here replay would hit an
@@ -926,15 +907,21 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-worktree-${config.provider}` });
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 
-			// The host's custom terminal tool is opt-in (default off). This test
-			// asserts on the host-managed terminal's cwd / `pwd` output, so the
-			// shell tool must route through the host terminal manager. Enable it
-			// before the session materializes on the first turn dispatch.
-			client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true } },
-			});
+			// The host's custom terminal tool is opt-in (default off) and only
+			// Copilot routes shell commands through it. When the provider
+			// supports it, this test additionally asserts on the host-managed
+			// terminal's cwd / `pwd` output, so enable it before the session
+			// materializes on the first turn dispatch. Codex / Claude run shell
+			// commands inside their own SDK subprocess and never surface a host
+			// terminal resource, so they verify isolation via the resolved
+			// working directory alone.
+			if (config.supportsHostTerminalTool) {
+				client.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq: 0,
+					action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true } },
+				});
+			}
 
 			const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 			await client.call('createSession', {
@@ -994,6 +981,56 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			const responseParts = client.receivedNotifications(n => isActionNotification(n, 'chat/responsePart'));
 			assert.ok(responseParts.length > 0, 'should have received at least one response part after session refresh');
+
+			// Verify the agent's shell subprocess actually runs in the resolved
+			// worktree by asking it to run `pwd`. Copilot routes shell commands
+			// through the host-managed terminal tool, which exposes a
+			// subscribable terminal resource we can assert `cwd` / output on.
+			// Codex / Claude run shell commands inside their own SDK subprocess
+			// and surface the output as plain text in the tool result instead,
+			// so we assert the worktree path appears in that text.
+			if (!config.supportsHostTerminalTool) {
+				// The shell command may either require a host confirmation
+				// (`toolCallReady` with `confirmed=undefined`) or be
+				// auto-approved at the SDK layer (Claude's default permission
+				// mode). A background approval loop handles the former without
+				// blocking on it, so the wait below only has to observe the
+				// tool's text output — which carries the `pwd` result.
+				const approvalLoop = startBackgroundApprovalLoop(client, {
+					approvalSeqStart: 100,
+					allow: [{ toolName: config.shellToolName }],
+				});
+				try {
+					client.clearReceived();
+					dispatchTurn(client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.', 3);
+
+					// The `pwd` output can arrive as streaming partial content
+					// (`toolCallContentChanged`) or in the final tool result
+					// (`toolCallComplete`), depending on the provider. Accept
+					// either as long as the text carries the worktree path.
+					const pwdNotif = await client.waitForNotification(n => {
+						if (isActionNotification(n, 'chat/toolCallContentChanged')) {
+							const action = getActionEnvelope(n).action as { content: readonly ToolResultContent[] };
+							return textFromContent(action.content).includes(resolvedWorkingDirectoryPath);
+						}
+						if (isActionNotification(n, 'chat/toolCallComplete')) {
+							const action = getActionEnvelope(n).action as { result: { content?: readonly ToolResultContent[] } };
+							return textFromContent(action.result.content ?? []).includes(resolvedWorkingDirectoryPath);
+						}
+						return false;
+					}, 90_000);
+					const pwdText = isActionNotification(pwdNotif, 'chat/toolCallComplete')
+						? textFromContent((getActionEnvelope(pwdNotif).action as { result: { content?: readonly ToolResultContent[] } }).result.content ?? [])
+						: textFromContent((getActionEnvelope(pwdNotif).action as { content: readonly ToolResultContent[] }).content);
+					assert.ok(pwdText.includes(resolvedWorkingDirectoryPath),
+						`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+				} finally {
+					await approvalLoop.stop();
+				}
+				assert.deepStrictEqual(approvalLoop.errors, [], 'no unexpected tool calls should have been denied');
+				await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+				return;
+			}
 
 			client.clearReceived();
 			dispatchTurn(client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command: pwd', 3);

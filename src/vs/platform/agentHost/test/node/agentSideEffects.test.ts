@@ -518,6 +518,42 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('surfaces a working directory resolution failure without calling the agent', async () => {
+			setupProvisionalSession();
+			const resolutionError = new Error('The isolated worktree could not be restored');
+			const resolvingSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: {} as ISessionDataService,
+				resolveWorkingDirectoryBeforeSend: async () => { throw resolutionError; },
+				onTurnComplete: () => { },
+			});
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			resolvingSideEffects.handleAction(defaultChatUri, turnStarted);
+
+			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.SessionCreationFailed) || undefined);
+
+			assert.deepStrictEqual({
+				chatError: envelopes.some(e => e.action.type === ActionType.ChatError),
+				creationFailed: envelopes.some(e => e.action.type === ActionType.SessionCreationFailed),
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				chatError: true,
+				creationFailed: true,
+				lifecycle: SessionLifecycle.CreationFailed,
+				sendMessageCalls: [],
+			});
+		});
+
 		test('does not fail creation when an already-ready session send rejects', async () => {
 			setupSession(); // dispatches SessionReady -> lifecycle Ready
 			agent.sendMessageError = new Error('transient send failure');

@@ -291,11 +291,6 @@ export class ChatSessionContentBuilder {
 					history.push(new vscode.ChatResponseTurn2([card], {}, this.type));
 				}
 
-				// Only the latest turn can still be in-progress. When the task itself terminally
-				// failed, surface a failure notice (with any available error detail) instead of a
-				// stuck progress spinner — the latest session state can still read as active (e.g.
-				// "Failed to launch agent"). Detail is extracted from the full event list because a
-				// bootstrap `session.error` is suppressed from the rendered turns above.
 				// Only the latest turn can still be in-progress. When the task terminally stopped,
 				// surface a "Copilot stopped: <reason>" notice instead of a stuck progress spinner —
 				// the latest session state can still read as active (e.g. "Failed to launch agent"

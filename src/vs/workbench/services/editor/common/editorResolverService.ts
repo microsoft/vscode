@@ -66,7 +66,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		[markdownDefaultEditorAgentsWindowSettingId]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),

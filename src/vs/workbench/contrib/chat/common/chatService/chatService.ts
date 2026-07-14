@@ -1236,6 +1236,7 @@ export interface IChatMcpAuthenticationRequiredServer {
 	readonly name: string;
 	readonly resource: string;
 	readonly authorizationServers?: readonly string[];
+	readonly supportedScopes?: readonly string[];
 	readonly requiredScopes?: readonly string[];
 	readonly reason?: string;
 }

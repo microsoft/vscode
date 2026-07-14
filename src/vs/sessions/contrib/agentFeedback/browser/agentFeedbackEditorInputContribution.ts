@@ -410,7 +410,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			options: {
 				description: 'agent-feedback-hover-glyph',
 				isWholeLine: true,
-				linesDecorationsClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
+				// Only render the glyph on the first wrapped line.
+				firstLineDecorationClassName: `${agentFeedbackHoverGlyphClassName} line-hover`,
 			},
 		}]);
 	}

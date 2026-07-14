@@ -103,14 +103,6 @@ export interface ISessionTypePickerDelegate {
 	 * Used to gate cloud delegation which requires a GitHub repository.
 	 */
 	hasGitRepository?(): boolean;
-	/**
-	 * Optional visibility filter for the session-type dropdown. When
-	 * provided, the picker hides any session type for which this returns
-	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
-	 * the automations dialog, which only supports a handful of session
-	 * types). When omitted, every contributed session type is shown.
-	 */
-	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');

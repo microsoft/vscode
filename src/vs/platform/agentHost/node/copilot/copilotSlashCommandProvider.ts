@@ -136,4 +136,3 @@ export class CopilotSlashCommandProvider {
 		return slashStripped.toLowerCase();
 	}
 }
-
