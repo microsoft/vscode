@@ -20,23 +20,8 @@
       "description": "%virtualWorkspaces%"
     },
     "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "typescript.tsdk",
-        "js/ts.tsdk.path",
-        "typescript.tsserver.pluginPaths",
-        "js/ts.tsserver.pluginPaths",
-        "typescript.npm",
-        "js/ts.tsserver.npm.path",
-        "typescript.tsserver.nodePath",
-        "js/ts.tsserver.node.path",
-        "js/ts.tsserver.diagnosticDir",
-        "js/ts.tsserver.heapProfile",
-        "js/ts.preferences.autoImportSpecifierExcludeRegexes",
-        "typescript.preferences.autoImportSpecifierExcludeRegexes",
-        "javascript.preferences.autoImportSpecifierExcludeRegexes"
-      ]
+      "supported": false,
+      "description": "%workspaceTrust%"
     }
   },
   "engines": {
