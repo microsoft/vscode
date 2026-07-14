@@ -917,7 +917,7 @@ export function fuzzyContains(target: string, query: string): boolean {
 
 	const targetLower = target.toLowerCase();
 	const queryLower = query.toLowerCase();
-	// toLowerCase() can change a string's length (e.g. İ -> i̇), so iterate over the lowered query.
+	// toLowerCase() can change a string's length (e.g. \u0130 -> i\u0307), so iterate over the lowered query.
 	const queryLen = queryLower.length;
 
 	let index = 0;
