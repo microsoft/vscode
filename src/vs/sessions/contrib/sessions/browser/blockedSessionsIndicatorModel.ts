@@ -12,6 +12,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
 
 /**
@@ -26,8 +27,6 @@ export const enum RequiresInputKind {
 	Question,
 	/** All sessions have failing CI checks. */
 	FailingCI,
-	/** All sessions have unresolved pull request comments. */
-	UnresolvedComments,
 }
 
 /**
@@ -38,17 +37,16 @@ export const enum RequiresInputKind {
  * dismissals for approvals the user just allowed, classifies the homogeneous
  * requires-input reason, and decides when the attention blink should play.
  *
- * Blink detection deliberately keys off the underlying model's blocked-session
- * ids (independent of visibility) so the blink fires only when a session
- * *genuinely* becomes blocked — never merely because the user navigated to a
- * different session, which changes the visible set but not the model.
+ * Blink detection keys off *changes to* the blocked-session ids, so visibility can
+ * only ever suppress a blink, never trigger one — navigating between sessions never
+ * blinks.
  *
  * The DOM rendering of the indicator lives in the title bar widget; this class is
  * DOM-free so it can be unit tested in isolation.
  */
 export class BlockedSessionsIndicatorModel extends Disposable {
 
-	/** Computes the raw set of blocked sessions (needs input / failing CI / comments). */
+	/** Computes the raw set of blocked sessions (needs input / failing CI). */
 	private readonly _blockedSessionsModel: BlockedSessions;
 
 	/** Tracks pending tool approvals per chat; distinguishes terminal vs question. */
@@ -57,6 +55,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	/** The approval model, shared with the dropdown list so both agree on each session's pending action. */
 	get approvalModel(): AgentSessionApprovalModel {
 		return this._approvalModel;
+	}
+
+	/** Drives the per-session "Fix CI" row; shared with the dropdown list. */
+	private readonly _ciFixModel: BlockedSessionsCIFixModel;
+
+	/** The CI-fix model, shared with the dropdown list so the fix action and the hide-while-fixing agree. */
+	get ciFixModel(): BlockedSessionsCIFixModel {
+		return this._ciFixModel;
 	}
 
 	/**
@@ -93,12 +99,9 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	private _lastBlockedSessionIds: ReadonlySet<string> = new Set();
 
 	/**
-	 * Ids of sessions that genuinely became blocked while not visible and whose
-	 * attention blink hasn't played yet. Keyed by session id (rather than a single
-	 * flag) so a blink queued while the pill is suppressed — e.g. during the transient
-	 * "Approved N sessions" state — can't later fire for a session that has since
-	 * become visible or stopped being blocked. {@link consumePendingBlink} only blinks
-	 * while at least one pending id is still in the surfaced blocked set.
+	 * Ids of not-yet-visible sessions that genuinely became blocked and whose
+	 * attention blink hasn't played yet. Keyed by session id so a queued blink can be
+	 * individually dropped once its session becomes visible or stops being blocked.
 	 */
 	private readonly _pendingBlinkSessionIds = new Set<string>();
 
@@ -113,17 +116,19 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	constructor(
 		approvalModel: AgentSessionApprovalModel | undefined,
 		blockedSessions: BlockedSessions | undefined,
+		ciFixModel: BlockedSessionsCIFixModel | undefined,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
 	) {
 		super();
 
-		// The model owns the approval model and blocked-sessions model; the optional
-		// parameters are test seams so fixtures/tests can supply preset instances (only
-		// register — and thus dispose — the ones we created ourselves).
+		// The model owns the approval model, blocked-sessions model and CI-fix model;
+		// the optional parameters are test seams so fixtures/tests can supply preset
+		// instances (only register — and thus dispose — the ones we created ourselves).
 		this._approvalModel = approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		this._blockedSessionsModel = blockedSessions ?? this._register(instantiationService.createInstance(BlockedSessions));
+		this._ciFixModel = ciFixModel ?? this._register(instantiationService.createInstance(BlockedSessionsCIFixModel));
 
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
@@ -141,8 +146,12 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				}
 			}
 			const dismissed = this._dismissedApprovals.read(reader);
+			// Sessions whose CI fix is being submitted in the background are hidden
+			// immediately (before their status flips to in-progress) so the row
+			// disappears the moment the user clicks "Fix CI".
+			const ciFixHidden = this._ciFixModel.hiddenSessions.read(reader);
 			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
-				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
+				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !ciFixHidden.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
 		});
 
 		// The homogeneous reason across all blocked sessions (or `undefined` for a
@@ -199,13 +208,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 		}));
 
-		// Detect genuinely new blocks to drive the attention blink. This watches the
-		// underlying model's blocked-session ids (via `read`), so it fires only when
-		// the set of sessions needing input actually changes — never when the user
-		// merely navigates to a different session (which changes the visible set, not
-		// the model). Visibility is read untracked so a newly-blocked session that is
-		// already on screen is recorded without blinking; a later navigation that
-		// surfaces it in the pill then won't blink either.
+		// Drive the attention blink. Gated on a blocked-set diff, so a visibility-only
+		// change can only ever drop a pending blink, never start one.
 		this._register(autorun(reader => {
 			if (!enabled) {
 				return;
@@ -215,31 +219,24 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			const previousIds = this._lastBlockedSessionIds;
 			this._lastBlockedSessionIds = currentIds;
 
-			// Drop queued blinks for sessions that are no longer blocked, so a stale
-			// pending id can never blink after its session left the blocked set.
-			for (const id of this._pendingBlinkSessionIds) {
-				if (!currentIds.has(id)) {
-					this._pendingBlinkSessionIds.delete(id);
-				}
-			}
-
-			const newlyBlocked = modelBlocked.filter(session => !previousIds.has(session.sessionId));
-			if (newlyBlocked.length === 0) {
-				return;
-			}
-
 			const visibleSessionIds = new Set<string>();
-			// Untracked: a visibility change alone must not re-run this autorun (that is
-			// exactly the navigation case that should never blink); only a change to the
-			// underlying blocked set should.
-			for (const session of this._sessionsService.visibleSessions.read(undefined)) {
+			for (const session of this._sessionsService.visibleSessions.read(reader)) {
 				if (session) {
 					visibleSessionIds.add(session.sessionId);
 				}
 			}
+
+			// Drop queued blinks for sessions that unblocked or that the user can now see.
+			for (const id of this._pendingBlinkSessionIds) {
+				if (!currentIds.has(id) || visibleSessionIds.has(id)) {
+					this._pendingBlinkSessionIds.delete(id);
+				}
+			}
+
+			// Only a genuinely new block the user cannot already see queues a blink.
 			let queued = false;
-			for (const session of newlyBlocked) {
-				if (!visibleSessionIds.has(session.sessionId)) {
+			for (const session of modelBlocked) {
+				if (!previousIds.has(session.sessionId) && !visibleSessionIds.has(session.sessionId)) {
 					this._pendingBlinkSessionIds.add(session.sessionId);
 					queued = true;
 				}
@@ -302,10 +299,6 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				return count === 1
 					? localize('oneSessionFailingCI', "1 session is failing CI")
 					: localize('nSessionsFailingCI', "{0} sessions are failing CI", count);
-			case RequiresInputKind.UnresolvedComments:
-				return count === 1
-					? localize('oneSessionUnresolvedComments', "1 session has unresolved comments")
-					: localize('nSessionsUnresolvedComments', "{0} sessions have unresolved comments", count);
 			default:
 				return count === 1
 					? localize('oneSessionRequiresInput', "1 session requires input")
@@ -335,8 +328,6 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		switch (blocked.reason) {
 			case BlockedSessionReason.FailingCI:
 				return RequiresInputKind.FailingCI;
-			case BlockedSessionReason.UnresolvedComments:
-				return RequiresInputKind.UnresolvedComments;
 			case BlockedSessionReason.NeedsInput: {
 				const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
 				switch (approval?.kind) {

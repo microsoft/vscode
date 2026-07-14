@@ -190,6 +190,7 @@ Guidelines:
 `capiStubs.ts` answers ancillary bootstrap endpoints with hardcoded, PII-free responses. These are **forwarded** during recording (so the live run works) but **never stored**, and served from stubs on replay:
 
 - `GET /models` — a curated stub catalog (keeps unreleased models out of fixtures).
+- `GET /responses` — the SDK's WebSocket transport probe; returns `400` so it falls back to recorded `POST /responses` turns.
 - `POST /models/session`, `POST /models/session/intent` — auto-mode selection. Deliberately answered with a `500 + x-should-retry:false` so the SDK falls back to the configured model (auto-mode isn't wanted in replay). Not counted as a cache miss.
 - `/copilot_internal/*token*`, `/copilot_internal/*user*` — fake token + generic user/identity.
 - `GET /copilot/mcp_registry` — enterprise MCP registry policy. The Copilot CLI fetches this only when the developer has local MCP servers configured (`~/.copilot/mcp-config.json`) on an org/enterprise plan, so whether it's called varies per machine. Served as an empty registry (`{ mcp_registries: [] }`) so a developer's local MCP config never breaks replay (issue #325248).

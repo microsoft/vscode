@@ -22,8 +22,9 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IRestoredSubagentSession, SubagentChatSignal, type IAgent, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionResult, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
@@ -37,7 +38,9 @@ import { createNoopGitService, createSessionDataService, TestSessionDatabase } f
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -145,6 +148,44 @@ suite('AgentService (node dispatcher)', () => {
 			assert.throws(() => service.registerProvider(duplicate), /already registered/);
 		});
 
+		test('aggregates and deduplicates network diagnostics endpoints', async () => {
+			const providerA: IAgent = copilotAgent;
+			providerA.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'First', url: 'https://example.com' },
+				{ name: 'Other', url: 'https://other.example.com' },
+			];
+			providerA.getNetworkDiagnosticsAccount = async () => 'octocat';
+			const providerB = new MockAgent('other');
+			disposables.add(toDisposable(() => providerB.dispose()));
+			const providerBContract: IAgent = providerB;
+			providerBContract.getNetworkDiagnosticsEndpoints = async () => [
+				{ name: 'Duplicate', url: 'https://example.com/' },
+			];
+			const failingProvider = new MockAgent('failing');
+			disposables.add(toDisposable(() => failingProvider.dispose()));
+			const failingProviderContract: IAgent = failingProvider;
+			failingProviderContract.getNetworkDiagnosticsEndpoints = async () => { throw new Error('unavailable'); };
+			const diagnostics: INetworkDiagnosticsService = {
+				_serviceBrand: undefined,
+				getInfo: async (endpoints, account) => ({ version: 'test', os: 'test', arch: 'test', account, proxySettings: {}, proxyEnv: {}, endpoints }),
+				fetch: async url => ({ url }),
+			};
+			service.setNetworkDiagnosticsService(diagnostics);
+			service.registerProvider(providerA);
+			service.registerProvider(providerB);
+			service.registerProvider(failingProvider);
+
+			const info = await service.getNetworkDiagnosticsInfo();
+
+			assert.deepStrictEqual({ account: info.account, endpoints: info.endpoints }, {
+				account: 'octocat',
+				endpoints: [
+					{ name: 'First', url: 'https://example.com' },
+					{ name: 'Other', url: 'https://other.example.com' },
+				],
+			});
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -164,6 +205,108 @@ suite('AgentService (node dispatcher)', () => {
 				action: { type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'msg-1', content: 'hello' } },
 			});
 			assert.ok(envelopes.some(e => e.action.type === ActionType.ChatResponsePart));
+		});
+	});
+
+	test('resolveSessionConfig echoes host-owned worktree include files across isolation modes', async () => {
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => 'main';
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			nullSessionDataService,
+			new NullLogService(),
+		)));
+		const agent = new MockAgent('copilot');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+		const includeFiles = ['.env', '.env.local', 'config/**'];
+
+		const worktree = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+		});
+		const folder = await localService.resolveSessionConfig({
+			provider: 'copilot',
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+		});
+
+		assert.deepStrictEqual({
+			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
+			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
+			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
+			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
+		}, {
+			worktreeReadOnly: true,
+			worktreeValue: includeFiles,
+			folderReadOnly: true,
+			folderValue: includeFiles,
+		});
+	});
+
+	test('marks worktree isolation pending before a provisional provider can prewarm', async () => {
+		const session = AgentSession.uri('codex', 'pending-before-create');
+		const workingDirectory = URI.file('/workspace/repo');
+		const gitService = createNoopGitService();
+		gitService.getRepositoryRoot = async () => workingDirectory;
+		gitService.revParse = async () => 'head';
+		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getDefaultBranch = async () => 'main';
+		const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ generateBranchName: async () => 'agents/test' },
+			gitService,
+			new TestCopilotApiService(),
+			nullSessionDataService,
+			new NullLogService(),
+		));
+		localService.setWorktreeIsolation(isolation);
+		const pendingDuringCreate: boolean[] = [];
+		let failCreate = false;
+		class PrewarmingAgent extends MockAgent {
+			override async createSession(config?: import('../../common/agentService.js').IAgentCreateSessionConfig): Promise<import('../../common/agentService.js').IAgentCreateSessionResult> {
+				pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(config!.session!.toString()));
+				if (failCreate) {
+					throw new Error('create failed');
+				}
+				return { ...await super.createSession(config), provisional: true };
+			}
+		}
+		const agent = new PrewarmingAgent('codex');
+		disposables.add(toDisposable(() => agent.dispose()));
+		localService.registerProvider(agent);
+
+		await localService.createSession({
+			provider: 'codex',
+			session,
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		const failedSession = AgentSession.uri('codex', 'failed-before-create');
+		failCreate = true;
+		await assert.rejects(localService.createSession({
+			provider: 'codex',
+			session: failedSession,
+			workingDirectory,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		}), /create failed/);
+
+		assert.deepStrictEqual({
+			pendingDuringCreate,
+			pendingAfterCreate: localService.configurationService.isWorkingDirectoryPending(session.toString()),
+			pendingAfterFailure: localService.configurationService.isWorkingDirectoryPending(failedSession.toString()),
+		}, {
+			pendingDuringCreate: [true, true],
+			pendingAfterCreate: true,
+			pendingAfterFailure: false,
 		});
 	});
 

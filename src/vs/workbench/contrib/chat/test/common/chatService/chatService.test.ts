@@ -198,7 +198,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService())));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -750,6 +750,121 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+
+	test('steering message on a streamed (activeResponseCallback) session dispatches immediately, mid-turn', async () => {
+		// True mid-turn steering: a steering message sent while a streamed turn is in progress is
+		// dispatched to the participant immediately (which POSTs the steer server-side), instead of
+		// waiting for the turn to complete.
+		const sessionType = 'remote-streamed-steer';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/streamed-session' });
+
+		const isCompleteObs: ISettableObservable<boolean> = observableValue('isComplete', false);
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: (resource: URI): Promise<IChatSession> => Promise.resolve({
+				sessionResource: resource,
+				// History ends with a request, so the session has an in-progress (cancellable) turn.
+				history: [{ type: 'request', prompt: 'initial task', participant: sessionType }],
+				progressObs: constObservable<IChatProgress[]>([]),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => false,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		const steeringInvoked = new DeferredPromise<void>();
+		const agent: IChatAgentImplementation = {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				steeringInvoked.complete();
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, agent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentId: sessionType, queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+
+		// Dispatched immediately, without the streamed turn completing (isCompleteObs stays false).
+		await steeringInvoked.p;
+		await steering.deferred;
+		await timeout(0); // let the post-dispatch tracking restore run
+
+		assert.strictEqual(invokedMessages.filter(m => m.includes('steering message')).length, 1, 'steering message should be dispatched exactly once, immediately');
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 0, 'steering message should be dispatched, not left queued');
+
+		// In-progress tracking is preserved for the still-active stream: a plain send is rejected.
+		const plain = await testService.sendRequest(sessionResource, 'plain message', { agentId: sessionType });
+		assert.strictEqual(plain.kind, 'rejected');
+
+		// Completing the streamed turn must not re-dispatch the already-sent steering message.
+		isCompleteObs.set(true, undefined);
+		await timeout(0);
+		assert.strictEqual(invokedMessages.filter(m => m.includes('steering message')).length, 1, 'steering message must not be dispatched again on completion');
+	});
+
+	test('queued (non-steering) message is flushed when a streamed (activeResponseCallback) turn completes (fix for cloud-session queue limbo)', async () => {
+		// A non-steering queued message is not dispatched mid-turn; it must be flushed when the
+		// streamed turn completes (previously it was stranded in the pending queue forever).
+		const sessionType = 'remote-streamed-queue';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/streamed-session' });
+
+		const isCompleteObs: ISettableObservable<boolean> = observableValue('isComplete', false);
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: (resource: URI): Promise<IChatSession> => Promise.resolve({
+				sessionResource: resource,
+				history: [{ type: 'request', prompt: 'initial task', participant: sessionType }],
+				progressObs: constObservable<IChatProgress[]>([]),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => false,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		const invoked = new DeferredPromise<void>();
+		const agent: IChatAgentImplementation = {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				invoked.complete();
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, agent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const queued = await testService.sendRequest(sessionResource, 'queued message', { agentId: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
+
+		isCompleteObs.set(true, undefined);
+		await invoked.p;
+
+		assert.ok(invokedMessages.some(m => m.includes('queued message')), 'queued message should be sent once the streamed turn completes');
+		assert.strictEqual(model.getPendingRequests().length, 0, 'no pending requests should remain after the flush');
 	});
 
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {

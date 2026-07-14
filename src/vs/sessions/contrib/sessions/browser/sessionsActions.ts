@@ -66,7 +66,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
@@ -225,7 +225,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 });
 
 const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
@@ -235,7 +235,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --

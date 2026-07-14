@@ -676,6 +676,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const existing = this._findAnySession(sessionId);
 		if (existing) {
+			// Re-apply the eager active client on reconnect: AgentService reissues
+			// `createSession` for an existing URI, so the reconnected client's
+			// tools/customizations must still reach Claude (mirrors Copilot).
+			await this._seedEagerActiveClient(sessionUri, config.activeClient);
 			if (!existing.isPipelineReady) {
 				return {
 					session: existing.sessionUri,
@@ -716,6 +720,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._instantiationService,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
+		await this._seedEagerActiveClient(sessionUri, config.activeClient);
 
 		return {
 			session: sessionUri,
@@ -723,6 +728,28 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provisional: true,
 			...(project ? { project } : {}),
 		};
+	}
+
+	/**
+	 * Seed the eagerly-claimed active client (tools + customizations) into the
+	 * SDK at session creation, mirroring the Copilot agent. Runs for fresh AND
+	 * reconnected sessions: when the workbench session state already carries the
+	 * active client, no follow-up `session/activeClientSet` is dispatched to
+	 * trigger the customization sync, so the built-in skills bundle would never
+	 * reach Claude otherwise. Progress is suppressed (`quiet`) because the AH
+	 * service has not created the session state yet — a
+	 * `SessionCustomizationUpdated` envelope would be orphaned; the completed
+	 * snapshot is provided via `getSessionCustomizations` immediately after.
+	 */
+	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateSessionConfig['activeClient']): Promise<void> {
+		if (!activeClient) {
+			return;
+		}
+		const handle = this.getOrCreateActiveClient(sessionUri, { clientId: activeClient.clientId, displayName: activeClient.displayName });
+		handle.tools = activeClient.tools;
+		if (activeClient.customizations !== undefined) {
+			await this.syncClientCustomizations(sessionUri, activeClient.clientId, activeClient.customizations, { quiet: true });
+		}
 	}
 
 	/**
@@ -837,8 +864,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this._disposeChat(session, chat);
 		},
-		sendMessage: (chatUri, prompt, attachments, turnId, senderClientId) => {
-			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId);
+		sendMessage: (chatUri, prompt, workingDirectory, attachments, turnId, senderClientId) => {
+			return this._sendMessage(chatUri, prompt, workingDirectory, attachments, turnId, senderClientId);
 		},
 		abort: chatUri => {
 			return this._abortSession(chatUri);
@@ -965,7 +992,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *   inside `materialize` throws so we never expose a live pipeline
 	 *   for a session the caller has already torn down.
 	 */
-	private async _materializeProvisional(sessionId: string): Promise<ClaudeAgentSession> {
+	private async _materializeProvisional(sessionId: string, workingDirectory?: URI): Promise<ClaudeAgentSession> {
 		const session = this._findAnySession(sessionId);
 		if (!session) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -975,7 +1002,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const canUseTool = this._makeCanUseTool(sessionId);
 
 		try {
-			await session.materialize({ transport, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1795,7 +1822,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
 		// `IAgent.sendMessage` declares `turnId?` but every production caller in
 		// `AgentSideEffects` supplies one. Generate a fallback so the
 		// session-side `QueuedRequest.turnId: string` invariant holds even if a
@@ -1829,7 +1856,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (existing?.isPipelineReady) {
 				session = existing;
 			} else if (existing) {
-				session = await this._materializeProvisional(context.sessionId);
+				session = await this._materializeProvisional(context.sessionId, workingDirectory);
 			} else {
 				session = await this._resumeSession(context.sessionId, context.session);
 			}
@@ -2028,7 +2055,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry?.defaultChat?.completeClientToolCall(toolCallId, result);
 	}
 
-	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
 		const sessionId = AgentSession.id(session);
 		const sess = this._findAnySession(sessionId);
 		if (!sess) {
@@ -2044,7 +2071,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const synced = await this._pluginManager.syncCustomizations(
 				clientId,
 				customizations,
-				status => this._fireCustomizationUpdated(session, { customization: status }),
+				options?.quiet ? undefined : status => this._fireCustomizationUpdated(session, { customization: status }),
 			);
 			sess.adoptClientCustomizations(clientId, synced);
 			return synced;

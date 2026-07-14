@@ -260,7 +260,7 @@ export class DecorationsService implements IDecorationsService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IThemeService themeService: IThemeService,
 	) {
-		this._decorationStyles = new DecorationStyles(themeService);
+		this._decorationStyles = this._store.add(new DecorationStyles(themeService));
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
 		this._store.add(this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); }));

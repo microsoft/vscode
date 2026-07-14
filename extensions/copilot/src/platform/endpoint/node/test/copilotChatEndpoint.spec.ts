@@ -9,6 +9,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
 
+import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
@@ -495,5 +496,78 @@ describe('ChatEndpoint - Kimi temperature and top_p override', () => {
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(0);
 		expect(body.top_p).toBe(1);
+	});
+});
+
+describe('ChatEndpoint - CAPI reasoning effort', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	// A CAPI chat-completions model (no supported_endpoints) that optionally
+	// declares the reasoning effort levels it accepts, mirroring how Gemini
+	// models are hydrated from the CAPI `/models` response.
+	const createReasoningModelMetadata = (family: string, reasoningEffort?: string[]): IChatModelInformation => {
+		const base = createNonAnthropicModelMetadata(family);
+		return {
+			...base,
+			capabilities: {
+				...base.capabilities,
+				supports: {
+					...base.capabilities.supports,
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {})
+				}
+			}
+		};
+	};
+
+	const createTextMessage = (): Raw.ChatMessage => ({
+		role: Raw.ChatRole.User,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+	});
+
+	const createOptions = (reasoningEffort?: string): ICreateEndpointBodyOptions => ({
+		...createTestOptions([createTextMessage()]),
+		modelCapabilities: reasoningEffort ? { reasoningEffort } : undefined
+	});
+
+	it('applies the UI-selected reasoning effort for a CAPI model that declares support', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('high');
+	});
+
+	it('lets the ReasoningEffortOverride setting win over the UI selection', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ReasoningEffortOverride, 'low');
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('low');
+	});
+
+	it('ignores a selection the model does not declare', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('xhigh'));
+		expect(body.reasoning_effort).toBeUndefined();
+	});
+
+	it('does not set reasoning_effort when the model declares no levels', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro'));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBeUndefined();
 	});
 });

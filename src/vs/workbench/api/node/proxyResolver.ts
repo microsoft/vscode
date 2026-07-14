@@ -11,8 +11,8 @@ import { ExtHostExtensionService } from './extHostExtensionService.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
-import { AuthInfo, systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
+import { LogLevel, createHttpPatch, createProxyAuthorizationLookup, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
+import { systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
@@ -47,7 +47,29 @@ export function connectProxyResolver(
 	const timedResolveProxy = createTimedResolveProxy(extHostWorkspace, mainThreadTelemetry);
 	const params: ProxyAgentParams = {
 		resolveProxy: timedResolveProxy,
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, fallbackToLocalKerberos),
+		lookupProxyAuthorization: createProxyAuthorizationLookup({
+			log: extHostLogService,
+			lookupKerberosAuthorization: async proxyURL => {
+				try {
+					const spnConfig = getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxyKerberosServicePrincipal');
+					const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
+					return 'Negotiate ' + response;
+				} catch (err) {
+					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+				}
+
+				if (isRemote && fallbackToLocalKerberos) {
+					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup on host', `proxyURL:${proxyURL}`);
+					const auth = await extHostWorkspace.lookupKerberosAuthorization(proxyURL);
+					if (auth) {
+						return auth;
+					}
+				}
+				return undefined;
+			},
+			lookupAuthorization: authInfo => extHostWorkspace.lookupAuthorization(authInfo),
+			onDidRequestAuthentication: authenticate => sendTelemetry(mainThreadTelemetry, authenticate, isRemote),
+		}),
 		getProxyURL: () => getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxy'),
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
 		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
@@ -436,89 +458,6 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				return cache[request];
 			};
 		});
-}
-
-async function lookupProxyAuthorization(
-	extHostWorkspace: IExtHostWorkspaceProvider,
-	extHostLogService: ILogService,
-	mainThreadTelemetry: MainThreadTelemetryShape,
-	configProvider: ExtHostConfigProvider,
-	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
-	basicAuthCache: Record<string, string | undefined>,
-	isRemote: boolean,
-	fallbackToLocalKerberos: boolean,
-	proxyURL: string,
-	proxyAuthenticate: string | string[] | undefined,
-	state: { kerberosRequested?: boolean; basicAuthCacheUsed?: boolean; basicAuthAttempt?: number }
-): Promise<string | undefined> {
-	proxyURL = proxyURL.replace(/\/+$/, '');
-	const cached = proxyAuthenticateCache[proxyURL];
-	if (proxyAuthenticate) {
-		proxyAuthenticateCache[proxyURL] = proxyAuthenticate;
-	}
-	extHostLogService.trace('ProxyResolver#lookupProxyAuthorization callback', `proxyURL:${proxyURL}`, `proxyAuthenticate:${proxyAuthenticate}`, `proxyAuthenticateCache:${cached}`);
-	const header = proxyAuthenticate || cached;
-	const authenticate = Array.isArray(header) ? header : typeof header === 'string' ? [header] : [];
-	sendTelemetry(mainThreadTelemetry, authenticate, isRemote);
-	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a)) && !state.kerberosRequested) {
-		state.kerberosRequested = true;
-
-		try {
-			const spnConfig = getExtHostConfigValue<string>(configProvider, isRemote, 'http.proxyKerberosServicePrincipal');
-			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
-			return 'Negotiate ' + response;
-		} catch (err) {
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
-		}
-
-		if (isRemote && fallbackToLocalKerberos) {
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup on host', `proxyURL:${proxyURL}`);
-			const auth = await extHostWorkspace.lookupKerberosAuthorization(proxyURL);
-			if (auth) {
-				return 'Negotiate ' + auth;
-			}
-		}
-	}
-	const basicAuthHeader = authenticate.find(a => /^Basic( |$)/i.test(a));
-	if (basicAuthHeader) {
-		try {
-			const cachedAuth = basicAuthCache[proxyURL];
-			if (cachedAuth) {
-				if (state.basicAuthCacheUsed) {
-					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication deleting cached credentials', `proxyURL:${proxyURL}`);
-					delete basicAuthCache[proxyURL];
-				} else {
-					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication using cached credentials', `proxyURL:${proxyURL}`);
-					state.basicAuthCacheUsed = true;
-					return cachedAuth;
-				}
-			}
-			state.basicAuthAttempt = (state.basicAuthAttempt || 0) + 1;
-			const realm = / realm="([^"]+)"/i.exec(basicAuthHeader)?.[1];
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`, `realm:${realm}`);
-			const url = new URL(proxyURL);
-			const authInfo: AuthInfo = {
-				scheme: 'basic',
-				host: url.hostname,
-				port: Number(url.port),
-				realm: realm || '',
-				isProxy: true,
-				attempt: state.basicAuthAttempt,
-			};
-			const credentials = await extHostWorkspace.lookupAuthorization(authInfo);
-			if (credentials) {
-				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication received credentials', `proxyURL:${proxyURL}`, `realm:${realm}`);
-				const auth = 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
-				basicAuthCache[proxyURL] = auth;
-				return auth;
-			} else {
-				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication received no credentials', `proxyURL:${proxyURL}`, `realm:${realm}`);
-			}
-		} catch (err) {
-			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Basic authentication failed', err);
-		}
-	}
-	return undefined;
 }
 
 type ProxyAuthenticationClassification = {

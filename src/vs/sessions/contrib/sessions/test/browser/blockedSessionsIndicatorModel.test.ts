@@ -15,6 +15,7 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from '../../browser/blockedSessionsIndicatorModel.js';
 
 suite('BlockedSessionsIndicatorModel', () => {
@@ -25,23 +26,26 @@ suite('BlockedSessionsIndicatorModel', () => {
 		model: BlockedSessionsIndicatorModel;
 		blockedModel: TestBlockedSessions;
 		approvalModel: TestApprovalModel;
+		ciFixModel: TestCIFixModel;
 		sessionsService: TestSessionsService;
 	} {
 		const blockedModel = new TestBlockedSessions();
 		const approvalModel = new TestApprovalModel();
+		const ciFixModel = new TestCIFixModel();
 		const sessionsService = new TestSessionsService();
 		const productService = { quality: options?.quality ?? 'insider' } as unknown as IProductService;
 		const instantiationService = new class extends mock<IInstantiationService>() { }();
 		const model = store.add(new BlockedSessionsIndicatorModel(
 			approvalModel as unknown as AgentSessionApprovalModel,
 			blockedModel as unknown as BlockedSessions,
+			ciFixModel as unknown as BlockedSessionsCIFixModel,
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
-		return { model, blockedModel, approvalModel, sessionsService };
+		return { model, blockedModel, approvalModel, ciFixModel, sessionsService };
 	}
 
 	function blockedIds(model: BlockedSessionsIndicatorModel): string[] {
@@ -54,6 +58,16 @@ suite('BlockedSessionsIndicatorModel', () => {
 		const s2 = new TestSession('s2');
 		blockedModel.setBlocked([needsInput(s1), needsInput(s2)]);
 		sessionsService.setVisible([s1]);
+		assert.deepStrictEqual(blockedIds(model), ['s2']);
+	});
+
+	test('excludes sessions whose CI fix is being submitted', () => {
+		const { model, blockedModel, ciFixModel } = createModel();
+		const s1 = new TestSession('s1');
+		const s2 = new TestSession('s2');
+		blockedModel.setBlocked([failingCI(s1), failingCI(s2)]);
+		assert.deepStrictEqual(blockedIds(model), ['s1', 's2']);
+		ciFixModel.setHidden(['s1']);
 		assert.deepStrictEqual(blockedIds(model), ['s2']);
 	});
 
@@ -110,6 +124,15 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
+	test('does not blink when a queued block becomes visible then re-surfaces without ever being consumed', () => {
+		const { model, blockedModel, sessionsService } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([needsInput(s1)]);
+		sessionsService.setVisible([s1]);
+		sessionsService.setVisible([]);
+		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: ['s1'], blink: false });
+	});
+
 	test('does not blink when a queued block unblocks before the blink plays', () => {
 		const { model, blockedModel } = createModel();
 		const s1 = new TestSession('s1');
@@ -145,15 +168,11 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.requiresInputKind.get(), undefined);
 	});
 
-	test('classifies failing-CI and unresolved-comments reasons', () => {
+	test('classifies failing-CI reason', () => {
 		const { model, blockedModel } = createModel();
 		const ci = new TestSession('ci');
 		blockedModel.setBlocked([{ session: ci as unknown as ISession, reason: BlockedSessionReason.FailingCI }]);
-		const failingCI = model.requiresInputKind.get();
-		const comments = new TestSession('comments');
-		blockedModel.setBlocked([{ session: comments as unknown as ISession, reason: BlockedSessionReason.UnresolvedComments }]);
-		const unresolved = model.requiresInputKind.get();
-		assert.deepStrictEqual([failingCI, unresolved], [RequiresInputKind.FailingCI, RequiresInputKind.UnresolvedComments]);
+		assert.strictEqual(model.requiresInputKind.get(), RequiresInputKind.FailingCI);
 	});
 
 	test('builds the requires-input label per kind and count', () => {
@@ -163,7 +182,6 @@ suite('BlockedSessionsIndicatorModel', () => {
 			terminalMany: model.getRequiresInputLabel(3, RequiresInputKind.TerminalApproval),
 			questionOne: model.getRequiresInputLabel(1, RequiresInputKind.Question),
 			failingCIMany: model.getRequiresInputLabel(2, RequiresInputKind.FailingCI),
-			commentsOne: model.getRequiresInputLabel(1, RequiresInputKind.UnresolvedComments),
 			genericOne: model.getRequiresInputLabel(1, undefined),
 			genericMany: model.getRequiresInputLabel(4, undefined),
 		}, {
@@ -171,7 +189,6 @@ suite('BlockedSessionsIndicatorModel', () => {
 			terminalMany: '3 sessions require terminal approval',
 			questionOne: '1 session has a question',
 			failingCIMany: '2 sessions are failing CI',
-			commentsOne: '1 session has unresolved comments',
 			genericOne: '1 session requires input',
 			genericMany: '4 sessions require input',
 		});
@@ -203,6 +220,10 @@ suite('BlockedSessionsIndicatorModel', () => {
 
 function needsInput(session: TestSession): IBlockedSession {
 	return { session: session as unknown as ISession, reason: BlockedSessionReason.NeedsInput };
+}
+
+function failingCI(session: TestSession): IBlockedSession {
+	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI };
 }
 
 function approval(kind: AgentSessionApprovalKind, since: Date = new Date()): IAgentSessionApprovalInfo {
@@ -249,6 +270,14 @@ class TestApprovalModel {
 			this._approvals.set(key, obs);
 		}
 		return obs;
+	}
+}
+
+class TestCIFixModel {
+	readonly hiddenSessions = observableValue<ReadonlySet<string>>('ciFixHidden', new Set());
+
+	setHidden(sessionIds: readonly string[]): void {
+		this.hiddenSessions.set(new Set(sessionIds), undefined);
 	}
 }
 

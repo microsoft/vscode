@@ -181,6 +181,10 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+.style-override .debug-pane .debug-call-stack .session > .state.label {
+	font-size: var(--vscode-fontSize-label2);
+}
+
 .style-override.monaco-workbench .agent-sessions-viewer {
 	.agent-session-section {
 		text-transform: none;
