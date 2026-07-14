@@ -696,6 +696,7 @@ export class QuickInputController extends Disposable {
 		}
 
 		this.setEnabled(true);
+		ui.container.classList.remove('quick-input-needs-attention');
 		ui.leftActionBar.setActions([]);
 		ui.title.textContent = '';
 		ui.description1.textContent = '';
@@ -746,6 +747,24 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+
+		// Blocking input prompts (window.showInputBox: git/ssh authentication,
+		// API keys, extension prompts, ...) render at the top of the window and
+		// are easy to miss, making it appear as if an operation has frozen.
+		// Briefly pulse the widget to signal that user input is required.
+		// See https://github.com/microsoft/vscode/issues/325764.
+		if (controller.type === QuickInputType.InputBox) {
+			this.drawAttention(ui);
+		}
+	}
+
+	private drawAttention(ui: QuickInputUI): void {
+		const { container } = ui;
+		container.classList.remove('quick-input-needs-attention');
+		// Force a reflow so the animation restarts if the widget element is
+		// reused for consecutive input prompts.
+		void container.offsetWidth;
+		container.classList.add('quick-input-needs-attention');
 	}
 
 	isVisible(): boolean {
