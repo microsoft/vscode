@@ -14,14 +14,14 @@
  *   - Heading 3   13px / 600   subtitle
  *   - Body 1      13px / 400   primary text          (Strong: 600)
  *   - Body 2      11px / 400   secondary text        (Strong: 600)
- *   - Label 1     12px / 400   section titles, tabs  (Strong: 600)
+ *   - Label 1     12px / 400   section titles        (Strong: 600)
  *   - Label 2     11px / 400   metadata              (Strong: 600)
  *   - Label 3     10px / 400   badges
  *
  * The body tiers line up with the shared font-size tokens, so the foundation
  * block below redefines those tokens once and lets the cascade carry the ramp
  * across the large surface area that already consumes them. Headings, section
- * titles / tabs and badges are then mapped onto their canonical surfaces.
+ * titles, editor tabs and badges are then mapped onto their canonical surfaces.
  *
  * All rules are gated behind the `.style-override` class, which the
  * StyleOverridesContribution toggles onto the workbench container(s) when the
@@ -65,7 +65,7 @@
 }
 
 /* =============================================================================
- * Label 1 (12px) — section titles and tabs.
+ * Label 1 (12px) — section titles.
  * ========================================================================== */
 
 /* View pane (sidebar / panel section) header titles — section title, Strong. */
@@ -89,9 +89,9 @@
 	font-weight: 600;
 }
 
-/* Editor tab labels. */
+/* Editor tab labels use Body 1 for comfortable readability at a normal viewing distance. */
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
-	font-size: var(--vscode-bodyFontSize-small);
+	font-size: var(--vscode-fontSize-body1);
 }
 
 /* =============================================================================
@@ -127,8 +127,7 @@
 .style-override.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title,
 /* Debug call-stack session state labels. */
 .style-override .debug-pane .debug-call-stack .session > .state.label,
-/* Settings editor tab labels and section headers. */
-.style-override .settings-tabs-widget > .monaco-action-bar .action-item .action-label,
+/* Settings editor section headers. */
 .style-override .monaco-editor .settings-header-widget .title-container .title,
 /* Agent sessions list header ("SESSIONS"). */
 .style-override .chat-viewpane.has-sessions-control .agent-sessions-container .agent-sessions-title-container {

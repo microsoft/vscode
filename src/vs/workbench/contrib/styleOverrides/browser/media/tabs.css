@@ -34,7 +34,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
-	font-size: 12px !important;
+	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
@@ -172,7 +172,7 @@
  * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
  * composite-bar action items rather than editor `.tab` elements, with an
  * underline `.active-item-indicator`. Give them the same rounded-pill look as
- * the editor tabs: normal case, 12px/600 type, a subtle background on the
+ * the editor tabs: normal case, Body 1 / 600 type, a subtle background on the
  * active tab and no underline.
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
@@ -188,7 +188,7 @@
  * inherited value), so the type must be set on the label itself.
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
@@ -216,7 +216,7 @@
  * Same composite-bar action items as the panel tabs, but the active view
  * switcher can live under `.title` or the activity-bar `.header-or-footer`
  * depending on the activity bar position, so both locations are covered. Give
- * them the rounded-pill look: normal case, 12px/600 type, a subtle background
+ * them the rounded-pill look: normal case, Body 1 / 600 type, a subtle background
  * on the active tab and no underline indicator.
  */
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
@@ -232,9 +232,15 @@
  */
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
+}
+
+.style-override .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
@@ -260,7 +266,7 @@
 }
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
@@ -298,6 +304,7 @@
 .style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	border-bottom: none !important;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 2px 8px !important;
 }
@@ -326,4 +333,10 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
 	vertical-align: sub;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	padding: 0;
+	line-height: 24px;
 }

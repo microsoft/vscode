@@ -124,3 +124,34 @@
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.renamed {
 	color: var(--vscode-gitDecoration-modifiedResourceForeground);
 }
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .action-item.checkbox-action-item.changeset-review-action {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-toolbar-hoverBackground);
+	height: 20px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .action-item.checkbox-action-item.changeset-review-action:has(> .monaco-checkbox.checked) {
+	background: var(--vscode-actionBar-toggledBackground) !important;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action .checkbox-label {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 20px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action.disabled .checkbox-label {
+	cursor: default;
+}

@@ -35,8 +35,10 @@ import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitle
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import '../../../../contrib/styleOverrides/browser/media/tabs.css';
 
 // ============================================================================
 // Fixture editor input
@@ -277,6 +279,7 @@ function registerFixtureEditorTitleActions(store: DisposableStore): void {
 // ============================================================================
 
 interface IRenderOptions {
+	readonly modernUI: boolean;
 	readonly partOptions?: Partial<IEditorPartOptions>;
 	readonly editors?: IEditorSpec[];
 	readonly width?: number;
@@ -329,6 +332,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	// Breadcrumbs are disabled so the tab bar renders without the breadcrumbs picker/model deps.
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration('breadcrumbs', { enabled: false });
+	configurationService.setUserConfiguration(LayoutSettings.MODERN_UI, options.modernUI);
 
 	const instantiationService = workbenchInstantiationService({
 		configurationService: () => configurationService,
@@ -415,6 +419,7 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
+	container.classList.toggle('style-override', options.modernUI);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
@@ -459,101 +464,107 @@ function renderTabBar(ctx: ComponentFixtureContext, options: IRenderOptions): vo
 	layout();
 }
 
-function render(options: IRenderOptions): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, options);
+function render(modernUI: boolean, options: Omit<IRenderOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
+	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, { ...options, modernUI });
 }
 
-// ============================================================================
-// Fixtures — at least one per setting that affects the tab bar, plus notable
-// UI states / edge cases and setting combinations.
-// ============================================================================
+function createFixtures(modernUI: boolean) {
+	return {
+		// Baseline: multiple tabs with mixed sticky / pinned / preview / dirty state.
+		Default: defineComponentFixture({ render: render(modernUI, {}) }),
+
+		// showTabs
+		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' } }) }),
+		ShowTabsNone: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'none' } }) }),
+
+		// pinnedTabsOnSeparateRow
+		PinnedTabsOnSeparateRow: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
+
+		// tabSizing
+		TabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),
+		TabSizingFixed: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 60, tabSizingFixedMaxWidth: 120 }, editors: manyEditorSpecs() }) }),
+
+		// tabHeight
+		TabHeightCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { tabHeight: 'compact' } }) }),
+
+		// wrapTabs
+		WrapTabs: defineComponentFixture({ render: render(modernUI, { partOptions: { wrapTabs: true }, editors: manyEditorSpecs(), width: 520 }) }),
+
+		// tabActionLocation
+		TabActionLocationLeft: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionLocation: 'left' } }) }),
+
+		// tabActionCloseVisibility
+		TabActionCloseHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionCloseVisibility: false } }) }),
+
+		// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
+		TabActionUnpinHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
+
+		// showTabIndex
+		ShowTabIndex: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabIndex: true } }) }),
+
+		// highlightModifiedTabs
+		HighlightModifiedTabs: defineComponentFixture({ render: render(modernUI, { partOptions: { highlightModifiedTabs: true }, editors: dirtyEditorSpecs() }) }),
+
+		// labelFormat
+		LabelFormatShort: defineComponentFixture({ render: render(modernUI, { partOptions: { labelFormat: 'short' }, editors: duplicateNameEditorSpecs() }) }),
+		LabelFormatMedium: defineComponentFixture({ render: render(modernUI, { partOptions: { labelFormat: 'medium' }, editors: duplicateNameEditorSpecs() }) }),
+		LabelFormatLong: defineComponentFixture({ render: render(modernUI, { partOptions: { labelFormat: 'long' }, editors: duplicateNameEditorSpecs() }) }),
+
+		// showIcons
+		ShowIconsOff: defineComponentFixture({ render: render(modernUI, { partOptions: { showIcons: false } }) }),
+
+		// decorations (file-decoration badges + colors)
+		DecorationsOff: defineComponentFixture({ render: render(modernUI, { partOptions: { decorations: { badges: false, colors: false } } }) }),
+
+		// pinnedTabSizing
+		PinnedTabSizingCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
+		PinnedTabSizingShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'shrink' }, editors: stickyEditorSpecs() }) }),
+
+		// titleScrollbarSizing
+		TitleScrollbarLarge: defineComponentFixture({ render: render(modernUI, { partOptions: { titleScrollbarSizing: 'large' }, editors: manyEditorSpecs(), width: 520 }) }),
+
+		// titleScrollbarVisibility (always-visible scrollbar with overflowing tabs)
+		TitleScrollbarVisible: defineComponentFixture({ render: render(modernUI, { partOptions: { titleScrollbarVisibility: 'visible' }, editors: manyEditorSpecs(), width: 520 }) }),
+
+		// editorActionsLocation
+		EditorActionsDefault: defineComponentFixture({ render: render(modernUI, { partOptions: { editorActionsLocation: 'default' } }) }),
+		EditorActionsTitleBar: defineComponentFixture({ render: render(modernUI, { partOptions: { editorActionsLocation: 'titleBar' } }) }),
+		EditorActionsHidden: defineComponentFixture({ render: render(modernUI, { partOptions: { editorActionsLocation: 'hidden' } }) }),
+
+		// alwaysShowEditorActions
+		AlwaysShowEditorActionsActiveGroup: defineComponentFixture({ render: render(modernUI, { partOptions: { alwaysShowEditorActions: true }, active: true }) }),
+		AlwaysShowEditorActionsInactiveGroup: defineComponentFixture({ render: render(modernUI, { partOptions: { alwaysShowEditorActions: true }, active: false }) }),
+
+		// --- UI states / edge cases (not tied to a single setting) ---
+
+		// Active and inactive group styling.
+		ActiveGroup: defineComponentFixture({ render: render(modernUI, { active: true }) }),
+		InactiveGroup: defineComponentFixture({ render: render(modernUI, { active: false }) }),
+
+		// Multi-selection: several tabs in the selected state at once.
+		MultiSelect: defineComponentFixture({ render: render(modernUI, { editors: multiSelectEditorSpecs() }) }),
+
+		// Inactive group with dirty editors: exercises the unfocused modified-border color path.
+		InactiveGroupDirty: defineComponentFixture({ render: render(modernUI, { editors: dirtyEditorSpecs(), active: false }) }),
+
+		// Very long labels: tab-label truncation / ellipsis with shrinking tabs.
+		LongLabelsShrink: defineComponentFixture({ render: render(modernUI, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }) }),
+
+		// --- Notable setting combinations ---
+
+		// Sticky compact tabs with icons disabled: the sticky tab falls back to the
+		// first letter of the name instead of an icon.
+		StickyCompactNoIcons: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'compact', showIcons: false }, editors: stickyEditorSpecs() }) }),
+
+		// Single-tab mode with a dirty editor: the single tab control renders the dirty dot.
+		SingleTabDirty: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, editors: singleDirtyEditorSpecs() }) }),
+
+		// Pinned tabs on a separate row combined with compact pinned sizing.
+		PinnedSeparateRowCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
+	};
+}
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
-	// Baseline: multiple tabs with mixed sticky / pinned / preview / dirty state.
-	Default: defineComponentFixture({ render: render({}) }),
-
-	// showTabs
-	ShowTabsSingle: defineComponentFixture({ render: render({ partOptions: { showTabs: 'single' } }) }),
-	ShowTabsNone: defineComponentFixture({ render: render({ partOptions: { showTabs: 'none' } }) }),
-
-	// pinnedTabsOnSeparateRow
-	PinnedTabsOnSeparateRow: defineComponentFixture({ render: render({ partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
-
-	// tabSizing
-	TabSizingShrink: defineComponentFixture({ render: render({ partOptions: { tabSizing: 'shrink' }, editors: manyEditorSpecs() }) }),
-	TabSizingFixed: defineComponentFixture({ render: render({ partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 60, tabSizingFixedMaxWidth: 120 }, editors: manyEditorSpecs() }) }),
-
-	// tabHeight
-	TabHeightCompact: defineComponentFixture({ render: render({ partOptions: { tabHeight: 'compact' } }) }),
-
-	// wrapTabs
-	WrapTabs: defineComponentFixture({ render: render({ partOptions: { wrapTabs: true }, editors: manyEditorSpecs(), width: 520 }) }),
-
-	// tabActionLocation
-	TabActionLocationLeft: defineComponentFixture({ render: render({ partOptions: { tabActionLocation: 'left' } }) }),
-
-	// tabActionCloseVisibility
-	TabActionCloseHidden: defineComponentFixture({ render: render({ partOptions: { tabActionCloseVisibility: false } }) }),
-
-	// tabActionUnpinVisibility (with sticky/compact tabs where the unpin action shows)
-	TabActionUnpinHidden: defineComponentFixture({ render: render({ partOptions: { tabActionUnpinVisibility: false, pinnedTabSizing: 'normal' }, editors: stickyEditorSpecs() }) }),
-
-	// showTabIndex
-	ShowTabIndex: defineComponentFixture({ render: render({ partOptions: { showTabIndex: true } }) }),
-
-	// highlightModifiedTabs
-	HighlightModifiedTabs: defineComponentFixture({ render: render({ partOptions: { highlightModifiedTabs: true }, editors: dirtyEditorSpecs() }) }),
-
-	// labelFormat
-	LabelFormatShort: defineComponentFixture({ render: render({ partOptions: { labelFormat: 'short' }, editors: duplicateNameEditorSpecs() }) }),
-	LabelFormatMedium: defineComponentFixture({ render: render({ partOptions: { labelFormat: 'medium' }, editors: duplicateNameEditorSpecs() }) }),
-	LabelFormatLong: defineComponentFixture({ render: render({ partOptions: { labelFormat: 'long' }, editors: duplicateNameEditorSpecs() }) }),
-
-	// showIcons
-	ShowIconsOff: defineComponentFixture({ render: render({ partOptions: { showIcons: false } }) }),
-
-	// decorations (file-decoration badges + colors)
-	DecorationsOff: defineComponentFixture({ render: render({ partOptions: { decorations: { badges: false, colors: false } } }) }),
-
-	// pinnedTabSizing
-	PinnedTabSizingCompact: defineComponentFixture({ render: render({ partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
-	PinnedTabSizingShrink: defineComponentFixture({ render: render({ partOptions: { pinnedTabSizing: 'shrink' }, editors: stickyEditorSpecs() }) }),
-
-	// titleScrollbarSizing
-	TitleScrollbarLarge: defineComponentFixture({ render: render({ partOptions: { titleScrollbarSizing: 'large' }, editors: manyEditorSpecs(), width: 520 }) }),
-
-	// titleScrollbarVisibility (always-visible scrollbar with overflowing tabs)
-	TitleScrollbarVisible: defineComponentFixture({ render: render({ partOptions: { titleScrollbarVisibility: 'visible' }, editors: manyEditorSpecs(), width: 520 }) }),
-
-	// editorActionsLocation
-	EditorActionsHidden: defineComponentFixture({ render: render({ partOptions: { editorActionsLocation: 'hidden' } }) }),
-
-	// alwaysShowEditorActions (only affects inactive groups, so render this group inactive)
-	AlwaysShowEditorActions: defineComponentFixture({ render: render({ partOptions: { alwaysShowEditorActions: true }, active: false }) }),
-
-	// --- UI states / edge cases (not tied to a single setting) ---
-
-	// Multi-selection: several tabs in the selected state at once.
-	MultiSelect: defineComponentFixture({ render: render({ editors: multiSelectEditorSpecs() }) }),
-
-	// Inactive group: unfocused tab styling and the unfocused modified-tab borders.
-	InactiveGroup: defineComponentFixture({ render: render({ active: false }) }),
-
-	// Inactive group with dirty editors: exercises the unfocused modified-border color path.
-	InactiveGroupDirty: defineComponentFixture({ render: render({ editors: dirtyEditorSpecs(), active: false }) }),
-
-	// Very long labels: tab-label truncation / ellipsis with shrinking tabs.
-	LongLabelsShrink: defineComponentFixture({ render: render({ partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }) }),
-
-	// --- Notable setting combinations ---
-
-	// Sticky compact tabs with icons disabled: the sticky tab falls back to the
-	// first letter of the name instead of an icon.
-	StickyCompactNoIcons: defineComponentFixture({ render: render({ partOptions: { pinnedTabSizing: 'compact', showIcons: false }, editors: stickyEditorSpecs() }) }),
-
-	// Single-tab mode with a dirty editor: the single tab control renders the dirty dot.
-	SingleTabDirty: defineComponentFixture({ render: render({ partOptions: { showTabs: 'single' }, editors: singleDirtyEditorSpecs() }) }),
-
-	// Pinned tabs on a separate row combined with compact pinned sizing.
-	PinnedSeparateRowCompact: defineComponentFixture({ render: render({ partOptions: { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
+	ModernUIOff: defineThemedFixtureGroup(createFixtures(false)),
+	ModernUIOn: defineThemedFixtureGroup(createFixtures(true)),
 });

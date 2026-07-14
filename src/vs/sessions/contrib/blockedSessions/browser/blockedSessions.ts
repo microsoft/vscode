@@ -25,6 +25,8 @@ export const enum BlockedSessionReason {
 export interface IBlockedSession {
 	readonly session: ISession;
 	readonly reason: BlockedSessionReason;
+	/** Identifies this occurrence so a later block can be surfaced again. */
+	readonly occurrenceId: string;
 }
 
 /**
@@ -63,14 +65,14 @@ export class BlockedSessions extends Disposable {
 		// yields the same result, so downstream autoruns/renders don't churn.
 		this.blockedSessionsWithReasons = derivedOpts({
 			owner: this,
-			equalsFn: (a, b) => equals(a, b, (x, y) => x.session.sessionId === y.session.sessionId && x.reason === y.reason),
+			equalsFn: (a, b) => equals(a, b, (x, y) => x.session.sessionId === y.session.sessionId && x.reason === y.reason && x.occurrenceId === y.occurrenceId),
 		}, reader => {
 			const blocked: IBlockedSession[] = [];
 			for (const session of this._allSessions.read(reader)) {
 				// `derivedOpts` under-types the store-backed reader as `IReader`; it is an `IDerivedReader` at runtime.
-				const reason = this._getBlockedReason(reader as IReaderWithStore, session);
-				if (reason !== undefined) {
-					blocked.push({ session, reason });
+				const blockedSession = this._getBlockedSession(reader as IReaderWithStore, session);
+				if (blockedSession !== undefined) {
+					blocked.push(blockedSession);
 				}
 			}
 			return blocked.sort((a, b) => b.session.updatedAt.read(reader).getTime() - a.session.updatedAt.read(reader).getTime());
@@ -82,14 +84,18 @@ export class BlockedSessions extends Disposable {
 		}, reader => this.blockedSessionsWithReasons.read(reader).map(blocked => blocked.session));
 	}
 
-	private _getBlockedReason(reader: IReaderWithStore, session: ISession): BlockedSessionReason | undefined {
+	private _getBlockedSession(reader: IReaderWithStore, session: ISession): IBlockedSession | undefined {
 		if (session.isArchived.read(reader)) {
 			return undefined;
 		}
 
 		const status = session.status.read(reader);
 		if (status === SessionStatus.NeedsInput) {
-			return BlockedSessionReason.NeedsInput;
+			return {
+				session,
+				reason: BlockedSessionReason.NeedsInput,
+				occurrenceId: BlockedSessionReason.NeedsInput,
+			};
 		}
 
 		// CI failures only count while the session is not actively in progress.
@@ -114,7 +120,11 @@ export class BlockedSessions extends Disposable {
 
 		const ciRef = reader.store.add(this._gitHubService.createPullRequestCIModelReference(gitHubInfo.owner, gitHubInfo.repo, livePR.number, livePR.headSha));
 		if (ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure) {
-			return BlockedSessionReason.FailingCI;
+			return {
+				session,
+				reason: BlockedSessionReason.FailingCI,
+				occurrenceId: `${BlockedSessionReason.FailingCI}:${livePR.headSha}`,
+			};
 		}
 		return undefined;
 	}

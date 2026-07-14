@@ -221,6 +221,15 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, PosixShellType.Zsh);
 		});
 
+		test('should detect Command Code agent shell type from its OSC title', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('\u2733 Command Code \u00b7 my-project');
+			strictEqual(instance.shellType, GeneralShellType.CommandCode);
+		});
+
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];
@@ -514,6 +523,11 @@ suite('Workbench - TerminalInstance', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
 			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
+		});
+		test('should use ${sequence} for Command Code agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.CommandCode, sequence: 'Fix Parser Bug', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Fix Parser Bug');
 		});
 		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
