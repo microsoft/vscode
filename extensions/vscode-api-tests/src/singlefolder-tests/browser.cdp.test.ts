@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { window, workspace } from 'vscode';
+import { ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
 /**
@@ -175,7 +175,63 @@ const CAPTURED_DOMAINS = ['Browser', 'Target'];
 		return normalized;
 	}
 
+	function tabCountInColumn(column: ViewColumn): number {
+		return window.tabGroups.all.find(g => g.viewColumn === column)?.tabs.length ?? 0;
+	}
+
 	// #endregion
+
+	test('CDP Target.createTarget opens tab in bootstrap column', async function () {
+		this.timeout(30_000);
+
+		// Keep a text editor active in column 1.
+		const doc = await workspace.openTextDocument({ content: 'anchor' });
+		await window.showTextDocument(doc, { viewColumn: ViewColumn.One });
+
+		// Bootstrap browser tab in column 2 without stealing focus.
+		const bootstrap = await window.openBrowserTab('about:blank', {
+			viewColumn: ViewColumn.Two,
+			preserveFocus: true,
+		});
+
+		// Explicitly restore focus to the text editor in column 1.
+		await window.showTextDocument(doc, ViewColumn.One);
+
+		assert.strictEqual(
+			window.tabGroups.all.find(g => g.isActive)?.viewColumn,
+			ViewColumn.One,
+			'text editor group should remain active',
+		);
+		assert.strictEqual(tabCountInColumn(ViewColumn.One), 1, 'column 1 should have the text editor');
+		assert.strictEqual(tabCountInColumn(ViewColumn.Two), 1, 'column 2 should have the bootstrap browser tab');
+
+		const session = await bootstrap.startCDPSession();
+		const { cdpSend } = createHarness(session);
+
+		const browserAttach = await cdpSend('Target.attachToBrowserTarget');
+		const browserSessionId = browserAttach.sessionId;
+
+		const opened = new Promise<vscode.BrowserTab>(resolve => {
+			const disposable = window.onDidOpenBrowserTab(tab => {
+				if (tab !== bootstrap) {
+					disposable.dispose();
+					resolve(tab);
+				}
+			});
+		});
+
+		await cdpSend('Target.createTarget', { url: 'about:blank' }, browserSessionId);
+		const cdpTab = await opened;
+
+		assert.strictEqual(window.browserTabs.length, 2);
+
+		// CDP-created targets should inherit the bootstrap tab's column, not the active group.
+		assert.strictEqual(tabCountInColumn(ViewColumn.One), 1, 'CDP tab should not open in the active column');
+		assert.strictEqual(tabCountInColumn(ViewColumn.Two), 2, 'CDP tab should open in the bootstrap column');
+
+		await cdpTab.close();
+		await session.close();
+	});
 
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
