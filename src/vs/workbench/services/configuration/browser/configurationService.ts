@@ -1413,7 +1413,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			} catch (error) {/*ignore */ }
 		}
 		if (Object.keys(overrides).length) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: 'experiments' }]);
 		}
 	}
 }
