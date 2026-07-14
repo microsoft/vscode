@@ -613,7 +613,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._seedTracking(context);
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
+			// This client drives narration itself via `requestNarration`, so opt out
+			// of the backend's default context-delta auto-narration to avoid double narration.
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
@@ -624,7 +626,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
 			this._seedTracking(context);
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			// `auto_narrate: false` for the same reason as start_session: this client
+			// drives narration, so the backend must not also auto-narrate.
+			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
 		}
 	}
 
