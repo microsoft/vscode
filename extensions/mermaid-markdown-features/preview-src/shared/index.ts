@@ -60,6 +60,41 @@ export function markVsCodeContextAsError(el: HTMLElement): void {
 	el.dataset.vscodeContext = JSON.stringify({ ...context, mermaidError: true });
 }
 
+function looksLikeRenderedMermaidOutput(text: string): boolean {
+	return text.startsWith('#dmermaid-')
+		|| text.includes('@keyframes')
+		|| text.includes('flowchartTitleText');
+}
+
+function resolveMermaidSource(mermaidContainer: HTMLElement): string {
+	const rawText = (mermaidContainer.textContent ?? '').trim();
+
+	if (rawText && !looksLikeRenderedMermaidOutput(rawText)) {
+		mermaidContainer.dataset.vscodeMermaidSource = rawText;
+		return rawText;
+	}
+
+	const canonicalSource = (mermaidContainer.dataset.vscodeMermaidSource ?? '').trim();
+	if (canonicalSource) {
+		return canonicalSource;
+	}
+
+	try {
+		const context = JSON.parse(mermaidContainer.dataset.vscodeContext || '{}') as { mermaidSource?: string };
+		if (typeof context.mermaidSource === 'string') {
+			const source = context.mermaidSource.trim();
+			if (source) {
+				mermaidContainer.dataset.vscodeMermaidSource = source;
+				return source;
+			}
+		}
+	} catch {
+		// fall through
+	}
+
+	return '';
+}
+
 function renderMermaidElement(
 	mermaidContainer: HTMLElement,
 	usedIds: Set<string>,
@@ -70,7 +105,7 @@ function renderMermaidElement(
 	contentHash: string;
 	p: Promise<void>;
 } | undefined {
-	const source = (mermaidContainer.textContent ?? '').trim();
+	const source = resolveMermaidSource(mermaidContainer);
 	if (!source) {
 		return;
 	}
@@ -125,16 +160,6 @@ export async function renderMermaidBlocksInElement(
 ): Promise<void> {
 	// Track used IDs for this render pass
 	const usedIds = new Set<string>();
-
-	// Delete existing mermaid outputs
-	for (const el of root.querySelectorAll('.mermaid > svg')) {
-		el.remove();
-	}
-	for (const svg of root.querySelectorAll('svg')) {
-		if (svg.parentElement?.id.startsWith('dmermaid')) {
-			svg.parentElement.remove();
-		}
-	}
 
 	// We need to generate all the container ids sync, but then do the actual rendering async
 	const renderPromises: Array<Promise<void>> = [];
