@@ -5,6 +5,7 @@
 
 import { getNLSModuleTranslations } from '../../../../nls.js';
 
+// Keep this in sync with the module id used by the NLS extraction in src/vs/base/node/nls.ts.
 const MODULE_ID = 'vs/workbench/contrib/preferences/browser/settingsDisplayLabels';
 
 function getModuleTranslations(): Record<string, string> {
