@@ -3,11 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-
-export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
-
-export interface IAgentHostEnablementService {
-	readonly _serviceBrand: undefined;
-	readonly enabled: boolean;
-}
+export { AgentHostCopilotPromptContribution as AgentHostCopilotCliSettingsContribution } from './agentHostCopilotPromptContribution.js';

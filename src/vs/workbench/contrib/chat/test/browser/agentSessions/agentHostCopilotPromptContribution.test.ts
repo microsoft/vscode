@@ -11,7 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostOpus48PromptEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -78,11 +79,11 @@ function setup(disposables: DisposableStore, opus48Enabled: boolean) {
 	const agentHostService = new MockAgentHostService();
 	disposables.add({ dispose: () => agentHostService.dispose() });
 	const configurationService = new TestConfigurationService({
-		[AgentHostEnabledSettingId]: true,
 		[AgentHostOpus48PromptEnabledSettingId]: opus48Enabled,
 	});
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: true });
 	disposables.add(instantiationService.createInstance(AgentHostCopilotPromptContribution));
 	return { agentHostService };
 }

@@ -16,7 +16,8 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostByokModelsEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, IMcpNotification, AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, isActionEnvelopeRelevantToSubscriptionUris, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -90,6 +91,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -147,7 +149,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 		}));
 
-		if (isAgentHostEnabled(this._configurationService)) {
+		if (agentHostEnablementService.enabled) {
 			this._connect();
 		}
 	}

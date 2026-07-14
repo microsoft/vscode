@@ -6,7 +6,6 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
@@ -40,14 +39,6 @@ export const enum AgentHostIpcChannels {
 	 * Pairs with `AgentHostIpcChannelTransport` on the renderer side.
 	 */
 	RemoteProxy = 'agentHostProxy',
-}
-
-/** Configuration key that controls whether the local agent host process is spawned. */
-export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
-
-/** Whether the local/process-backed agent host is enabled in this runtime. */
-export function isAgentHostEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
 }
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */

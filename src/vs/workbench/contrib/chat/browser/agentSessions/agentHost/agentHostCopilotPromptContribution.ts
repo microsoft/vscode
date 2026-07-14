@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { AgentHostEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostOpus48PromptEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,19 +40,14 @@ export class AgentHostCopilotPromptContribution extends Disposable implements IW
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
 		this._updateEnabled();
 	}
 
 	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (this._agentHostEnablementService.enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				store.add(this._agentHostService.onAgentHostStart(() => this._push()));

@@ -13,7 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -169,12 +170,12 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true): 
 	const profileService = new MockTerminalProfileService();
 	disposables.add({ dispose: () => profileService.dispose() });
 	const configurationService = new TestConfigurationService({
-		[AgentHostEnabledSettingId]: agentHostEnabled,
 		[AgentHostCustomTerminalToolEnabledSettingId]: true,
 	});
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled });
 	instantiationService.stub(ITerminalProfileResolverService, resolver);
 	instantiationService.stub(ITerminalProfileService, profileService);
 	instantiationService.stub(IAgentHostTerminalService, {
@@ -441,4 +442,3 @@ suite('AgentHostTerminalContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 	});
 });
-

@@ -87,6 +87,7 @@ import { convertBufferToScreenshotVariable } from '../../../browser/attachments/
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -642,6 +643,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...languageModelToolsServiceOverride,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
+	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: true });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null, onDidChangeWorkspaceFolders: Event.None });
 	const trustController: { result: boolean | undefined; workspaceTrustCalls: number; resourcesTrustCalls: number } = { result: true, workspaceTrustCalls: 0, resourcesTrustCalls: 0 };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
@@ -5905,7 +5907,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);
-			instantiationService.stub(IConfigurationService, { getValue: () => false });
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: false });
 
 			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 			// Contribution should exist but not have registered any agents

@@ -6,7 +6,8 @@
 import { OS } from '../../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCustomTerminalToolEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostConfigKey } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ROOT_STATE_URI } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -82,6 +83,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 
@@ -111,17 +113,11 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			},
 		];
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostEnabledSettingId)) {
-				this._updateEnabled();
-			}
-		}));
-
 		this._updateEnabled();
 	}
 
 	private _updateEnabled(): void {
-		if (this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (this._agentHostEnablementService.enabled) {
 			if (!this._conditionalListeners.value) {
 				const store = new DisposableStore();
 				store.add(this._agentHostService.onAgentHostStart(() => this._reconcile()));

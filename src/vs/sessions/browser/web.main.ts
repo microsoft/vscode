@@ -25,6 +25,8 @@ import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspa
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { Workbench as SessionsWorkbench } from './workbench.js';
+import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
+import { Schemas } from '../../base/common/network.js';
 
 export class SessionsBrowserMain extends BrowserMain {
 
@@ -59,13 +61,16 @@ export class SessionsBrowserMain extends BrowserMain {
 
 		// Configuration — the sessions ConfigurationService works against the
 		// in-memory workspace model rather than a real .code-workspace file on disk.
+		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData], environmentService, fileService);
 		const configurationService = new ConfigurationService(
 			userDataProfileService,
 			workspaceContextService,
 			uriIdentityService,
 			fileService,
 			policyService,
-			logService
+			logService,
+			configurationCache,
+			environmentService,
 		);
 
 		try {
