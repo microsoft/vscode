@@ -1359,6 +1359,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: WorkspaceService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -1407,7 +1408,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 			}
 			try {
 				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
-				if (!isUndefined(value) && !equals(value, schema.default)) {
+				if (this.shouldOverride(value, schema)) {
 					overrides[property] = value;
 				}
 			} catch (error) {/*ignore */ }
@@ -1415,6 +1416,16 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		if (Object.keys(overrides).length) {
 			this.configurationRegistry.registerDefaultConfigurations([{ overrides, source: 'experiments' }]);
 		}
+	}
+
+	private shouldOverride(value: unknown, schema: IConfigurationPropertySchema): boolean {
+		if (isUndefined(value)) {
+			return false;
+		}
+		if (this.environmentService.isSessionsWindow && schema.agentsWindow?.default !== undefined) {
+			return !equals(value, schema.agentsWindow?.default);
+		}
+		return !equals(value, schema.default);
 	}
 }
 
