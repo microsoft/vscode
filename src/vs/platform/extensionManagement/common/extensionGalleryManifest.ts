@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { fetchResourceMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
+import { asJson, asText, IRequestService } from '../../request/common/request.js';
 
 /**
  * Context key exposing the effective Marketplace authentication provider (e.g. `github` or
@@ -104,6 +107,16 @@ export interface IExtensionGalleryManifestService {
 	readonly onDidChangeExtensionGalleryManifestStatus: Event<ExtensionGalleryManifestStatus>;
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
+
+	/**
+	 * Returns the bearer token to attach to authenticated marketplace API requests
+	 * (e.g. `extensionquery`, asset download), or `undefined` when the marketplace does
+	 * not require authentication. When the marketplace service index is `[Authorize]`-gated,
+	 * this is a resource-scoped token negotiated via RFC 9728 Protected Resource Metadata.
+	 * Consumers MUST only attach the token to requests whose target is same-origin HTTPS with
+	 * the marketplace service index to avoid leaking it to foreign or cleartext endpoints.
+	 */
+	getAccessToken(): Promise<string | undefined>;
 }
 
 export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: string): string | undefined {
@@ -131,8 +144,77 @@ export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authPro
  *
  * Only standard OpenID Connect sign-in scopes are requested — enough to obtain a
  * Microsoft session that identifies the user. This intentionally does NOT request a
- * resource-scoped token (e.g. `api://<client-id>/access_as_user`). Acquiring resource
- * tokens for Private Marketplace API calls, per the server's Protected Resource
- * Metadata (RFC 9728), is deferred to a follow-up change.
+ * resource-scoped token (e.g. `api://<client-id>/access_as_user`) up front. When the
+ * marketplace service index is `[Authorize]`-gated, a resource-bound token is instead
+ * negotiated on demand from the server's `WWW-Authenticate` challenge (Protected
+ * Resource Metadata, RFC 9728); these scopes serve as the fallback sign-in scopes for
+ * that negotiation.
  */
 export const PRIVATE_MARKETPLACE_SCOPES: string[] = ['openid', 'profile', 'email', 'offline_access'];
+
+/**
+ * The subset of RFC 9728 Protected Resource Metadata the marketplace negotiation needs: the
+ * authorization server to acquire a token from and the resource-scoped scopes to request.
+ */
+export interface IMarketplaceProtectedResource {
+	/** The authorization server (`authorization_servers[0]`) to acquire the resource token from. */
+	readonly authorizationServer: string;
+	/** The resource-scoped scopes (`scopes_supported`) to request for the marketplace resource. */
+	readonly scopes: readonly string[];
+	/** The protected resource identifier (`resource`) the metadata describes. */
+	readonly resource: string;
+}
+
+/**
+ * Discovers the marketplace's Protected Resource Metadata (RFC 9728) so a resource-scoped token
+ * can be minted for an `[Authorize]`-gated marketplace index.
+ *
+ * Discovery is driven by the well-known endpoint (`/.well-known/oauth-protected-resource`) rather
+ * than the server's `WWW-Authenticate` challenge: `WWW-Authenticate` is not a CORS-safelisted
+ * response header, so the renderer's cross-origin index fetch frequently cannot read it. The
+ * metadata *body*, however, is CORS-readable, so well-known discovery is robust where the challenge
+ * header is not. The optional `wwwAuthenticate` string is used only as a best-effort hint for the
+ * explicit `resource_metadata` URL when the header happens to be readable.
+ *
+ * Returns `undefined` (never throws) when discovery fails or the metadata omits an authorization
+ * server, so callers can fall back to their existing sign-in / unreachable handling.
+ */
+export async function discoverMarketplaceProtectedResource(
+	requestService: IRequestService,
+	serviceIndexUrl: string,
+	wwwAuthenticate: string | undefined,
+	token: CancellationToken,
+): Promise<IMarketplaceProtectedResource | undefined> {
+	let resourceMetadataUrl: string | undefined;
+	if (wwwAuthenticate) {
+		for (const challenge of parseWWWAuthenticateHeader(wwwAuthenticate)) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.resource_metadata) {
+				resourceMetadataUrl = challenge.params.resource_metadata;
+				break;
+			}
+		}
+	}
+	const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
+		const context = await requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryManifest.discoverMarketplaceProtectedResource' }, token);
+		return {
+			status: context.res.statusCode ?? 0,
+			statusText: '',
+			json: async (): Promise<unknown> => await asJson(context),
+			text: async (): Promise<string> => (await asText(context)) ?? '',
+		};
+	};
+	try {
+		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, resourceMetadataUrl, { fetch: fetcher });
+		const authorizationServer = metadata.authorization_servers?.[0];
+		if (!authorizationServer) {
+			return undefined;
+		}
+		return {
+			authorizationServer,
+			scopes: metadata.scopes_supported ?? [],
+			resource: metadata.resource,
+		};
+	} catch {
+		return undefined;
+	}
+}
