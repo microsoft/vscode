@@ -217,17 +217,12 @@ export function mapSDKMessageToAgentSignals(
 	message: SDKMessage,
 	chat: URI,
 	turnId: string,
-	turnDurationOrState: number | undefined | ClaudeMapperState,
-	stateOrLogService: ClaudeMapperState | ILogService,
-	logServiceOrRegistry: ILogService | SubagentRegistry,
-	registryOrClientToolOwner?: SubagentRegistry | ((toolName: string) => string | undefined),
+	state: ClaudeMapperState,
+	logService: ILogService,
+	registry: SubagentRegistry,
 	clientToolOwner?: (toolName: string) => string | undefined,
+	turnDuration?: number,
 ): AgentSignal[] {
-	const turnDuration = typeof turnDurationOrState === 'number' || typeof turnDurationOrState === 'undefined' ? turnDurationOrState : undefined;
-	const state = turnDurationOrState instanceof ClaudeMapperState ? turnDurationOrState : stateOrLogService as ClaudeMapperState;
-	const logService = turnDurationOrState instanceof ClaudeMapperState ? stateOrLogService as ILogService : logServiceOrRegistry as ILogService;
-	const registry = turnDurationOrState instanceof ClaudeMapperState ? logServiceOrRegistry as SubagentRegistry : registryOrClientToolOwner as SubagentRegistry;
-	const resolvedClientToolOwner = turnDurationOrState instanceof ClaudeMapperState ? registryOrClientToolOwner as ((toolName: string) => string | undefined) | undefined : clientToolOwner;
 	if (logService.getLevel() <= LogLevel.Trace) {
 		try {
 			const snippet = JSON.stringify(message, (k, v) => typeof v === 'string' && v.length > 200 ? v.slice(0, 200) + '…' : v);
@@ -239,7 +234,7 @@ export function mapSDKMessageToAgentSignals(
 	switch (message.type) {
 		case 'stream_event':
 			return tagWithParent(
-				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, resolvedClientToolOwner),
+				mapStreamEvent(message.event, chat, turnId, state, logService, message.parent_tool_use_id, registry, clientToolOwner),
 				chat,
 				message.parent_tool_use_id,
 				registry,

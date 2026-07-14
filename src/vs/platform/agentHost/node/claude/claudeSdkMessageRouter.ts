@@ -72,11 +72,11 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				message,
 				this._chatChannelUri,
 				turnId,
-				turnDuration,
 				this._mapperState,
 				this._logService,
 				this._subagents,
 				this._clientToolOwner,
+				turnDuration,
 			);
 			for (const signal of signals) {
 				this._onDidProduceSignal.fire(signal);
