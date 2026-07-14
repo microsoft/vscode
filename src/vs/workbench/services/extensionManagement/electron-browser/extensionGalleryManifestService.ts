@@ -189,7 +189,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
 			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
-			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
+			// Push the negotiated resource token alongside the manifest so the shared process and
+			// remote server (which never negotiate it themselves) can authenticate the protected
+			// marketplace requests they initiate — extension getManifest and VSIX download. The
+			// token is coherent with the manifest here: it is set before the eligible→Available
+			// transition and cleared on every non-Available transition, so a null manifest always
+			// carries an undefined token.
+			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest, this.negotiatedAccessToken]));
 		};
 		// Defer the initial manifest bootstrap to a microtask so this service is fully
 		// constructed and cached in the DI container before it runs. The Entra (microsoft)
