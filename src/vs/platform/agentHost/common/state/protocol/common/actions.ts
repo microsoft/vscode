@@ -10,9 +10,11 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStartedAction, SessionDeltaAction, SessionResponsePartAction, SessionToolCallStartAction, SessionToolCallDeltaAction, SessionToolCallReadyAction, SessionToolCallConfirmedAction, SessionToolCallCompleteAction, SessionToolCallResultConfirmedAction, SessionToolCallContentChangedAction, SessionTurnCompleteAction, SessionTurnCancelledAction, SessionErrorAction, SessionTitleChangedAction, SessionUsageAction, SessionReasoningAction, SessionModelChangedAction, SessionAgentChangedAction, SessionServerToolsChangedAction, SessionActiveClientChangedAction, SessionActiveClientToolsChangedAction, SessionPendingMessageSetAction, SessionPendingMessageRemovedAction, SessionQueuedMessagesReorderedAction, SessionInputRequestedAction, SessionInputAnswerChangedAction, SessionInputCompletedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionTruncatedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
+import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatActivityChangedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
+
+import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetFilesReviewChangedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
 import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemovedAction, AnnotationsEntrySetAction, AnnotationsEntryRemovedAction } from '../channels-annotations/actions.js';
 
@@ -32,39 +34,48 @@ export const enum ActionType {
 	RootActiveSessionsChanged = 'root/activeSessionsChanged',
 	SessionReady = 'session/ready',
 	SessionCreationFailed = 'session/creationFailed',
-	SessionTurnStarted = 'session/turnStarted',
-	SessionDelta = 'session/delta',
-	SessionResponsePart = 'session/responsePart',
-	SessionToolCallStart = 'session/toolCallStart',
-	SessionToolCallDelta = 'session/toolCallDelta',
-	SessionToolCallReady = 'session/toolCallReady',
-	SessionToolCallConfirmed = 'session/toolCallConfirmed',
-	SessionToolCallComplete = 'session/toolCallComplete',
-	SessionToolCallResultConfirmed = 'session/toolCallResultConfirmed',
-	SessionToolCallContentChanged = 'session/toolCallContentChanged',
-	SessionTurnComplete = 'session/turnComplete',
-	SessionTurnCancelled = 'session/turnCancelled',
-	SessionError = 'session/error',
+	SessionChatAdded = 'session/chatAdded',
+	SessionChatRemoved = 'session/chatRemoved',
+	SessionChatUpdated = 'session/chatUpdated',
+	SessionDefaultChatChanged = 'session/defaultChatChanged',
+	ChatTurnStarted = 'chat/turnStarted',
+	ChatDelta = 'chat/delta',
+	ChatResponsePart = 'chat/responsePart',
+	ChatToolCallStart = 'chat/toolCallStart',
+	ChatToolCallDelta = 'chat/toolCallDelta',
+	ChatToolCallReady = 'chat/toolCallReady',
+	ChatToolCallConfirmed = 'chat/toolCallConfirmed',
+	ChatToolCallComplete = 'chat/toolCallComplete',
+	ChatToolCallResultConfirmed = 'chat/toolCallResultConfirmed',
+	ChatToolCallContentChanged = 'chat/toolCallContentChanged',
+	ChatTurnComplete = 'chat/turnComplete',
+	ChatTurnCancelled = 'chat/turnCancelled',
+	ChatError = 'chat/error',
+	ChatActivityChanged = 'chat/activityChanged',
 	SessionTitleChanged = 'session/titleChanged',
-	SessionUsage = 'session/usage',
-	SessionReasoning = 'session/reasoning',
-	SessionModelChanged = 'session/modelChanged',
-	SessionAgentChanged = 'session/agentChanged',
+	ChatUsage = 'chat/usage',
+	ChatReasoning = 'chat/reasoning',
 	SessionServerToolsChanged = 'session/serverToolsChanged',
-	SessionActiveClientChanged = 'session/activeClientChanged',
-	SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
-	SessionPendingMessageSet = 'session/pendingMessageSet',
-	SessionPendingMessageRemoved = 'session/pendingMessageRemoved',
-	SessionQueuedMessagesReordered = 'session/queuedMessagesReordered',
-	SessionInputRequested = 'session/inputRequested',
-	SessionInputAnswerChanged = 'session/inputAnswerChanged',
-	SessionInputCompleted = 'session/inputCompleted',
+	SessionActiveClientSet = 'session/activeClientSet',
+	SessionActiveClientRemoved = 'session/activeClientRemoved',
+	SessionInputNeededSet = 'session/inputNeededSet',
+	SessionInputNeededRemoved = 'session/inputNeededRemoved',
+	ChatPendingMessageSet = 'chat/pendingMessageSet',
+	ChatPendingMessageRemoved = 'chat/pendingMessageRemoved',
+	ChatQueuedMessagesReordered = 'chat/queuedMessagesReordered',
+	ChatDraftChanged = 'chat/draftChanged',
+	ChatInputRequested = 'chat/inputRequested',
+	ChatInputAnswerChanged = 'chat/inputAnswerChanged',
+	ChatInputCompleted = 'chat/inputCompleted',
 	SessionCustomizationsChanged = 'session/customizationsChanged',
 	SessionCustomizationToggled = 'session/customizationToggled',
 	SessionCustomizationUpdated = 'session/customizationUpdated',
 	SessionCustomizationRemoved = 'session/customizationRemoved',
 	SessionMcpServerStateChanged = 'session/mcpServerStateChanged',
-	SessionTruncated = 'session/truncated',
+	SessionMcpServerStartRequested = 'session/mcpServerStartRequested',
+	SessionMcpServerStopRequested = 'session/mcpServerStopRequested',
+	ChatTruncated = 'chat/truncated',
+	ChatTurnsLoaded = 'chat/turnsLoaded',
 	SessionIsReadChanged = 'session/isReadChanged',
 	SessionIsArchivedChanged = 'session/isArchivedChanged',
 	SessionActivityChanged = 'session/activityChanged',
@@ -74,6 +85,8 @@ export const enum ActionType {
 	ChangesetStatusChanged = 'changeset/statusChanged',
 	ChangesetFileSet = 'changeset/fileSet',
 	ChangesetFileRemoved = 'changeset/fileRemoved',
+	ChangesetFilesReviewChanged = 'changeset/filesReviewChanged',
+	ChangesetContentChanged = 'changeset/contentChanged',
 	ChangesetOperationsChanged = 'changeset/operationsChanged',
 	ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
 	ChangesetCleared = 'changeset/cleared',
@@ -138,48 +151,59 @@ export type StateAction =
 	| RootConfigChangedAction
 	| SessionReadyAction
 	| SessionCreationFailedAction
-	| SessionTurnStartedAction
-	| SessionDeltaAction
-	| SessionResponsePartAction
-	| SessionToolCallStartAction
-	| SessionToolCallDeltaAction
-	| SessionToolCallReadyAction
-	| SessionToolCallConfirmedAction
-	| SessionToolCallCompleteAction
-	| SessionToolCallResultConfirmedAction
-	| SessionToolCallContentChangedAction
-	| SessionTurnCompleteAction
-	| SessionTurnCancelledAction
-	| SessionErrorAction
+	| SessionChatAddedAction
+	| SessionChatRemovedAction
+	| SessionChatUpdatedAction
+	| SessionDefaultChatChangedAction
 	| SessionTitleChangedAction
-	| SessionUsageAction
-	| SessionReasoningAction
-	| SessionModelChangedAction
-	| SessionAgentChangedAction
 	| SessionServerToolsChangedAction
-	| SessionActiveClientChangedAction
-	| SessionActiveClientToolsChangedAction
-	| SessionPendingMessageSetAction
-	| SessionPendingMessageRemovedAction
-	| SessionQueuedMessagesReorderedAction
-	| SessionInputRequestedAction
-	| SessionInputAnswerChangedAction
-	| SessionInputCompletedAction
+	| SessionActiveClientSetAction
+	| SessionActiveClientRemovedAction
+	| SessionInputNeededSetAction
+	| SessionInputNeededRemovedAction
 	| SessionCustomizationsChangedAction
 	| SessionCustomizationToggledAction
 	| SessionCustomizationUpdatedAction
 	| SessionCustomizationRemovedAction
 	| SessionMcpServerStateChangedAction
-	| SessionTruncatedAction
+	| SessionMcpServerStartRequestedAction
+	| SessionMcpServerStopRequestedAction
 	| SessionIsReadChangedAction
 	| SessionIsArchivedChangedAction
 	| SessionActivityChangedAction
 	| SessionChangesetsChangedAction
 	| SessionConfigChangedAction
 	| SessionMetaChangedAction
+	| ChatTurnStartedAction
+	| ChatDeltaAction
+	| ChatResponsePartAction
+	| ChatToolCallStartAction
+	| ChatToolCallDeltaAction
+	| ChatToolCallReadyAction
+	| ChatToolCallConfirmedAction
+	| ChatToolCallCompleteAction
+	| ChatToolCallResultConfirmedAction
+	| ChatToolCallContentChangedAction
+	| ChatTurnCompleteAction
+	| ChatTurnCancelledAction
+	| ChatErrorAction
+	| ChatActivityChangedAction
+	| ChatUsageAction
+	| ChatReasoningAction
+	| ChatPendingMessageSetAction
+	| ChatPendingMessageRemovedAction
+	| ChatQueuedMessagesReorderedAction
+	| ChatDraftChangedAction
+	| ChatInputRequestedAction
+	| ChatInputAnswerChangedAction
+	| ChatInputCompletedAction
+	| ChatTruncatedAction
+	| ChatTurnsLoadedAction
 	| ChangesetStatusChangedAction
 	| ChangesetFileSetAction
 	| ChangesetFileRemovedAction
+	| ChangesetFilesReviewChangedAction
+	| ChangesetContentChangedAction
 	| ChangesetOperationsChangedAction
 	| ChangesetOperationStatusChangedAction
 	| ChangesetClearedAction

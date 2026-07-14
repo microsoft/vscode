@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { AzureAuthMode, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isEndpointEditToolName } from '../../../platform/endpoint/common/endpointProvider';
+import { isEndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -43,6 +43,29 @@ export function resolveAzureUrl(modelId: string, url: string): string {
 	} else {
 		throw new Error(`Unrecognized Azure deployment URL: ${url}`);
 	}
+}
+
+/**
+ * Determines the `supported_endpoints` for a resolved Azure BYOK URL. When the URL targets the
+ * Responses API, both Chat Completions and Responses are advertised so a Responses-shaped body
+ * (`input`) is sent; otherwise `undefined` preserves the default Chat Completions behavior. This
+ * keeps the Entra auth path consistent with the API-key path (issue #318114).
+ */
+export function azureSupportedEndpointsForUrl(url: string): ModelSupportedEndpoint[] | undefined {
+	let pathname: string;
+	try {
+		pathname = new URL(url).pathname;
+	} catch {
+		// Tolerate malformed URLs by preserving the default Chat Completions behavior.
+		return undefined;
+	}
+	// Match the final path segment so a deployment named "responses" (e.g.
+	// `/openai/deployments/responses/chat/completions`) is not misclassified. Compare
+	// case-insensitively to tolerate APIM vanity routes that may use different casing.
+	if (pathname.replace(/\/$/, '').toLowerCase().endsWith('/responses')) {
+		return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
+	}
+	return undefined;
 }
 
 export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
@@ -108,6 +131,7 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
+			contextWindow: modelConfiguration?.contextWindow,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
@@ -119,6 +143,13 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
+		// Mirror the API-key path (customOAIProvider.createOpenAIEndPoint): when the resolved Azure URL
+		// targets the Responses API, mark the endpoint accordingly so a Responses-shaped body (`input`) is
+		// sent instead of a Chat Completions body (`messages`), which Azure Responses rejects (issue #318114).
+		const supportedEndpoints = azureSupportedEndpointsForUrl(url);
+		if (supportedEndpoints) {
+			modelInfo.supported_endpoints = supportedEndpoints;
+		}
 
 		const openAIChatEndpoint = this._instantiationService.createInstance(
 			AzureOpenAIEndpoint,

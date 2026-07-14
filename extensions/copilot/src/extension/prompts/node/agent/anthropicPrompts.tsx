@@ -20,12 +20,7 @@ import { CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabili
 import { FileLinkificationInstructions, FileLinkificationInstructionsOptimized } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
 
-/**
- * Prompt component that provides instructions for using the tool search tool
- * to load deferred tools before calling them directly. See
- * `ToolSearchToolPromptOptimized` for the rationale behind keeping the
- * deferred-tool inventory out of this (system-prompt) component.
- */
+/** Instructions for using the tool search tool to load deferred tools before calling them. */
 class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 	constructor(
 		props: PromptElementProps<ToolSearchToolPromptProps>,
@@ -293,11 +288,7 @@ class Claude45DefaultPrompt extends PromptElement<DefaultAgentPromptProps> {
 	}
 }
 
-/**
- * Base class for optimized Claude 4.6 prompt configurations.
- * Renders the shared base prompt sections from the optimization test plan.
- * Subclasses provide specific <instructions> exploration guidance and <parallelizationStrategy>.
- */
+/** Base class for optimized Claude 4.6 prompt configurations. */
 class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps> {
 	constructor(
 		props: PromptElementProps<DefaultAgentPromptProps>,
@@ -312,6 +303,11 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 	}
 
 	protected renderParallelizationStrategy(): PromptPiece | undefined {
+		return undefined;
+	}
+
+	/** Rendered after all other sections. */
+	protected renderAppendedInstructions(): PromptPiece | undefined {
 		return undefined;
 	}
 
@@ -405,14 +401,12 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
+			{this.renderAppendedInstructions()}
 		</InstructionMessage>;
 	}
 }
 
-/**
- * Optimized prompt for Sonnet 4.6.
- * Uses moderate exploration guidance that balances persistence with bounding.
- */
+/** Optimized prompt for Sonnet 4.6. */
 class Claude46SonnetPrompt extends Claude46OptimizedBasePrompt {
 	protected override renderExplorationGuidance(_tools: ReturnType<typeof detectToolCapabilities>) {
 		return <>
@@ -428,10 +422,7 @@ class Claude46SonnetPrompt extends Claude46OptimizedBasePrompt {
 	}
 }
 
-/**
- * Opus-specific optimized prompt for Claude 4.6.
- * Uses bounded exploration guidance to reduce over-exploration observed in benchmarks.
- */
+/** Opus-specific optimized prompt for Claude 4.6. */
 class Claude46OpusPrompt extends Claude46OptimizedBasePrompt {
 	protected override renderExplorationGuidance(_tools: ReturnType<typeof detectToolCapabilities>) {
 		return <>
@@ -447,17 +438,18 @@ class Claude46OpusPrompt extends Claude46OptimizedBasePrompt {
 	}
 }
 
-/**
- * Opus-specific optimized prompt for Claude 4.7.
- *
- * Standalone copy of the Claude 4.6 Opus prompt, kept separate from the
- * shared optimized base so it can be iterated on independently. Behavioral
- * additions vs Claude 4.6 Opus reflect guidance from the Opus 4.7 prompting
- * guide (tool triggering, subagent fan-out, response shape) and lessons
- * imported from the Claude Code system prompt (no internal narration,
- * end-of-turn summary cap, comment discipline, subagent verification).
- */
-class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
+/** Sonnet 5 prompt: Claude 4.6 Sonnet base plus the validated scope/interface/effort append. */
+class ClaudeSonnet5Prompt extends Claude46SonnetPrompt {
+	protected override renderAppendedInstructions() {
+		return <>
+			Do exactly what was asked - don't extend scope to new adjacent code, tests, examples, or unrelated files unless the task explicitly includes them. But always preserve existing public interfaces: never remove or change the signature of module-level functions, exported names, or class methods that other code might depend on, unless explicitly told to. If you think adjacent work is needed, mention it rather than doing it.<br />
+			Be direct and minimal on file reads and editor-tool calls; spend your reasoning on design decisions, debugging, and writing code. Keep your responses to the user concise - a few sentences explaining what you did and why is enough; the work happens in tool calls, not in prose.<br />
+		</>;
+	}
+}
+
+/** Opus-specific optimized prompt for Claude 4.8. */
+class Claude48OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 	constructor(
 		props: PromptElementProps<DefaultAgentPromptProps>,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -480,6 +472,7 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks and software engineering tasks.<br />
 				The user will ask a question or ask you to perform a task. There is a selection of tools that let you perform actions or retrieve helpful context.<br />
 				By default, implement changes rather than only suggesting them. If the user's intent is unclear, infer the most useful likely action and proceed with using tools to discover missing details instead of guessing.<br />
+				When the user asks you to plan, explain, review, or brainstorm, do not edit files or run state-changing commands — deliver the plan or explanation, and implement only when asked. Once the user approves a plan or asks you to proceed, that is the signal to implement it fully.<br />
 				Gather sufficient context to act confidently, then proceed to implementation. Stop searching once you have enough to act — overlapping results across multiple queries are a strong signal you have sufficient context.<br />
 				Persist through genuine blockers, but do not over-explore. When you encounter an error or blocker, diagnose the cause and try a different approach rather than retrying the same call or brute-forcing your way around it.<br />
 				Avoid giving time estimates.<br />
@@ -507,6 +500,13 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- Default to no comments on code you write. Add one only when the WHY is non-obvious — a hidden constraint, a subtle invariant, a workaround, or behavior that would surprise a reader. Never explain what the code already says, and never reference the current task, fix, or caller ("added for X", "handles case Y") — that belongs in the PR description, not the code. Keep any comment to one short line; do not write multi-paragraph docstrings or multi-line comment blocks<br />
 				- Don't add docstrings, comments, or type annotations to code you didn't change<br />
 			</Tag>
+			<Tag name='completionDiscipline'>
+				Before reporting a task complete, verify it: run the project's relevant build, tests, or checks and read their output. Only claim results you have observed in this session — never state that builds pass or tests succeed without having run them after your last change.<br />
+				When the task states acceptance criteria — specific commands, tests, or behaviors that must pass — verify against those, not a weaker substitute you chose yourself.<br />
+				If a check fails, cannot be run, or was skipped, say so explicitly. If you completed only part of the request, list what remains; do not present partial completion as done.<br />
+				For changes that must apply across a codebase (migrations, renames, cross-cutting rules), enumerate the affected occurrences with a search first, and re-run that same search after editing. The change is not complete while the search still returns matches.<br />
+				Tasks that changed no code (questions, explanations, reviews) need no verification pass.<br />
+			</Tag>
 			<Tag name='parallelizationStrategy'>
 				You may parallelize independent read-only operations when appropriate.<br />
 				<Tag name='subagentFanOut'>
@@ -518,7 +518,8 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 			</Tag>
 			{tools[ToolName.CoreManageTodoList] && <>
 				<Tag name='taskTracking'>
-					Use the {ToolName.CoreManageTodoList} tool when working on multi-step tasks that benefit from tracking. Update task status consistently: mark in-progress when starting, completed immediately after finishing. Skip task tracking for simple, single-step operations.<br />
+					Use the {ToolName.CoreManageTodoList} tool only when the work spans three or more distinct steps or files. Never create a todo list for a question, an explanation, or a single-file change.<br />
+					When you do track a task, keep the list current: mark each step in-progress when you start it and completed immediately after finishing it.<br />
 				</Tag>
 			</>}
 			{contextCompactionEnabled && <>
@@ -540,6 +541,7 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{tools[ToolName.Codebase] && <>If {ToolName.Codebase} returns the full workspace contents, you have all the context.<br /></>}
 				{tools[ToolName.Codebase] && tools[ToolName.FindTextInFiles] && tools[ToolName.FindFiles] && <>For semantic search across the workspace, use {ToolName.Codebase}. For exact text matches, use {ToolName.FindTextInFiles}. For files by name or path pattern, use {ToolName.FindFiles}. Do not skip search and go directly to {ToolName.ReadFile} unless you are confident about the exact file path.<br /></>}
 				{tools[ToolName.CoreRunInTerminal] && <>Do not call {ToolName.CoreRunInTerminal} multiple times in parallel. Run one command and wait for output before running the next.<br /></>}
+				{tools[ToolName.CoreRunInTerminal] && <>Run a command once and read its output rather than re-running it to check again. For long-running or blocking commands (servers, watchers, interactive prompts), set isBackground to true and read the terminal output instead of blocking on it or re-invoking it.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br /></>}
 				When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.<br />
 				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
@@ -552,6 +554,8 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 				</Tag>
 				<Tag name='toolTriggering'>
 					When the task needs information that is not already in context, use the available tools to gather it rather than guessing or relying on assumptions.<br />
+					Some tools are the authoritative source for this surface and are more current than your own knowledge: documentation lookup tools, project-scaffolding tools, and instruction or skill files in the workspace. When the task falls within such a tool's domain, consult it before answering from memory — your training data may be stale for fast-moving APIs.<br />
+					When the workspace or task references an instruction file, skill, or spec document, read it before acting on that area.<br />
 					{tools.hasSomeEditTool && <>For tasks that require editing files, running tests, or otherwise modifying state, use the appropriate tool rather than describing the change.<br /></>}
 					Prefer concrete tool calls over speculation; do not stop short of a tool call when one is clearly needed to make progress.<br />
 				</Tag>
@@ -586,10 +590,7 @@ class Claude47OpusPrompt extends PromptElement<DefaultAgentPromptProps> {
 	}
 }
 
-/**
- * Condensed reminder instructions for optimized Claude 4.6 prompt configurations.
- * Inlines editing reminder unconditionally and removes the tool_search reminder block.
- */
+/** Condensed reminder instructions for optimized Claude 4.6 prompt configurations. */
 class AnthropicReminderInstructionsOptimized extends PromptElement<ReminderInstructionsProps> {
 	constructor(
 		props: PromptElementProps<ReminderInstructionsProps>,
@@ -608,7 +609,7 @@ class AnthropicReminderInstructionsOptimized extends PromptElement<ReminderInstr
 			{this.props.hasMultiReplaceStringTool && <>For multiple independent edits, use {ToolName.MultiReplaceString} simultaneously rather than sequential {ToolName.ReplaceString} calls.<br /></>}
 			{this.props.hasEditFileTool && this.props.hasReplaceStringTool && <>Prefer {ToolName.ReplaceString}{this.props.hasMultiReplaceStringTool ? <> or {ToolName.MultiReplaceString}</> : ''} over {ToolName.EditFile}.<br /></>}
 			Do NOT create markdown files to document changes unless requested.<br />
-			{contextEditingEnabled && <>
+			{contextEditingEnabled && this.props.hasMemoryTool && <>
 				Do NOT view your memory directory before every task. Your context is managed automatically. Only use memory as described in memoryInstructions.<br />
 			</>}
 		</>;
@@ -637,13 +638,17 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		return endpoint.model.startsWith('claude-sonnet') || endpoint.family.startsWith('claude-sonnet');
 	}
 
+	private isSonnet5(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-sonnet-5') || endpoint.family.startsWith('claude-sonnet-5');
+	}
+
 	private isHaiku(endpoint: IChatEndpoint): boolean {
 		return endpoint.model.startsWith('claude-haiku') || endpoint.family.startsWith('claude-haiku');
 	}
 
-	private isOpus47(endpoint: IChatEndpoint): boolean {
-		return endpoint.model.startsWith('claude-opus-4-7') || endpoint.model.startsWith('claude-opus-4.7')
-			|| endpoint.family.startsWith('claude-opus-4-7') || endpoint.family.startsWith('claude-opus-4.7');
+	private isOpus48(endpoint: IChatEndpoint): boolean {
+		return endpoint.model.startsWith('claude-opus-4-8') || endpoint.model.startsWith('claude-opus-4.8')
+			|| endpoint.family.startsWith('claude-opus-4-8') || endpoint.family.startsWith('claude-opus-4.8');
 	}
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
@@ -653,17 +658,19 @@ class AnthropicPromptResolver implements IAgentPrompt {
 		if (this.isClaude45(endpoint)) {
 			return Claude45DefaultPrompt;
 		}
+		if (this.isSonnet5(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.ClaudeSonnet5PromptEnabled, this.experimentationService)) {
+			return ClaudeSonnet5Prompt;
+		}
 		if (this.isSonnet(endpoint)) {
 			return Claude46SonnetPrompt;
 		}
 		if (this.isHaiku(endpoint)) {
 			return Claude45DefaultPrompt;
 		}
-		if (this.isOpus47(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.Claude47OpusPromptEnabled, this.experimentationService)) {
-			return Claude47OpusPrompt;
+		if (this.isOpus48(endpoint) && this.configurationService.getExperimentBasedConfig(ConfigKey.Claude48OpusPromptEnabled, this.experimentationService)) {
+			return Claude48OpusPrompt;
 		}
-		// Default for every other current and future model (including ones not
-		// yet individually recognized): the latest general-purpose Opus prompt.
+		// Default for every other current and future model (including Opus 4.7).
 		return Claude46OpusPrompt;
 	}
 
@@ -691,7 +698,7 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 		return <>
 			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
 			Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.<br />
-			{contextEditingEnabled && <>
+			{contextEditingEnabled && this.props.hasMemoryTool && <>
 				<br />
 				IMPORTANT: Do NOT view your memory directory before every task. Do NOT assume your context will be interrupted or reset. Your context is managed automatically — you do not need to urgently save progress to memory. Only use memory as described in the memoryInstructions section. Do not create memory files to record routine progress or status updates unless the user explicitly asks you to.<br />
 			</>}

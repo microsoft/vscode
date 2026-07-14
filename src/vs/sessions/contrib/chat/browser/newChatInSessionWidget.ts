@@ -17,6 +17,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { sessionHasNoSelectableModel } from './modelPicker.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -43,13 +44,14 @@ export class NewChatInSessionWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._session = derived(reader => {
-			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession;
 		});
 
@@ -75,12 +77,14 @@ export class NewChatInSessionWidget extends Disposable {
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async ({ query, attachments }) => this._send(query, attachments),
+			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
 			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
+			supportsBackground: true,
+			voiceRoutesWhileSessionActive: true,
 		}));
 	}
 
@@ -105,7 +109,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const tipContainer = dom.append(container, dom.$('.sub-session-tip-container'));
 		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
 		tipWidget.setAttribute('role', 'status');
-		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "Sub-session tip"));
+		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "New chat tip"));
 
 		// Tip icon
 		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
@@ -115,7 +119,7 @@ export class NewChatInSessionWidget extends Disposable {
 		const textEl = dom.append(tipWidget, dom.$('span.sub-session-tip-text'));
 		textEl.textContent = localize(
 			'subSessionTip.message',
-			"This is a sub-session, a new chat in the same workspace. Use it to ask questions, run tasks, or explore ideas with fresh context."
+			"Start a parallel conversation to build on all the changes made in this session."
 		);
 
 		// Dismiss button
@@ -153,14 +157,21 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[]): Promise<void> {
+	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return;
 		}
 		const activeChat = activeSession.activeChat.get();
 		try {
-			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext });
+			// Reset the composer before dispatching the send: both touch shared
+			// chat-session state for chats in the same group, and running them
+			// concurrently races and leaves the sent chat stuck spinning.
+			if (background) {
+				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
+			}
+
+			await this.sessionsManagementService.sendRequest(activeSession, activeChat, { query, attachedContext, background });
 		} catch (e) {
 			this.logService.error('Failed to send secondary chat request:', e);
 		}

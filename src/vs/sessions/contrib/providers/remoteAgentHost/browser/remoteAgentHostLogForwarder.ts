@@ -111,7 +111,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 			return;
 		}
 
-		const template = this._client.initializeResult?.telemetry?.logs;
+		const template = this._client.initializeResult.get()?.telemetry?.logs;
 		if (!template) {
 			return;
 		}
@@ -261,7 +261,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 		if (!rootState || rootState instanceof Error) {
 			return;
 		}
-		const buildInfo = readHostBuildInfo(rootState._meta);
+		const buildInfo = readHostBuildInfo(rootState);
 		if (!buildInfo) {
 			return;
 		}

@@ -7,7 +7,6 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { disposableWindowInterval } from '../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -29,8 +28,11 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
 import { bindWidgetToController } from './agentsVoiceWidgetBinding.js';
+import { AgentsVoiceSessionsPicker } from './agentsVoiceSessionsPicker.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class AgentsVoiceWindowService extends Disposable implements IAgentsVoiceWindowService {
 
@@ -43,6 +45,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	private _window: IAuxiliaryWindow | undefined;
 	private readonly _windowDisposables = this._register(new DisposableStore());
 	private readonly _ownershipChannel: BroadcastChannel;
+	private _resizeTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -52,25 +55,6 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	 * Calls setWindowAlwaysOnTop via a registered command (Electron only).
 	 * Avoids importing INativeHostService in the browser layer.
 	 */
-	private async trySetWindowAlwaysOnTop(alwaysOnTop: boolean, targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.setWindowAlwaysOnTop', alwaysOnTop, targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
-	/**
-	 * Minimizes a window via a registered command (Electron only).
-	 */
-	private async tryMinimizeWindow(targetWindowId: number): Promise<void> {
-		try {
-			await this.commandService.executeCommand('_agentsVoice.minimizeWindow', targetWindowId);
-		} catch {
-			// Command not registered (e.g. web) — ignore
-		}
-	}
-
 	constructor(
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -88,6 +72,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -108,17 +93,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		mainWindow.addEventListener('beforeunload', onBeforeUnload);
 		this._register({ dispose: () => mainWindow.removeEventListener('beforeunload', onBeforeUnload) });
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('agents.voice.alwaysOnTop') && this._window) {
-				const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
-				this.trySetWindowAlwaysOnTop(alwaysOnTop, this._window.window.vscodeWindowId);
-			}
-		}));
-
 		const wasOpen = this.storageService.getBoolean(AgentsVoiceStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
-		if (wasOpen && this.configurationService.getValue<boolean>('agents.voice.enabled')) {
-			const reopenTimeout = setTimeout(() => this.openWindow(), 1000);
-			this._register({ dispose: () => clearTimeout(reopenTimeout) });
+		if (wasOpen) {
+			// Clear the stored state so it doesn't try to reopen in the future
+			this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 	}
 
@@ -128,16 +106,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}
 
 		const bounds = this.loadBounds();
-		const alwaysOnTop = this.configurationService.getValue<boolean>('agents.voice.alwaysOnTop') ?? true;
 
 		const auxiliaryWindow = await this.auxiliaryWindowService.open({
 			bounds,
-			alwaysOnTop,
+			alwaysOnTop: true,
 			frameless: true,
 			transparent: false,
 			disableFullscreen: true,
 			nativeTitlebar: false,
-			notResizable: true,
 			noBackgroundThrottling: true,
 			backgroundColor: this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e',
 		});
@@ -145,41 +121,34 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		this._window = auxiliaryWindow;
 		this._auxiliaryWindowRef.value = auxiliaryWindow;
 
-		// Minimize the main VS Code window so the floating aux window is the
-		// primary surface the user interacts with. The aux window stays visible
-		// because it lives in a separate OS window. We minimize at three points
-		// to defeat any focus-restore behavior from Electron when the aux is
-		// shown: immediately, after styles load, and again after a short delay.
-		const minimizeMain = async () => {
-			try {
-				const mainWindowId = mainWindow.vscodeWindowId;
-				await this.tryMinimizeWindow(mainWindowId);
-			} catch {
-				// nativeHostService may not be available (e.g. web); ignore.
-			}
-		};
-		void minimizeMain();
-		auxiliaryWindow.whenStylesHaveLoaded.then(() => {
-			void minimizeMain();
-			setTimeout(() => { void minimizeMain(); }, 250);
-		});
-
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
 		auxiliaryWindow.window.document.title = projectName ? `Agents Voice — ${projectName}` : 'Agents Voice';
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
-		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', this.themeService.getColorTheme().getColor(editorBackground)?.toString() ?? '#1e1e1e');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
+
+		// Resolve theme colors so the aux window matches the chat input box
+		const theme = this.themeService.getColorTheme();
+		const bgColor = theme.getColor(editorBackground)?.toString() ?? '#1e1e1e';
+		const inputBg = theme.getColor(inputBackground)?.toString() ?? '#3C3C3C';
+		const inputBd = theme.getColor(inputBorder)?.toString() ?? 'transparent';
+
+		auxiliaryWindow.container.style.setProperty('--vscode-agents-background', bgColor);
+		auxiliaryWindow.container.style.backgroundColor = inputBg;
+		auxiliaryWindow.container.style.border = `1px solid ${inputBd}`;
+		auxiliaryWindow.container.style.boxSizing = 'border-box';
+		auxiliaryWindow.window.document.body.style.setProperty('background-color', inputBg, 'important');
 
 		this._windowDisposables.clear();
 
 		// Create the widget — aux window uses the default options (draggable, fixed
 		// width, close button, expand chevron, status rows, no status-text label,
-		// no popout button), but starts in the expanded view by default so the
-		// user immediately sees the session list when popping out.
+		// no popout button). Sessions are collapsed by default; the user can
+		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
+			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.
@@ -221,6 +190,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			},
 			selectTargetSession: (resource) => {
 				this.voiceSessionController.setTargetSession(resource);
+				// Reveal the selected session in the chat panel
+				if (resource) {
+					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
+				}
 			},
 			newSessionAsTarget: () => {
 				this.voiceSessionController.newSessionAsTarget();
@@ -234,8 +207,16 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
+			showSessionsPicker: () => {
+				const picker = this.instantiationService.createInstance(
+					AgentsVoiceSessionsPicker,
+					(resource) => this.voiceSessionController.setTargetSession(resource),
+				);
+				picker.show();
+			},
 		}, {
-			defaultExpanded: true,
+			defaultExpanded: false,
+			inputBoxLayout: true,
 		});
 		this._windowDisposables.add(widget);
 
@@ -254,23 +235,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			voicePlaybackService: this.voicePlaybackService,
 			environmentService: this.environmentService,
 			chatService: this.chatService,
+			configurationService: this.configurationService,
 		}));
-
-		// Re-resize when zoom level changes
-		let lastDpr = auxiliaryWindow.window.devicePixelRatio;
-		let zoomDebounce: ReturnType<typeof setTimeout> | undefined;
-		const checkZoom = () => {
-			const currentDpr = auxiliaryWindow.window.devicePixelRatio;
-			if (Math.abs(currentDpr - lastDpr) > 0.01) {
-				lastDpr = currentDpr;
-				if (zoomDebounce) { clearTimeout(zoomDebounce); }
-				zoomDebounce = setTimeout(() => {
-					this._resizeWindow(auxiliaryWindow);
-				}, 200);
-			}
-		};
-		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, checkZoom, 500));
-		this._windowDisposables.add({ dispose: () => { if (zoomDebounce) { clearTimeout(zoomDebounce); } } });
 
 		// Poll for session updates
 		this.agentSessionsService.model.resolve(undefined);
@@ -278,24 +244,10 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			this.agentSessionsService.model.resolve(undefined);
 		}, 3000));
 
-		// Periodically save window bounds
-		let lastBoundsJson = '';
-		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			if (!this._window) { return; }
-			try {
-				const state = this._window.createState();
-				if (state.bounds) {
-					const posJson = JSON.stringify({ x: state.bounds.x, y: state.bounds.y });
-					if (posJson !== lastBoundsJson) {
-						lastBoundsJson = posJson;
-						this.storageService.store(AgentsVoiceStorageKeys.WindowBounds, posJson, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-					}
-				}
-			} catch { /* window may have been disposed */ }
-		}, 1000));
 
 		// Clean up when user closes window via OS controls
 		Event.once(auxiliaryWindow.onUnload)(() => {
+			this.voiceSessionController.setTargetSession(undefined);
 			this.voiceSessionController.disconnect();
 			this._window = undefined;
 			this._windowDisposables.clear();
@@ -315,6 +267,8 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// Don't disconnect — closing the floating window minimizes the UI but
 		// keeps the voice session alive. The session ends on terminal disconnect
 		// (Disconnect button or app exit via onUnload).
+		// Clear target session selection so it doesn't silently persist.
+		this.voiceSessionController.setTargetSession(undefined);
 		this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		this._window = undefined;
@@ -335,6 +289,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	// --- Window sizing ---
 
 	private _resizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
+		// Debounce resize to avoid fighting user drag operations
+		if (this._resizeTimeout) {
+			clearTimeout(this._resizeTimeout);
+		}
+		this._resizeTimeout = setTimeout(() => {
+			this._resizeTimeout = undefined;
+			this._doResizeWindow(auxiliaryWindow);
+		}, 100);
+	}
+
+	private _doResizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
 		// eslint-disable-next-line no-restricted-syntax
 		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
 		if (!pill) { return; }
@@ -342,70 +307,43 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		const pillWidth = pill.offsetWidth;
 		const pillHeight = pill.offsetHeight;
 		if (pillWidth <= 0 || pillHeight <= 0) { return; }
-		const zoomFactor = getZoomFactor(auxiliaryWindow.window);
-		const targetWidth = Math.ceil(pillWidth * zoomFactor);
-		const targetHeight = Math.ceil(pillHeight * zoomFactor);
 		const currentWidth = auxiliaryWindow.window.outerWidth;
 		const currentHeight = auxiliaryWindow.window.outerHeight;
-		if (targetWidth !== currentWidth || targetHeight !== currentHeight) {
-			try { auxiliaryWindow.window.resizeTo(targetWidth, targetHeight); } catch { /* resize may not be supported */ }
+		if (pillWidth !== currentWidth || pillHeight !== currentHeight) {
+			try {
+				// Clamp height so window doesn't exceed available screen space.
+				const screenBottom = auxiliaryWindow.window.screen.availHeight;
+				const maxHeight = screenBottom - auxiliaryWindow.window.screenY;
+				const clampedHeight = Math.min(pillHeight, Math.max(maxHeight, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT));
+				// resizeTo only — no moveTo. On macOS this keeps top-left fixed,
+				// window grows/shrinks downward. No visible position change.
+				auxiliaryWindow.window.resizeTo(pillWidth, clampedHeight);
+			} catch { /* resize may not be supported */ }
 		}
 	}
 
 	// --- Bounds persistence ---
 
 	private _defaultBounds(): IRectangle {
-		const screenWidth = mainWindow.screen?.availWidth ?? 1920;
+		// Center horizontally within the main VS Code window, near bottom.
+		const x = Math.round(mainWindow.screenX + (mainWindow.outerWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH) / 2);
+		const y = mainWindow.screenY + mainWindow.outerHeight - AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT - 100;
 		return {
-			x: screenWidth - AGENTS_VOICE_WINDOW_DEFAULT_WIDTH - 20,
-			y: 20,
+			x,
+			y,
 			width: AGENTS_VOICE_WINDOW_DEFAULT_WIDTH,
 			height: AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT,
 		};
 	}
 
-	private _isOnScreen(bounds: IRectangle): boolean {
-		const screen = mainWindow.screen;
-		const screenLeft = (screen as unknown as { availLeft?: number }).availLeft ?? 0;
-		const screenTop = (screen as unknown as { availTop?: number }).availTop ?? 0;
-		const screenWidth = screen?.availWidth ?? 1920;
-		const screenHeight = screen?.availHeight ?? 1080;
-
-		const minVisible = 50;
-		const visibleX = Math.min(bounds.x + bounds.width, screenLeft + screenWidth) - Math.max(bounds.x, screenLeft);
-		const visibleY = Math.min(bounds.y + bounds.height, screenTop + screenHeight) - Math.max(bounds.y, screenTop);
-
-		return visibleX >= minVisible && visibleY >= minVisible;
-	}
-
 	private loadBounds(): IRectangle {
-		const defaults = this._defaultBounds();
-		const raw = this.storageService.get(AgentsVoiceStorageKeys.WindowBounds, StorageScope.WORKSPACE);
-		if (raw) {
-			try {
-				const parsed = JSON.parse(raw);
-				if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-					const bounds = { x: parsed.x, y: parsed.y, width: defaults.width, height: defaults.height };
-					if (this._isOnScreen(bounds)) {
-						return bounds;
-					}
-				}
-			} catch { /* ignore invalid JSON */ }
-		}
-
-		return defaults;
+		// Always compute fresh bounds from the current main window position.
+		// This ensures the aux window is always centered within VS Code.
+		return this._defaultBounds();
 	}
 
-	private saveBounds(window: IAuxiliaryWindow): void {
-		const state = window.createState();
-		if (state.bounds) {
-			this.storageService.store(
-				AgentsVoiceStorageKeys.WindowBounds,
-				JSON.stringify({ x: state.bounds.x, y: state.bounds.y }),
-				StorageScope.WORKSPACE,
-				StorageTarget.MACHINE
-			);
-		}
+	private saveBounds(_window: IAuxiliaryWindow): void {
+		// Bounds persistence disabled — always use fresh defaults for now.
 	}
 }
 

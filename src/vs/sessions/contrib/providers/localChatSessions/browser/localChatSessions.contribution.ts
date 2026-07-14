@@ -12,13 +12,16 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -57,10 +60,45 @@ class LocalSessionsProviderContribution extends Disposable implements IWorkbench
 registerWorkbenchContribution2(LocalSessionsProviderContribution.ID, LocalSessionsProviderContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(class extends ForkConversationAction {
+	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined): Promise<boolean> {
+		return instantiationService.invokeFunction(async accessor => {
+			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsService = accessor.get(ISessionsService);
+			const chatService = accessor.get(IChatService);
+			const logService = accessor.get(ILogService);
+
+			const session = sessionsManagementService.getSession(sourceSessionResource)
+				?? sessionsManagementService.getSessions().find(s => s.chats.get().some(c => c.resource.toString() === sourceSessionResource.toString()));
+			if (!session?.capabilities.get().supportsMultipleChats || !isAgentHostProviderId(session.providerId)) {
+				return false;
+			}
+
+			const requests = chatService.getSession(sourceSessionResource)?.getRequests();
+			let turnId: string | undefined;
+			if (request) {
+				const requestIdx = requests?.findIndex(r => r.id === request.id) ?? -1;
+				if (requestIdx <= 0) {
+					return false;
+				}
+				turnId = requests![requestIdx - 1].id;
+			} else {
+				turnId = requests?.at(-1)?.id;
+			}
+			if (!turnId) {
+				return false;
+			}
+
+			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId);
+			await sessionsService.openChat(session, newChat.resource);
+			logService.trace(`[LocalChatSessions] Forked conversation into new chat ${newChat.resource.toString()} in session ${session.sessionId}`);
+			return true;
+		});
+	}
+
 	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
-			const sessionsViewService = accessor.get(ISessionsViewService);
+			const sessionsService = accessor.get(ISessionsService);
 			const logService = accessor.get(ILogService);
 
 			const parentSession = sessionsManagementService.getSession(parentSessionResource);
@@ -89,9 +127,8 @@ registerAction2(class extends ForkConversationAction {
 					return;
 				}
 			}
-			await sessionsViewService.openSession(forkedSessionResource);
+			await sessionsService.openSession(forkedSessionResource);
 
 		});
 	}
 });
-

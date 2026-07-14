@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
+import { structuralEquals } from '../../../base/common/equals.js';
+import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
@@ -259,9 +262,9 @@ function safeStringify(value: unknown): string {
 
 // ---- Platform-owned schema -------------------------------------------------
 
-export type AutoApproveLevel = 'default' | 'autoApprove' | 'autopilot';
+export type AutoApproveLevel = 'default' | 'autoApprove';
 
-export type SessionMode = 'interactive' | 'plan';
+export type SessionMode = 'interactive' | 'plan' | 'autopilot';
 
 export interface IPermissionsValue {
 	readonly allow: readonly string[];
@@ -307,16 +310,14 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-		enum: ['default', 'autoApprove', 'autopilot'],
+		enum: ['default', 'autoApprove'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.autopilot', "Autopilot (Preview)"),
 		],
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
 			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
-			localize('agentHost.sessionConfig.autoApprove.autopilotDescription', "Autonomously iterates from start to finish"),
 		],
 		default: 'default',
 		sessionMutable: true,
@@ -326,19 +327,51 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.mode', "Agent Mode"),
 		description: localize('agentHost.sessionConfig.modeDescription', "How the agent should approach this turn"),
-		enum: ['interactive', 'plan'],
+		enum: ['interactive', 'plan', 'autopilot'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.mode.interactive', "Interactive"),
 			localize('agentHost.sessionConfig.mode.plan', "Plan"),
+			localize('agentHost.sessionConfig.mode.autopilot', "Autopilot"),
 		],
 		enumDescriptions: [
 			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
 			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
+			localize('agentHost.sessionConfig.mode.autopilotDescription', "Autonomously iterates from start to finish"),
 		],
 		default: 'interactive',
 		sessionMutable: true,
 	}),
 });
+
+/**
+ * Rewrites a legacy `autoApprove='autopilot'` config value — used before
+ * Autopilot moved from the `autoApprove` axis onto the orthogonal `mode`
+ * axis — into the current two-axis shape:
+ *
+ *  - `autoApprove='autopilot'` + `mode='plan'`  → `mode='plan'`, `autoApprove='default'`
+ *    (legacy `plan` took precedence over autopilot when resolving the SDK mode).
+ *  - `autoApprove='autopilot'` + any other mode → `mode='autopilot'`, `autoApprove='default'`.
+ *
+ * Returns a shallow copy with the migration applied, or the original
+ * reference unchanged when no legacy value is present. Safe to call on
+ * `undefined`.
+ *
+ * Without this, a session persisted (or a "remembered" picker value seeded)
+ * with `autoApprove='autopilot'` would fail the new schema's enum validation
+ * and silently fall back to `default`, downgrading the session from
+ * autonomous Autopilot to manual per-tool confirmation.
+ */
+export function migrateLegacyAutopilotConfig<T extends Record<string, unknown> | undefined>(config: T): T {
+	if (!config || config[SessionConfigKey.AutoApprove] !== 'autopilot') {
+		return config;
+	}
+	const migrated: Record<string, unknown> = { ...config };
+	if (migrated[SessionConfigKey.Mode] !== 'plan') {
+		migrated[SessionConfigKey.Mode] = 'autopilot' satisfies SessionMode;
+	}
+	migrated[SessionConfigKey.AutoApprove] = 'default' satisfies AutoApproveLevel;
+	return migrated as T;
+}
 
 /**
  * Root (agent host) config properties owned by the platform itself.
@@ -358,6 +391,162 @@ export const AgentHostTelemetryLevelConfigKey = 'telemetryLevel';
  * passed to the copilot-sdk `CopilotClientOptions`.
  */
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
+
+/**
+ * Root config key forwarded from the renderer carrying the experiment-aware
+ * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
+ * provider when this is `true`; disabling requires an agent host restart.
+ */
+export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
+ * agent-host shell permission checks may apply terminal auto-approve rules.
+ */
+export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for terminal auto approve enablement. Defined here so
+ * renderer-side agent-host clients can forward it without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.global.autoApprove` setting changes. When `true`, the global
+ * auto-approve ("approve everything") setting is enabled and the agent host
+ * treats every tool call as auto-approved — equivalent to a session running
+ * with Bypass Approvals.
+ */
+export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for global auto approve. Defined here so renderer-side
+ * agent-host clients can forward it without importing from `workbench/contrib/chat`.
+ */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
+ * setting changes. When `true`, the agent host auto-answers `ask_user`
+ * questions instead of blocking on the user — the user is treated as
+ * unavailable and the agent is told to use its best judgment, mirroring the
+ * behavior of `autopilot` mode.
+ */
+export const AgentHostAutoReplyEnabledConfigKey = 'autoReplyEnabled';
+
+/**
+ * The VS Code setting ID for auto-reply. Defined here so renderer-side
+ * agent-host clients can forward it without importing from `workbench/contrib/chat`.
+ */
+export const AUTO_REPLY_SETTING_ID = 'chat.autoReply';
+
+// Root config key forwarded from the renderer when Copilot Chat's `github.copilot.chat.preferLongContext.enabled` setting changes.
+export const AgentHostPreferLongContextEnabledConfigKey = 'preferLongContextEnabled';
+
+// The Copilot Chat setting ID for preferring long context, forwarded into the agent host root config.
+export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongContext.enabled';
+
+/**
+ * Root config key forwarded from the renderer when VS Code's
+ * `chat.tools.terminal.autoApprove` setting changes. Holds the effective
+ * terminal auto-approve rule object for agent-host shell permission checks.
+ */
+export const AgentHostTerminalAutoApproveRulesConfigKey = 'terminalAutoApproveRules';
+
+export interface IAgentHostTerminalAutoApproveRule {
+	readonly approve: boolean;
+	readonly matchCommandLine?: boolean;
+}
+
+export type AgentHostTerminalAutoApproveRuleValue = boolean | null | IAgentHostTerminalAutoApproveRule;
+export type AgentHostTerminalAutoApproveRules = Record<string, AgentHostTerminalAutoApproveRuleValue>;
+
+/**
+ * The VS Code setting IDs for terminal auto approve rules. Defined here so
+ * renderer-side agent-host clients can forward them without importing from
+ * workbench terminal contributions.
+ */
+export const TERMINAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.terminal.autoApprove';
+export const TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID = 'chat.tools.terminal.ignoreDefaultAutoApproveRules';
+
+export function getAgentHostTerminalAutoApproveRulesConfig(configurationService: IConfigurationService): AgentHostTerminalAutoApproveRules {
+	const config = configurationService.getValue<AgentHostTerminalAutoApproveRules | undefined>(TERMINAL_AUTO_APPROVE_SETTING_ID);
+	const configInspectValue = configurationService.inspect<Readonly<AgentHostTerminalAutoApproveRules>>(TERMINAL_AUTO_APPROVE_SETTING_ID);
+	const ignoreDefaults = configurationService.getValue<boolean>(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID) === true;
+	return normalizeAgentHostTerminalAutoApproveRulesConfig(config, configInspectValue, ignoreDefaults);
+}
+
+export function normalizeAgentHostTerminalAutoApproveRulesConfig(config: AgentHostTerminalAutoApproveRules | undefined, configInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>, ignoreDefaults: boolean): AgentHostTerminalAutoApproveRules {
+	if (!config) {
+		return {};
+	}
+
+	const rules: AgentHostTerminalAutoApproveRules = {};
+	for (const [key, value] of Object.entries(config)) {
+		if (ignoreDefaults && isDefaultOnlyAutoApproveRule(key, value, configInspectValue)) {
+			continue;
+		}
+		rules[key] = value;
+	}
+	return rules;
+}
+
+function isDefaultOnlyAutoApproveRule(key: string, value: AgentHostTerminalAutoApproveRuleValue, configInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>): boolean {
+	const defaultValue = configInspectValue.default?.value;
+	const isDefaultRule = hasMatchingRule(defaultValue, key, value);
+	if (!isDefaultRule) {
+		return false;
+	}
+
+	const sourceTarget = getAutoApproveRuleSourceTarget(key, value, configInspectValue);
+
+	return sourceTarget === ConfigurationTarget.DEFAULT;
+}
+
+function getAutoApproveRuleSourceTarget(key: string, value: AgentHostTerminalAutoApproveRuleValue, configInspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>>): ConfigurationTarget {
+	if (hasMatchingRule(configInspectValue.workspaceFolderValue, key, value)) {
+		return ConfigurationTarget.WORKSPACE_FOLDER;
+	}
+	if (hasMatchingRule(configInspectValue.workspaceValue, key, value)) {
+		return ConfigurationTarget.WORKSPACE;
+	}
+	if (hasMatchingRule(configInspectValue.userRemoteValue, key, value)) {
+		return ConfigurationTarget.USER_REMOTE;
+	}
+	if (hasMatchingRule(configInspectValue.userLocalValue, key, value)) {
+		return ConfigurationTarget.USER_LOCAL;
+	}
+	if (hasMatchingRule(configInspectValue.userValue, key, value)) {
+		return ConfigurationTarget.USER;
+	}
+	if (hasMatchingRule(configInspectValue.applicationValue, key, value)) {
+		return ConfigurationTarget.APPLICATION;
+	}
+	return ConfigurationTarget.DEFAULT;
+}
+
+function hasMatchingRule(config: Readonly<AgentHostTerminalAutoApproveRules> | undefined, key: string, value: AgentHostTerminalAutoApproveRuleValue): boolean {
+	return !!config && Object.prototype.hasOwnProperty.call(config, key) && structuralEquals(config[key], value);
+}
+
+/**
+ * Root config key holding agent-host-level MCP server definitions.
+ *
+ * The value is a map of server name → {@link IMcpServerConfiguration}
+ * (the same `servers` shape used by `mcp.json`). These servers are
+ * exposed to every session created by the host, merged with any
+ * plugin-provided MCP servers when launching the copilot-sdk client.
+ */
+export const AgentHostMcpServersConfigKey = 'mcpServers';
+
+/**
+ * Map of server name → MCP server configuration, as stored in the
+ * {@link AgentHostMcpServersConfigKey} root config value.
+ */
+export type AgentHostMcpServers = Record<string, IMcpServerConfiguration>;
 
 /**
  * The VS Code setting ID for session sync. Defined here so the platform
@@ -394,6 +583,71 @@ export function agentHostConfigValueToTelemetryLevel(value: unknown): TelemetryL
 	}
 }
 
+/**
+ * Field descriptors for a single MCP server entry, shared by the stdio and
+ * http shapes. The agent-host config schema has no `oneOf`, so both variants'
+ * fields are described together; `type` selects which fields apply
+ * (`stdio` uses `command`/`args`/`env`/`cwd`, `http` uses `url`/`headers`).
+ */
+const mcpServerConfigProperties: Record<string, SessionConfigPropertySchema> = {
+	type: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.type.title', "Server Type"),
+		description: localize('agentHost.config.mcpServers.type.description', "The transport used to reach the server: `stdio` for a local command, `http` for a remote endpoint."),
+		enum: ['stdio', 'http'],
+	},
+	command: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.command.title', "Command"),
+		description: localize('agentHost.config.mcpServers.command.description', "For `stdio` servers, the executable to spawn."),
+	},
+	args: {
+		type: 'array',
+		title: localize('agentHost.config.mcpServers.args.title', "Arguments"),
+		description: localize('agentHost.config.mcpServers.args.description', "For `stdio` servers, the arguments passed to the command."),
+		items: { type: 'string', title: localize('agentHost.config.mcpServers.arg.title', "Argument") },
+	},
+	env: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.env.title', "Environment"),
+		description: localize('agentHost.config.mcpServers.env.description', "For `stdio` servers, environment variables set on the spawned process."),
+	},
+	cwd: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.cwd.title', "Working Directory"),
+		description: localize('agentHost.config.mcpServers.cwd.description', "For `stdio` servers, the working directory the command runs in."),
+	},
+	url: {
+		type: 'string',
+		title: localize('agentHost.config.mcpServers.url.title', "URL"),
+		description: localize('agentHost.config.mcpServers.url.description', "For `http` servers, the endpoint URL of the MCP server."),
+	},
+	headers: {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.headers.title', "Headers"),
+		description: localize('agentHost.config.mcpServers.headers.description', "For `http` servers, HTTP headers sent with every request."),
+	},
+};
+
+/**
+ * Documents the value shape of the {@link AgentHostMcpServersConfigKey} map.
+ *
+ * The config value is a map of server name → server config. The schema
+ * language has no `additionalProperties`, so the per-entry shape is attached
+ * under a placeholder key (`<serverName>`) rather than at the map level —
+ * this keeps the field descriptions discoverable without the runtime
+ * validator mistaking a real server named e.g. `command` for the `command`
+ * field. Real entries (keyed by actual server names) are passed through.
+ */
+const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
+	'<serverName>': {
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.entry.title', "MCP Server"),
+		description: localize('agentHost.config.mcpServers.entry.description', "A single MCP server entry. The property key is the server name."),
+		properties: mcpServerConfigProperties,
+	},
+};
+
 export const platformRootSchema = createSchema({
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostTelemetryLevelConfigKey]: schemaProperty<TelemetryConfiguration>({
@@ -408,5 +662,48 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
 		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
 		default: false,
+	}),
+	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
+		description: localize('agentHost.config.codexAgentEnabled.description', "Whether the Codex provider is enabled."),
+		default: false,
+	}),
+	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.terminalAutoApproveEnabled.title', "Terminal Auto Approve"),
+		description: localize('agentHost.config.terminalAutoApproveEnabled.description', "Whether terminal auto-approve rules forwarded by the connected client are allowed to apply to agent-host shell permission requests."),
+		default: true,
+	}),
+	[AgentHostGlobalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.globalAutoApproveEnabled.title', "Global Auto Approve"),
+		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Bypass Approvals."),
+		default: false,
+	}),
+	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),
+		description: localize('agentHost.config.autoReplyEnabled.description', "Whether VS Code's auto-reply setting is enabled. When `true`, `ask_user` questions are auto-answered instead of blocking on the user, mirroring autopilot mode."),
+		default: false,
+	}),
+	[AgentHostPreferLongContextEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
+		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
+		default: false,
+	}),
+	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({
+		type: 'object',
+		title: localize('agentHost.config.terminalAutoApproveRules.title', "Terminal Auto Approve Rules"),
+		description: localize('agentHost.config.terminalAutoApproveRules.description', "Terminal auto-approve rules forwarded by the connected client for agent-host shell permission checks."),
+		default: {},
+	}),
+	[AgentHostMcpServersConfigKey]: schemaProperty<AgentHostMcpServers>({
+		type: 'object',
+		title: localize('agentHost.config.mcpServers.title', "MCP Servers"),
+		description: localize('agentHost.config.mcpServers.description', "Agent-host-level MCP servers exposed to every session, keyed by server name. Each value is a server configuration (see `<serverName>`)."),
+		properties: mcpServersValueProperties,
+		default: {},
 	}),
 });

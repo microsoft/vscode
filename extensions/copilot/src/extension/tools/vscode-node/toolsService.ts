@@ -137,10 +137,12 @@ export class ToolsService extends BaseToolsService {
 			parentTraceContext,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				...(chatSessionId ? { [GenAiAttr.CONVERSATION_ID]: chatSessionId } : {}),
 				[GenAiAttr.TOOL_NAME]: String(name),
 				[GenAiAttr.TOOL_TYPE]: isMcpTool ? GenAiToolType.EXTENSION : GenAiToolType.FUNCTION,
 				[GenAiAttr.TOOL_CALL_ID]: (options as { chatStreamToolCallId?: string }).chatStreamToolCallId ?? '',
 				...(toolInfo?.description ? { [GenAiAttr.TOOL_DESCRIPTION]: toolInfo.description } : {}),
+				...(chatSessionId ? { [CopilotChatAttr.SESSION_ID]: chatSessionId } : {}),
 				...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 				...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 				...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),

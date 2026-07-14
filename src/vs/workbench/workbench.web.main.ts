@@ -105,6 +105,7 @@ import { IAgentHostService } from '../platform/agentHost/common/agentService.js'
 import { EditorRemoteAgentHostServiceClient } from './services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -171,6 +172,9 @@ import './contrib/tags/browser/workspaceTagsService.js';
 
 // Issues
 import './contrib/issue/browser/issue.contribution.js';
+
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
 
 // Splash
 import './contrib/splash/browser/splash.contribution.js';

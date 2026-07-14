@@ -26,6 +26,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditDeltaInfo } from '../../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -46,6 +47,7 @@ import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '..
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -59,7 +61,7 @@ import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ChatEditPillElement } from './chatEditPillElement.js';
+import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
@@ -130,6 +132,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -222,6 +225,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				breaks: true,
 			};
 
+			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const transformUri = isResponseVM(element)
+				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
 				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
@@ -355,6 +362,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedOptions: markedOpts,
 				markedExtensions,
 				...markdownRenderOptions,
+				transformUri,
 			}, this.domNode));
 
 			// Ideally this would happen earlier, but we need to parse the markdown.
@@ -851,6 +859,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		@IHoverService hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(labelService, modelService, languageService, hoverService);
 
@@ -877,15 +886,23 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		}));
 	}
 
-	private showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): void {
+	private async showDiff({ editorOptions: options, openToSide }: IOpenEditorOptions): Promise<void> {
+		const group = openToSide ? SIDE_GROUP : undefined;
 		if (this.currentDiff) {
+			// If the change is a pure addition into a file whose original version did not
+			// exist or was empty, there is nothing meaningful to diff against. Open the
+			// file in a normal editor instead of a diff editor.
+			if (this.currentDiff.removed === 0 && await isResourceContentEmpty(this.textModelService, this.currentDiff.originalURI) && this.uri) {
+				this.editorService.openEditor({ resource: this.uri, options }, group);
+				return;
+			}
 			this.editorService.openEditor({
 				original: { resource: this.currentDiff.originalURI },
 				modified: { resource: this.currentDiff.modifiedURI },
 				options
-			}, openToSide ? SIDE_GROUP : undefined);
+			}, group);
 		} else if (this.uri) {
-			this.editorService.openEditor({ resource: this.uri, options }, openToSide ? SIDE_GROUP : undefined);
+			this.editorService.openEditor({ resource: this.uri, options }, group);
 		}
 	}
 

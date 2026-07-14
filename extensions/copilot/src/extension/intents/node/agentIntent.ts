@@ -12,7 +12,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../plat
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGptFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -21,11 +21,13 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
-import { APIUsage, modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
+import { APIUsage, modelsWithoutResponsesContextManagement, nanoAiuToCredits } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
+import { CustomInstructionsReferenceLogger, IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -39,7 +41,7 @@ import { Iterable } from '../../../util/vs/base/common/iterator';
 import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
-import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
+import { ChatResponseAutoModeResolutionPart, ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
@@ -78,6 +80,40 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 	return endpoint.apiType === 'responses'
 		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, experimentationService)
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
+}
+
+/**
+ * Applies the user's "Context Size" model-picker selection to the endpoint used
+ * for the agent's model requests.
+ *
+ * The picker offers two tiers — the model's default context max and its full
+ * native window (see `getContextSizeOptions`). For server-managed context (the
+ * Responses-API compaction path) the request endpoint's `modelMaxPromptTokens`
+ * is what drives the `compact_threshold` sent to the server. If the default
+ * tier is not propagated to the request endpoint, the server compacts against
+ * the model's full window and the stateful conversation grows far past the
+ * user's selection — billing them for the larger context. Mirrors the override
+ * applied on the `vscode.lm` path in `languageModelAccess.ts`.
+ *
+ * Only clamps when the selection is strictly smaller than the model window so
+ * the full tier ("Longer sessions") stays uncompacted.
+ *
+ * When no explicit selection is present, falls back to the default context-max tier, unless the tiers cost the same and `chat.preferLongContext.enabled` is set, in which case the full native window is used.
+ *
+ * @internal - exported for testing
+ */
+export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest, preferLongContext: boolean = false): IChatEndpoint {
+	const contextSize = request.modelConfiguration?.contextSize;
+	// Prefer a valid explicit selection; otherwise fall back to the default tier. Guard against non-positive / non-finite selections (0, -1, NaN, Infinity). When tiers cost the same and the user prefers long context, skip the fallback and use the full window. See microsoft/vscode#322950, microsoft/vscode#323116.
+	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
+	const useDefaultTierFallback = !preferLongContext || hasLongContextSurcharge;
+	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
+		? contextSize
+		: useDefaultTierFallback ? endpoint.tokenPricing?.default.contextMax : undefined;
+	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
+		return endpoint.cloneWithTokenOverride(effectiveSize);
+	}
+	return endpoint;
 }
 
 /**
@@ -201,12 +237,16 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// The specialized subagents must only run when
-	// the main agent is on CAPI.
+	// The specialized subagents and semantic search only work when the main
+	// agent is on CAPI. semantic_search relies on embeddings that require a
+	// Copilot token source, so on BYOK / custom endpoints it can abort the chat
+	// turn (e.g. when the GitHub auth provider is unavailable). Keep it off
+	// there. See https://github.com/microsoft/vscode/issues/322525.
 	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
+		allowTools[ToolName.Codebase] = false;
 	} else {
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
@@ -243,7 +283,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	if (model.family.includes('grok-code')) {
+	if (isXAiFamily(model)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -326,7 +366,8 @@ export class AgentIntent extends EditCodeIntent {
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@ILogService private readonly _logService: ILogService,
 		@IToolsService private readonly _toolsService: IToolsService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
 		this._sessionListeners.add(chatSessionService.onDidDisposeChatSession(sessionId => {
@@ -416,26 +457,46 @@ export class AgentIntent extends EditCodeIntent {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
 
+		// Report auto-mode routing decision if one was made during endpoint resolution
+		const routingDecision = this._automodeService.consumeLastRoutingDecision();
+		if (routingDecision) {
+			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));
+		}
+
 		try {
 			return await super.handleRequest(conversation, request, stream, token, documentContext, agentName, location, chatTelemetry, yieldRequested);
 		} finally {
-			// Fire one final bg todo review pass once the agent loop has ended for
-			// this turn. The per-round passes never see the very last round, so any
-			// task that just completed otherwise stays stuck as 'in-progress'.
-			// Await completion so this final pass runs before we return, while the
-			// request's tool invocation token is (hopefully) still valid.
-
-			if (request.subAgentInvocationId === undefined && request.subAgentName === undefined) {
-				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				if (todoProcessor) {
-					await raceTimeout(
-						todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
-						5000,
-						() => todoProcessor.cancel()
-					);
-				}
-			}
+			await this._runFinalBackgroundTodoPass(conversation, request);
 		}
+	}
+
+	/**
+	 * Fire one final bg todo review pass once the agent loop has ended for this
+	 * turn. The per-round passes never see the very last round, so any task that
+	 * just completed otherwise stays stuck as 'in-progress'. Awaits completion so
+	 * this final pass runs before we return, while the request's tool invocation
+	 * token is (hopefully) still valid.
+	 */
+	private async _runFinalBackgroundTodoPass(conversation: Conversation, request: vscode.ChatRequest): Promise<void> {
+		if (request.subAgentInvocationId !== undefined || request.subAgentName !== undefined) {
+			return;
+		}
+		const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+		if (!todoProcessor) {
+			return;
+		}
+		// Only run the final review pass when the background todo agent is still
+		// enabled for the current model. If the user switched to a BYOK (non-CAPI)
+		// model mid-session, the existing processor must not fire against it.
+		const endpoint = await this.endpointProvider.getChatEndpoint(request).catch(() => undefined);
+		if (!endpoint || !isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this._authenticationService, request)) {
+			return;
+		}
+		await raceTimeout(
+			todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
+			5000,
+			() => todoProcessor.cancel()
+		);
 	}
 
 	private async handleSummarizeCommand(
@@ -521,6 +582,7 @@ export class AgentIntent extends EditCodeIntent {
 				stream.usage({
 					promptTokens: summaryMetadata.usage.prompt_tokens,
 					completionTokens: summaryMetadata.usage.completion_tokens,
+					copilotCredits: nanoAiuToCredits(summaryMetadata.usage.copilot_usage?.total_nano_aiu),
 					promptTokenDetails: summaryMetadata.promptTokenDetails,
 				});
 			}
@@ -607,9 +669,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
+		// Apply the user's "Context Size" picker selection to the request endpoint
+		// so the server-managed compaction threshold (Responses API) is keyed to the
+		// selected tier rather than the model's full native window. See
+		// applyContextSizeOverride for the cost rationale.
+		super(intent, location, applyContextSizeOverride(endpoint, request, configurationService.getConfig(ConfigKey.PreferLongContext)), request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, _endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
 
 	public override getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {
@@ -622,6 +689,21 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
+
+		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
+		// Otherwise the core workbench performs the collection before the request reaches the extension.
+		const collectInstructionsInExtension = this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true;
+		if (collectInstructionsInExtension) {
+			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
+			if (addedInstructionsAndIndex.length > 0) {
+				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
+			}
+		} else {
+			await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).compare(this.request, this._automaticInstructionsCollector, token);
+		}
+		await this.instantiationService.createInstance(CustomInstructionsReferenceLogger).logReferences(promptContext.conversation?.sessionId, promptContext.chatVariables.references, collectInstructionsInExtension);
+
+
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
@@ -629,7 +711,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
 			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			variables = new ChatVariablesCollection([...variables.references, ...toolReferences]);
 		}
 
 		const tools = promptContext.tools?.availableTools;
@@ -677,6 +759,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			endpoint,
 			promptContext: {
 				...promptContext,
+				chatVariables: variables,
 				tools: promptContext.tools && {
 					...promptContext.tools,
 					toolReferences: this.stableToolReferences.filter((r) => r.name !== ToolName.Codebase),

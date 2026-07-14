@@ -6,10 +6,11 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -24,7 +25,9 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
+import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -50,9 +53,34 @@ export interface IPreferredSessionType {
 	readonly sessionTypeId: string;
 }
 
+function pickEquals(a: IPreferredSessionType | undefined, b: IPreferredSessionType | undefined): boolean {
+	return a?.providerId === b?.providerId && a?.sessionTypeId === b?.sessionTypeId;
+}
+
 interface IStoredSessionTypePick {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
+}
+
+/** Default telemetry source used when the picker serves the New Session composer. */
+const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
+
+/**
+ * Configures how the picker behaves when reused outside the New Session
+ * composer (e.g. the automations dialog), where profile-wide persistence and
+ * new-chat telemetry would be incorrect side effects.
+ */
+export interface ISessionTypePickerOptions {
+	/**
+	 * When `false` (used e.g. by the automations dialog), an explicit pick is
+	 * never written to or cleared from the profile-wide
+	 * {@link STORAGE_KEY_LAST_SESSION_TYPE} preference, so picking a type here
+	 * cannot change the New Session default. The stored preference is still read
+	 * to seed a sensible initial default. Defaults to `true`.
+	 */
+	readonly persistSelection?: boolean;
+	/** Telemetry id/name reported on selection. Defaults to {@link DEFAULT_TELEMETRY_SOURCE}. */
+	readonly telemetrySource?: string;
 }
 
 /**
@@ -65,6 +93,13 @@ interface ISessionTypePickerItem {
 	readonly sessionTypeId: string;
 	readonly label: string;
 	readonly checked?: boolean;
+	/**
+	 * Provider display label, set when the picker shows section headers so the
+	 * accessibility label can disambiguate same-named types (e.g. "Claude")
+	 * across providers — headers are skipped by list navigation and aren't
+	 * announced on their own.
+	 */
+	readonly groupLabel?: string;
 }
 
 export class SessionTypePicker extends Disposable {
@@ -79,14 +114,37 @@ export class SessionTypePicker extends Disposable {
 	protected readonly _onDidSelectSessionType = this._register(new Emitter<IPickedSessionType | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
+	/**
+	 * Fires whenever the effective {@link selectedPick} changes for any reason:
+	 * an explicit user pick OR a recompute (e.g. a provider advertising its
+	 * session types late). Unlike {@link onDidSelectSessionType}, which only
+	 * covers explicit picks, this lets consumers that cache the pick stay in
+	 * sync when the displayed default shifts on its own.
+	 */
+	protected readonly _onDidChangeSelectedPick = this._register(new Emitter<IPreferredSessionType | undefined>());
+	readonly onDidChangeSelectedPick = this._onDidChangeSelectedPick.event;
+
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
+
+	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
+	private _folderSource: IObservable<URI | undefined> | undefined;
+	private readonly _folderSourceWatch = this._register(new MutableDisposable());
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
 
+	/**
+	 * Tracks whether the harness picker trigger is currently visible. Mirrors
+	 * the `.hidden` state computed in {@link _updateTriggerLabel}, so the
+	 * new-session-view onboarding tour can skip the harness step when only a
+	 * single harness can serve the selected workspace.
+	 */
+	private readonly _visibleKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
+		private readonly _options: ISessionTypePickerOptions | undefined,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -95,42 +153,106 @@ export class SessionTypePicker extends Disposable {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._visibleKey = SessionHarnessPickerVisibleContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => this._visibleKey.reset()));
 
 		// Restore the previously selected session type from storage
 		this._picked = this._readStoredPick();
 
-		const refresh = (session: ISession | undefined) => {
-			if (session) {
-				const folderUri = session.workspace.get()?.folders[0]?.root;
-				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
-				// Reflect the active session's type in the trigger label, but do
-				// not persist it: the stored preference must only change when the
-				// user explicitly picks a type via the picker.
-				this._picked = { providerId: session.providerId, sessionTypeId: session.sessionType };
-			} else {
-				this._folderSessionTypes = [];
-				// Preserve the stored pick when no active session exists,
-				// so it can be used as the default for the next new session.
-				this._picked = this._readStoredPick();
-			}
-			this._updateTriggerLabel();
-		};
-
 		this._register(autorun(reader => {
-			const session = this._session.read(reader);
-			refresh(session);
+			this._session.read(reader);
+			this._recompute();
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
 		// (e.g. a remote agent host discovers a new agent).
-		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			refresh(this._session.get());
-		}));
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._recompute()));
+	}
+
+	/**
+	 * Recompute the available session types and the displayed pick from the
+	 * current source (session or folder), then refresh the trigger label.
+	 * Invoked reactively when the session, folder, or advertised types change.
+	 */
+	protected _recompute(): void {
+		this._folderSessionTypes = this._resolveFolderSessionTypes();
+		const previous = this._picked;
+		this._picked = this._computeCurrentPick();
+		this._updateTriggerLabel();
+		if (!pickEquals(previous, this._picked)) {
+			this._onDidChangeSelectedPick.fire(this._picked);
+		}
+	}
+
+	/**
+	 * The session types to offer, sourced from the folder when a folder source
+	 * is set (see {@link setFolderSource}), otherwise from the active session.
+	 */
+	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
+		if (this._folderSource) {
+			const folderUri = this._folderSource.get();
+			return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+		}
+		const session = this._session.get();
+		return session ? this._sessionTypesForSession(session) : [];
+	}
+
+	/** The pick to display for the current source: the active session's type, otherwise the folder or stored default. */
+	protected _computeCurrentPick(): IPreferredSessionType | undefined {
+		const session = this._session.get();
+		if (!this._folderSource && session) {
+			// Reflect the session's type without persisting it; storage changes only on an explicit user pick.
+			return { providerId: session.providerId, sessionTypeId: session.sessionType };
+		}
+		if (!this._folderSource) {
+			// No active session: keep the stored pick to seed the next new session.
+			return this._readStoredPick();
+		}
+		const candidate = this._picked ?? this._readStoredPick();
+		if (this._pickServedByFolder(candidate)) {
+			return candidate;
+		}
+		const stored = this._readStoredPick();
+		if (this._pickServedByFolder(stored)) {
+			return stored;
+		}
+		const preferred = this._folderSessionTypes[0];
+		return preferred ? { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id } : undefined;
+	}
+
+	private _pickServedByFolder(pick: IPreferredSessionType | undefined): boolean {
+		return !!pick && this._folderSessionTypes.some(t =>
+			t.sessionType.id === pick.sessionTypeId &&
+			(pick.providerId === undefined || t.providerId === pick.providerId));
+	}
+
+	/** Drive the picker from a folder instead of the active session, optionally seeding the initial pick. */
+	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType }): void {
+		this._folderSource = source;
+		this._picked = options?.initialPick ?? this._readStoredPick();
+		this._folderSourceWatch.value = autorun(reader => {
+			source.read(reader);
+			this._recompute();
+		});
 	}
 
 	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
+	}
+
+	/**
+	 * The session types to offer for a session: all quick-chat types when the
+	 * session is a workspace-less quick chat, otherwise the folder's types.
+	 */
+	private _sessionTypesForSession(session: ISession): IProviderSessionType[] {
+		if (session.isQuickChat?.get() ?? false) {
+			return this.sessionsManagementService.getQuickChatSessionTypes();
+		}
+		const folderUri = session.workspace.get()?.folders[0]?.root;
+		return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 	}
 
 	/**
@@ -172,6 +294,9 @@ export class SessionTypePicker extends Disposable {
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
+		// Onboarding spotlight target — id is referenced by the "new session view"
+		// tour in vs/sessions/contrib/onboardingTours.
+		this._renderDisposables.add(markOnboardingTarget(trigger, 'sessions.newSession.harnessPicker'));
 		this._updateTriggerLabel();
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
@@ -200,70 +325,82 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const session = this._session.get();
-		if (!session) {
-			return;
-		}
-
 		// Recompute types fresh at open time so a late-registering provider
 		// (e.g. Local Agent Host whose session types are populated only after
 		// agent discovery) shows up without waiting for the refresh event to
 		// land before the user clicks.
-		const folderUri = session.workspace.get()?.folders[0]?.root;
-		const folderTypes = folderUri
-			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
-			: this._folderSessionTypes;
+		const folderTypes = this._resolveFolderSessionTypes();
 		this._folderSessionTypes = folderTypes;
 
 		if (folderTypes.length <= 1) {
 			return;
 		}
 
-		// Determine which providers contain at least one duplicated label.
-		// Only those providers need a group title for disambiguation.
+		// Group session types by their provider's display label, preserving
+		// first-seen order. Providers can be interleaved in the folder list and
+		// distinct providers can share a label, so collecting by label avoids
+		// rendering the same section header more than once.
+		const groups = new Map<string, IProviderSessionType[]>();
+		for (const folderType of folderTypes) {
+			const provider = this.sessionsProvidersService.getProvider(folderType.providerId);
+			const groupTitle = provider?.label ?? folderType.providerId;
+			const existing = groups.get(groupTitle);
+			if (existing) {
+				existing.push(folderType);
+			} else {
+				groups.set(groupTitle, [folderType]);
+			}
+		}
+		// Section headers exist to disambiguate session types that share a
+		// label across providers (e.g. two providers both offering "Claude").
+		// When every type's label is unique there is nothing to disambiguate,
+		// so render a flat list without group headers even if multiple
+		// providers contribute.
 		const labelCounts = new Map<string, number>();
 		for (const { sessionType } of folderTypes) {
 			labelCounts.set(sessionType.label, (labelCounts.get(sessionType.label) ?? 0) + 1);
 		}
-		const providersWithDuplicates = new Set<string>();
-		for (const { providerId, sessionType } of folderTypes) {
-			if ((labelCounts.get(sessionType.label) ?? 0) > 1) {
-				providersWithDuplicates.add(providerId);
-			}
-		}
-		const hasDuplicateLabels = providersWithDuplicates.size > 0;
+		const hasDuplicateLabels = Array.from(labelCounts.values()).some(count => count > 1);
+		const showSectionHeaders = groups.size > 1 && hasDuplicateLabels;
 
-		const providersService = this.sessionsProvidersService;
 		const groupedItems: IActionListItem<ISessionTypePickerItem>[] = [];
-		let lastProviderId: string | undefined;
-		for (const { providerId, sessionType } of folderTypes) {
-			const provider = providersService.getProvider(providerId);
-			const groupTitle = provider?.label ?? providerId;
-			const isFirstInGroup = providerId !== lastProviderId;
-			lastProviderId = providerId;
-			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
-			const unavailable = availability !== SessionTypeAvailability.Available;
-			const item: ISessionTypePickerItem = isCurrent
-				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
-				: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
-			groupedItems.push({
-				kind: ActionListItemKind.Action,
-				label: sessionType.label,
-				disabled: unavailable,
-				...(unavailable ? {
-					description: getSessionTypeUnavailableDescription(availability),
-					hover: { content: getSessionTypeUnavailableHover(availability) },
-				} : {}),
-				group: providersWithDuplicates.has(providerId) ? {
-					title: isFirstInGroup ? groupTitle : '',
-					icon: sessionType.icon,
-				} : {
-					title: '',
-					icon: sessionType.icon,
-				},
-				item,
-			});
+		for (const [groupTitle, types] of groups) {
+			if (showSectionHeaders) {
+				if (groupedItems.length > 0) {
+					groupedItems.push({ kind: ActionListItemKind.Separator, label: '' });
+				}
+				groupedItems.push({
+					kind: ActionListItemKind.Header,
+					group: { title: groupTitle },
+					label: groupTitle,
+				});
+			}
+			for (const { providerId, sessionType } of types) {
+				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
+				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const unavailable = availability !== SessionTypeAvailability.Available;
+				const item: ISessionTypePickerItem = {
+					providerId,
+					sessionTypeId: sessionType.id,
+					label: sessionType.label,
+					...(isCurrent ? { checked: true } : {}),
+					...(showSectionHeaders ? { groupLabel: groupTitle } : {}),
+				};
+				groupedItems.push({
+					kind: ActionListItemKind.Action,
+					label: sessionType.label,
+					disabled: unavailable,
+					...(unavailable ? {
+						description: getSessionTypeUnavailableDescription(availability),
+						hover: { content: getSessionTypeUnavailableHover(availability) },
+					} : {}),
+					group: {
+						title: '',
+						icon: sessionType.icon,
+					},
+					item,
+				});
+			}
 		}
 
 		const triggerElement = this._triggerElement;
@@ -284,10 +421,10 @@ export class SessionTypePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
+				getAriaLabel: (element) => element.item?.groupLabel ? localize('sessionTypePicker.itemAriaLabel', "{0}, {1}", element.label ?? '', element.item.groupLabel) : (element.label ?? ''),
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
-			{ showGroupTitleOnFirstItem: hasDuplicateLabels },
+			{ minWidth: 200 },
 		);
 	}
 
@@ -308,9 +445,10 @@ export class SessionTypePicker extends Disposable {
 		const beforeLabel = this._folderSessionTypes.find(t => t.sessionType.id === beforeId)?.sessionType.label;
 		const afterLabel = this._folderSessionTypes.find(t => t.providerId === pick.providerId && t.sessionType.id === pick.sessionTypeId)?.sessionType.label;
 
+		const telemetrySource = this._options?.telemetrySource ?? DEFAULT_TELEMETRY_SOURCE;
 		reportNewChatPickerClosed(this.telemetryService, {
-			id: 'NewChatSessionTypePicker',
-			name: 'NewChatSessionTypePicker',
+			id: telemetrySource,
+			name: telemetrySource,
 			optionIdBefore: beforeId,
 			optionIdAfter: pick.sessionTypeId,
 			optionLabelBefore: beforeLabel,
@@ -327,15 +465,23 @@ export class SessionTypePicker extends Disposable {
 		const preferred = this._folderSessionTypes[0];
 		const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionType.id === pick.sessionTypeId;
 		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
-		if (isDefault) {
-			this._clearStoredPick(pick);
-		} else {
-			this._writeStoredPick(pick);
+		// profile-wide preference is gated so non-persisting callers (e.g. the
+		// automations dialog) can pick a type without changing the New Session default
+		this._picked = pick;
+		if (this._options?.persistSelection !== false) {
+			if (isDefault) {
+				this._clearStoredPick();
+			} else {
+				this._writeStoredPick(pick);
+			}
 		}
+		// Folder-driven callers have no session change to re-run the refresh autorun, so refresh the label here.
+		this._updateTriggerLabel();
 		// Only notify (and trigger draft recreation) when the visible pick
 		// actually changed, to avoid unnecessary work.
 		if (visiblePickChanged) {
 			this._onDidSelectSessionType.fire(pick);
+			this._onDidChangeSelectedPick.fire(this._picked);
 		}
 	}
 
@@ -362,7 +508,6 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _writeStoredPick(pick: IPickedSessionType): void {
-		this._picked = pick;
 		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
 		this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
@@ -372,13 +517,13 @@ export class SessionTypePicker extends Disposable {
 	 * type). The display still reflects the in-memory pick, but consumers
 	 * reading {@link getUserPickedSessionType} fall back to the preferred type.
 	 */
-	private _clearStoredPick(pick: IPickedSessionType): void {
-		this._picked = pick;
+	private _clearStoredPick(): void {
 		this.storageService.remove(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 	}
 
 	private _updateTriggerLabel(): void {
 		if (!this._triggerElement) {
+			this._visibleKey.set(false);
 			return;
 		}
 
@@ -393,10 +538,12 @@ export class SessionTypePicker extends Disposable {
 		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1;
 		if (this._folderSessionTypes.length === 0 || hideForSingleHarness) {
 			this._triggerElement.classList.add('hidden');
+			this._visibleKey.set(false);
 			return;
 		}
 
 		this._triggerElement.classList.remove('hidden');
+		this._visibleKey.set(true);
 		const currentType = this._folderSessionTypes.find(t =>
 			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;

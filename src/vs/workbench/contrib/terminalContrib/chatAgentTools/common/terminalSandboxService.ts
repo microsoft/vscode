@@ -25,7 +25,7 @@ import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../.
 import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
-import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -35,7 +35,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -129,6 +129,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails, requestAllowNetwork);
 	}
 
+	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult> {
+		return this._engine.checkFileAccess(permission, paths, precheckInputs);
+	}
+
 	checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
 		return this._engine.checkForSandboxingPrereqs(forceRefresh, precheckInputs);
 	}
@@ -175,14 +179,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch, nativeModulesDir: 'node_modules' };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
 		const localAppRootUri = FileAccess.asFileUri('');
 		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch };
+		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch, nativeModulesDir };
 	}
 
 	private _toWindowsPath(uri: URI): string {

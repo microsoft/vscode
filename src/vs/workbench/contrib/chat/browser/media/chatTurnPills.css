@@ -1,0 +1,196 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Pills reflecting a single turn's status (changes + preview). Shared between
+	the floating widget above the chat input and the completed chat response. This
+	file styles the pills themselves; callers position the `.chat-turn-pills`
+	toolbar element. */
+
+.chat-turn-pills,
+.chat-turn-pills .monaco-toolbar,
+.chat-turn-pills .monaco-action-bar,
+.chat-turn-pills .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.chat-turn-pills.hidden {
+	display: none;
+}
+
+/* Space the pills evenly next to each other. */
+.chat-turn-pills .monaco-action-bar .actions-container {
+	gap: 6px;
+}
+
+/* Changes pill: <icon> N Files +x -y, rendered as a compact secondary button.
+	Its sizing/colors come from the standard `.monaco-text-button.small.secondary`
+	styles; only inline layout is set here. */
+.chat-turn-pill-changes {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.chat-turn-pill-changes .monaco-button.chat-turn-pill-changes-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+/* Hug the border with the focus ring instead of the base `outline-offset: 2px`,
+	which reads as a bloated ring on such a small pill. */
+.chat-turn-pill-changes .monaco-button.chat-turn-pill-changes-button:focus {
+	outline-offset: 0 !important;
+}
+
+.monaco-workbench .chat-turn-pill-meta-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact, 12px);
+	height: var(--vscode-codiconFontSize-compact, 12px);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	flex-shrink: 0;
+}
+
+.chat-turn-pill-meta-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.chat-turn-pill-meta-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Live Browser pill: <browser-icon> Live Browser, rendered as a compact
+	secondary button that mirrors the changes pill's sizing/colors (from the
+	standard `.monaco-text-button.small.secondary` styles); only inline layout is
+	set here. */
+.chat-turn-pill-browser {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.chat-turn-pill-browser .monaco-button.chat-turn-pill-browser-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
+	white-space: nowrap;
+	touch-action: manipulation;
+}
+
+.chat-turn-pill-browser-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Hug the border with the focus ring instead of the base `outline-offset: 2px`,
+	matching the changes pill. */
+.chat-turn-pill-browser .monaco-button.chat-turn-pill-browser-button:focus {
+	outline-offset: 0 !important;
+}
+
+/* Preview pill: a single unified control - a resource label (file icon + name),
+	an in-pill separator, and a dropdown chevron. The pill
+	background/border live on the container so the inner (transparent) buttons read
+	as one pill; each inner button is an independent, tab-focusable click zone. The
+	3-class selector beats `.monaco-action-bar .action-item { display: block }`. */
+.chat-turn-pills .monaco-action-bar .chat-turn-pill-preview {
+	display: inline-flex;
+	align-items: stretch;
+	flex-shrink: 0;
+	/* Match the height of the changes pill (a small secondary button). */
+	height: 22px;
+	max-width: 280px;
+	border-radius: 4px;
+	color: var(--vscode-button-secondaryForeground);
+	background-color: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.chat-turn-pill-preview .monaco-button {
+	touch-action: manipulation;
+}
+
+/* Left zone: the resource label. The height is set by the pill, so no vertical padding here. */
+.chat-turn-pill-preview .monaco-button.chat-turn-pill-preview-primary {
+	display: inline-flex;
+	align-items: center;
+	width: auto;
+	min-width: 0;
+	padding: 0 4px 0 2px;
+	overflow: hidden;
+}
+
+.chat-turn-pill-preview-primary .monaco-icon-label {
+	/* Center the icon and the name together — the label is a flex
+		row whose file icon `::before` is a fixed 18px tall (see the rule below),
+		so without this the shorter text sits at the top of the stretched row
+		rather than on the icon's vertical center. */
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	/* Match the changes pill, which uses the `.monaco-text-button.small` size. */
+	font-size: 11px;
+}
+
+.chat-turn-pill-preview-primary .monaco-icon-label::before {
+	width: 12px;
+	height: 18px;
+}
+
+.chat-turn-pill-preview .monaco-button.chat-turn-pill-preview-primary:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* In-pill separator between the label and the chevron. A 2px vertical margin
+	keeps it centered with a small gap at the top and bottom rather than spanning
+	the full pill height. */
+.chat-turn-pill-preview-separator {
+	width: 1px;
+	flex-shrink: 0;
+	margin: 2px 0;
+	background-color: var(--vscode-button-secondaryBorder, var(--vscode-menu-separatorBackground));
+	opacity: 0.6;
+}
+
+.chat-turn-pill-preview-separator.hidden {
+	display: none;
+}
+
+/* Right zone: the dropdown chevron. The button stretches to the pill's full
+	height so its hover background spans top to bottom; the icon child stays
+	centered. */
+.chat-turn-pill-preview .monaco-button.chat-turn-pill-preview-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: auto;
+	padding: 0 5px;
+}
+
+.chat-turn-pill-preview .monaco-button.chat-turn-pill-preview-chevron:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-turn-pill-preview .monaco-button.chat-turn-pill-preview-chevron.hidden {
+	display: none;
+}
+
+/* Keyboard focus indicator: an inset ring so it stays visible inside the pill's
+	`overflow: hidden` rounded corners. */
+.chat-turn-pill-preview .monaco-button:focus,
+.chat-turn-pill-preview .monaco-button:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+}

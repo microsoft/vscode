@@ -7,10 +7,10 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { ChangesetStatus, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChangesetState, type RootState, type SessionState, type SessionSummary, type TerminalState } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -23,19 +23,34 @@ function makeRootState(overrides?: Partial<RootState>): RootState {
 	};
 }
 
+function makeSessionSummary(sessionUri: string): SessionSummary {
+	return {
+		resource: sessionUri,
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		createdAt: new Date(1).toISOString(),
+		modifiedAt: new Date(1).toISOString(),
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
+	};
+}
+
 function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>): SessionState {
 	return {
-		summary: {
-			resource: sessionUri,
-			provider: 'copilot',
-			title: 'Test',
-			status: SessionStatus.Idle,
-			createdAt: 1,
-			modifiedAt: 1,
-			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-		},
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		activeClients: [],
+		chats: [],
+		...overrides,
+	};
+}
+
+function makeChatState(chatUri: string, sessionSummary: SessionSummary = makeSessionSummary(sessionUri), overrides?: Partial<ChatState>): ChatState {
+	return {
+		...createChatState(createDefaultChatSummary(sessionSummary, chatUri)),
 		...overrides,
 	};
 }
@@ -52,9 +67,10 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string, channel?: string): ActionEnvelope {
 	const resolvedChannel = channel ?? (
 		action.type.startsWith('root/') ? ROOT_STATE_URI
-			: action.type.startsWith('terminal/') ? terminalUri
-				: action.type.startsWith('changeset/') ? changesetUri
-					: sessionUri
+			: action.type.startsWith('chat/') ? chatUri
+				: action.type.startsWith('terminal/') ? terminalUri
+					: action.type.startsWith('changeset/') ? changesetUri
+						: sessionUri
 	);
 	return { channel: resolvedChannel, action, serverSeq, origin, rejectionReason };
 }
@@ -62,7 +78,49 @@ function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origi
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
+const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
+
+suite('ChangesetStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('optimistically applies and reconciles file review state', () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					before: { uri: 'file:///test.txt', content: { uri: 'file:///before.txt' } },
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const subscription = disposables.add(new ChangesetStateSubscription(changesetUri, 'c1', () => 1, noop));
+		subscription.handleSnapshot(state, 0);
+
+		const action: ClientChangesetAction = {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		};
+		const clientSeq = subscription.applyOptimistic(action);
+		const optimisticState = subscription.value as ChangesetState;
+		subscription.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'c1', clientSeq }));
+
+		assert.deepStrictEqual({
+			optimisticReviewed: optimisticState.files[0].reviewed,
+			verifiedBeforeEcho: state.files[0].reviewed,
+			verifiedAfterEcho: subscription.verifiedValue?.files[0].reviewed,
+			pendingCleared: subscription.value === subscription.verifiedValue,
+		}, {
+			optimisticReviewed: true,
+			verifiedBeforeEcho: undefined,
+			verifiedAfterEcho: true,
+			pendingCleared: true,
+		});
+	});
+
+});
 
 // RootStateSubscription
 
@@ -165,10 +223,18 @@ suite('RootStateSubscription', () => {
 		const sub = disposables.add(new RootStateSubscription('c1', noop));
 		sub.handleSnapshot(makeRootState(), 0);
 		const err = new Error('failed');
+		const errors: Error[] = [];
+		disposables.add(sub.onDidError(error => errors.push(error)));
 		sub.setError(err);
-		assert.strictEqual(sub.value, err);
-		// verifiedValue should still be the state
-		assert.ok(sub.verifiedValue);
+		assert.deepStrictEqual({
+			value: sub.value,
+			verifiedValueExists: !!sub.verifiedValue,
+			errors,
+		}, {
+			value: err,
+			verifiedValueExists: true,
+			errors: [err],
+		});
 	});
 });
 
@@ -218,9 +284,9 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(clientSeq, 1);
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 		// verifiedValue should remain unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 	});
 
 	test('confirmed own action removes pending and updates confirmed', () => {
@@ -240,9 +306,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// After confirmation, verifiedValue should match
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
+		assert.strictEqual(sub.verifiedValue!.title, 'Optimistic');
 		// No pending, value falls through to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Optimistic');
+		assert.strictEqual((sub.value as SessionState).title, 'Optimistic');
 	});
 
 	test('rejected own action removes pending without updating confirmed', () => {
@@ -263,9 +329,9 @@ suite('SessionStateSubscription', () => {
 		));
 
 		// Confirmed state unchanged
-		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(sub.verifiedValue!.title, 'Test');
 		// No more pending, value = confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('foreign action updates confirmed and recomputes optimistic', () => {
@@ -288,34 +354,21 @@ suite('SessionStateSubscription', () => {
 		// Confirmed state should have SessionReady applied
 		assert.strictEqual(sub.verifiedValue!.lifecycle, SessionLifecycle.Ready);
 		// Optimistic should still have 'Local' title on top
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
+		assert.strictEqual((sub.value as SessionState).title, 'Local');
 	});
 
-	test('server terminal turn action drops stale optimistic turn start', () => {
+	test('server terminal turn action remains ignored by session subscription', () => {
 		const sub = createSub();
-		sub.handleSnapshot(makeSessionState(sessionUri), 0);
-
-		sub.applyOptimistic({
-			type: ActionType.SessionTurnStarted,
-			turnId: 'turn-1',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-
-		assert.strictEqual((sub.value as SessionState).activeTurn?.id, 'turn-1');
+		const state = makeSessionState(sessionUri);
+		sub.handleSnapshot(state, 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 			1,
 			undefined,
 		));
 
-		assert.deepStrictEqual({
-			activeTurn: (sub.value as SessionState).activeTurn,
-			turns: (sub.value as SessionState).turns.map(turn => ({ id: turn.id, state: turn.state })),
-		}, {
-			activeTurn: undefined,
-			turns: [{ id: 'turn-1', state: TurnState.Complete }],
-		});
+		assert.deepStrictEqual(sub.value, state);
 	});
 
 	test('after all pending cleared, value falls through to verifiedValue', () => {
@@ -347,12 +400,12 @@ suite('SessionStateSubscription', () => {
 			title: 'Pending',
 		});
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Pending');
+		assert.strictEqual((sub.value as SessionState).title, 'Pending');
 
 		sub.clearPending();
 
 		// Should fall back to confirmed
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('ignores actions for different session', () => {
@@ -367,7 +420,7 @@ suite('SessionStateSubscription', () => {
 			'copilot:/other-session',
 		));
 
-		assert.strictEqual((sub.value as SessionState).summary.title, 'Test');
+		assert.strictEqual((sub.value as SessionState).title, 'Test');
 	});
 
 	test('buffers envelopes before snapshot and replays after', () => {
@@ -382,7 +435,7 @@ suite('SessionStateSubscription', () => {
 
 		sub.handleSnapshot(makeSessionState(sessionUri), 1);
 
-		assert.strictEqual((sub.value! as SessionState).summary.title, 'Buffered');
+		assert.strictEqual((sub.value! as SessionState).title, 'Buffered');
 	});
 
 	test('fires onDidChange on optimistic apply', () => {
@@ -398,7 +451,57 @@ suite('SessionStateSubscription', () => {
 		});
 
 		assert.strictEqual(fired.length, 1);
-		assert.strictEqual(fired[0].summary.title, 'Changed');
+		assert.strictEqual(fired[0].title, 'Changed');
+	});
+});
+
+// ChatStateSubscription
+
+suite('ChatStateSubscription', () => {
+
+	let disposables: DisposableStore;
+	let seq: number;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		seq = 0;
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
+		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
+	}
+
+	test('server terminal turn action drops stale optimistic turn start', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+
+		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual({
+			activeTurn: (sub.value as ChatState | undefined)?.activeTurn,
+			turns: (sub.value as ChatState | undefined)?.turns.map(turn => ({ id: turn.id, state: turn.state })),
+		}, {
+			activeTurn: undefined,
+			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
 	});
 });
 
@@ -489,7 +592,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState; fromSeq: number }> = async (resource) => {
+	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState; fromSeq: number }> = async (resource) => {
 		subscribedResources.push(resource.toString());
 		const key = resource.toString();
 		if (key.startsWith('copilot:')) {
@@ -587,9 +690,30 @@ suite('AgentSubscriptionManager', () => {
 			{ type: ActionType.SessionTitleChanged, title: 'Routed' },
 			2,
 		));
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Routed');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Routed');
 
 		ref.dispose();
+	});
+
+	test('isActionEnvelopeRelevantToSubscriptionUris filters by subscribed channel', () => {
+		assert.deepStrictEqual({
+			rootVariant: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.RootActiveSessionsChanged, activeSessions: 1 }, 1, undefined, undefined, ROOT_STATE_URI),
+				['ahp-root:'],
+			),
+			rootOnlyGetsSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Nope' }, 2),
+				['ahp-root:'],
+			),
+			exactSession: isActionEnvelopeRelevantToSubscriptionUris(
+				makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Yep' }, 3),
+				['ahp-root:', sessionUri],
+			),
+		}, {
+			rootVariant: true,
+			rootOnlyGetsSession: false,
+			exactSession: true,
+		});
 	});
 
 	test('creating session subscription for copilot: URI', async () => {
@@ -628,9 +752,43 @@ suite('AgentSubscriptionManager', () => {
 		});
 
 		assert.ok(clientSeq > 0);
-		assert.strictEqual((ref.object.value as SessionState).summary.title, 'Dispatched');
+		assert.strictEqual((ref.object.value as SessionState).title, 'Dispatched');
 		// verifiedValue unchanged
-		assert.strictEqual(ref.object.verifiedValue!.summary.title, 'Test');
+		assert.strictEqual(ref.object.verifiedValue!.title, 'Test');
+
+		ref.dispose();
+	});
+
+	test('dispatchOptimistic applies to matching changeset subscription', async () => {
+		const state: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file:///test.txt',
+				edit: {
+					after: { uri: 'file:///test.txt', content: { uri: 'file:///after.txt' } },
+				},
+			}],
+		};
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state, fromSeq: 0 }));
+		const uri = URI.parse(changesetUri);
+		const ref = mgr.getSubscription<ChangesetState>(StateComponents.Changeset, uri, 'test');
+		await new Promise(r => setTimeout(r, 0));
+
+		const clientSeq = mgr.dispatchOptimistic(uri.toString(), {
+			type: ActionType.ChangesetFilesReviewChanged,
+			files: ['file:///test.txt'],
+			reviewed: true,
+		});
+
+		assert.deepStrictEqual({
+			clientSeq,
+			optimisticReviewed: (ref.object.value as ChangesetState).files[0].reviewed,
+			verifiedReviewed: ref.object.verifiedValue?.files[0].reviewed,
+		}, {
+			clientSeq: 1,
+			optimisticReviewed: true,
+			verifiedReviewed: undefined,
+		});
 
 		ref.dispose();
 	});
@@ -690,7 +848,7 @@ suite('AgentSubscriptionManager', () => {
 			if (subscribeAttempts === 1) {
 				throw new Error('not found yet');
 			}
-			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { summary: { ...makeSessionState(resource.toString()).summary, title: 'Retried' } }), fromSeq: 0 };
+			return { resource: resource.toString(), state: makeSessionState(resource.toString(), { title: 'Retried' }), fromSeq: 0 };
 		});
 		const uri = URI.parse(sessionUri);
 
@@ -704,7 +862,7 @@ suite('AgentSubscriptionManager', () => {
 
 		assert.deepStrictEqual({
 			subscribeAttempts,
-			retriedTitle: (retryRef.object.value as SessionState).summary.title,
+			retriedTitle: (retryRef.object.value as SessionState).title,
 			unmanagedIsRetry: mgr.getSubscriptionUnmanaged<SessionState>(uri) === retryRef.object,
 		}, {
 			subscribeAttempts: 2,

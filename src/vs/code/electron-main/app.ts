@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, Details, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, Details, globalShortcut, GPUFeatureStatus, powerMonitor, protocol, screen as electronScreen, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -40,7 +40,6 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
-import { ISharedProcessTunnelProxyService, ipcSharedProcessTunnelProxyChannelName } from '../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -65,6 +64,7 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../..
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { GlobalKeybindingsMainService, IGlobalKeybindingsMainService } from '../../platform/globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -105,8 +105,9 @@ import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../
 import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
-import { ICopilotManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
-import { CopilotManagedSettingsChannel } from '../../platform/policy/common/copilotManagedSettingsIpc.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { NativeManagedSettingsChannel } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
+import { FileManagedSettingsChannel } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
@@ -128,10 +129,7 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
-import { RemoteFileSystemProxyMainHandler } from '../../platform/files/electron-main/remoteFileSystemProxyMainHandler.js';
-import { REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME } from '../../platform/files/common/remoteFileSystemProxy.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
@@ -1127,14 +1125,14 @@ export class CodeApplication extends Disposable {
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
 
-		// Tunnel Proxy (lives in shared process; main consumes via IPC)
-		services.set(ISharedProcessTunnelProxyService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel(ipcSharedProcessTunnelProxyChannelName)))));
-
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
+
+		// System-wide (OS global) keybindings
+		services.set(IGlobalKeybindingsMainService, new SyncDescriptor(GlobalKeybindingsMainService, [globalShortcut]));
 
 		// Metered Connection
 		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
@@ -1173,10 +1171,15 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (isAgentHostEnabled(this.configurationService)) {
-			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
-			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
-		}
+		// Always instantiate the starter + manager. They are cheap (the
+		// constructors only register an IPC listener and emitters) and the agent
+		// host utility process is spawned lazily on the first window connection
+		// request. The renderer is the gate: it only requests a connection when
+		// `chat.agentHost.enabled` resolves to `true` there (honoring experiment
+		// overrides + policy + web), which the main process cannot observe since
+		// experiment overrides are never persisted to `settings.json`.
+		const agentHostStarter = new ElectronAgentHostStarter({ machineId, sqmId, devDeviceId }, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+		this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 
 		// External terminal
 		if (isWindows) {
@@ -1261,8 +1264,11 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
-		const copilotManagedSettingsChannel = disposables.add(new CopilotManagedSettingsChannel(accessor.get(ICopilotManagedSettingsService)));
-		mainProcessElectronServer.registerChannel('copilotManagedSettings', copilotManagedSettingsChannel);
+		const nativeManagedSettingsChannel = disposables.add(new NativeManagedSettingsChannel(accessor.get(INativeManagedSettingsService)));
+		mainProcessElectronServer.registerChannel('nativeManagedSettings', nativeManagedSettingsChannel);
+
+		const fileManagedSettingsChannel = disposables.add(new FileManagedSettingsChannel(accessor.get(IFileManagedSettingsService)));
+		mainProcessElectronServer.registerChannel('fileManagedSettings', fileManagedSettingsChannel);
 
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
@@ -1281,9 +1287,8 @@ export class CodeApplication extends Disposable {
 		const updateChannel = new UpdateChannel(updateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
-		// Show a native "no updates available" dialog from the focused app's main
-		// process to avoid double dialogs across apps and ensure a native dialog.
-		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService)));
+		// Show a native "no updates available" dialog from the main process only in windowless macOS case.
+		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService), accessor.get(IWindowsMainService)));
 
 		// Metered Connection
 		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);
@@ -1307,10 +1312,6 @@ export class CodeApplication extends Disposable {
 		const browserViewGroupChannel = ProxyChannel.fromService(accessor.get(IBrowserViewGroupMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel);
 		sharedProcessClient.then(client => client.registerChannel(ipcBrowserViewGroupChannelName, browserViewGroupChannel));
-
-		// Remote File System Proxy
-		const remoteFileSystemProxyHandler = disposables.add(new RemoteFileSystemProxyMainHandler(accessor.get(IWindowsMainService), mainProcessElectronServer));
-		mainProcessElectronServer.registerChannel(REMOTE_FILE_SYSTEM_PROXY_HANDLER_CHANNEL_NAME, remoteFileSystemProxyHandler);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

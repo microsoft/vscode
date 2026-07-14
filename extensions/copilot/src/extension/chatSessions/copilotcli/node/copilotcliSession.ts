@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
-import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
+import { IChatQuotaService, QuotaSnapshot, QuotaSnapshots } from '../../../../platform/chat/common/chatQuotaService';
 import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService } from '../../../../platform/git/common/gitService';
@@ -911,7 +911,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		private readonly _agentName: string | undefined,
 		private readonly _sdkSession: Session,
 		private readonly _additionalWorkspaces: IWorkspaceInfo[],
-		private readonly _sandboxEnabled: boolean,
+		private readonly _sandboxConfig: SessionOptions['sandboxConfig'],
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IChatSessionMetadataStore private readonly _chatSessionMetadataStore: IChatSessionMetadataStore,
@@ -941,6 +941,33 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public setPermissionLevel(level: string | undefined): void {
 		this._permissionLevel = level;
+	}
+
+	/**
+	 * Whether the session was configured with the sandbox enabled. The sandbox
+	 * only actually applies to requests that run with default approvals — see
+	 * {@link _applyEffectiveSandboxConfig}.
+	 */
+	private get _sandboxEnabled(): boolean {
+		return !!this._sandboxConfig?.enabled;
+	}
+
+	/**
+	 * Apply the sandbox policy for the request that is about to be sent. The
+	 * sandbox enable setting only applies under default approvals; the sandbox
+	 * is explicitly disabled when the request runs with bypass approvals
+	 * (autopilot / autoApprove) or when no sandbox is configured for the
+	 * session. Pushing `{ enabled: false }` (rather than skipping the update)
+	 * ensures the SDK never retains a stale or auto-discovered sandbox.
+	 */
+	private _applyEffectiveSandboxConfig(bypassApprovals: boolean): void {
+		const base = this._sandboxConfig;
+		const sandboxConfig = (base?.enabled && !bypassApprovals) ? base : { enabled: false };
+		try {
+			this._sdkSession.updateOptions({ sandboxConfig });
+		} catch (error) {
+			this.logService.error(error, '[CopilotCLISession] Failed to update sandbox config for request');
+		}
 	}
 
 	// TODO: This should be pre-populated when we restore a session based on its original context.
@@ -1276,14 +1303,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
 
+				const isSandboxBypassShell = permissionRequest.kind === 'shell' && permissionRequest.requestSandboxBypass === true;
+
 				// Auto-approve all requests when the permission level allows it.
-				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+				if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
 
-				if (permissionRequest.kind === 'shell' && this._sandboxEnabled) {
+				if (!isSandboxBypassShell && permissionRequest.kind === 'shell' && this._sandboxEnabled) {
 					this.logService.trace(`[CopilotCLISession] Auto Approving shell request (sandbox is enabled)`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
@@ -1328,7 +1357,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
+					if (!isSandboxBypassShell && (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot')) {
 						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
 						response = { kind: 'approve-once' };
 					} else if (this._mcState) {
@@ -1435,7 +1464,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
-				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				const copilotUsage = (event.data as unknown as Record<string, unknown>).copilotUsage;
 				let copilotUsageNanoAiu: number | undefined;
 				if (copilotUsage && typeof copilotUsage === 'object') {
 					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
@@ -1443,6 +1472,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						copilotUsageNanoAiu = totalNanoAiu;
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
 					}
+				}
+				// Sync the live per-category quota state the SDK reports (internal-only field) so the
+				// quota UI stays current without a separate `copilot_internal/user` fetch. This mirrors
+				// the extension-host chat path, which processes `copilot_quota_snapshots` from CAPI.
+				if (event.data.quotaSnapshots) {
+					this._chatQuotaService.processQuotaSnapshots(toChatQuotaSnapshots(event.data.quotaSnapshots));
 				}
 				// Record this model turn so we can synthesize a `chat` span for it at request completion.
 				modelTurnUsages.push({
@@ -1853,6 +1888,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it for
+			// this request when running in a bypass-approvals mode.
+			const bypassApprovals = remoteMode
+				? remoteMode === 'autopilot'
+				: this._permissionLevel === 'autopilot' || this._permissionLevel === 'autoApprove';
+			this._applyEffectiveSandboxConfig(bypassApprovals);
 			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
@@ -1890,6 +1931,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
+			// The sandbox only applies under default approvals — disable it when
+			// fleet runs in autopilot (a bypass-approvals mode).
+			this._applyEffectiveSandboxConfig(this._permissionLevel === 'autopilot');
 			const result = await this._sdkSession.fleet.start({ prompt });
 			if (!result.started) {
 				this.logService.info('[CopilotCLISession] Fleet mode not started');
@@ -2735,14 +2779,58 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _renderAttachments(attachments: Attachment[]): string[] {
 		const lines: string[] = [];
 		for (const attachment of attachments) {
-			if (attachment.type === 'github_reference') {
-				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
-			} else if (attachment.type === 'blob') {
-				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
-			} else if (attachment.type === 'extension_context') {
-				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
-			} else {
-				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+			switch (attachment.type) {
+				case 'github_reference': {
+					lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
+					break;
+				}
+				case 'github_actions_job': {
+					lines.push(`- ${attachment.jobName}: (${attachment.jobId}, ${attachment.type})`);
+					break;
+				}
+				case 'github_commit': {
+					lines.push(`- ${attachment.message}: (${attachment.oid}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file': {
+					lines.push(`- ${attachment.path}: (${attachment.ref}, ${attachment.type})`);
+					break;
+				}
+				case 'github_file_diff': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_release': {
+					lines.push(`- ${attachment.name}: (${attachment.tagName}, ${attachment.type})`);
+					break;
+				}
+				case 'github_repository': {
+					lines.push(`- ${attachment.repo.name}: (${attachment.url}, ${attachment.type})`);
+					break;
+				}
+				case 'github_tree_comparison': {
+					lines.push(`- ${attachment.head}: (${attachment.base}, ${attachment.type})`);
+					break;
+				}
+				case 'github_url': {
+					lines.push(`- ${attachment.url}: (${attachment.type})`);
+					break;
+				}
+				case 'github_snippet': {
+					lines.push(`- ${attachment.path}: (${attachment.type})`);
+					break;
+				}
+				case 'blob': {
+					lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+					break;
+				}
+				case 'extension_context': {
+					lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
+					break;
+				}
+				default: {
+					lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
+				}
 			}
 		}
 		return lines;
@@ -2895,8 +2983,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			kind: SpanKind.INTERNAL,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
 				[GenAiAttr.TOOL_NAME]: toolCall.toolName,
 				[GenAiAttr.TOOL_CALL_ID]: toolCall.toolCallId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 			},
 			parentTraceContext: parentContext,
@@ -2991,6 +3081,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+				[GenAiAttr.CONVERSATION_ID]: this.sessionId,
+				[CopilotChatAttr.SESSION_ID]: this.sessionId,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
 				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
@@ -3148,6 +3240,54 @@ interface IModelTurnUsage {
 	readonly copilotUsageNanoAiu?: number;
 	/** Set when the turn originates from a subagent (nested under a parent tool call). */
 	readonly parentToolCallId?: string;
+}
+
+/**
+ * Shape of a single quota snapshot on the SDK's `assistant.usage` event (`quotaSnapshots`). The
+ * field is marked internal-only by the SDK, so although the published types say `entitlementRequests`
+ * is a number and `resetDate` is a `Date`, the runtime shape can drift (e.g. a sibling SDK delivers
+ * `resetDate` as an ISO string). Mark the fields optional and validate at runtime below.
+ */
+interface ISdkQuotaSnapshot {
+	readonly isUnlimitedEntitlement?: boolean;
+	readonly entitlementRequests?: number;
+	readonly overage?: number;
+	readonly overageAllowedWithExhaustedQuota?: boolean;
+	readonly remainingPercentage?: number;
+	readonly resetDate?: Date | string;
+}
+
+/** Maps the SDK `assistant.usage` quota snapshots to the shared {@link QuotaSnapshots} shape. */
+function toChatQuotaSnapshots(snapshots: Record<string, ISdkQuotaSnapshot>): QuotaSnapshots {
+	const result: Record<string, QuotaSnapshot> = {};
+	for (const [key, snapshot] of Object.entries(snapshots)) {
+		if (!snapshot || typeof snapshot !== 'object') {
+			continue;
+		}
+		const unlimited = snapshot.isUnlimitedEntitlement === true;
+		const entitlement = unlimited
+			? '-1'
+			: typeof snapshot.entitlementRequests === 'number' ? String(snapshot.entitlementRequests) : undefined;
+		if (entitlement === undefined || typeof snapshot.remainingPercentage !== 'number') {
+			continue;
+		}
+		result[key] = {
+			entitlement,
+			percent_remaining: snapshot.remainingPercentage,
+			overage_permitted: snapshot.overageAllowedWithExhaustedQuota ?? false,
+			overage_count: typeof snapshot.overage === 'number' ? snapshot.overage : 0,
+			reset_date: toResetDateIsoString(snapshot.resetDate),
+		};
+	}
+	return result;
+}
+
+/** Coerces an SDK `resetDate` (a `Date` per the published type, but possibly an ISO string at runtime) to an ISO string. */
+function toResetDateIsoString(resetDate: Date | string | undefined): string | undefined {
+	if (resetDate instanceof Date) {
+		return resetDate.toISOString();
+	}
+	return typeof resetDate === 'string' ? resetDate : undefined;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {

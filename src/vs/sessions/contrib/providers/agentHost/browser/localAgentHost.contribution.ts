@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AgentHostContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
@@ -14,6 +12,7 @@ import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
@@ -27,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#{0}#`.", AgentHostEnabledSettingId),
+			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
 		},
 	},
 });
@@ -47,14 +46,14 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 	static readonly ID = 'sessions.contrib.localAgentHostContribution';
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 	) {
 		super();
 
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (!this._agentHostEnablementService.enabled) {
 			return;
 		}
 

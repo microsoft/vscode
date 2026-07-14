@@ -8,38 +8,8 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ModelSelection } from '../channels-root/state.js';
-import type { ConfigPropertySchema, ContentRef, ErrorInfo, FileEdit, Icon, ProtectedResourceMetadata, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
-
-// ─── Pending Message Types ───────────────────────────────────────────────────
-
-/**
- * Discriminant for pending message kinds.
- *
- * @category Pending Message Types
- */
-export const enum PendingMessageKind {
-	/** Injected into the current turn at a convenient point */
-	Steering = 'steering',
-	/** Sent automatically as a new turn after the current turn finishes */
-	Queued = 'queued',
-}
-
-/**
- * A message queued for future delivery to the agent.
- *
- * Steering messages are injected into the current turn mid-flight.
- * Queued messages are automatically started as new turns after the
- * current turn naturally finishes.
- *
- * @category Pending Message Types
- */
-export interface PendingMessage {
-	/** Unique identifier for this pending message */
-	id: string;
-	/** The message that will start the next turn */
-	message: Message;
-}
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
+import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
 
@@ -79,31 +49,84 @@ export const enum SessionStatus {
 }
 
 /**
- * Full state for a single session, loaded when a client subscribes to the session's URI.
+ * Metadata shared between the full {@link SessionState} (delivered when a
+ * client subscribes to a session's URI) and the lightweight
+ * {@link SessionSummary} (carried in the root-channel session catalog).
+ *
+ * These fields describe the session at a glance and appear in both places.
+ * `SessionState` owns the authoritative values for a subscribed session;
+ * `SessionSummary` mirrors them into the catalog so clients that only render a
+ * session list don't have to subscribe to every session URI. The host keeps
+ * the catalog in sync via `root/sessionSummaryChanged`.
  *
  * @category Session State
  */
-export interface SessionState {
-	/** Lightweight session metadata */
-	summary: SessionSummary;
+export interface SessionMetadata {
+	/** Agent provider ID */
+	provider: string;
+	/** Session title */
+	title: string;
+	/** Current session status */
+	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
+	/** Server-owned project for this session */
+	project?: ProjectInfo;
+	/**
+	 * The default working directory URI for this session. Individual chats
+	 * MAY override via {@link ChatSummary.workingDirectory | their own
+	 * `workingDirectory`}; this field acts as the fallback for any chat that
+	 * does not.
+	 */
+	workingDirectory?: URI;
+	/**
+	 * Lightweight summary of this session's inline annotations channel
+	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+	 * annotation / entry counts without subscribing. Absent when the session
+	 * does not expose an annotations channel.
+	 */
+	annotations?: AnnotationsSummary;
+}
+
+/**
+ * Full state for a single session, loaded when a client subscribes to the session's URI.
+ *
+ * Inlines (denormalizes) every {@link SessionMetadata} field directly onto
+ * itself so subscribers receive one flat object instead of a nested summary.
+ * The lightweight catalog representation is {@link SessionSummary}, surfaced on
+ * the root channel; the host keeps the two in sync via
+ * `root/sessionSummaryChanged`.
+ *
+ * @category Session State
+ */
+export interface SessionState extends SessionMetadata {
 	/** Session initialization state */
 	lifecycle: SessionLifecycle;
 	/** Error details if creation failed */
 	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
 	serverTools?: ToolDefinition[];
-	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: SessionActiveClient;
-	/** Completed turns */
-	turns: Turn[];
-	/** Currently in-progress turn */
-	activeTurn?: ActiveTurn;
-	/** Message to inject into the current turn at a convenient point */
-	steeringMessage?: PendingMessage;
-	/** Messages to send automatically as new turns after the current turn finishes */
-	queuedMessages?: PendingMessage[];
-	/** Requests for user input that are currently blocking or informing session progress */
-	inputRequests?: SessionInputRequest[];
+	/**
+	 * The clients currently providing tools and interactive capabilities to this
+	 * session. If multiple tools or customizations are provided by the same
+	 * active client, an agent host MAY deduplicate them when exposed to a model,
+	 * with a preference given to the client that started the turn.
+	 *
+	 * Membership is host-managed: clients add (or refresh) themselves with
+	 * `session/activeClientSet`, and the host removes them with
+	 * `session/activeClientRemoved` when they unsubscribe, disconnect without
+	 * reconnecting in time, or reconnect without resubscribing to the session.
+	 */
+	activeClients: SessionActiveClient[];
+	/** Catalog of chats in this session. */
+	chats: ChatSummary[];
+	/**
+	 * The chat that receives input when the user addresses the session without
+	 * selecting a specific chat. This is a UI routing hint, not a hierarchy
+	 * marker — chats remain equal peers at the protocol level. Hosts MAY change
+	 * this over the session's lifetime.
+	 */
+	defaultChat?: URI;
 	/** Session configuration schema and current values */
 	config?: SessionConfigState;
 	/**
@@ -121,7 +144,7 @@ export interface SessionState {
 	 *   also appear as children of a container.
 	 *
 	 * Client-published plugins arrive via
-	 * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
 	 * and the host propagates them into this list (typically with the
 	 * container's `clientId` set and `children` populated). Clients
 	 * publish in container shape only; bare MCP servers at the top level
@@ -137,6 +160,23 @@ export interface SessionState {
 	 */
 	changesets?: Changeset[];
 	/**
+	 * Outstanding input the session is blocked on, aggregated across every chat
+	 * so a client can discover and answer it from the session channel alone,
+	 * without subscribing to individual chats.
+	 *
+	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
+	 * identifier the client needs to respond. A client answers by dispatching the
+	 * ordinary `chat/*` action to that chat's channel — see
+	 * {@link SessionInputRequest} for the per-variant response path. A present,
+	 * non-empty list implies {@link SessionStatus.InputNeeded} on
+	 * {@link SessionSummary.status}.
+	 *
+	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
+	 * chats raise requests and removes them with `session/inputNeededRemoved`
+	 * once the underlying request resolves.
+	 */
+	inputNeeded?: SessionInputRequest[];
+	/**
 	 * Additional provider-specific metadata for this session.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
@@ -147,10 +187,11 @@ export interface SessionState {
 }
 
 /**
- * The client currently providing tools and interactive capabilities to a session.
+ * A client currently providing tools and interactive capabilities to a session.
  *
- * Only one client may be active per session at a time. The server SHOULD
- * automatically unset the active client if that client disconnects.
+ * A session MAY have several active clients at once; entries in
+ * {@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD
+ * automatically remove an active client when that client disconnects.
  *
  * @category Session State
  */
@@ -172,6 +213,136 @@ export interface SessionActiveClient {
 	customizations?: ClientPluginCustomization[];
 }
 
+// ─── Session Input Requests ──────────────────────────────────────────────────
+
+/**
+ * Discriminant for the kinds of outstanding input a session can surface in
+ * {@link SessionState.inputNeeded}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputRequestKind {
+	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	ChatInput = 'chatInput',
+	/** A tool call awaiting parameter- or result-confirmation. */
+	ToolConfirmation = 'toolConfirmation',
+	/** A running tool the session wants an active client to execute. */
+	ToolClientExecution = 'toolClientExecution',
+}
+
+/**
+ * Fields common to every {@link SessionInputRequest} variant.
+ *
+ * @category Session Input Types
+ */
+interface SessionInputRequestBase {
+	/**
+	 * Stable key for this entry, unique within the session's
+	 * {@link SessionState.inputNeeded} list. The host derives it however it likes
+	 * (for example from the chat URI plus the underlying request or tool-call
+	 * id); consumers MUST treat it as opaque. It is the key for the
+	 * `session/inputNeededSet` / `session/inputNeededRemoved` upsert convention.
+	 */
+	id: string;
+	/**
+	 * The chat the underlying request lives in. This is the channel a client
+	 * dispatches its response to — it does not need to have subscribed to that
+	 * chat first.
+	 */
+	chat: URI;
+}
+
+/**
+ * A user-input elicitation surfaced at the session level, mirroring one entry
+ * of the owning chat's {@link ChatState.inputRequests}.
+ *
+ * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
+ * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
+ * keyed by {@link ChatInputRequest.id | `request.id`}.
+ *
+ * @category Session Input Types
+ */
+export interface SessionChatInputRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ChatInput;
+	/** The mirrored chat input request. */
+	request: ChatInputRequest;
+}
+
+/**
+ * A tool call blocked on confirmation — either parameter confirmation before
+ * execution or result confirmation after — surfaced at the session level.
+ *
+ * Respond by dispatching `chat/toolCallConfirmed` (for
+ * {@link ToolCallPendingConfirmationState}) or `chat/toolCallResultConfirmed`
+ * (for {@link ToolCallPendingResultConfirmationState}) to
+ * {@link SessionInputRequestBase.chat | `chat`}, keyed by `turnId` and
+ * `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolConfirmationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolConfirmation;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting confirmation. */
+	toolCall: ToolCallConfirmationState;
+}
+
+/**
+ * A running tool whose execution is delegated to an active client. Surfaced so
+ * a client that provides the tool can pick up the work without subscribing to
+ * the owning chat.
+ *
+ * The {@link toolCall} is always a {@link ToolCallRunningState} (a
+ * {@link ToolCallState} in `running` status) whose
+ * {@link ToolCallRunningState.contributor | `contributor`} is a client
+ * {@link ToolCallClientContributor} whose `clientId` matches the denormalized
+ * {@link clientId} here. Execute and report the result by dispatching
+ * `chat/toolCallComplete` (and optionally streaming with
+ * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
+ * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolClientExecution;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/**
+	 * The `clientId` expected to execute the tool. Matches the `clientId` of the
+	 * tool call's client {@link ToolCallContributor}.
+	 */
+	clientId: string;
+	/**
+	 * The running tool call the session wants the owning client to execute. The
+	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
+	 * {@link ToolCallState} in `running` status).
+	 */
+	toolCall: ToolCallState;
+}
+
+/**
+ * One outstanding piece of input a session is blocked on, aggregated across all
+ * chats in {@link SessionState.inputNeeded}.
+ *
+ * Each entry is self-sufficient: it carries the owning
+ * {@link SessionInputRequestBase.chat | `chat`} URI plus every identifier needed
+ * to construct the response, so a client can answer by dispatching the ordinary
+ * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
+ * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
+ * to the chat**. The host removes the entry with `session/inputNeededRemoved`
+ * once the underlying request resolves.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputRequest =
+	| SessionChatInputRequest
+	| SessionToolConfirmationRequest
+	| SessionToolClientExecutionRequest;
+
 /**
  * Server-owned project metadata for a session.
  *
@@ -185,36 +356,47 @@ export interface ProjectInfo {
 }
 
 /**
+ * Lightweight catalog entry summarizing one session. Surfaced via
+ * {@link RootChannelCommands.listSessions | `root/listSessions`} and
+ * `root/sessionAdded`/`root/sessionSummaryChanged` notifications.
+ *
+ * **Aggregation across chats.** Once a session contains more than one chat,
+ * several `SessionSummary` fields are derived from the underlying
+ * {@link SessionState.chats | chat catalog}. Producers SHOULD follow these
+ * rules so clients that only consume the session summary (e.g. a session
+ * list) still see meaningful state:
+ *
+ * - `status`: take the activity bits (`Idle` / `InProgress` / `InputNeeded` /
+ *   `Error` — bits 0–4) from the
+ *   {@link SessionState.defaultChat | default chat} when present, else from
+ *   the most recently modified chat. **Promote** `InputNeeded` whenever any
+ *   chat in the session needs input, and **promote** `Error` whenever any
+ *   chat is in an error state — both override the default-chat bits. The
+ *   orthogonal flag bits (`IsRead`, `IsArchived`) remain session-scoped.
+ * - `activity`: mirror the activity string of the default chat, or of the
+ *   chat currently driving the promoted status bits when a non-default chat
+ *   wins (e.g. the chat that raised `InputNeeded`).
+ * - `modifiedAt`: the max of all chats' `modifiedAt`.
+ * - `workingDirectory`: the session-level **default**. Individual chats MAY
+ *   override via {@link ChatSummary.workingDirectory}; aggregating these up
+ *   is meaningless and SHOULD NOT be attempted.
+ * - `changes`: optional roll-up across all chats. Producers MAY sum the
+ *   per-chat changeset stats or report the most expensive chat's stats —
+ *   whichever is cheaper for the host to compute.
+ *
+ * Sessions with a single chat trivially satisfy all of the above (the chat's
+ * values pass through unchanged). The rules only matter once a session
+ * carries multiple chats.
+ *
  * @category Session State
  */
-export interface SessionSummary {
+export interface SessionSummary extends SessionMetadata {
 	/** Session URI */
 	resource: URI;
-	/** Agent provider ID */
-	provider: string;
-	/** Session title */
-	title: string;
-	/** Current session status */
-	status: SessionStatus;
-	/** Human-readable description of what the session is currently doing */
-	activity?: string;
-	/** Creation timestamp */
-	createdAt: number;
-	/** Last modification timestamp */
-	modifiedAt: number;
-	/** Server-owned project for this session */
-	project?: ProjectInfo;
-	/** Currently selected model */
-	model?: ModelSelection;
-	/**
-	 * Currently selected custom agent.
-	 *
-	 * Absent (`undefined`) means no custom agent is selected for this session
-	 * — the session uses the provider's default behavior.
-	 */
-	agent?: AgentSelection;
-	/** The working directory URI for this session */
-	workingDirectory?: URI;
+	/** Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	createdAt: string;
+	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
+	modifiedAt: string;
 	/**
 	* Aggregate summary of file changes associated with this session. Servers
 	* may populate this to give clients a quick at-a-glance view of the
@@ -223,12 +405,12 @@ export interface SessionSummary {
 	*/
 	changes?: ChangesSummary;
 	/**
-	 * Lightweight summary of this session's inline annotations channel
-	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
-	 * annotation / entry counts without subscribing. Absent when the session
-	 * does not expose an annotations channel.
+	 * Lightweight server-defined metadata clients may use for the session
+	 * presentation. The protocol does not interpret these values; producers
+	 * SHOULD keep the payload small because summaries appear in session lists
+	 * and session notifications.
 	 */
-	annotations?: AnnotationsSummary;
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -248,10 +430,6 @@ export interface ChangesSummary {
 	files?: number;
 }
 
-// ─── Model Selection ─────────────────────────────────────────────────────────
-// `ModelSelection` is declared in channels-root/state.ts (the model lives on
-// `AgentInfo`); we import it above for use in `SessionSummary.model`.
-
 // ─── Agent Selection ─────────────────────────────────────────────────────────
 
 /**
@@ -262,7 +440,7 @@ export interface ChangesSummary {
  * the session's effective customizations). Consumers resolve the agent's
  * display name by looking up `uri` in the session's customization tree.
  *
- * A session with no `agent` selected uses the provider's default behavior.
+ * A message with no `agent` selected uses the provider's default behavior.
  *
  * @category Session State
  */
@@ -321,875 +499,6 @@ export interface SessionConfigState {
 	/** Current configuration values */
 	values: Record<string, unknown>;
 }
-
-// ─── Session Input Types ────────────────────────────────────────────────────
-
-/**
- * How a client completed an input request.
- *
- * @category Session Input Types
- */
-export const enum SessionInputResponseKind {
-	Accept = 'accept',
-	Decline = 'decline',
-	Cancel = 'cancel',
-}
-
-/**
- * Question/input control kind.
- *
- * @category Session Input Types
- */
-export const enum SessionInputQuestionKind {
-	Text = 'text',
-	Number = 'number',
-	Integer = 'integer',
-	Boolean = 'boolean',
-	SingleSelect = 'single-select',
-	MultiSelect = 'multi-select',
-}
-
-/**
- * A choice in a select-style question.
- *
- * @category Session Input Types
- */
-export interface SessionInputOption {
-	/** Stable option identifier; for MCP enum values this is the enum string */
-	id: string;
-	/** Display label */
-	label: string;
-	/** Optional secondary text */
-	description?: string;
-	/** Whether this option is the recommended/default choice */
-	recommended?: boolean;
-}
-
-interface SessionInputQuestionBase {
-	/** Stable question identifier used as the key in `answers` */
-	id: string;
-	/** Short display title */
-	title?: string;
-	/** Prompt shown to the user */
-	message: string;
-	/** Whether the user must answer this question to accept the request */
-	required?: boolean;
-}
-
-/** Text question within a session input request. */
-export interface SessionInputTextQuestion extends SessionInputQuestionBase {
-	kind: SessionInputQuestionKind.Text;
-	/** Format hint for text questions, such as `email`, `uri`, `date`, or `date-time` */
-	format?: string;
-	/** Minimum string length */
-	min?: number;
-	/** Maximum string length */
-	max?: number;
-	/** Default text */
-	defaultValue?: string;
-}
-
-/** Numeric question within a session input request. */
-export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
-	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
-	/**
-	 * Minimum value
-	 * @format float
-	 */
-	min?: number;
-	/**
-	 * Maximum value
-	 * @format float
-	 */
-	max?: number;
-	/**
-	 * Default numeric value
-	 * @format float
-	 */
-	defaultValue?: number;
-}
-
-/** Boolean question within a session input request. */
-export interface SessionInputBooleanQuestion extends SessionInputQuestionBase {
-	kind: SessionInputQuestionKind.Boolean;
-	/** Default boolean value */
-	defaultValue?: boolean;
-}
-
-/** Single-select question within a session input request. */
-export interface SessionInputSingleSelectQuestion extends SessionInputQuestionBase {
-	kind: SessionInputQuestionKind.SingleSelect;
-	/** Options the user may select from */
-	options: SessionInputOption[];
-	/** Whether the user may enter text instead of selecting an option */
-	allowFreeformInput?: boolean;
-}
-
-/** Multi-select question within a session input request. */
-export interface SessionInputMultiSelectQuestion extends SessionInputQuestionBase {
-	kind: SessionInputQuestionKind.MultiSelect;
-	/** Options the user may select from */
-	options: SessionInputOption[];
-	/** Whether the user may enter text in addition to selecting options */
-	allowFreeformInput?: boolean;
-	/** Minimum selected item count */
-	min?: number;
-	/** Maximum selected item count */
-	max?: number;
-}
-
-/**
- * One question within a session input request.
- *
- * @category Session Input Types
- */
-export type SessionInputQuestion = SessionInputTextQuestion
-	| SessionInputNumberQuestion
-	| SessionInputBooleanQuestion
-	| SessionInputSingleSelectQuestion
-	| SessionInputMultiSelectQuestion;
-
-/**
- * A live request for user input.
- *
- * The server creates or replaces requests with `session/inputRequested`.
- * Clients sync drafts with `session/inputAnswerChanged` and complete requests
- * with `session/inputCompleted`.
- *
- * @category Session Input Types
- */
-export interface SessionInputRequest {
-	/** Stable request identifier */
-	id: string;
-	/** Display message for the request as a whole */
-	message?: string;
-	/** URL the user should review or open, for URL-style elicitations */
-	url?: URI;
-	/** Ordered questions to ask the user */
-	questions?: SessionInputQuestion[];
-	/** Current draft or submitted answers, keyed by question ID */
-	answers?: Record<string, SessionInputAnswer>;
-}
-
-/**
- * Answer value kind.
- *
- * @category Session Input Types
- */
-export const enum SessionInputAnswerValueKind {
-	Text = 'text',
-	Number = 'number',
-	Boolean = 'boolean',
-	Selected = 'selected',
-	SelectedMany = 'selected-many',
-}
-
-/**
- * Value captured for one answer.
- *
- * @category Session Input Types
- */
-export interface SessionInputTextAnswerValue {
-	kind: SessionInputAnswerValueKind.Text;
-	value: string;
-}
-
-export interface SessionInputNumberAnswerValue {
-	kind: SessionInputAnswerValueKind.Number;
-	/** @format float */
-	value: number;
-}
-
-export interface SessionInputBooleanAnswerValue {
-	kind: SessionInputAnswerValueKind.Boolean;
-	value: boolean;
-}
-
-export interface SessionInputSelectedAnswerValue {
-	kind: SessionInputAnswerValueKind.Selected;
-	value: string;
-	/** Free-form text entered instead of selecting an option */
-	freeformValues?: string[];
-}
-
-export interface SessionInputSelectedManyAnswerValue {
-	kind: SessionInputAnswerValueKind.SelectedMany;
-	value: string[];
-	/** Free-form text entered in addition to selected options */
-	freeformValues?: string[];
-}
-
-export type SessionInputAnswerValue = SessionInputTextAnswerValue
-	| SessionInputNumberAnswerValue
-	| SessionInputBooleanAnswerValue
-	| SessionInputSelectedAnswerValue
-	| SessionInputSelectedManyAnswerValue;
-
-export interface SessionInputAnswered {
-	/** Answer state */
-	state: SessionInputAnswerState.Draft | SessionInputAnswerState.Submitted;
-	/** Answer value */
-	value: SessionInputAnswerValue;
-}
-
-export interface SessionInputSkipped {
-	/** Answer state */
-	state: SessionInputAnswerState.Skipped;
-	/** Free-form reason or value captured while skipping, if any */
-	freeformValues?: string[];
-}
-
-/**
- * Answer lifecycle state.
- *
- * @category Session Input Types
- */
-export const enum SessionInputAnswerState {
-	Draft = 'draft',
-	Submitted = 'submitted',
-	Skipped = 'skipped',
-}
-
-/**
- * Draft, submitted, or skipped answer for one question.
- *
- * @category Session Input Types
- */
-export type SessionInputAnswer = SessionInputAnswered | SessionInputSkipped;
-
-// ─── Turn Types ──────────────────────────────────────────────────────────────
-
-/**
- * How a turn ended.
- *
- * @category Turn Types
- */
-export const enum TurnState {
-	Complete = 'complete',
-	Cancelled = 'cancelled',
-	Error = 'error',
-}
-
-/**
- * Discriminant for {@link MessageAttachment} variants.
- *
- * @category Turn Types
- */
-export const enum MessageAttachmentKind {
-	/** A simple, opaque attachment whose representation is described by the producer. */
-	Simple = 'simple',
-	/** An attachment whose data is embedded inline as a base64 string. */
-	EmbeddedResource = 'embeddedResource',
-	/** An attachment that references a resource by URI. */
-	Resource = 'resource',
-	/** An attachment that references annotations on an annotations channel. */
-	Annotations = 'annotations',
-}
-
-/**
- * A completed request/response cycle.
- *
- * @category Turn Types
- */
-export interface Turn {
-	/** Turn identifier */
-	id: string;
-	/** The message that initiated the turn */
-	message: Message;
-	/**
-	 * All response content in stream order: text, tool calls, reasoning, and content refs.
-	 *
-	 * Consumers should derive display text by concatenating markdown parts,
-	 * and find tool calls by filtering for `ToolCall` parts.
-	 */
-	responseParts: ResponsePart[];
-	/** Token usage info */
-	usage: UsageInfo | undefined;
-	/** How the turn ended */
-	state: TurnState;
-	/** Error details if state is `'error'` */
-	error?: ErrorInfo;
-}
-
-/**
- * An in-progress turn — the assistant is actively streaming.
- *
- * @category Turn Types
- */
-export interface ActiveTurn {
-	/** Turn identifier */
-	id: string;
-	/** The message that initiated the turn */
-	message: Message;
-	/**
-	 * All response content in stream order: text, tool calls, reasoning, and content refs.
-	 *
-	 * Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
-	 */
-	responseParts: ResponsePart[];
-	/** Token usage info */
-	usage: UsageInfo | undefined;
-}
-
-/**
- * Discriminant for Message types.
- *
- * @category Turn Types
- */
-export enum MessageKind {
-	User = 'user',
-	SystemNotification = 'systemNotification',
-}
-
-/**
- * A message that initiates or steers a turn. Messages can originate from the
- * user or be system-generated (see {@link MessageKind}).
- *
- * Attachments MAY be referenced inside {@link Message.text} via their
- * {@link MessageAttachmentBase.range} field. Attachments without a range are
- * still associated with the message but do not correspond to a specific span
- * in the text.
- *
- * @category Turn Types
- */
-export interface Message {
-	/** Message text */
-	text: string;
-	/** The origin of the message */
-	origin: { kind: MessageKind };
-	/** File/selection attachments */
-	attachments?: MessageAttachment[];
-	/**
-	 * Additional provider-specific metadata for this message.
-	 *
-	 * Clients MAY look for well-known keys here to provide enhanced UI, and
-	 * agent hosts MAY use it to carry context that does not fit any other
-	 * field. Mirrors the MCP `_meta` convention.
-	 */
-	_meta?: Record<string, unknown>;
-}
-
-/**
- * Common fields shared by all {@link MessageAttachment} variants.
- *
- * @category Turn Types
- */
-export interface MessageAttachmentBase {
-	/**
-	 * A human-readable label for the attachment (e.g. the filename of a file
-	 * attachment). Used for display in UI.
-	 */
-	label: string;
-
-	/**
-	 * If defined, the range in {@link Message.text} that references this
-	 * attachment. This is a text range, not a byte range.
-	 */
-	range?: TextRange;
-
-	/**
-	 * Advisory display hint for clients rendering this attachment. Recognized
-	 * values include:
-	 *
-	 * - `'image'`: the attachment is an image
-	 * - `'document'`: the attachment is a textual document
-	 * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
-	 * - `'directory'`: the attachment is a folder
-	 * - `'selection'`: the attachment is a selection within a document
-	 *
-	 * Implementations MAY provide additional values; clients SHOULD fall back
-	 * to a reasonable default when an unknown value is encountered.
-	 */
-	displayKind?: string;
-
-	/**
-	 * Additional implementation-defined metadata for the attachment.
-	 *
-	 * If the attachment was produced by the `completions` command, the client
-	 * MUST preserve every property of `_meta` originally returned by the agent
-	 * host when sending the user message containing the accepted completion.
-	 */
-	_meta?: Record<string, unknown>;
-}
-
-/**
- * A simple, opaque attachment whose model representation is described by
- * the producer.
- *
- * @category Turn Types
- */
-export interface SimpleMessageAttachment extends MessageAttachmentBase {
-	/** Discriminant */
-	type: MessageAttachmentKind.Simple;
-
-	/**
-	 * Representation of the attachment as it should be shown to the model.
-	 *
-	 * If the attachment was produced by the client, this property MUST be
-	 * defined so the agent host can correctly interpret the attachment. This
-	 * property MAY be omitted when the attachment originated from a
-	 * `completions` response.
-	 */
-	modelRepresentation?: string;
-}
-
-/**
- * An attachment whose data is embedded inline as a base64 string.
- *
- * Use this for small binary payloads (e.g. a pasted image) that should be
- * delivered with the user message itself rather than fetched separately.
- *
- * @category Turn Types
- */
-export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase {
-	/** Discriminant */
-	type: MessageAttachmentKind.EmbeddedResource;
-	/** Base64-encoded binary data */
-	data: string;
-	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
-	contentType: string;
-	/**
-	 * Optional selection within the attached textual resource.
-	 *
-	 * Only meaningful for textual resources.
-	 */
-	selection?: TextSelection;
-}
-
-/**
- * An attachment that references a resource by URI. The content is not
- * delivered inline; consumers can fetch it via `resourceRead` when needed.
- *
- * @category Turn Types
- */
-export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
-	/** Discriminant */
-	type: MessageAttachmentKind.Resource;
-	/**
-	 * Optional selection within the referenced textual resource.
-	 *
-	 * Only meaningful for textual resources.
-	 */
-	selection?: TextSelection;
-}
-
-/**
- * An attachment that references annotations on a session's annotations
- * channel (see {@link AnnotationsState}).
- *
- * When {@link annotationIds} is omitted the attachment references every
- * annotation on the channel; when present it references only the listed
- * {@link Annotation.id | annotation ids}.
- *
- * @category Turn Types
- */
-export interface MessageAnnotationsAttachment extends MessageAttachmentBase {
-	/** Discriminant */
-	type: MessageAttachmentKind.Annotations;
-	/**
-	 * The annotations channel URI (typically `ahp-session:/<uuid>/annotations`).
-	 * Matches {@link AnnotationsSummary.resource}.
-	 */
-	resource: URI;
-	/**
-	 * Specific {@link Annotation.id | annotation ids} to reference. When
-	 * omitted, the attachment references all annotations on the channel.
-	 */
-	annotationIds?: string[];
-}
-
-/**
- * An attachment associated with a {@link Message}.
- *
- * @category Turn Types
- */
-export type MessageAttachment =
-	| SimpleMessageAttachment
-	| MessageEmbeddedResourceAttachment
-	| MessageResourceAttachment
-	| MessageAnnotationsAttachment;
-
-// ─── Response Parts ──────────────────────────────────────────────────────────
-
-/**
- * Discriminant for response part types.
- *
- * @category Response Parts
- */
-export const enum ResponsePartKind {
-	Markdown = 'markdown',
-	ContentRef = 'contentRef',
-	ToolCall = 'toolCall',
-	Reasoning = 'reasoning',
-	SystemNotification = 'systemNotification',
-}
-
-/**
- * @category Response Parts
- */
-export interface MarkdownResponsePart {
-	/** Discriminant */
-	kind: ResponsePartKind.Markdown;
-	/** Part identifier, used by `session/delta` to target this part for content appends */
-	id: string;
-	/** Markdown content */
-	content: string;
-}
-
-/**
- * A content part that's a reference to large content stored outside the state tree.
- *
- * @category Response Parts
- */
-export interface ResourceReponsePart extends ContentRef {
-	/** Discriminant */
-	kind: ResponsePartKind.ContentRef;
-}
-
-/**
- * A tool call represented as a response part.
- *
- * Tool calls are part of the response stream, interleaved with text and
- * reasoning. The `toolCall.toolCallId` serves as the part identifier for
- * actions that target this part.
- *
- * @category Response Parts
- */
-export interface ToolCallResponsePart {
-	/** Discriminant */
-	kind: ResponsePartKind.ToolCall;
-	/** Full tool call lifecycle state */
-	toolCall: ToolCallState;
-}
-
-/**
- * Reasoning/thinking content from the model.
- *
- * @category Response Parts
- */
-export interface ReasoningResponsePart {
-	/** Discriminant */
-	kind: ResponsePartKind.Reasoning;
-	/** Part identifier, used by `session/reasoning` to target this part for content appends */
-	id: string;
-	/** Accumulated reasoning text */
-	content: string;
-}
-
-/**
- * @category Response Parts
- */
-export type ResponsePart =
-	| MarkdownResponsePart
-	| ResourceReponsePart
-	| ToolCallResponsePart
-	| ReasoningResponsePart
-	| SystemNotificationResponsePart;
-
-/**
- * A system notification surfaced as part of the response stream.
- *
- * System notifications are messages authored by the agent harness
- * that need to be visible to both the agent (for situational awareness) and
- * the user (for transcript continuity). Examples include "background subagent
- * X completed" or "task Y was cancelled".
- *
- * @category Response Parts
- */
-export interface SystemNotificationResponsePart {
-	/** Discriminant */
-	kind: ResponsePartKind.SystemNotification;
-	/** The text of the system notification */
-	content: StringOrMarkdown;
-}
-
-
-// ─── Tool Call Types ─────────────────────────────────────────────────────────
-
-/**
- * Status of a tool call in the lifecycle state machine.
- *
- * @category Tool Call Types
- */
-export const enum ToolCallStatus {
-	Streaming = 'streaming',
-	PendingConfirmation = 'pending-confirmation',
-	Running = 'running',
-	PendingResultConfirmation = 'pending-result-confirmation',
-	Completed = 'completed',
-	Cancelled = 'cancelled',
-}
-
-/**
- * How a tool call was confirmed for execution.
- *
- * - `NotNeeded` — No confirmation required (auto-approved)
- * - `UserAction` — User explicitly approved
- * - `Setting` — Approved by a persistent user setting
- *
- * @category Tool Call Types
- */
-export const enum ToolCallConfirmationReason {
-	NotNeeded = 'not-needed',
-	UserAction = 'user-action',
-	Setting = 'setting',
-}
-
-/**
- * Why a tool call was cancelled.
- *
- * @category Tool Call Types
- */
-export const enum ToolCallCancellationReason {
-	Denied = 'denied',
-	Skipped = 'skipped',
-	ResultDenied = 'result-denied',
-}
-
-/**
- * Whether a confirmation option represents an approval or denial action.
- *
- * @category Tool Call Types
- */
-export const enum ConfirmationOptionKind {
-	Approve = 'approve',
-	Deny = 'deny',
-}
-
-/**
- * A confirmation option that the server offers for a tool call awaiting
- * approval. Allows richer choices beyond simple approve/deny — for example,
- * "Approve in this Session" or "Deny with reason."
- *
- * @category Tool Call Types
- */
-export interface ConfirmationOption {
-	/** Unique identifier for the option, returned in the confirmed action */
-	id: string;
-	/** Human-readable label displayed to the user */
-	label: string;
-	/** Whether this option represents an approval or denial */
-	kind: ConfirmationOptionKind;
-	/**
-	 * Logical group number for visual categorisation.
-	 *
-	 * Clients SHOULD display options in the order they are defined and MAY
-	 * use differing group numbers to insert dividers between logical clusters
-	 * of options.
-	 */
-	group?: number;
-}
-
-export const enum ToolCallContributorKind {
-	Client = 'client',
-	MCP = 'mcp',
-}
-
-export interface ToolCallClientContributor {
-	kind: ToolCallContributorKind.Client;
-	/**
-	 * If this tool is provided by a client, the `clientId` of the owning client.
-	 * Absent for server-side tools.
-	 *
-	 * When set, the identified client is responsible for executing the tool and
-	 * dispatching `session/toolCallComplete` with the result.
-	 */
-	clientId: string;
-}
-
-export interface ToolCallMcpContributor {
-	kind: ToolCallContributorKind.MCP;
-	/**
-	 * Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
-	 */
-	customizationId: string;
-}
-
-export type ToolCallContributor = ToolCallClientContributor | ToolCallMcpContributor;
-
-/**
- * Metadata common to all tool call states.
- *
- * @category Tool Call Types
- * @remarks
- * Fields like `toolName` carry agent-specific identifiers on the wire despite the
- * agent-agnostic design principle. These exist for debugging and logging purposes.
- * A future version may move these to a separate diagnostic channel or namespace them
- * more clearly.
- */
-interface ToolCallBase {
-	/** Unique tool call identifier */
-	toolCallId: string;
-	/** Internal tool name (for debugging/logging) */
-	toolName: string;
-	/** Human-readable tool name */
-	displayName: string;
-	/**
-	 * Reference to the contributor of the tool being called.
-	 */
-	contributor?: ToolCallContributor;
-	/**
-	 * Additional provider-specific metadata for this tool call.
-	 *
-	 * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
-	 * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
-	 * with the {@link contributor} to serve MCP Apps.
-	 */
-	_meta?: Record<string, unknown>;
-}
-
-/**
- * Properties available once tool call parameters are fully received.
- *
- * @category Tool Call Types
- */
-interface ToolCallParameterFields {
-	/** Message describing what the tool will do */
-	invocationMessage: StringOrMarkdown;
-	/** Raw tool input */
-	toolInput?: string;
-}
-
-/**
- * Tool execution result details, available after execution completes.
- *
- * @category Tool Call Types
- */
-export interface ToolCallResult {
-	/** Whether the tool succeeded */
-	success: boolean;
-	/** Past-tense description of what the tool did */
-	pastTenseMessage: StringOrMarkdown;
-	/**
-	 * Unstructured result content blocks.
-	 *
-	 * This mirrors the `content` field of MCP `CallToolResult`.
-	 */
-	content?: ToolResultContent[];
-	/**
-	 * Optional structured result object.
-	 *
-	 * This mirrors the `structuredContent` field of MCP `CallToolResult`.
-	 */
-	structuredContent?: Record<string, unknown>;
-	/** Error details if the tool failed */
-	error?: { message: string; code?: string };
-}
-
-/**
- * LM is streaming the tool call parameters.
- *
- * @category Tool Call Types
- */
-export interface ToolCallStreamingState extends ToolCallBase {
-	status: ToolCallStatus.Streaming;
-	/** Partial parameters accumulated so far */
-	partialInput?: string;
-	/** Progress message shown while parameters are streaming */
-	invocationMessage?: StringOrMarkdown;
-}
-
-/**
- * Parameters are complete, or a running tool requires re-confirmation
- * (e.g. a mid-execution permission check).
- *
- * @category Tool Call Types
- */
-export interface ToolCallPendingConfirmationState extends ToolCallBase, ToolCallParameterFields {
-	status: ToolCallStatus.PendingConfirmation;
-	/** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
-	confirmationTitle?: StringOrMarkdown;
-	/** File edits that this tool call will perform, for preview before confirmation */
-	edits?: { items: FileEdit[] };
-	/** Whether the agent host allows the client to edit the tool's input parameters before confirming */
-	editable?: boolean;
-	/**
-	 * Options the server offers for this confirmation. When present, the client
-	 * SHOULD render these instead of a plain approve/deny UI. Each option
-	 * belongs to a {@link ConfirmationOptionGroup} so the client can still
-	 * categorise the choices.
-	 */
-	options?: ConfirmationOption[];
-}
-
-/**
- * Tool is actively executing.
- *
- * @category Tool Call Types
- */
-export interface ToolCallRunningState extends ToolCallBase, ToolCallParameterFields {
-	status: ToolCallStatus.Running;
-	/** How the tool was confirmed for execution */
-	confirmed: ToolCallConfirmationReason;
-	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: ConfirmationOption;
-	/**
-	 * Partial content produced while the tool is still executing.
-	 *
-	 * For example, a terminal content block lets clients subscribe to live
-	 * output before the tool completes.
-	 */
-	content?: ToolResultContent[];
-}
-
-/**
- * Tool finished executing, waiting for client to approve the result.
- *
- * @category Tool Call Types
- */
-export interface ToolCallPendingResultConfirmationState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
-	status: ToolCallStatus.PendingResultConfirmation;
-	/** How the tool was confirmed for execution */
-	confirmed: ToolCallConfirmationReason;
-	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: ConfirmationOption;
-}
-
-/**
- * Tool completed successfully or with an error.
- *
- * @category Tool Call Types
- */
-export interface ToolCallCompletedState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
-	status: ToolCallStatus.Completed;
-	/** How the tool was confirmed for execution */
-	confirmed: ToolCallConfirmationReason;
-	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: ConfirmationOption;
-}
-
-/**
- * Tool call was cancelled before execution.
- *
- * @category Tool Call Types
- */
-export interface ToolCallCancelledState extends ToolCallBase, ToolCallParameterFields {
-	status: ToolCallStatus.Cancelled;
-	/** Why the tool was cancelled */
-	reason: ToolCallCancellationReason;
-	/** Optional message explaining the cancellation */
-	reasonMessage?: StringOrMarkdown;
-	/** What the user suggested doing instead */
-	userSuggestion?: Message;
-	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: ConfirmationOption;
-}
-
-/**
- * Discriminated union of all tool call lifecycle states.
- *
- * See the [state model guide](/guide/state-model.html#tool-call-lifecycle)
- * for the full state machine diagram.
- *
- * @category Tool Call Types
- */
-export type ToolCallState =
-	| ToolCallStreamingState
-	| ToolCallPendingConfirmationState
-	| ToolCallRunningState
-	| ToolCallPendingResultConfirmationState
-	| ToolCallCompletedState
-	| ToolCallCancelledState;
 
 // ─── Tool Definition Types ───────────────────────────────────────────────────
 
@@ -1256,125 +565,6 @@ export interface ToolAnnotations {
 	/** Tool may interact with external entities (default: true) */
 	openWorldHint?: boolean;
 }
-
-// ─── Tool Result Content ─────────────────────────────────────────────────────
-
-/**
- * Discriminant for tool result content types.
- *
- * @category Tool Result Content
- */
-export const enum ToolResultContentType {
-	Text = 'text',
-	EmbeddedResource = 'embeddedResource',
-	Resource = 'resource',
-	FileEdit = 'fileEdit',
-	Terminal = 'terminal',
-	Subagent = 'subagent',
-}
-
-/**
- * Text content in a tool result.
- *
- * Mirrors MCP `TextContent`.
- *
- * @category Tool Result Content
- */
-export interface ToolResultTextContent {
-	type: ToolResultContentType.Text;
-	/** The text content */
-	text: string;
-}
-
-/**
- * Base64-encoded binary content embedded in a tool result.
- *
- * Mirrors MCP `EmbeddedResource` for inline binary data.
- *
- * @category Tool Result Content
- */
-export interface ToolResultEmbeddedResourceContent {
-	type: ToolResultContentType.EmbeddedResource;
-	/** Base64-encoded data */
-	data: string;
-	/** Content type (e.g. `"image/png"`, `"application/pdf"`) */
-	contentType: string;
-}
-
-/**
- * A reference to a resource stored outside the tool result.
- *
- * Wraps {@link ContentRef} for lazy-loading large results.
- *
- * @category Tool Result Content
- */
-export interface ToolResultResourceContent extends ContentRef {
-	type: ToolResultContentType.Resource;
-}
-
-/**
- * Describes a file modification performed by a tool.
- *
- * @category Tool Result Content
- */
-export interface ToolResultFileEditContent extends FileEdit {
-	type: ToolResultContentType.FileEdit;
-}
-
-/**
- * A reference to a terminal whose output is relevant to this tool result.
- *
- * Clients can subscribe to the terminal's URI to stream its output in real
- * time, providing live feedback while a tool is executing.
- *
- * @category Tool Result Content
- */
-export interface ToolResultTerminalContent {
-	type: ToolResultContentType.Terminal;
-	/** Terminal URI (subscribable for full terminal state) */
-	resource: URI;
-	/** Display title for the terminal content */
-	title: string;
-}
-
-/**
- * A reference to a subagent session spawned by a tool.
- *
- * Clients can subscribe to the subagent's session URI to stream its
- * progress in real time, including inner tool calls and responses.
- *
- * @category Tool Result Content
- */
-export interface ToolResultSubagentContent {
-	type: ToolResultContentType.Subagent;
-	/** Subagent session URI (subscribable for full session state) */
-	resource: URI;
-	/** Display title for the subagent */
-	title: string;
-	/** Internal agent name */
-	agentName?: string;
-	/** Human-readable description of the subagent's task */
-	description?: string;
-}
-
-/**
- * Content block in a tool result.
- *
- * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `ToolResultResourceContent` for lazy-loading large results,
- * `ToolResultFileEditContent` for file edit diffs,
- * `ToolResultTerminalContent` for live terminal output, and
- * `ToolResultSubagentContent` for subagent sessions (AHP extensions).
- *
- * @category Tool Result Content
- */
-export type ToolResultContent =
-	| ToolResultTextContent
-	| ToolResultEmbeddedResourceContent
-	| ToolResultResourceContent
-	| ToolResultFileEditContent
-	| ToolResultTerminalContent
-	| ToolResultSubagentContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 
@@ -1449,6 +639,14 @@ interface CustomizationBase {
 	 * Absent when the customization covers the whole resource.
 	 */
 	range?: TextRange;
+	/**
+	 * Additional provider-specific metadata for this customization.
+	 *
+	 * Mirrors the MCP `_meta` convention. Optional and opaque to the
+	 * protocol; producers and consumers agree on its contents
+	 * out-of-band.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -1550,6 +748,15 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/**
+	 * Version of the plugin, sourced from the
+	 * [Open Plugins](https://open-plugins.com/) manifest's optional
+	 * `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
+	 * declares no version — the field is optional there — or the source
+	 * has no version concept. Provenance / display only: the host neither
+	 * parses nor enforces it.
+	 */
+	version?: string;
 }
 
 /**
@@ -1592,6 +799,35 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
 }
 
 /**
+ * Fields shared by the leaf child customizations that live inside a
+ * container — {@link AgentCustomization}, {@link SkillCustomization},
+ * {@link PromptCustomization}, {@link RuleCustomization}, and
+ * {@link HookCustomization}.
+ *
+ * {@link McpServerCustomization} is also a child but does not extend this
+ * base: it always carries an explicit {@link McpServerCustomization.enabled}
+ * because it can appear as a top-level customization too.
+ *
+ * @category Customization Types
+ */
+interface ChildCustomizationBase extends CustomizationBase {
+	/**
+	 * Whether this child is individually enabled. Absent means enabled, so a
+	 * producer only needs to set it to surface a child that exists but is
+	 * turned off on its own.
+	 *
+	 * This flag is independent of the parent container's: the **effective**
+	 * enabled state of a child is
+	 * `container.enabled && (child.enabled ?? true)`, so a disabled container
+	 * disables every child regardless of each child's own flag.
+	 *
+	 * A child is turned on or off by id with
+	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * A custom agent contributed by a plugin or directory.
  *
  * Mirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)
@@ -1600,7 +836,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  *
  * @category Customization Types
  */
-export interface AgentCustomization extends CustomizationBase {
+export interface AgentCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Agent;
 	/**
 	 * Short description of what the agent specializes in and when to
@@ -1608,11 +844,33 @@ export interface AgentCustomization extends CustomizationBase {
 	 */
 	description?: string;
 	/**
-	 * Additional provider-specific metadata for this custom agent.
-	 *
-	 * Mirrors the MCP `_meta` convention.
+	 * Model the agent is pinned to, sourced from the agent file's
+	 * frontmatter `model`. Absent means the agent inherits the session's
+	 * default model.
 	 */
-	_meta?: Record<string, unknown>;
+	model?: string;
+	/**
+	 * Allowlist of tool names the agent is scoped to, sourced from the
+	 * agent file's frontmatter `tools`. A non-empty list restricts the
+	 * agent to exactly those tools. Absent — or an empty list — imposes no
+	 * restriction beyond the session default: the agent may use any
+	 * available tool. Producers express "no restriction" by omitting the
+	 * field rather than sending an empty array, so an empty list carries no
+	 * meaning distinct from absence.
+	 */
+	tools?: string[];
+	/**
+	 * When `true`, the agent will not auto-delegate to this custom agent
+	 * as a sub-agent; it can only be selected by the user. Absent or
+	 * `false` means the agent may delegate to it.
+	 */
+	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot select this custom agent (for example,
+	 * in a picker); it remains available for the agent to auto-delegate
+	 * to. Absent or `false` means the user may select it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -1625,7 +883,7 @@ export interface AgentCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface SkillCustomization extends CustomizationBase {
+export interface SkillCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Skill;
 	/**
 	 * Short description used for help text and auto-invocation matching.
@@ -1638,6 +896,12 @@ export interface SkillCustomization extends CustomizationBase {
 	 * `disable-model-invocation` flag.
 	 */
 	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot directly invoke this skill (for example,
+	 * as a slash command); it remains available for the agent to
+	 * auto-invoke. Absent or `false` means the user may invoke it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -1645,7 +909,7 @@ export interface SkillCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface PromptCustomization extends CustomizationBase {
+export interface PromptCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Prompt;
 	/** Short description of what the prompt does. */
 	description?: string;
@@ -1664,7 +928,7 @@ export interface PromptCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface RuleCustomization extends CustomizationBase {
+export interface RuleCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Rule;
 	/**
 	 * Description of what the rule enforces.
@@ -1688,7 +952,7 @@ export interface RuleCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface HookCustomization extends CustomizationBase {
+export interface HookCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Hook;
 }
 

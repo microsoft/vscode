@@ -57,13 +57,13 @@ interface IDefaultAccountConfig {
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
-const enum DefaultAccountStatus {
+export const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
 
-const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
+export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
@@ -124,6 +124,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this.defaultAccountProvider?.managedSettingsFetchStatus ?? null; }
 	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
+	get managedSettingsRawResponse(): unknown { return this.defaultAccountProvider?.managedSettingsRawResponse ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -274,6 +275,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private _managedSettingsFetchStatus: ManagedSettingsFetchStatus = null;
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this._managedSettingsFetchStatus; }
 	get managedSettingsFetchedAt(): number | null { return this._policyData?.managedSettingsFetchedAt ?? null; }
+
+	private _managedSettingsRawResponse: unknown = null;
+	get managedSettingsRawResponse(): unknown { return this._managedSettingsRawResponse; }
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
@@ -913,6 +917,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		try {
 			const data = await asJson<IManagedSettingsResponse>(response);
 			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
+			this._managedSettingsRawResponse = data ?? null;
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
 			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;

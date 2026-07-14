@@ -21,7 +21,7 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -34,10 +34,10 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { runServerUpgrade } from './remoteHostOptions.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
@@ -50,6 +50,7 @@ export const RemoteAgentHostCommandIds = {
 	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
 	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
 	manageRemoteAgentHosts: 'workbench.action.sessions.manageRemoteAgentHosts',
+	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
 } as const;
 
 registerAction2(class extends Action2 {
@@ -578,8 +579,7 @@ async function promptForRemoteFolder(
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
@@ -604,8 +604,8 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -926,8 +926,7 @@ async function promptForTunnelFolder(
 	tunnel: ITunnelInfo,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -954,8 +953,8 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
@@ -1122,8 +1121,7 @@ async function promptForWSLFolder(
 	distro: string,
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsService = accessor.get(ISessionsService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
@@ -1146,8 +1144,8 @@ async function promptForWSLFolder(
 		return;
 	}
 
-	sessionsViewService.openNewSession();
-	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
+	sessionsService.openNewSession();
+	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {
@@ -1179,5 +1177,76 @@ registerAction2(class extends Action2 {
 		if (result === 'back') {
 			onBack?.();
 		}
+	}
+});
+
+/**
+ * Force-update a remote agent host server that rejected our protocol
+ * version because it is running an old build. Connecting to such a host
+ * leaves it in the `incompatible` state; when the host was spawned by a
+ * VS Code CLI willing to receive upgrade signals it advertises an upgrade
+ * method, which this command invokes via the shared {@link runServerUpgrade}
+ * flow. Exposed in the command palette so the update is reachable without
+ * first opening the host's options quickpick.
+ */
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RemoteAgentHostCommandIds.updateRemoteAgentHost,
+			title: localize2('updateRemoteAgentHost', "Update Remote Agent Host Server..."),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const remoteHosts = sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !!provider.remoteAddress);
+		let incompatibleCount = 0;
+		const upgradable = remoteHosts
+			.map(provider => {
+				const status = provider.connectionStatus?.get();
+				if (!RemoteAgentHostConnectionStatus.isIncompatible(status)) {
+					return undefined;
+				}
+				incompatibleCount++;
+				return status.vscodeUpgradeMethod ? { provider, method: status.vscodeUpgradeMethod } : undefined;
+			})
+			.filter((entry): entry is { provider: IAgentHostSessionsProvider; method: string } => !!entry);
+
+		if (upgradable.length === 0) {
+			// Distinguish "nothing is incompatible" from "incompatible hosts exist
+			// but none was spawned by a VS Code CLI that can update it in place".
+			notificationService.info(incompatibleCount > 0
+				? localize('updateRemoteAgentHost.noneUpgradable', "No remote agent hosts can be updated from here. Incompatible hosts must be updated manually, then reconnected.")
+				: localize('updateRemoteAgentHost.none', "No remote agent hosts need updating."));
+			return;
+		}
+
+		let target = upgradable[0];
+		if (upgradable.length > 1) {
+			type UpdateHostPickItem = IQuickPickItem & { entry: { provider: IAgentHostSessionsProvider; method: string } };
+			const picked = await quickInputService.pick<UpdateHostPickItem>(
+				upgradable.map(entry => ({
+					label: entry.provider.label,
+					description: entry.provider.remoteAddress,
+					entry,
+				})),
+				{ placeHolder: localize('updateRemoteAgentHost.pick', "Select a remote agent host to update") },
+			);
+			if (!picked) {
+				return;
+			}
+			target = picked.entry;
+		}
+
+		await instantiationService.invokeFunction(runServerUpgrade, target.provider, target.method);
 	}
 });

@@ -76,7 +76,6 @@ import './services/integrity/electron-browser/integrityService.js';
 import './services/workingCopy/electron-browser/workingCopyBackupService.js';
 import './services/checksum/electron-browser/checksumService.js';
 import '../platform/remote/electron-browser/sharedProcessTunnelService.js';
-import '../platform/tunnel/electron-browser/sharedProcessTunnelProxyService.js';
 import './services/tunnel/electron-browser/tunnelService.js';
 import '../platform/diagnostics/electron-browser/diagnosticsService.js';
 import '../platform/profiling/electron-browser/profilingService.js';
@@ -94,6 +93,7 @@ import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
 import './services/power/electron-browser/powerService.js';
@@ -131,6 +131,9 @@ import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution
 
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
+
+// Surveys
+import './contrib/surveys/browser/survey.contribution.js';
 
 // Process Explorer
 import './contrib/processExplorer/electron-browser/processExplorer.contribution.js';
@@ -182,6 +185,7 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+import './contrib/chat/electron-browser/tunnelHost.contribution.js';
 
 // Copilot Voice
 import './contrib/agentsVoice/electron-browser/agentsVoiceNativeCommands.js';
@@ -200,6 +204,9 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 // Keybindings Export
 import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
+
+// System-wide (OS global) Keybindings
+import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
 //#endregion
 

@@ -14,6 +14,18 @@
 		width: calc(100% - 20px);
 	}
 
+	/* Suppressed while selected so the selection highlight is not overpainted. */
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.session-item.needs-input) {
+			animation: none;
+			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		}
+	}
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -54,6 +66,20 @@
 			position: relative;
 			right: 0;
 			top: 0;
+		}
+	}
+
+	.monaco-list-row .session-pending-voice-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		margin-left: 4px;
+		color: var(--vscode-charts-blue);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
 		}
 	}
 
@@ -298,6 +324,50 @@
 			}
 		}
 	}
+
+	/* Fix-CI row — a single line shown for blocked sessions whose PR is failing
+		CI. Styled after the chat input's orange CI banner: an orange-tinted card
+		with a summary on the left and a prominent orange "Fix CI" button. */
+	.session-ci-row {
+		display: none;
+		gap: 8px;
+		margin-top: 4px;
+		margin-left: -6px;
+		padding: 4px 4px 4px 8px;
+		box-sizing: border-box;
+		/* Reset the inherited list-row line-height (set to the full row height),
+			otherwise the single-line label's line box grows to the whole row and
+			pushes the content out of the clipped row. */
+		line-height: 18px;
+		border: var(--vscode-strokeThickness) solid var(--vscode-charts-orange);
+		border-radius: var(--vscode-cornerRadius-large);
+		background-color: color-mix(in srgb, var(--vscode-charts-orange) 6%, var(--vscode-editor-background));
+		color: var(--vscode-editor-foreground);
+		align-items: center;
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-ci-label {
+			flex: 1;
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			font-size: var(--vscode-agents-fontSize-label1, 12px);
+		}
+
+		.session-ci-button {
+			flex-shrink: 0;
+
+			.monaco-button {
+				padding: 2px 10px;
+				font-size: var(--vscode-agents-fontSize-label1, 12px);
+				white-space: nowrap;
+			}
+		}
+	}
 }
 
 /* Show More */
@@ -332,6 +402,28 @@
 	color: var(--vscode-foreground);
 }
 
+/* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
+.session-placeholder {
+	display: flex;
+	align-items: center;
+	/* Match .session-item: left padding (12px) + status icon (16px) + .session-main padding (6px). */
+	padding: 0 12px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	color: var(--vscode-descriptionForeground);
+	min-height: 26px;
+	cursor: default;
+
+	.session-placeholder-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		padding-left: 22px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		opacity: 0.8;
+	}
+}
+
 /* Folders show-more/show-less: align with workspace section headers. */
 .session-show-more.session-show-more-folders {
 	justify-content: flex-start;
@@ -364,6 +456,12 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.session-section-icon {
+		flex-shrink: 0;
+		margin-right: 6px;
+		font-size: var(--vscode-codiconFontSize, 16px);
 	}
 
 	.session-section-count {
@@ -437,6 +535,36 @@
 	}
 }
 
+/* Session groups render like sections, with an inline name editor. */
+.session-group {
+	.session-group-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: none;
+
+		.monaco-inputbox {
+			width: 100%;
+			height: 20px;
+			line-height: 18px;
+		}
+
+		.monaco-inputbox .input {
+			padding: 0 4px;
+			font-size: var(--vscode-agents-fontSize-label2, 11px);
+		}
+	}
+}
+
+.session-group.session-group-editing .session-group-input {
+	display: block;
+}
+
+/* Header-only feedback while dragging sessions into a group or Pinned. */
+.sessions-list-control .monaco-list-row.drop-target:has(.session-section),
+.sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
+	background-color: var(--vscode-list-dropBackground) !important;
+}
+
 @keyframes session-needs-input-pulse {
 
 	0%,
@@ -446,6 +574,16 @@
 
 	50% {
 		opacity: 0.4;
+	}
+}
+
+/* PROTO: yellow background pulse for "Input needed" session rows. */
+@keyframes session-needs-input-accent-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
 	}
 }
 

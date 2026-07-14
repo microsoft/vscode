@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
+	reasoning?: { effort?: string; summary?: string };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -292,7 +292,9 @@ export interface ITokenPriceTier {
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
-	readonly cacheReadTokenPrice: number;
+	readonly cacheReadTokenPrice: number | undefined;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
 	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
@@ -336,6 +338,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	readonly warningText?: Record<string, string>;
+	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**
@@ -345,6 +349,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
+	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

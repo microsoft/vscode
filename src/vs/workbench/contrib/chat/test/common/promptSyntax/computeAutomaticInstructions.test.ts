@@ -46,7 +46,7 @@ import { TerminalToolId } from '../../../common/tools/terminalToolIds.js';
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
-import { ChatModeKind, GeneralPurposeAgentName } from '../../../common/constants.js';
+import { ChatModeKind } from '../../../common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -190,6 +190,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -1628,57 +1629,6 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
 		});
 
-		test('should include General Purpose agent first when experiment is enabled', async () => {
-			const rootFolderName = 'gp-agents-list-test';
-			const rootFolder = `/${rootFolderName}`;
-			const rootFolderUri = URI.file(rootFolder);
-
-			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-
-			testConfigService.setUserConfiguration('chat.generalPurposeAgent.enabled', true);
-
-			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
-				[AGENTS_SOURCE_FOLDER]: true,
-			});
-
-			await mockFiles(fileService, [
-				{
-					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
-					contents: [
-						'---',
-						'description: \'Test agent 1\'',
-						'---',
-						'Test agent content',
-					]
-				},
-			]);
-
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions,
-				ChatModeKind.Agent,
-				{ 'vscode_runSubagent': true },
-				['*'],
-				localSessionType
-			);
-			const variables = new ChatRequestVariableSet();
-
-			await contextComputer.collect(variables, CancellationToken.None);
-
-			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
-			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
-
-			const agentsList = xmlContents(textVariables[0].value, 'agents');
-			assert.equal(agentsList.length, 1, 'There should be one agents list');
-
-			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 2, 'There should be two agents (General Purpose + 1 custom)');
-
-			// First agent should always be the built-in General Purpose agent
-			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
-
-			assert.equal(xmlContents(agents[1], 'name')[0], 'test-agent-1');
-			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
-		});
-
 		test('should include skills list when readFile tool available', async () => {
 			const rootFolderName = 'skills-list-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -2797,5 +2747,31 @@ suite('getFilePath', () => {
 		const uri = URI.file('/workspace/src/file.ts');
 		const result = getFilePath(uri, undefined);
 		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a Windows remote', () => {
+		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, OperatingSystem.Windows, /* isRemote */ true);
+		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
+	});
+
+	test('should not convert file:// URIs to vscode-local:/ when not connected to a remote', () => {
+		const uri = URI.file('/home/user/.copilot/agent-plugins/my-skill/SKILL.md');
+		const result = getFilePath(uri, undefined, /* isRemote */ false);
+		assert.strictEqual(result, uri.fsPath);
+	});
+
+	test('should not convert vscode-remote:// URIs when connected to a remote', () => {
+		const uri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/project/file.ts' });
+		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
+		// Do not use uri.fsPath here — it is host-OS-dependent and returns
+		// backslashes on Windows CI, but the function normalizes to the remote OS.
+		assert.strictEqual(result, '/home/user/project/file.ts');
 	});
 });

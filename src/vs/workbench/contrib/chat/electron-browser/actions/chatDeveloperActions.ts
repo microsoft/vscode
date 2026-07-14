@@ -12,10 +12,13 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { DebugAgentHostInDevToolsAction } from './debugAgentHostAction.js';
 import './exportAgentHostDebugLogsService.js';
+import { ProfileAgentHostAction, StopAgentHostProfileAction } from './profileAgentHostAction.js';
 
 export function registerChatDeveloperActions() {
 	registerAction2(OpenChatStorageFolderAction);
 	registerAction2(DebugAgentHostInDevToolsAction);
+	registerAction2(ProfileAgentHostAction);
+	registerAction2(StopAgentHostProfileAction);
 }
 
 class OpenChatStorageFolderAction extends Action2 {

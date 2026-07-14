@@ -21,6 +21,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -33,11 +34,12 @@ import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -47,6 +49,7 @@ export interface IVoiceChatExecuteActionContext {
 export interface IChatExecuteActionContext {
 	widget?: IChatWidget;
 	inputValue?: string;
+	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
 }
 
@@ -156,17 +159,17 @@ abstract class SubmitAction extends Action2 {
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
 		}
-		widget?.acceptInput(context?.inputValue);
+		widget?.acceptInput(context?.inputValue, context?.acceptInputOptions);
 	}
 
-	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionProviders, AgentSessionProviders.Local>): Promise<void> {
+	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionTarget, AgentSessionProviders.Local>): Promise<void> {
 		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		// Find the contribution for the delegation target
 		const contributions = chatSessionsService.getAllChatSessionContributions();
 		const targetContribution = contributions.find(contrib => {
 			const providerType = getAgentSessionProvider(contrib.type);
-			return providerType === delegationTarget;
+			return providerType === delegationTarget || contrib.type === delegationTarget;
 		});
 
 		if (!targetContribution) {
@@ -345,7 +348,7 @@ class ToggleChatModeAction extends Action2 {
 			isClaudeAgent
 		});
 
-		widget.input.setChatMode(switchToMode.id);
+		widget.input.setChatMode(switchToMode.id, true, true);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -427,6 +430,8 @@ export class OpenModelPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
+						// Hide the model picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels),
@@ -521,6 +526,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						// Hide the agent picker while a delegation (continue in) target is pending
+						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasCustomAgentTarget),
@@ -611,7 +618,8 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.chatSessionSupportsDelegation,
-						ChatContextKeys.chatSessionIsEmpty.negate()
+						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},
@@ -900,6 +908,7 @@ class SendToNewChatAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const configurationService = accessor.get(IConfigurationService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
+		const storageService = accessor.get(IStorageService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -921,7 +930,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
@@ -974,6 +983,7 @@ export class CancelAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		const voiceController = accessor.get(IVoiceSessionController);
 		if (!widget) {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
@@ -996,6 +1006,11 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: Canceled chat widget has no view model');
+		}
+		// Also disconnect voice session if active
+
+		if (voiceController.isConnected.get()) {
+			voiceController.disconnect();
 		}
 	}
 }

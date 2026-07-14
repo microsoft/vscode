@@ -36,7 +36,7 @@ export class CopilotTokenManagerImpl extends Disposable implements ICompletionsC
 		super();
 
 		this.updateCachedToken();
-		this._register(this.authenticationService.onDidAuthenticationChange(() => this.updateCachedToken()));
+		this._register(this.authenticationService.onDidCopilotTokenChange(() => this.updateCachedToken()));
 	}
 
 	/**

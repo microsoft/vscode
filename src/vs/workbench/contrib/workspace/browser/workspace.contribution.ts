@@ -805,7 +805,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
 				type: 'string',
-				default: 'once',
+				default: 'never',
 				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,

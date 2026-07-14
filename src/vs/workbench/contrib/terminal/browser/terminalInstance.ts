@@ -132,6 +132,7 @@ const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | 
 const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
 	[GeneralShellType.Claude, /claude\s*code/i],
 	// [GeneralShellType.Codex, /\bcodex\b/i], // codex does not report osc title.
+	[GeneralShellType.CommandCode, /command\s*code/i],
 	[GeneralShellType.Copilot, /\bcopilot\b/i],
 	[GeneralShellType.Gemini, /\bgemini\b/i],
 ]);
@@ -767,7 +768,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		const computedStyle = dom.getWindow(this.xterm.raw.element).getComputedStyle(this.xterm.raw.element);
-		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + 14/*scroll bar padding*/;
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + this.xterm.scrollbarWidth/*scroll bar padding*/;
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
@@ -2711,6 +2712,7 @@ export class TerminalLabelComputer extends Disposable {
 	static readonly agentCliShellTypes: ReadonlySet<GeneralShellType> = new Set([
 		GeneralShellType.Claude,
 		GeneralShellType.Codex,
+		GeneralShellType.CommandCode,
 		GeneralShellType.Copilot,
 		GeneralShellType.Gemini,
 	]);

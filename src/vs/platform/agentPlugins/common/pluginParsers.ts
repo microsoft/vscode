@@ -6,7 +6,6 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
-import { untildify } from '../../../base/common/labels.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -136,18 +135,18 @@ export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
 	readonly hookConfigPath: string;
-	readonly pluginRootToken: string | undefined;
-	readonly pluginRootEnvVar: string | undefined;
+	readonly pluginRootTokens: readonly string[];
+	readonly pluginRootEnvVars: readonly string[];
 	/** Parses hooks from a JSON object using the format's conventions. */
-	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: string): IParsedHookGroup[];
+	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
 	manifestPath: 'plugin.json',
 	hookConfigPath: 'hooks.json',
-	pluginRootToken: undefined,
-	pluginRootEnvVar: undefined,
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
 		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
 	},
@@ -157,8 +156,8 @@ const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${CLAUDE_PLUGIN_ROOT}',
-	pluginRootEnvVar: 'CLAUDE_PLUGIN_ROOT',
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
 		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	},
@@ -168,8 +167,8 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.OpenPlugin,
 	manifestPath: '.plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootToken: '${PLUGIN_ROOT}',
-	pluginRootEnvVar: 'PLUGIN_ROOT',
+	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
+	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
 		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	},
@@ -252,7 +251,15 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
 	};
 }
 
-function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
+/**
+ * Builds the protocol {@link McpServerCustomization} for an MCP server
+ * declared at `definitionUri` (the manifest / settings / `.mcp.json` file
+ * the server is defined in). The id is disambiguated by server `name` so
+ * multiple servers declared in one file get distinct ids, and the entry
+ * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
+ * consistently with every other MCP customization.
+ */
+export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
 		type: CustomizationType.McpServer,
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
@@ -441,10 +448,10 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 export function interpolateMcpPluginRoot(
 	def: IMcpServerDefinition,
 	fsPath: string,
-	token: string,
-	envVar: string,
+	tokens: readonly string[],
+	envVars: readonly string[],
 ): IMcpServerDefinition {
-	const replace = (s: string) => s.replaceAll(token, fsPath);
+	const replace = (s: string) => tokens.reduce((result, token) => result.replaceAll(token, fsPath), s);
 
 	const config = def.configuration;
 	let interpolated: IMcpServerConfiguration;
@@ -464,7 +471,9 @@ export function interpolateMcpPluginRoot(
 				local.env[k] = replace(v);
 			}
 		}
-		local.env[envVar] = fsPath;
+		for (const envVar of envVars) {
+			local.env[envVar] = fsPath;
+		}
 		if (local.envFile) {
 			local.envFile = replace(local.envFile);
 		}
@@ -581,7 +590,7 @@ function normalizeHookCommand(raw: Record<string, unknown>): IParsedHookCommand 
  * Resolves a raw hook command JSON object into a {@link IParsedHookCommand},
  * normalizing fields and resolving the working directory.
  */
-function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand | undefined {
+function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand | undefined {
 	const normalized = normalizeHookCommand(raw);
 	if (!normalized) {
 		return undefined;
@@ -590,11 +599,12 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
 	let cwdUri: URI | undefined;
 	const rawCwd = typeof raw.cwd === 'string' ? raw.cwd : undefined;
 	if (rawCwd) {
-		const expanded = untildify(rawCwd, userHome);
-		if (isAbsolute(expanded)) {
-			cwdUri = URI.file(expanded);
+		if (rawCwd.startsWith('~/')) {
+			cwdUri = URI.joinPath(userHome, rawCwd.substring(2));
+		} else if (isAbsolute(rawCwd)) {
+			cwdUri = URI.file(rawCwd);
 		} else if (workspaceRoot) {
-			cwdUri = joinPath(workspaceRoot, expanded);
+			cwdUri = joinPath(workspaceRoot, rawCwd);
 		}
 	} else {
 		cwdUri = workspaceRoot;
@@ -607,7 +617,7 @@ function resolveHookCommand(raw: Record<string, unknown>, workspaceRoot: URI | u
  * Extracts hook commands from an item that may be a direct command object
  * or a nested structure with a `matcher` (Claude format).
  */
-function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: string): IParsedHookCommand[] {
+function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, userHome: URI): IParsedHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
 	}
@@ -639,12 +649,19 @@ function extractHookCommands(item: unknown, workspaceRoot: URI | undefined, user
 
 /**
  * Parses hooks from a JSON object (any supported format).
+ *
+ * Handles Claude's `disableAllHooks` short-circuit, the `HOOK_TYPE_MAP`
+ * canonicalization, and the nested `{ matcher, hooks: [...] }` command
+ * form. Returns one {@link IParsedHookGroup} per recognized lifecycle
+ * event; all groups parsed from the same file share a single
+ * {@link IParsedHookGroup.customization} (keyed on `hookUri`), so callers
+ * that only need the file-level customization can read it off any group.
  */
-function parseHooksJson(
+export function parseHooksJson(
 	hookUri: URI,
 	json: unknown,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): IParsedHookGroup[] {
 	if (!json || typeof json !== 'object') {
 		return [];
@@ -699,7 +716,7 @@ export function interpolateHookPluginRoot(
 	json: unknown,
 	pluginUri: URI,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 	token: string,
 	envVar: string,
 ): IParsedHookGroup[] {
@@ -782,17 +799,18 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	const skills: INamedPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
+		let description: string | undefined;
+		try {
+			const parsedInfo = await parseSkillFile(skillMd, fileService);
+			description = parsedInfo.description;
+			name = parsedInfo.name || name;
+		} catch {
+			// Keep the existing best-effort discovery behavior for malformed skills.
+		}
 		if (seen.has(name)) {
 			return;
 		}
 		seen.add(name);
-
-		let description: string | undefined;
-		try {
-			description = (await parseSkillFile(skillMd, fileService)).description;
-		} catch {
-			// Keep the existing best-effort discovery behavior for malformed skills.
-		}
 		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
 	};
 
@@ -1023,7 +1041,7 @@ async function readHooks(
 	formatConfig: IPluginFormatConfig,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 ): Promise<readonly IParsedHookGroup[]> {
 	for (const hookPath of paths) {
 		const json = await readJsonFile(hookPath, fileService);
@@ -1078,8 +1096,9 @@ export function parseMcpServerDefinitionMap(
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		if (formatConfig.pluginRootToken && formatConfig.pluginRootEnvVar) {
-			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootToken, formatConfig.pluginRootEnvVar);
+		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
+		if (def.configuration.type === McpServerType.LOCAL && def.configuration.cwd === undefined) {
+			def = { ...def, configuration: { ...def.configuration, cwd: pluginFsPath } };
 		}
 		def = convertBareEnvVarsToVsCodeSyntax(def);
 		definitions.push(def);
@@ -1101,7 +1120,7 @@ export async function parsePlugin(
 	pluginUri: URI,
 	fileService: IFileService,
 	workspaceRoot: URI | undefined,
-	userHome: string,
+	userHome: URI,
 	boundaryUri?: URI,
 ): Promise<IParsedPlugin> {
 	const formatConfig = await detectPluginFormat(pluginUri, fileService);
@@ -1158,11 +1177,13 @@ export async function parsePlugin(
 	};
 }
 
-function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
+/** Pairs an agent {@link INamedPluginResource} with its protocol-level {@link AgentCustomization}. */
+export function toParsedAgent(resource: INamedPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link INamedPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 

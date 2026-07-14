@@ -11,6 +11,7 @@ import { isAbsolute } from '../../../../../base/common/path.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { isITextModel } from '../../../../../editor/common/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -36,18 +37,21 @@ import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatSessionPosition, openChatSession } from '../chatSessions/chatSessions.contribution.js';
+import { importedTurnsFromChatModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import type { ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * Extracts the "owner/repo" name-with-owner from a git remote URL.
@@ -219,6 +223,14 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
+				// Continue in any agent host session (local `agent-host-*` or remote
+				// `remote-*`), e.g. Copilot CLI / Codex / Claude agent-host sessions.
+				for (const contrib of contributions) {
+					if (contrib.canDelegate && isAgentHostTarget(contrib.type)) {
+						actions.push(this.toAction(contrib.type, contrib, instantiationService, location));
+					}
+				}
+
 				// Offer actions to enter setup if we have no contributions
 				if (actions.length === 0) {
 					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
@@ -230,15 +242,19 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionTarget, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
+		const providerName = getAgentSessionProviderName(provider);
+		// For dynamically-registered agent host providers, getAgentSessionProviderName
+		// falls back to the raw session type; prefer the contribution's display name.
+		const label = providerName === provider ? (contrib.displayName ?? providerName) : providerName;
 		return {
 			id: contrib.type,
 			enabled,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
 			description: `@${contrib.name}`,
-			label: getAgentSessionProviderName(provider),
-			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			label,
+			tooltip: localize('continueSessionIn', "Continue in {0}", label),
 			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
 			run: () => instantiationService.invokeFunction(accessor => {
 				if (location === ActionLocation.Editor) {
@@ -282,6 +298,56 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 }
 
 const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
+
+const MAX_DELEGATION_TRANSCRIPT_LENGTH = 20_000;
+
+/**
+ * Minimal shape of a chat request needed to build a delegation transcript.
+ * Kept structural so {@link buildDelegationTranscript} can be unit-tested
+ * without constructing a full chat model.
+ */
+export interface IDelegationTranscriptRequest {
+	readonly message: { readonly text: string };
+	readonly response?: { readonly response?: { getMarkdown(): string } };
+}
+
+/**
+ * Builds a plain-text transcript of a prior conversation for handing off
+ * (delegating) to another session type. The transcript is truncated to the
+ * most recent {@link maxLength} characters to avoid exceeding the target
+ * model's token limits.
+ */
+export function buildDelegationTranscript(requests: readonly IDelegationTranscriptRequest[], maxLength: number = MAX_DELEGATION_TRANSCRIPT_LENGTH): string {
+	let transcript = requests.map(req => {
+		const userMsg = `User: ${req.message.text}`;
+		const respMsg = req.response?.response ? `Assistant: ${req.response.response.getMarkdown()}` : '';
+		return respMsg ? `${userMsg}\n${respMsg}` : userMsg;
+	}).join('\n\n');
+	if (transcript.length > maxLength) {
+		transcript = transcript.substring(transcript.length - maxLength);
+	}
+	return transcript;
+}
+
+/**
+ * Wraps a conversation transcript as a paste attachment so it can be passed via
+ * `attachedContext` to a delegated session, keeping the user's prompt clean.
+ * Returns `undefined` when the transcript is empty.
+ */
+export function createDelegationTranscriptAttachment(transcript: string, sourceName: string): IChatRequestPasteVariableEntry | undefined {
+	if (!transcript) {
+		return undefined;
+	}
+	const transcriptName = localize('chat.delegation.transcriptName', "Previous conversation");
+	const transcriptContent = localize('chat.delegation.transcriptContent', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}", sourceName, transcript);
+	return toPasteVariableEntry(transcriptName, transcriptContent, {
+		id: `chat-delegation-transcript-${generateUuid()}`,
+		icon: Codicon.history,
+		language: 'markdown',
+		pastedLines: transcriptName,
+		fileName: transcriptName,
+	});
+}
 
 export class CreateRemoteAgentJobAction {
 	constructor() { }
@@ -392,6 +458,7 @@ export class CreateRemoteAgentJobAction {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const fileService = accessor.get(IFileService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -448,32 +515,57 @@ export class CreateRemoteAgentJobAction {
 
 			const continuationTargetType = continuationTarget.type;
 
-			// When source and target session types differ in the sessions window,
-			// open a new session of the target type with the prompt and context
-			// instead of sending to the current (incompatible) session resource.
+			// When source and target session types differ, open a new session of
+			// the target type and hand off the prior conversation as an attachment
+			// (history-import) instead of sending to the current (incompatible)
+			// session resource. This happens for any cross-type delegation in the
+			// sessions window, and whenever either the source or the target is an
+			// agent host session (e.g. Copilot CLI / Codex / Claude agent host),
+			// so delegation works from anything to any agent host session and from
+			// any agent host session to any target.
 			const isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService);
-			const sourceProvider = getAgentSessionProvider(sessionResource);
-			if (isSessionsWindow && sourceProvider && sourceProvider !== continuationTargetType) {
+			// Resolve a source session type that also covers dynamically-registered
+			// agent host providers (e.g. `agent-host-codex`), which are not part of
+			// the AgentSessionProviders enum.
+			const sourceSessionType = getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource);
+			const handoffToNewSession = isSessionsWindow || isAgentHostTarget(continuationTargetType) || (!!sourceSessionType && isAgentHostTarget(sourceSessionType));
+			if (handoffToNewSession && sourceSessionType && sourceSessionType !== continuationTargetType) {
 				const isSidebar = isIChatViewViewContext(widget.viewContext);
-				const actionId = isSidebar
-					? `workbench.action.chat.openNewSessionSidebar.${continuationTargetType}`
-					: `${NEW_CHAT_SESSION_ACTION_ID}.${continuationTargetType}`;
 
-				// Build conversation transcript from the source session to preserve context.
-				// Truncate to avoid exceeding token limits of the target model.
-				const maxTranscriptLength = 20_000;
-				let transcript = chatRequests.map(req => {
-					const userMsg = `User: ${req.message.text}`;
-					const respMsg = req.response?.response ? `Assistant: ${req.response.response.getMarkdown()}` : '';
-					return respMsg ? `${userMsg}\n${respMsg}` : userMsg;
-				}).join('\n\n');
-				if (transcript.length > maxTranscriptLength) {
-					transcript = transcript.substring(transcript.length - maxTranscriptLength);
+				// Build the prior conversation transcript so context is preserved.
+				// Agent host targets consume it as an attachment (keeping the user's
+				// prompt clean); other targets (e.g. the Cloud coding agent) don't
+				// process paste attachments, so for those we inline it into the prompt.
+				const transcript = buildDelegationTranscript(chatRequests);
+				const sourceContribution = chatSessionsService.getAllChatSessionContributions().find(c => c.type === sourceSessionType || getAgentSessionProvider(c.type) === sourceSessionType);
+				const sourceName = sourceContribution?.displayName ?? getAgentSessionProviderName(sourceSessionType);
+				const continuationContext = attachedContext.asArray();
+				let handoffPrompt = userPrompt;
+				// Continuing a local chat into Copilot CLI (main window) imports the
+				// prior conversation as real, editable turns seeded into the new
+				// session, instead of handing it over as a read-only transcript
+				// attachment. The turns are threaded through the normal
+				// `openChatSession` flow so the session lifecycle (model picker,
+				// config chips, etc.) is unchanged.
+				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow)
+					? importedTurnsFromChatModel(chatModel)
+					: undefined;
+				// Carry the source session's selected model so the imported session
+				// resumes on the same model rather than the host default. The raw
+				// model id (`metadata.id`) matches the Copilot catalog shared by the
+				// local models and Copilot CLI.
+				const importConversationModelId = importConversationTurns ? widget.input.selectedLanguageModel.get()?.metadata.id : undefined;
+				const importConversationModel: ModelSelection | undefined = importConversationModelId ? { id: importConversationModelId } : undefined;
+				if (transcript && !importConversationTurns) {
+					if (isAgentHostTarget(continuationTargetType)) {
+						const transcriptAttachment = createDelegationTranscriptAttachment(transcript, sourceName);
+						if (transcriptAttachment) {
+							continuationContext.unshift(transcriptAttachment);
+						}
+					} else {
+						handoffPrompt = localize('chat.delegation.inlinePrompt', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}\n\nUser: {2}", sourceName, transcript, userPrompt);
+					}
 				}
-
-				const delegationPrompt = transcript
-					? `The following is the conversation history from a previous ${getAgentSessionProviderName(sourceProvider)} session. Continue working on it.\n\n${transcript}\n\nUser: ${userPrompt}`
-					: userPrompt;
 
 				// Extract repository info from the source session to pass to the target session
 				const initialSessionOptions = new Map<string, string>();
@@ -482,16 +574,61 @@ export class CreateRemoteAgentJobAction {
 					initialSessionOptions.set('repositories', repoNwo);
 				}
 
+				// Agent host targets are delegated generically (no per-session-type
+				// command). In the Agents window a single registered command creates
+				// the target session through the session management service; in the
+				// main window we open the session directly. Both paths carry the
+				// transcript as an attachment.
+				if (isAgentHostTarget(continuationTargetType)) {
+					if (isSessionsWindow) {
+						const delegationRequest: IAgentHostDelegationRequest = {
+							type: continuationTargetType,
+							displayName: continuationTarget.displayName,
+							prompt: handoffPrompt,
+							attachedContext: continuationContext,
+						};
+						await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
+					} else {
+						await instantiationService.invokeFunction(innerAccessor => openChatSession(
+							innerAccessor,
+							{
+								type: continuationTargetType,
+								displayName: continuationTarget.displayName,
+								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+								// Replace the source chat editor in place so switching harness
+								// feels like the same chat continues rather than opening a new
+								// tab. The source (local) session stays in chat history and is
+								// recoverable. The sidebar path already swaps in place via
+								// `loadSession`, so it needs no replacement. Pass the source
+								// resource (not a bare flag) so the correct editor is resolved
+								// at replace time even if the active editor changed meanwhile.
+								replaceEditorForResource: isSidebar ? undefined : sessionResource,
+							},
+							{
+								prompt: handoffPrompt,
+								attachedContext: continuationContext,
+								initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
+								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel } : undefined,
+							}
+						));
+					}
+					return;
+				}
+
+				// Non-agent-host targets (e.g. Cloud / Background) continue to use
+				// their per-session-type new-session command.
+				const actionId = isSidebar
+					? `workbench.action.chat.openNewSessionSidebar.${continuationTargetType}`
+					: `${NEW_CHAT_SESSION_ACTION_ID}.${continuationTargetType}`;
 				await commandService.executeCommand(actionId, {
-					prompt: delegationPrompt,
-					attachedContext: attachedContext.asArray(),
+					prompt: handoffPrompt,
+					attachedContext: continuationContext,
 					initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
 				});
 				return;
 			}
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
-			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 			const context = { sessionType: getChatSessionType(sessionResource) };
 			// Add the request to the model first
@@ -508,7 +645,7 @@ export class CreateRemoteAgentJobAction {
 			const sendResult = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
-				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getSelectedModelRequestOptions(),
 				...widget.getModeRequestOptions()
 			});
 

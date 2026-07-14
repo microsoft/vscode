@@ -44,6 +44,13 @@ export default {
 		},
 	},
 	resolve: {
+		// Component Explorer fixtures live in `src` as `.ts` and import sibling
+		// modules via `.js` specifiers; try `.ts` first so those resolve, then
+		// fall back to `.js` for everything loaded from `out`.
+		extensionAlias: {
+			'.js': ['.ts', '.js'],
+			'.mjs': ['.mts', '.mjs'],
+		},
 		fallback: {
 			path: path.resolve(repoRoot, 'node_modules', 'path-browserify'),
 			fs: false,
@@ -59,13 +66,33 @@ export default {
 	module: {
 		rules: [
 			{
-				test: /\.js$/,
-				enforce: 'pre',
-				use: ['source-map-loader'],
+				// Component Explorer fixtures (and any `src` TypeScript they pull
+				// in) are compiled on the fly with rspack's built-in SWC.
+				test: /\.ts$/,
+				loader: 'builtin:swc-loader',
+				options: {
+					jsc: {
+						parser: {
+							syntax: 'typescript',
+							decorators: true,
+						},
+						transform: {
+							legacyDecorator: true,
+							decoratorMetadata: false,
+							useDefineForClassFields: false,
+						},
+						target: 'es2022',
+					},
+				},
+				type: 'javascript/auto',
 			},
 			{
 				test: /\.css$/,
 				type: 'css',
+				// Tag every CSS module with its repo-relative source path (as a
+				// comment that native CSS preserves) so tooling reading the
+				// bundled stylesheet can map concatenated documents back to files.
+				use: [path.join(__dirname, 'cssSourceMarkerLoader.mts')],
 			},
 			{
 				test: /\.ttf$/,
@@ -82,7 +109,7 @@ export default {
 	},
 	plugins: [
 		new ComponentExplorerPlugin({
-			include: 'out/**/*.fixture.js',
+			include: 'src/**/*.fixture.ts',
 		}),
 		new rspack.NormalModuleReplacementPlugin(/\.css$/, resource => {
 			if (!resource.request.startsWith('.')) {

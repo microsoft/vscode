@@ -58,20 +58,20 @@
 		"sideBarStickyScroll.shadow": "#00000000",
 		"panelStickyScroll.shadow": "#00000000",
 		"listFilterWidget.shadow": "#00000000",
-		"scrollbarSlider.background": "#99999926",
-		"scrollbarSlider.hoverBackground": "#99999940",
-		"scrollbarSlider.activeBackground": "#99999955",
+		"scrollbarSlider.background": "#646464C0",
+		"scrollbarSlider.hoverBackground": "#646464D0",
+		"scrollbarSlider.activeBackground": "#646464E0",
 		"badge.background": "#0069CC",
 		"badge.foreground": "#FFFFFF",
 		"progressBar.background": "#0069CC",
-		"list.activeSelectionBackground": "#0069CC1A",
+		"list.activeSelectionBackground": "#00000025",
 		"list.activeSelectionForeground": "#202020",
 		"list.inactiveSelectionBackground": "#DADADA99",
 		"list.inactiveSelectionForeground": "#202020",
-		"list.hoverBackground": "#F1F1F3",
+		"list.hoverBackground": "#00000014",
 		"list.hoverForeground": "#202020",
 		"list.dropBackground": "#0069CC15",
-		"list.focusBackground": "#0069CC1A",
+		"list.focusBackground": "#00000025",
 		"list.focusForeground": "#202020",
 		"list.focusOutline": "#0069CCFF",
 		"list.highlightForeground": "#0069CC",
@@ -144,7 +144,7 @@
 		"editorSuggestWidget.border": "#E4E5E6FF",
 		"editorSuggestWidget.foreground": "#202020",
 		"editorSuggestWidget.highlightForeground": "#0069CC",
-		"editorSuggestWidget.selectedBackground": "#0069CC26",
+		"editorSuggestWidget.selectedBackground": "#00000025",
 		"editorSuggestWidget.selectedForeground": "#202020",
 		"editorSuggestWidget.selectedIconForeground": "#202020",
 		"editorHoverWidget.background": "#FAFAFD",
@@ -192,7 +192,7 @@
 		"statusBarItem.prominentBackground": "#0069CCDD",
 		"statusBarItem.prominentForeground": "#FFFFFF",
 		"statusBarItem.prominentHoverBackground": "#0069CC",
-		"toolbar.hoverBackground": "#E3E3E5",
+		"toolbar.hoverBackground": "#0000001F",
 		"toolbar.activeBackground": "#D6D6D8",
 		"tab.activeBackground": "#FFFFFF",
 		"tab.activeForeground": "#202020",
@@ -226,6 +226,7 @@
 		"notificationsWarningIcon.foreground": "#B69500",
 		"notificationsErrorIcon.foreground": "#ad0707",
 		"notificationsInfoIcon.foreground": "#0069CC",
+		"problemsWarningIcon.foreground": "#895503",
 		"activityWarningBadge.foreground": "#202020",
 		"activityWarningBadge.background": "#F2C94C",
 		"activityErrorBadge.foreground": "#FFFFFF",
@@ -241,7 +242,7 @@
 		"quickInputList.focusForeground": "#FFFFFF",
 		"quickInputList.focusIconForeground": "#FFFFFF",
 		"quickInputList.focusHighlightForeground": "#FFFFFF",
-		"quickInputList.hoverBackground": "#F1F1F3",
+		"quickInputList.hoverBackground": "#00000014",
 		"terminal.selectionBackground": "#0069CC26",
 		"terminalCursor.foreground": "#202020",
 		"terminalCursor.background": "#FFFFFF",
@@ -282,9 +283,9 @@
 		"charts.purple": "#652D90",
 		"agentStatusIndicator.background": "#FFFFFF",
 		"inlineChat.border": "#00000000",
-		"minimapSlider.background": "#99999926",
-		"minimapSlider.hoverBackground": "#99999940",
-		"minimapSlider.activeBackground": "#99999955",
+		"minimapSlider.background": "#646464C0",
+		"minimapSlider.hoverBackground": "#646464D0",
+		"minimapSlider.activeBackground": "#646464E0",
 
 		"agents.background": "#FAFAFD",
 		"agentsPanel.background": "#FFFFFF",
@@ -359,7 +360,7 @@
 				"meta.embedded.expression"
 			],
 			"settings": {
-				"foreground": "#953800"
+				"foreground": "#1f2328"
 			}
 		},
 		{
@@ -432,17 +433,7 @@
 		{
 			"scope": "variable.other",
 			"settings": {
-				"foreground": "#953800"
-			}
-		},
-		{
-			"scope": [
-				"variable.other.readwrite.alias",
-				"meta.import variable.other",
-				"meta.export variable.other"
-			],
-			"settings": {
-				"foreground": "#0550ae"
+				"foreground": "#1f2328"
 			}
 		},
 		{
@@ -610,8 +601,8 @@
 				"punctuation.definition.deleted"
 			],
 			"settings": {
-				"background": "#ad070726",
-				"foreground": "#ad0707"
+				"background": "#ffebe9",
+				"foreground": "#82071e"
 			}
 		},
 		{
@@ -629,8 +620,8 @@
 				"punctuation.definition.inserted"
 			],
 			"settings": {
-				"background": "#587c0c26",
-				"foreground": "#587c0c"
+				"background": "#dafbe1",
+				"foreground": "#116329"
 			}
 		},
 		{
@@ -639,8 +630,8 @@
 				"punctuation.definition.changed"
 			],
 			"settings": {
-				"background": "#66730926",
-				"foreground": "#667309"
+				"background": "#ffd8b5",
+				"foreground": "#953800"
 			}
 		},
 		{
