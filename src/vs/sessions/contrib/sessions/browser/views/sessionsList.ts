@@ -26,7 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -95,6 +95,7 @@ export const SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING = 'sessions.list.sh
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
+export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
@@ -257,19 +258,23 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 //#region Session Item Renderer
 
 /**
- * Resolves the inline toolbar action context to the current multi-selection so
- * that session item actions (e.g. Restore) operate on all selected sessions
- * when the clicked session is part of the selection, and on just the clicked
- * session otherwise.
+ * Resolves inline toolbar actions against either a focused-list handler or the
+ * current multi-selection.
  */
 class SessionItemActionRunner extends ActionRunner {
 
-	constructor(private readonly getMultiSelectedSessions: (session: ISession) => ISession[]) {
+	constructor(
+		private readonly getMultiSelectedSessions: (session: ISession) => ISession[],
+		private readonly handleAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>,
+	) {
 		super();
 	}
 
 	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 		if (context && !Array.isArray(context)) {
+			if (this.handleAction && await this.handleAction(action, context as ISession)) {
+				return;
+			}
 			await super.runAction(action, this.getMultiSelectedSessions(context as ISession));
 			return;
 		}
@@ -297,6 +302,7 @@ interface ISessionItemTemplate {
 	readonly ciLabel: HTMLElement;
 	readonly ciButtonContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
+	readonly statusContext: IContextKey<SessionStatus>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -358,7 +364,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarActions: boolean },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -430,19 +436,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		disposables.add(Gesture.ignoreTarget(ciRow));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
+		const statusContext = SessionItemStatusContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		// When toolbar actions are disabled (e.g. the blocked-sessions dropdown) the row
-		// renders no inline action toolbar at all.
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
-		if (this.options.toolbarActions) {
-			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions));
-			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, SessionItemToolbarMenuId, {
+		if (this.options.toolbarMenuId) {
+			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions, this.options.handleToolbarAction));
+			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -523,6 +528,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// CSS spin animation.
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
+			template.statusContext.set(sessionStatus);
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
@@ -1752,7 +1758,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarActions: true },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
 			approvalModel,
 			undefined,
 			instantiationService,
@@ -3367,11 +3373,12 @@ export interface ISessionsFlatListOptions {
 	 */
 	readonly approvalRowMaxLines?: number;
 	/**
-	 * Whether each session row renders its inline action toolbar (pin, mark as done,
-	 * etc.). Defaults to `true`; set to `false` for surfaces where those actions
-	 * don't apply (e.g. the blocked-sessions dropdown), which renders no toolbar.
+	 * Menu used by each session row's inline toolbar. Defaults to the main sessions
+	 * item toolbar menu.
 	 */
-	readonly toolbarActions?: boolean;
+	readonly toolbarMenuId?: MenuId;
+	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
+	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
 }
 
 /**
@@ -3429,7 +3436,8 @@ export class SessionsFlatList extends Disposable {
 				showHover: this.options.showSessionHover ?? true,
 				isInChatsSection: s => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
-				toolbarActions: this.options.toolbarActions ?? true,
+				toolbarMenuId: this.options.toolbarMenuId ?? SessionItemToolbarMenuId,
+				handleToolbarAction: this.options.onToolbarAction,
 			},
 			approvalModel,
 			this.options.ciFixModel,
