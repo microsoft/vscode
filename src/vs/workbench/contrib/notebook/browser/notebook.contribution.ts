@@ -1146,7 +1146,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.outputDisplayLimit]: {
 			markdownDescription: nls.localize('notebook.output.maxItems', "Controls the maximum number of output items to render per notebook cell. When a cell produces more outputs than this limit, a \"show more\" message is displayed. Increase this value if your cell outputs are being truncated."),
-			type: 'number',
+			type: 'integer',
 			default: 500,
 			minimum: 1,
 			maximum: 10000,
