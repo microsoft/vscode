@@ -1087,7 +1087,18 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 			return extensionGalleryManifest;
 		} catch (error) {
-			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			// A 401/403 here is an expected step of RFC 9728 negotiation, not a failure: a gated
+			// service index answers the initial (anonymous or plain-token) read with a
+			// `WWW-Authenticate` challenge, which the caller uses to discover the Protected
+			// Resource Metadata and negotiate a resource-scoped token before retrying. Logging it
+			// at `error` surfaces a spurious "Error retrieving extension gallery manifest" for a
+			// normal handshake, so downgrade auth-required outcomes to `trace` and reserve
+			// `error` for genuinely unexpected failures.
+			if (error instanceof MarketplaceAuthRequiredError) {
+				this.logService.trace('[Marketplace] Service index requires authentication (status', error.statusCode, ') — RFC 9728 negotiation will handle it');
+			} else {
+				this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
+			}
 			throw error;
 		}
 	}
