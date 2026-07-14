@@ -383,16 +383,23 @@ export class AgentsWindow {
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
-			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
-			if (matchIndex < 0) {
+			const renderedRows = rows ?? [];
+			lastTexts = renderedRows.map(r => (r.textContent ?? '').trim());
+			const renderedIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
+			if (renderedIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
+			// The list is virtualized, so a row's position among rendered DOM
+			// elements may differ from its absolute tree index.
+			const dataIndex = renderedRows[renderedIndex].attributes['data-index'];
+			if (dataIndex === undefined) {
+				throw new Error(`Matched session list row at rendered index ${renderedIndex} has no data-index attribute.`);
+			}
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
-			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking data-index ${dataIndex} (rendered index ${renderedIndex}); all rows:\n${summary}`);
+			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${dataIndex}"]`);
 			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
 
 			// Wait until the active session view's chat widget actually shows a
@@ -410,7 +417,7 @@ export class AgentsWindow {
 			const activeSummary = lastActiveTexts.length
 				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
 				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
+			throw new Error(`Activated row data-index ${dataIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
 		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
