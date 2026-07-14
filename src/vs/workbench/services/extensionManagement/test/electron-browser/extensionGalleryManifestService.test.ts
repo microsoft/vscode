@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -103,11 +103,15 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			version: '1.0.0',
 			extensionsGallery: {
 				serviceUrl: 'https://default-marketplace.example.com',
+				controlUrl: '',
+				extensionUrlTemplate: '',
+				resourceUrlTemplate: '',
+				nlsBaseUrl: '',
 				accessSKUs: ['copilot_business'],
 			},
 			nameLong: 'VS Code Test',
 			get enableExtensionGalleryEntraAuth() { return entraAuthEnabled; },
-		} as any);
+		});
 
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
 		}());
@@ -223,7 +227,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({
 			enterprise: false,
-			entitlementsData: { access_type_sku: 'copilot_business' } as any,
+			entitlementsData: { access_type_sku: 'copilot_business' } as IEntitlementsData,
 		});
 
 		const service = createService();
