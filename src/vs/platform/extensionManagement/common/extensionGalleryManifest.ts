@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
-import { fetchResourceMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, GRANT_TYPE_TOKEN_EXCHANGE, IAuthorizationTokenResponse, isAuthorizationTokenResponse, parseWWWAuthenticateHeader, TOKEN_TYPE_ACCESS_TOKEN } from '../../../base/common/oauth.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
@@ -214,6 +214,80 @@ export async function discoverMarketplaceProtectedResource(
 			scopes: metadata.scopes_supported ?? [],
 			resource: metadata.resource,
 		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Exchanges an authentication provider's access token (e.g. a GitHub session token the client
+ * already holds) for a first-party, audience-bound marketplace access token, using the RFC 8693
+ * token-exchange grant at the marketplace's advertised authorization server.
+ *
+ * This is the GitHub auth-enabled scheme's token acquisition. Unlike the Entra scheme — where the
+ * Microsoft/MSAL provider mints a resource-scoped token directly via `getSessions(...,
+ * { authorizationServer })` — VS Code's GitHub provider has no resource-token support, so the
+ * marketplace's embedded Authorization Server performs a token exchange: it converts the caller's
+ * GitHub token into an `at+jwt` bound to the marketplace resource (`aud = resource`).
+ *
+ * The raw `subjectToken` is transmitted ONLY to the advertised authorization server's token
+ * endpoint — never to the resource server. Both the authorization server and its discovered token
+ * endpoint are validated with `isSafeTarget` (fail-closed) before the token is sent, so a
+ * compromised or misconfigured PRM cannot exfiltrate the GitHub token to a foreign/cleartext
+ * origin. Returns `undefined` (never throws) when discovery or the exchange fails, so callers fall
+ * back to their existing sign-in handling.
+ */
+export async function exchangeMarketplaceResourceToken(
+	requestService: IRequestService,
+	protectedResource: IMarketplaceProtectedResource,
+	subjectToken: string,
+	isSafeTarget: (targetUrl: string) => boolean,
+	token: CancellationToken,
+): Promise<string | undefined> {
+	if (!isSafeTarget(protectedResource.authorizationServer)) {
+		return undefined;
+	}
+	const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
+		const context = await requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryManifest.exchangeMarketplaceResourceToken' }, token);
+		return {
+			status: context.res.statusCode ?? 0,
+			statusText: '',
+			json: async (): Promise<unknown> => await asJson(context),
+			text: async (): Promise<string> => (await asText(context)) ?? '',
+		};
+	};
+	try {
+		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, { fetch: fetcher });
+		const tokenEndpoint = metadata.token_endpoint;
+		if (!tokenEndpoint || !isSafeTarget(tokenEndpoint)) {
+			return undefined;
+		}
+		const body = new URLSearchParams();
+		body.append('grant_type', GRANT_TYPE_TOKEN_EXCHANGE);
+		body.append('subject_token', subjectToken);
+		body.append('subject_token_type', TOKEN_TYPE_ACCESS_TOKEN);
+		body.append('resource', protectedResource.resource);
+		if (protectedResource.scopes.length) {
+			body.append('scope', protectedResource.scopes.join(AUTH_SCOPE_SEPARATOR));
+		}
+		const context = await requestService.request({
+			type: 'POST',
+			url: tokenEndpoint,
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			data: body.toString(),
+			callSite: 'extensionGalleryManifest.exchangeMarketplaceResourceToken',
+			// A bearer/subject token is in the body; never follow redirects so the request service
+			// can't forward it to a (possibly cross-origin) redirect target and leak it.
+			followRedirects: 0,
+		}, token);
+		if (context.res.statusCode !== 200) {
+			return undefined;
+		}
+		const response = await asJson<IAuthorizationTokenResponse>(context);
+		if (response && isAuthorizationTokenResponse(response) && response.access_token) {
+			return response.access_token;
+		}
+		return undefined;
 	} catch {
 		return undefined;
 	}

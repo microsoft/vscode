@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER, discoverMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER, discoverMarketplaceProtectedResource, exchangeMarketplaceResourceToken, IMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -356,6 +356,21 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.update(null);
 			validate();
 		}));
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === 'github') {
+				// Auth-enabled GitHub scheme: the marketplace resource token is minted (RFC 8693)
+				// from the GitHub session token. When that session changes (refresh, re-consent,
+				// sign-out/in) the previously negotiated token may be stale, so re-validate to
+				// mint a fresh one. As on the Microsoft path, do NOT clear the cache or revoke the
+				// manifest here — `onDidChangeSessions` also fires on routine token refreshes for
+				// the same account, and unconditionally clearing would force a redundant negotiation
+				// (and a brief manifest flash) on every refresh. handleGitHubAccess re-checks access
+				// and only re-negotiates; a genuine account change arrives via onDidChangeDefaultAccount
+				// above, which does clear the cache. (Auth-disabled deployments simply re-confirm the
+				// open index — cheap and harmless.)
+				validate();
+			}
+		}));
 		return validate;
 	}
 
@@ -377,28 +392,81 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 			} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+				// The account is eligible (client-side `checkAccess`). Fetch the service index. If
+				// the marketplace's index is `[Authorize]`-gated (RFC 9728 `401`), negotiate a
+				// resource-scoped token by exchanging the user's existing GitHub session token at
+				// the marketplace's advertised authorization server (RFC 8693), then retry the
+				// index presenting that token.
+				//
+				// Unlike the Entra scheme, GitHub deployments render NO server-side eligibility
+				// verdict — there is no `/eligibility` POST and the `EligibilityService` resource is
+				// absent from a GitHub-scheme service index. Access is decided entirely by the
+				// `checkAccess` gate above; the server-side token merely authenticates the API.
+				const subjectToken = await this.resolveGitHubSubjectToken(account);
+				if (this.validationEpoch !== epoch) {
+					return;
+				}
+				let manifest: IExtensionGalleryManifest;
+				let indexToken: string | undefined;
+				let indexWasNegotiated = false;
 				try {
-					const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
-					if (this.validationEpoch !== epoch) {
-						return;
-					}
-					this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: true, serviceUrl: configuredServiceUrl });
-					this.update(manifest);
-					this.telemetryService.publicLog2<
-						{},
-						{
-							owner: 'sandy081';
-							comment: 'Reports when a user successfully accesses a custom marketplace';
-						}>('galleryservice:custom:marketplace');
+					const negotiated = await this.fetchServiceIndexNegotiated(
+						configuredServiceUrl,
+						// Probe the index anonymously first: a default (auth-disabled) GitHub
+						// deployment serves an open index and needs no token. Only a gated index
+						// (`401`) triggers the token exchange below.
+						undefined,
+						protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken),
+					);
+					manifest = negotiated.manifest;
+					indexToken = negotiated.token;
+					indexWasNegotiated = negotiated.negotiated;
 				} catch (error) {
 					if (this.validationEpoch !== epoch) {
 						return;
 					}
-					// Eligible, but the marketplace manifest could not be fetched — the
-					// marketplace is currently unreachable. Preserve cache; surface a message.
+					if (error instanceof MarketplaceAuthRequiredError) {
+						if (error.statusCode === 403) {
+							// 403: the token is accepted but this identity is forbidden from reading
+							// the service index — a durable denial. Cache it so we don't re-probe.
+							this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
+							this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+						} else {
+							// 401: no token could satisfy the gated index (no GitHub session, the
+							// token exchange could not complete, or the minted token was rejected).
+							// This is NOT a durable "ineligible" verdict — re-authentication may fix
+							// it — so do not cache a negative result; ask the user to (re-)sign in.
+							this.clearCachedAccess();
+							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+						}
+						return;
+					}
+					// Eligible, but the marketplace manifest could not be fetched — the marketplace
+					// is currently unreachable. Preserve cache; surface a message. (We are already
+					// inside the `currentStatus !== Available` branch, so no extra guard is needed.)
 					this.logService.error('[Marketplace] Failed to fetch gallery manifest (GitHub path)', error);
 					this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+					return;
 				}
+				if (this.validationEpoch !== epoch) {
+					return;
+				}
+				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: true, serviceUrl: configuredServiceUrl });
+				// The index was gated and we negotiated a resource-scoped token for it: expose that
+				// token (via getAccessToken) for protected marketplace API requests. On the open-
+				// index path (indexWasNegotiated === false) the marketplace needs no bearer, so
+				// leave the token cleared. Any later non-Available transition routes through
+				// update(null, …) and clears it.
+				if (indexWasNegotiated && indexToken) {
+					this.negotiatedAccessToken = indexToken;
+				}
+				this.update(manifest);
+				this.telemetryService.publicLog2<
+					{},
+					{
+						owner: 'sandy081';
+						comment: 'Reports when a user successfully accesses a custom marketplace';
+					}>('galleryservice:custom:marketplace');
 			}
 		} catch (error) {
 			if (this.validationEpoch !== epoch) {
@@ -508,9 +576,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		try {
 			const negotiated = await this.fetchServiceIndexNegotiated(
 				configuredServiceUrl,
-				'microsoft',
 				session.accessToken,
-				WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES,
+				async protectedResource => {
+					const resourceSession = await this.acquireResourceToken(
+						'microsoft',
+						protectedResource,
+						WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES,
+					);
+					return resourceSession?.accessToken;
+				},
 			);
 			manifest = negotiated.manifest;
 			// `negotiated.token` is only undefined when the initial token was undefined; on the
@@ -672,9 +746,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	 */
 	private async fetchServiceIndexNegotiated(
 		configuredServiceUrl: string,
-		providerId: string,
 		initialToken: string | undefined,
-		fallbackScopes: readonly string[],
+		acquireToken: (protectedResource: IMarketplaceProtectedResource) => Promise<string | undefined>,
 	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean }> {
 		try {
 			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, initialToken);
@@ -696,15 +769,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// re-throw the original 401 so the caller prompts for sign-in.
 				throw error;
 			}
-			const session = await this.acquireResourceToken(providerId, protectedResource, fallbackScopes);
-			if (!session) {
-				// No resource-scoped session could be obtained silently (e.g. consent not yet
-				// granted) — re-throw the original 401 so the caller prompts for sign-in rather
-				// than mislabeling it.
+			const token = await acquireToken(protectedResource);
+			if (!token) {
+				// No resource-scoped token could be obtained silently (e.g. consent not yet
+				// granted, or a token exchange that could not complete) — re-throw the original
+				// 401 so the caller prompts for sign-in rather than mislabeling it.
 				throw error;
 			}
-			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, session.accessToken);
-			return { manifest, token: session.accessToken, negotiated: true };
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
+			return { manifest, token, negotiated: true };
 		}
 	}
 
@@ -732,6 +805,48 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			this.logService.error('[Marketplace] Error acquiring resource-scoped marketplace token', error);
 			return undefined;
 		}
+	}
+
+	/**
+	 * Resolves the raw GitHub session access token backing the current default account, used as the
+	 * `subject_token` for the marketplace token exchange. `getSessions` reads existing sessions
+	 * silently (never prompts). Returns `undefined` when the session can't be found or the lookup
+	 * fails, in which case the gated-index negotiation falls back to a sign-in prompt.
+	 */
+	private async resolveGitHubSubjectToken(account: IDefaultAccount): Promise<string | undefined> {
+		try {
+			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
+			return sessions.find(session => session.id === account.sessionId)?.accessToken;
+		} catch (error) {
+			this.logService.error('[Marketplace] Error resolving the GitHub session token for the marketplace token exchange', error);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Acquires a resource-scoped marketplace token for the GitHub scheme by exchanging the user's
+	 * existing GitHub session token at the marketplace's advertised authorization server (RFC 8693).
+	 * VS Code's GitHub provider has no resource-token support, so — unlike the Microsoft/MSAL path
+	 * ({@link acquireResourceToken}) — the token is minted by the marketplace's embedded
+	 * authorization server. The raw GitHub token is only ever sent to a target that passes the
+	 * same-origin HTTPS `isSafeTokenTarget` guard (relative to the admin-configured service index).
+	 * Returns `undefined` when no GitHub token is available or the exchange fails.
+	 */
+	private async acquireGitHubResourceToken(
+		configuredServiceUrl: string,
+		protectedResource: IMarketplaceProtectedResource,
+		subjectToken: string | undefined,
+	): Promise<string | undefined> {
+		if (!subjectToken) {
+			return undefined;
+		}
+		return exchangeMarketplaceResourceToken(
+			this.requestService,
+			protectedResource,
+			subjectToken,
+			targetUrl => WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(targetUrl, configuredServiceUrl),
+			CancellationToken.None,
+		);
 	}
 
 	/**
