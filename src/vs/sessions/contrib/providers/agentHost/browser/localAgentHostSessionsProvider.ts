@@ -18,7 +18,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -28,7 +27,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
-import { IAgentHostEnablementService } from '../../../../services/agentHost/common/agentHostEnablementService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -37,6 +36,13 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
+
+/**
+ * Storage key for the local agent host's cached session summaries. There is a
+ * single machine-wide local agent host, so a fixed key (no per-authority
+ * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
+ */
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions';
 
 /**
  * Local-window sessions provider backed by the in-process
@@ -95,15 +101,20 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IProgressService progressService: IProgressService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, progressService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
 		this.browseActions = [];
+
+		// Hydrate previously-persisted session summaries so the sidebar shows
+		// local sessions immediately at startup, before the agent host has
+		// started and the first `listSessions()` round-trip (gated on
+		// authentication settling below) reconciles them.
+		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY);
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 

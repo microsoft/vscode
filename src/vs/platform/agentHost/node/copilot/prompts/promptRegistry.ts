@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { agentHostCustomizationConfigSchema } from '../../../common/agentHostCustomizationConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides } from './systemMessage.js';
 import { resolveToolInstructionsOverride } from './toolInstructions.js';
 
-type CustomizationConfigDefinition = typeof agentHostCustomizationConfigSchema.definition;
+type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
 /**
  * Read-time context handed to prompt contributors so they can gate behavior on
  * host configuration — the agent-host equivalent of the Copilot extension
  * injecting `IConfigurationService` into a resolver.
  *
- * Scoped to the host customization schema so contributors (and tests) read
+ * Scoped to the Copilot CLI config schema so contributors (and tests) read
  * settings in a fully-typed way without depending on the whole configuration
  * service.
  */
 export interface IAgentHostPromptContext {
 	/**
-	 * Returns the host-level value for a customization setting, or `undefined`
+	 * Returns the host-level value for a Copilot CLI setting, or `undefined`
 	 * when unset. Mirrors `IAgentConfigurationService.getRootValue` bound to
-	 * {@link agentHostCustomizationConfigSchema}.
+	 * {@link copilotCliConfigSchema}.
 	 */
-	getSetting<K extends keyof CustomizationConfigDefinition & string>(key: K): SchemaValue<CustomizationConfigDefinition[K]> | undefined;
+	getSetting<K extends keyof CopilotCliConfigDefinition & string>(key: K): SchemaValue<CopilotCliConfigDefinition[K]> | undefined;
 
 	/**
 	 * Returns whether a *client* tool is available in the session, addressed by
@@ -148,7 +148,8 @@ export class AgentHostPromptRegistry {
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
-		return this._withWorkspacelessScratch(config, context);
+		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
+		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**

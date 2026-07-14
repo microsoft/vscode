@@ -63,6 +63,15 @@ export interface ChatState {
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
 	turns: Turn[];
+	/**
+	 * Cursor for loading older completed turns into this chat state.
+	 *
+	 * Presence means `turns` is a tail window and more historical turns are
+	 * available. Pass this opaque cursor to `fetchTurns`; the host MUST insert
+	 * the loaded turns into state and update or clear this cursor before
+	 * responding. Absence means the state contains all retained turns.
+	 */
+	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
 	/** Message to inject into the current turn at a convenient point */
@@ -757,6 +766,7 @@ export const enum ResponsePartKind {
 	ToolCall = 'toolCall',
 	Reasoning = 'reasoning',
 	SystemNotification = 'systemNotification',
+	InputRequest = 'inputRequest',
 }
 
 /**
@@ -819,7 +829,37 @@ export type ResponsePart =
 	| ResourceReponsePart
 	| ToolCallResponsePart
 	| ReasoningResponsePart
-	| SystemNotificationResponsePart;
+	| SystemNotificationResponsePart
+	| InputRequestResponsePart;
+
+/**
+ * A resolved input request (elicitation) recorded in the turn transcript.
+ *
+ * While an input request is open it lives in {@link ChatState.inputRequests}
+ * as live, interactive state (see {@link ChatInputRequest}). When the request
+ * completes via `chat/inputCompleted`, the reducer removes it from
+ * `inputRequests` and appends this part to the active turn so the decision
+ * survives in history. This mirrors how a tool-call confirmation persists in
+ * its {@link ToolCallResponsePart} (via `confirmed` / `selectedOption` on the
+ * terminal {@link ToolCallState}): the live surface drives in-flight UX, the
+ * terminal outcome is durable and backfillable via `fetchTurns`.
+ *
+ * No part is recorded when an outstanding request is *abandoned* (the turn
+ * completes, is cancelled, errors, or is truncated) rather than *completed*.
+ *
+ * @category Response Parts
+ */
+export interface InputRequestResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.InputRequest;
+	/**
+	 * The resolved request, carrying its `id`, `message`, `url`, `questions`,
+	 * and the final `answers` synced/submitted at completion.
+	 */
+	request: ChatInputRequest;
+	/** How the request was resolved: `accept`, `decline`, or `cancel`. */
+	response: ChatInputResponseKind;
+}
 
 /**
  * A system notification surfaced as part of the response stream.
@@ -836,6 +876,16 @@ export interface SystemNotificationResponsePart {
 	kind: ResponsePartKind.SystemNotification;
 	/** The text of the system notification */
 	content: StringOrMarkdown;
+	/**
+	 * Additional provider-specific metadata for this notification.
+	 *
+	 * A host MAY attach a machine-readable descriptor of what triggered the
+	 * notification so clients can categorize, icon, group, filter, or localize
+	 * it without parsing `content`. Clients MAY look for well-known keys here to
+	 * provide enhanced UI, and MUST render coherently from `content` alone when
+	 * `_meta` is absent or unrecognized.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 
@@ -1156,7 +1206,7 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
-	ShellExit = 'shell_exit',
+	TerminalComplete = 'terminalComplete',
 	Subagent = 'subagent',
 }
 
@@ -1225,22 +1275,34 @@ export interface ToolResultTerminalContent {
 }
 
 /**
- * Shell command exit metadata emitted by the Copilot SDK shell tool.
+ * Record of a command executed by a terminal-style tool (e.g. a shell tool),
+ * appended to the tool result when the command exits.
+ *
+ * This records the command's exit, not the terminal's — the terminal may
+ * keep running afterwards.
+ *
+ * When live output was exposed through a terminal channel (a
+ * {@link ToolResultTerminalContent} block in the same tool result),
+ * {@link resource} identifies that channel; otherwise this block stands alone
+ * as the retained command result.
  *
  * @category Tool Result Content
  */
-export interface ToolResultShellExitContent {
-	type: ToolResultContentType.ShellExit;
-	/** Shell id, as assigned by Copilot runtime */
-	shellId: string;
-	/** Exit code from the completed shell command */
-	exitCode: number;
-	/** Working directory where the shell command was executed */
-	cwd?: string;
-	/** Output preview associated with the shell command, if available */
-	outputPreview?: string;
-	/** Whether outputPreview is known to be incomplete or truncated */
-	outputTruncated?: boolean;
+export interface ToolResultTerminalCompleteContent {
+	type: ToolResultContentType.TerminalComplete;
+	/**
+	 * URI of the `ahp-terminal:` channel that carried live output for this
+	 * command, if one was exposed.
+	 */
+	resource?: URI;
+	/** Exit code from the completed command, if reported by the runtime */
+	exitCode?: number;
+	/** Working directory where the command was executed */
+	cwd?: URI;
+	/** Preview of the command's output, if available */
+	preview?: string;
+	/** Whether `preview` is known to be incomplete or truncated */
+	truncated?: boolean;
 }
 
 /**
@@ -1272,7 +1334,7 @@ export interface ToolResultSubagentContent {
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
  * `ToolResultTerminalContent` for live terminal output,
- * `ToolResultShellExitContent` for shell command exit metadata, and
+ * `ToolResultTerminalCompleteContent` for terminal-style completion metadata, and
  * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
@@ -1283,5 +1345,5 @@ export type ToolResultContent =
 	| ToolResultResourceContent
 	| ToolResultFileEditContent
 	| ToolResultTerminalContent
-	| ToolResultShellExitContent
+	| ToolResultTerminalCompleteContent
 	| ToolResultSubagentContent;

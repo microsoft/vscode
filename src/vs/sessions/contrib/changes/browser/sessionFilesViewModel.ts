@@ -12,7 +12,7 @@ import { ISessionFile } from '../../../services/sessions/common/session.js';
 const EMPTY_SESSION_FILES: readonly ISessionFile[] = Object.freeze([]);
 
 /**
- * View model backing the "Session Files" section in the changes view. Exposes
+ * View model backing the "Other Files" section in the changes view. Exposes
  * the files created/edited/deleted outside the workspace by the active session.
  */
 export class SessionFilesViewModel extends Disposable {

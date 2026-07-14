@@ -87,6 +87,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check Codex protocol client is in sync
+        run: |
+          git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
+          node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
+        env:
+          CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha }}
+
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
 

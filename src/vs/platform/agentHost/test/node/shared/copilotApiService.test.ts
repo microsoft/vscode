@@ -8,6 +8,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
@@ -84,8 +85,8 @@ function modelsResponse(models: object[]): Response {
 	});
 }
 
-function createService(fetchImpl: FetchFunction): CopilotApiService {
-	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService);
+function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
+	return new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri));
 }
 
 type CapturedRequest = { url: string; init: RequestInit | undefined };
@@ -246,6 +247,30 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(captured().url, 'https://custom.copilot.example.com/v1/messages');
 		});
 
+		test('reuses endpoint discovery when resolving the GitHub login', async () => {
+			let discoveryCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal/user')) {
+					discoveryCount++;
+					return new Response(JSON.stringify({
+						login: 'octocat',
+						endpoints: { api: 'https://custom.copilot.example.com' },
+					}), { status: 200 });
+				}
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const apiEndpoint = await service.resolveApiEndpoint('gh-tok');
+			const login = await service.resolveUserLogin('gh-tok');
+
+			assert.deepStrictEqual({ apiEndpoint, login, discoveryCount }, {
+				apiEndpoint: 'https://custom.copilot.example.com',
+				login: 'octocat',
+				discoveryCount: 1,
+			});
+		});
+
 		test('falls back to default API base when endpoints.api is missing', async () => {
 			const { fetch: fetchFn, captured } = routingFetch(
 				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
@@ -270,6 +295,21 @@ suite('CopilotApiService', () => {
 
 			await service.messages('my-secret-gh-token', baseRequest);
 			assert.strictEqual(capturedAuthHeader, 'Bearer my-secret-gh-token');
+		});
+
+		test('routes endpoint discovery to the GitHub Enterprise host when configured', async () => {
+			let discoveryUrl: string | undefined;
+			const service = createService(async (input) => {
+				const url = getUrl(input);
+				if (url.includes('/copilot_internal')) {
+					discoveryUrl = url;
+					return tokenResponse();
+				}
+				return anthropicResponse([{ type: 'text', text: 'ok' }]);
+			}, 'https://acme.ghe.com');
+
+			await service.messages('gh-tok', baseRequest);
+			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
 		});
 
 		test('throws on 403 from endpoint discovery', async () => {

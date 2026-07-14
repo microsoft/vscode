@@ -9,6 +9,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -16,6 +18,9 @@ import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/b
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { ActiveSessionState, IChangesViewService } from '../common/changesViewService.js';
+
+export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
+export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
 
@@ -54,6 +59,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	constructor(
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -174,6 +180,22 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			this.activeSessionResourceObs.read(reader);
 			this.setChangesetId(undefined);
 		}));
+
+		// Global context keys
+		this._bindContextKeys();
+	}
+
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
+		if (resources.length === 0) {
+			return;
+		}
+
+		const changeset = this.activeSessionChangesetObs.get();
+		if (!changeset || !changeset.setReviewState) {
+			return;
+		}
+
+		changeset.setReviewState(resources, reviewed);
 	}
 
 	private _getActiveSessionState(): IObservable<ActiveSessionState | undefined> {
@@ -281,5 +303,21 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			}
 			return result;
 		});
+	}
+
+	private _bindContextKeys(): void {
+		this._register(bindContextKey<boolean>(ChangesetReviewSupportContext, this.contextKeyService, reader => {
+			const changeset = this.activeSessionChangesetObs.read(reader);
+			return changeset?.capabilities?.review === true;
+		}));
+
+		this._register(bindContextKey<string[]>(ChangesetReviewedFilesContext, this.contextKeyService, reader => {
+			const changes = this.activeSessionChangesObs.read(reader);
+
+			return changes
+				.filter(change => change.reviewed)
+				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
+				.filter((uri: string | undefined) => uri !== undefined);
+		}));
 	}
 }

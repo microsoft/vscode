@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {
@@ -51,5 +52,72 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto', { discountPercent: 0 })]);
 		auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
+	});
+
+	test('derives the picker group from the model-id prefix, not the harness provider', async () => {
+		const provider = createProvider();
+		// The agent host reports every model under the harness provider (`copilotcli`);
+		// the upstream provider lives in the id prefix. Native models have no prefix.
+		provider.updateModels([
+			{ id: 'claude-haiku-4.5', provider: 'copilotcli', name: 'Claude Haiku 4.5' },
+			{ id: 'openai/gpt-5-nano', provider: 'copilotcli', name: 'GPT-5 nano' },
+			{ id: 'huggingface/allenai/Olmo-3-7B-Instruct:cheapest', provider: 'copilotcli', name: 'Olmo 3' },
+			{ id: 'acme/model', provider: 'copilotcli', name: 'Acme' },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const groups = Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata.modelGroup]));
+
+		// The group carries only the vendor id — native (no prefix) → harness `provider`,
+		// BYOK-routed → id prefix. The picker resolves the display name from the vendor registry.
+		assert.deepStrictEqual(groups, {
+			'claude-haiku-4.5': { id: 'copilotcli' },
+			'openai/gpt-5-nano': { id: 'openai' },
+			'huggingface/allenai/Olmo-3-7B-Instruct:cheapest': { id: 'huggingface' },
+			'acme/model': { id: 'acme' },
+		});
+	});
+
+	test('omits the model group when the provider is empty', async () => {
+		const provider = createProvider();
+		provider.updateModels([{ id: 'x', provider: '', name: 'X' }]);
+
+		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		assert.strictEqual(info.metadata.modelGroup, undefined);
+	});
+
+	test('carries the BYOK model identifier from _meta so the Manage Models toggle can be honoured', async () => {
+		const provider = createProvider();
+		// A grouped BYOK copy: the node agent host carried the original LM service identifier
+		// (`<vendor>/<group>/<id>`) via _meta; the provider surfaces it verbatim.
+		provider.updateModels([
+			makeModel('openrouter/aion-labs/aion-3.0', { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }),
+			// A groupless BYOK copy and a native model (no _meta) for contrast.
+			makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' }),
+			makeModel('claude-haiku-4.5'),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const byName = Object.fromEntries(infos.map(m => [m.metadata.id, m.metadata]));
+
+		// The carried identifier is surfaced on the metadata and returned by the accessor.
+		assert.deepStrictEqual({
+			grouped: {
+				byokModelIdentifier: byName['openrouter/aion-labs/aion-3.0'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['openrouter/aion-labs/aion-3.0']),
+			},
+			groupless: {
+				byokModelIdentifier: byName['anthropic/claude-sonnet-4'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['anthropic/claude-sonnet-4']),
+			},
+			native: {
+				byokModelIdentifier: byName['claude-haiku-4.5'].byokModelIdentifier,
+				manageModelsId: ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(byName['claude-haiku-4.5']),
+			},
+		}, {
+			grouped: { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0', manageModelsId: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' },
+			groupless: { byokModelIdentifier: 'anthropic/claude-sonnet-4', manageModelsId: 'anthropic/claude-sonnet-4' },
+			native: { byokModelIdentifier: undefined, manageModelsId: undefined },
+		});
 	});
 });

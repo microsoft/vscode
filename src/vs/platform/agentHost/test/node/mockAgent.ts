@@ -61,6 +61,7 @@ export class MockAgent implements IAgent {
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
@@ -70,6 +71,7 @@ export class MockAgent implements IAgent {
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
+	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
 	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
@@ -119,6 +121,12 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
+	/**
+	 * When set, {@link sendMessage} rejects with this error after recording the
+	 * call — used to simulate a failed first-turn materialization (e.g. worktree
+	 * or branch setup throwing).
+	 */
+	sendMessageError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
@@ -141,6 +149,9 @@ export class MockAgent implements IAgent {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
+		if (this.sendMessageError) {
+			throw this.sendMessageError;
+		}
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
@@ -160,8 +171,18 @@ export class MockAgent implements IAgent {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
+	async releaseSession(session: URI): Promise<void> {
+		// Non-destructive: record the call but keep the session in the catalog
+		// so a later restore/resume still finds its durable data.
+		this.releaseSessionCalls.push(session);
+	}
+
 	async abortSession(session: URI): Promise<void> {
 		this.abortSessionCalls.push(session);
+	}
+
+	async truncateSession(session: URI, turnId?: string, chat?: URI): Promise<void> {
+		this.truncateSessionCalls.push({ session, turnId, chat });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
@@ -216,7 +237,7 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
@@ -903,7 +924,7 @@ export class ScriptedMockAgent implements IAgent {
 		disposeChat: (_chat: URI): Promise<void> => {
 			return Promise.resolve();
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},

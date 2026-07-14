@@ -76,6 +76,7 @@ const responsePartSchema = Adapt.v<Exclude<IChatProgressResponseContent, IChatMc
 				case 'markdownVuln':
 				case 'notebookEditGroup':
 				case 'progressMessage':
+				case 'systemNotification':
 				case 'pullRequest':
 				case 'questionCarousel':
 				case 'planReview':

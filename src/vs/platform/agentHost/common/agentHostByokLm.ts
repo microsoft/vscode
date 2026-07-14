@@ -87,6 +87,13 @@ export interface IByokLmModelInfo {
 	readonly id: string;
 	/** Display name, when the provider supplies one. */
 	readonly name?: string;
+	/**
+	 * The identifier the model is registered under in the renderer's LM service —
+	 * i.e. `toModelIdentifier(vendor, group, id)` in `extHostLanguageModels`
+	 * (`<vendor>/<group>/<id>` when the user configured a provider group in
+	 * `chatLanguageModels.json`, else `<vendor>/<id>`).
+	 */
+	readonly modelIdentifier?: string;
 	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
 	/** Whether the model accepts image inputs, when known. */

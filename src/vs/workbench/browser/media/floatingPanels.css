@@ -37,6 +37,10 @@
 	color: var(--vscode-agentsPanel-foreground);
 }
 
+.monaco-workbench.floating-panels .part.editor > .content {
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
 /* Keep the auxiliary bar background aligned with the primary sidebar in light theme. */
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	background-color: var(--vscode-sideBar-background) !important;
@@ -68,6 +72,12 @@
 .monaco-workbench.floating-panels .part.panel.top,
 .monaco-workbench.floating-panels .part.panel.left,
 .monaco-workbench.floating-panels .part.panel.right {
+	margin-top: 0;
+}
+
+/* When the bottom panel is maximized (editor hidden) it spans the full content height
+ * and is flush with the title bar — remove the inter-card top margin. */
+.monaco-workbench.floating-panels.nomaineditorarea .part.panel.bottom {
 	margin-top: 0;
 }
 
@@ -156,8 +166,12 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels .activitybar > .content > .composite-bar {
-	margin-top: var(--vscode-spacing-size20);
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
+	padding-left: 4px;
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
+	padding-left: 4px;
 }
 
 /*
@@ -204,4 +218,18 @@
 
 .monaco-workbench.floating-panels.nostatusbar .part.activitybar {
 	margin-bottom: calc(var(--vscode-spacing-size40) * 2);
+}
+
+/*
+ * When the bottom panel is hidden, the grid keeps a collapsed (zero-height) panel
+ * node whose reveal sash sits at the very bottom of the content region. Sashes are
+ * centered on their boundary, so the sash's lower half overflows the content region
+ * and is clipped where the region meets the status bar — leaving only the top half
+ * of the highlight visible. The reveal sash carries the `.maximum` state class; nudge
+ * its highlight up by half the sash size so the full line renders inside the content
+ * region. Scoped to `.nopanel` so a panel resized to its minimum (still visible, its
+ * sash fully on-screen) keeps its highlight centered on the real boundary.
+ */
+.monaco-workbench.floating-panels.nopanel .monaco-sash.horizontal.maximum:not(.part .monaco-sash)::before {
+	top: calc(50% - (var(--vscode-sash-hover-size) / 2) - (var(--vscode-sash-size) / 2));
 }

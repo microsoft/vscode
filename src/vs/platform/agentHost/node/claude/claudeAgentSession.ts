@@ -34,7 +34,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
@@ -60,6 +60,14 @@ export interface IMaterializeContext {
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly isResume: boolean;
 	/**
+	 * Working directory the host resolved for this session's first send (e.g. an
+	 * isolated worktree). When present it becomes the session's
+	 * {@link ClaudeAgentSession.workingDirectory}, overriding the
+	 * {@link ClaudeAgentSession.workspace} the session was based on. Omitted when
+	 * the session works directly in its `workspace` (folder / workspace-less).
+	 */
+	readonly workingDirectory?: URI;
+	/**
 	 * Agent host's server-tool host. When present, the session exposes the
 	 * agent host's server tools (feedback "comments" today, more in the future)
 	 * as an in-process MCP server and advertises them as server tools. Omitted
@@ -78,7 +86,8 @@ function resolveCurrentPermissionMode(
 
 /**
  * Per-session coordinator. Owns:
- *   • Per-session identity (sessionId / sessionUri / workingDirectory).
+ *   • Per-session identity (sessionId / sessionUri / workspace /
+ *     workingDirectory).
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
  *     mapped per-message signals plus `ChatTurnComplete` and
@@ -122,6 +131,17 @@ export class ClaudeAgentSession extends Disposable {
 	/** Always-present abort controller; wired into `Options.abortController` at materialize time. */
 	readonly abortController: AbortController;
 
+	/**
+	 * The actual directory work is done in. Defaults to {@link workspace} until
+	 * the host hands the session a resolved working directory (e.g. an isolated
+	 * worktree) at {@link materialize} time. `undefined` only when the session is
+	 * workspace-less and has no resolved directory yet.
+	 */
+	get workingDirectory(): URI | undefined {
+		return this._workingDirectory ?? this.workspace;
+	}
+	private _workingDirectory: URI | undefined;
+
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
 	/** Snapshot of permission-mode fallback used when live read is undefined. */
@@ -131,7 +151,7 @@ export class ClaudeAgentSession extends Disposable {
 		sessionId: string,
 		sessionUri: URI,
 		chatChannelUri: URI,
-		workingDirectory: URI | undefined,
+		workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
 		agent: AgentSelection | undefined,
@@ -146,7 +166,7 @@ export class ClaudeAgentSession extends Disposable {
 			sessionId,
 			sessionUri,
 			chatChannelUri,
-			workingDirectory,
+			workspace,
 			project,
 			model,
 			agent,
@@ -295,7 +315,7 @@ export class ClaudeAgentSession extends Disposable {
 		readonly sessionId: string,
 		readonly sessionUri: URI,
 		readonly chatChannelUri: URI,
-		readonly workingDirectory: URI | undefined,
+		readonly workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
 		agent: AgentSelection | undefined,
@@ -399,6 +419,12 @@ export class ClaudeAgentSession extends Disposable {
 	async materialize(ctx: IMaterializeContext): Promise<void> {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
+		}
+		// Adopt the host-resolved working directory (e.g. an isolated worktree)
+		// before it's read below; falls back to the session's `workspace` when the
+		// host didn't resolve a dedicated directory.
+		if (ctx.workingDirectory) {
+			this._workingDirectory = ctx.workingDirectory;
 		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
@@ -593,6 +619,13 @@ export class ClaudeAgentSession extends Disposable {
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
 	get isPipelineReady(): boolean { return this._pipeline !== undefined; }
+
+	/**
+	 * Whether this chat currently has a turn in flight or queued. False when
+	 * provisional (no pipeline) or idle between turns. Used by non-destructive
+	 * idle release to avoid disconnecting mid-turn.
+	 */
+	get hasActiveTurn(): boolean { return this._pipeline?.hasActiveTurn ?? false; }
 
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
@@ -1014,6 +1047,37 @@ export class ClaudeAgentSession extends Disposable {
 		// {@link _enrichSignalWithMcpContributor}).
 		this._lastCustomizations = result;
 		return result;
+	}
+
+	async startMcpServer(id: string): Promise<void> {
+		const serverName = await this._resolveMcpServerName(id);
+		if (!serverName) {
+			this._logService.warn(`[Claude:${this.sessionId}] Cannot start unknown MCP server customization ${id}`);
+			return;
+		}
+		const handled = await this._requirePipeline().startMcpServer(serverName);
+		if (!handled) {
+			await this._rebindForSyncedState();
+		}
+		this._onDidCustomizationsChange.fire();
+	}
+
+	async stopMcpServer(id: string): Promise<void> {
+		const serverName = await this._resolveMcpServerName(id);
+		if (!serverName) {
+			this._logService.warn(`[Claude:${this.sessionId}] Cannot stop unknown MCP server customization ${id}`);
+			return;
+		}
+		const handled = await this._requirePipeline().stopMcpServer(serverName);
+		if (!handled) {
+			this._logService.warn(`[Claude:${this.sessionId}] MCP server stop is not supported by the current SDK`);
+			return;
+		}
+		this._onDidCustomizationsChange.fire();
+	}
+
+	private async _resolveMcpServerName(id: string): Promise<string | undefined> {
+		return findMcpServerName(this._lastCustomizations, id) ?? findMcpServerName(await this.getSessionCustomizations(), id);
 	}
 
 	// #endregion

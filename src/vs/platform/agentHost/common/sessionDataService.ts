@@ -77,6 +77,29 @@ export interface IReviewedFileRecord {
 // ---- Session database ---------------------------------------------------
 
 /**
+ * A host-injected ("local") turn: a completed protocol `Turn` the agent SDK
+ * never saw — e.g. the `/rename` acknowledgement or a `!command` terminal run.
+ * These are persisted separately from SDK turns so they survive reload, and are
+ * interleaved back into the SDK-derived turns on restore.
+ */
+export interface ILocalTurnRecord {
+	/** The local turn's id (matches the payload `Turn.id`). */
+	turnId: string;
+	/** The chat this local turn belongs to (its channel URI string). */
+	chatUri: string;
+	/**
+	 * Id of the preceding concrete (SDK-backed) turn this local turn is
+	 * anchored after, or `undefined` when it precedes any real turn.
+	 */
+	anchorTurnId: string | undefined;
+	/** Monotonic ordering among local turns (used to interleave on restore). */
+	seq: number;
+	/** JSON-serialized protocol `Turn`. */
+	payload: string;
+}
+
+
+/**
  * A disposable handle to a per-session SQLite database backed by
  * `@vscode/sqlite3`.
  *
@@ -163,6 +186,25 @@ export interface ISessionDatabase extends IDisposable {
 	 * Deletes all turns and their associated file edits.
 	 */
 	deleteAllTurns(): Promise<void>;
+
+	// ---- Local (host-injected) turns -------------------------------------
+
+	/**
+	 * Persist a host-injected local turn (e.g. `/rename` or `!command`).
+	 * Replaces any existing record with the same `turnId`.
+	 */
+	insertLocalTurn(record: ILocalTurnRecord): Promise<void>;
+
+	/**
+	 * Retrieve all persisted local turns in this session, in `seq` order.
+	 * Callers filter by {@link ILocalTurnRecord.chatUri} for a given chat.
+	 */
+	getLocalTurns(): Promise<ILocalTurnRecord[]>;
+
+	/**
+	 * Delete the local turns with the given ids. Ids not present are ignored.
+	 */
+	deleteLocalTurns(turnIds: readonly string[]): Promise<void>;
 
 	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation

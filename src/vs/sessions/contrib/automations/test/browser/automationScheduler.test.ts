@@ -13,7 +13,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../browser/automationLeaderElection.js';
-import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -48,13 +48,37 @@ class RecordingRunner implements IAutomationRunner {
 
 	readonly runs: RecordedRun[] = [];
 
-	async runOnce(
+	constructor(private readonly service: AutomationService) { }
+
+	runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
-		_leaderWindowId: number,
+		leaderWindowId: number,
 		_token?: CancellationToken,
-	): Promise<void> {
+	): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
+		const operation = (async () => {
+			const run = await this.service.recordRunStart(automation.id, trigger, leaderWindowId);
+			await this.service.updateRun(run.id, { status: 'completed' });
+		})();
+		return {
+			whenDispatched: operation,
+			whenCompleted: operation,
+		};
+	}
+}
+
+class SkippingRunner implements IAutomationRunner {
+	declare readonly _serviceBrand: undefined;
+
+	readonly runs: RecordedRun[] = [];
+
+	runOnce(automation: IAutomation, trigger: AutomationRunTrigger): IAutomationRunOperation {
+		this.runs.push({ automationId: automation.id, trigger });
+		return {
+			whenDispatched: Promise.resolve(),
+			whenCompleted: Promise.resolve(),
+		};
 	}
 }
 
@@ -74,7 +98,7 @@ suite('AutomationSchedulerCore', () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
-		const runner = new RecordingRunner();
+		const runner = new RecordingRunner(service);
 		// Start as non-leader so individual tests can seed automations
 		// before triggering the leader's catch-up pass.
 		const leader = new FakeLeaderElection(false);
@@ -115,7 +139,7 @@ suite('AutomationSchedulerCore', () => {
 		assert.strictEqual(runner.runs[0].trigger, 'catch_up');
 	});
 
-	test('subsequent scheduled ticks use trigger=schedule', async () => {
+	test('delayed scheduled ticks use trigger=schedule', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
 		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
@@ -124,7 +148,6 @@ suite('AutomationSchedulerCore', () => {
 		await core.waitForPendingRuns();
 		assert.strictEqual(runner.runs.length, 1, 'first run should be catch-up');
 
-		// Advance well past the freshly-computed next slot and tick again.
 		setNow(T_TOMORROW);
 		await core.tickForTesting();
 
@@ -164,6 +187,36 @@ suite('AutomationSchedulerCore', () => {
 		assert.ok(next > T_PAST_DUE.getTime(), 'nextRunAt should be after the tick that just fired');
 	});
 
+	test('does not report a run until the runner records its claim', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const log = new NullLogService();
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
+		service.setClockForTesting(() => T0);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const leader = new FakeLeaderElection(false);
+		const runner = new SkippingRunner();
+		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
+			leaderElection: leader,
+			disableAutoTick: true,
+			now: () => T_PAST_DUE,
+		}));
+
+		leader.set(true);
+		await core.waitForPendingRuns();
+
+		assert.deepStrictEqual({
+			dispatches: runner.runs.length,
+			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
+			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
+			runCount: service.runs.get().length,
+		}, {
+			dispatches: 1,
+			lastRunAt: undefined,
+			nextRunAt: automation.nextRunAt,
+			runCount: 0,
+		});
+	});
+
 	test('does nothing while not leader', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
@@ -190,7 +243,7 @@ suite('AutomationSchedulerCore', () => {
 
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
-		const runner = new RecordingRunner();
+		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
 		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
 			leaderElection: leader,
@@ -239,7 +292,7 @@ suite('AutomationSchedulerCore', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		const inFlight = await service.recordRunStart(a.id, 'schedule', 1);
 
-		const runner = new RecordingRunner();
+		const runner = new RecordingRunner(service);
 		const leader = new FakeLeaderElection(true);
 		let enabled = true;
 		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
@@ -280,23 +333,38 @@ suite('AutomationSchedulerCore', () => {
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), folderUri: FOLDER });
 
-		// A runner whose first invocation hangs until we release it,
-		// AND that creates a run row (mimicking the real runner) so
-		// the timeout path has something to mark as failed. Dispatch
-		// order is not guaranteed to match creation order, so the
-		// runner records which automation it hung on.
+		// The first run hangs until cancellation and tries to record `Cancelled`,
+		// matching the real runner's timeout behavior.
 		let hungAutomationId: string | undefined;
 		class HangingRunner implements IAutomationRunner {
 			declare readonly _serviceBrand: undefined;
 			readonly hung = new DeferredPromise<void>();
 			calls = 0;
 			cancelObserved = false;
-			async runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
+			runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
 				this.calls++;
+				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
+				return {
+					whenDispatched: Promise.resolve(),
+					whenCompleted,
+				};
+			}
+
+			private async _run(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
 				if (this.calls === 1) {
 					hungAutomationId = automation.id;
 					await service.recordRunStart(automation.id, trigger, leaderWindowId);
-					const listener = token?.onCancellationRequested(() => { this.cancelObserved = true; });
+					const listener = token?.onCancellationRequested(() => {
+						this.cancelObserved = true;
+						const active = service.getActiveRunFor(automation.id);
+						if (active) {
+							void service.updateRun(active.id, {
+								status: 'failed',
+								errorMessage: 'Cancelled',
+							});
+						}
+						this.hung.complete();
+					});
 					try {
 						await this.hung.p;
 					} finally {
@@ -337,9 +405,5 @@ suite('AutomationSchedulerCore', () => {
 		// by the timeout path.
 		const otherRun = service.runs.get().find(r => r.automationId === otherId);
 		assert.notStrictEqual(otherRun?.status, 'failed');
-
-		// Cleanup: release the hung promise so the runner can exit.
-		runner.hung.complete();
-		await core.waitForPendingRuns();
 	});
 });

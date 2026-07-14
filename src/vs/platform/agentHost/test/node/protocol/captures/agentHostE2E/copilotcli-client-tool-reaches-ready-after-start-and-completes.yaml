@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then tell me the exact magic word it returned.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_magic_word
+          input: {}
+      stopReason: tool_use
+      usage:
+        inputTokens: 3
+        outputTokens: 39
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then tell me the exact magic word it returned.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_magic_word
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: XYLOPHONE
+    response:
+      content: 'The magic word is: **XYLOPHONE**'
+      stopReason: end_turn
+      usage:
+        inputTokens: 1
+        outputTokens: 14

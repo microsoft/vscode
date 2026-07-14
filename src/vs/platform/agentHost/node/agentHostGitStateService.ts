@@ -13,7 +13,8 @@ import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
-import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
+import { IAgentService } from '../common/agentService.js';
+import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, timeout } from '../../../base/common/async.js';
@@ -33,6 +34,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentService private readonly _agentService: IAgentService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
@@ -65,9 +67,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		try {
+			const repoResource = this._gitHubEndpointService.getRepoResource();
 			const authToken = this._agentService.getAuthToken({
-				resource: GITHUB_REPO_PROTECTED_RESOURCE.resource,
-				scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported,
+				resource: repoResource.resource,
+				scopes: repoResource.scopes_supported,
 			});
 			if (!authToken) {
 				return;
@@ -91,8 +94,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		if (sessionState?.lifecycle === SessionLifecycle.Creating) {
+			return;
+		}
+
 		if (!workingDirectory) {
-			const workingDirectoryStr = this._stateManager.getSessionState(sessionKey)?.workingDirectory;
+			const workingDirectoryStr = sessionState?.workingDirectory;
 			if (workingDirectoryStr) {
 				workingDirectory = URI.parse(workingDirectoryStr);
 			}

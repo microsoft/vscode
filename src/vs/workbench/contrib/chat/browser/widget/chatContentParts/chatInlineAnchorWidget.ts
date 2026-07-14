@@ -26,7 +26,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IResourceStat } from '../../../../../../platform/dnd/browser/dnd.js';
-import { ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -84,7 +84,11 @@ type InlineAnchorWidgetMetadata = {
 	linkText?: string;
 };
 
-export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+interface IRenderFileWidgetsOptions {
+	readonly openResource?: (resource: URI, editorOptions: ITextEditorOptions) => Promise<boolean>;
+}
+
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore, options?: IRenderFileWidgetsOptions) {
 	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
@@ -125,7 +129,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 		}
 
 		if (shouldRenderWidget && uri?.scheme) {
-			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata);
+			const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri }, metadata, options);
 			disposables.add(chatMarkdownAnchorService.register(widget));
 			disposables.add(widget);
 		}
@@ -142,6 +146,7 @@ export class InlineAnchorWidget extends Disposable {
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		private readonly options: IRenderFileWidgetsOptions | undefined,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
@@ -307,6 +312,15 @@ export class InlineAnchorWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 
+			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
+			const editorOptions: ITextEditorOptions = {
+				override: editorOverride,
+				selection: location.range,
+			};
+			if (this.options?.openResource && await this.options.openResource(location.uri, editorOptions)) {
+				return;
+			}
+
 			// If the reference is an image file and the carousel is enabled, open the carousel
 			const mimeType = getMediaMime(location.uri.path);
 			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
@@ -314,13 +328,6 @@ export class InlineAnchorWidget extends Disposable {
 				return;
 			}
 
-			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
-			const editorOptions: { override: string | undefined; selection?: IRange } = {
-				override: editorOverride,
-			};
-			if (location.range) {
-				editorOptions.selection = location.range;
-			}
 			await this.openerService.open(location.uri, {
 				fromUserGesture: true,
 				editorOptions

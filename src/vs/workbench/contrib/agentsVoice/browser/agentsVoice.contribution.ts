@@ -28,6 +28,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 import { AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
@@ -41,8 +42,9 @@ import {
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // --- Context Keys ---
 
@@ -50,9 +52,6 @@ export const AGENTS_VOICE_WIDGET_FOCUSED = new RawContextKey<boolean>('agentsVoi
 const AGENTS_VOICE_CONNECTED = new RawContextKey<boolean>('agentsVoiceConnected', false);
 const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceConnecting', false);
 const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
-const AGENTS_VOICE_ACTIVE = new RawContextKey<boolean>('agentsVoiceActive', false);
-/** Set on the specific widget where voice was initiated — used to scope connecting/connected UI to that widget only. */
-const AGENTS_VOICE_INITIATED_HERE = new RawContextKey<boolean>('agentsVoiceInitiatedHere', false);
 
 // --- Context Key Binding ---
 
@@ -65,30 +64,16 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 	constructor(
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
-		const activeKey = AGENTS_VOICE_ACTIVE.bindTo(contextKeyService);
-		let wasConnected = false;
 		this._register(autorun(reader => {
-			const connected = voiceSessionController.isConnected.read(reader);
-			connectedKey.set(connected);
+			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
-			const state = voiceSessionController.voiceState.read(reader);
-			listeningKey.set(state === 'listening');
-			activeKey.set(state === 'listening' || state === 'speaking');
-
-			// Clear per-widget "initiated here" key when voice disconnects
-			if (wasConnected && !connected) {
-				for (const widget of chatWidgetService.getAllWidgets()) {
-					AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(false);
-				}
-			}
-			wasConnected = connected;
+			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
 		}));
 	}
 }
@@ -149,7 +134,6 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					AGENTS_VOICE_CONNECTING.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: -10
@@ -174,7 +158,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
-					AGENTS_VOICE_ACTIVE.negate(),
+					AGENTS_VOICE_LISTENING.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
 				),
 				group: 'navigation',
@@ -183,6 +167,9 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
+				},
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
@@ -193,12 +180,6 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		if (!voiceController.isConnected.get()) {
-			// Mark this widget as the one where voice was initiated
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (widget) {
-				AGENTS_VOICE_INITIATED_HERE.bindTo(widget.scopedContextKeyService).set(true);
-			}
 			await voiceController.connect(mainWindow);
 		} else {
 			voiceController.pttDown();
@@ -215,7 +196,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.voiceMode,
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
-				AGENTS_VOICE_ACTIVE.isEqualTo(true),
+				AGENTS_VOICE_LISTENING.isEqualTo(true),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -223,8 +204,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.currentlyEditing.negate(),
-					AGENTS_VOICE_ACTIVE.isEqualTo(true),
-					AGENTS_VOICE_INITIATED_HERE.isEqualTo(true),
+					AGENTS_VOICE_LISTENING.isEqualTo(true),
 				),
 				group: 'navigation',
 				order: -10
@@ -232,27 +212,23 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
+				},
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_ACTIVE.isEqualTo(true),
+					AGENTS_VOICE_LISTENING.isEqualTo(true),
 				),
 			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		// In auto-send mode, toggling voice mode off disconnects entirely.
-		// The auto-listen loop means there's no natural "idle" state to return to.
-		const configService = accessor.get(IConfigurationService);
-		const autoSendDelay = configService.getValue<number>('agents.voice.autoSendDelay') ?? 500;
-		if (autoSendDelay >= 0) {
-			voiceController.disconnect();
-		} else {
-			// Manual mode: just stop recording
-			voiceController.pttDown();
-			voiceController.pttUp();
-		}
+		// Stop recording and the auto-listen loop but keep the WebSocket
+		// connected so the user can resume without reconnecting. Use the
+		// separate "Disconnect Voice Mode" button to fully end the session.
+		voiceController.stopListening();
 	}
 });
 
@@ -269,11 +245,67 @@ registerAction2(class extends Action2 {
 				ContextKeyExpr.equals('config.agents.voice.enabled', true),
 				AGENTS_VOICE_CONNECTED.isEqualTo(true),
 			),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				),
+				group: 'navigation',
+				order: -9
+			},
+			keybinding: {
+				// Keep this below the editor widgets and negate their contexts so
+				// Escape still dismisses IntelliSense/hover and clears selections
+				// while the user is typing in the chat input.
+				weight: KeybindingWeight.EditorContrib - 5,
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+				),
+			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		voiceController.disconnect();
+	}
+});
+
+// --- Open Voice Mode Settings (gear button, shown left of Disconnect when connected) ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.openSettings',
+			title: nls.localize2('agentsVoice.openSettings', "Voice Mode Settings"),
+			icon: Codicon.settingsGear,
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			menu: {
+				id: MenuId.ChatExecute,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+					ChatContextKeys.currentlyEditing.negate(),
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				),
+				group: 'navigation',
+				// Just before the Disconnect button (order -9) and after the mic/stop button (order -10).
+				order: -9.5
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.action.openSettings', { query: 'agents.voice' });
 	}
 });
 
@@ -321,6 +353,9 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
+				},
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_WIDGET_FOCUSED,
 					ContextKeyExpr.not('inputFocus'),
@@ -357,7 +392,20 @@ registerAction2(class extends Action2 {
 		const storageService = accessor.get(IStorageService);
 
 		const devices = await navigator.mediaDevices.enumerateDevices();
-		const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId !== 'default');
+
+		// Filter out the virtual "default"/"communications" entries (which duplicate a real
+		// device) and de-duplicate by deviceId so a single microphone shows up only once.
+		const seenDeviceIds = new Set<string>();
+		const audioInputs = devices.filter(d => {
+			if (d.kind !== 'audioinput' || d.deviceId === 'default' || d.deviceId === 'communications') {
+				return false;
+			}
+			if (seenDeviceIds.has(d.deviceId)) {
+				return false;
+			}
+			seenDeviceIds.add(d.deviceId);
+			return true;
+		});
 
 		if (audioInputs.length === 0) {
 			quickInputService.pick([{ label: nls.localize('noMicrophones', "No microphones found") }]);
@@ -423,37 +471,85 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 		},
-		'agents.voice.textToSpeech': {
+		'agents.voice.speakResponses': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.textToSpeech', "When enabled, the assistant reads responses aloud. When disabled, responses appear as text transcripts only."),
+			markdownDescription: nls.localize('agents.voice.speakResponses', "When enabled, the assistant reads responses aloud. When disabled, responses are not spoken; enable `#agents.voice.showTranscript#` to read them as a text transcript instead."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			included: false,
+		},
+		'agents.voice.voice': {
+			type: 'string',
+			enum: ['victoria_neutral', 'kevin_neutral', 'maya_neutral', 'daniel_neutral'],
+			enumItemLabels: ['Victoria', 'Kevin', 'Maya', 'Daniel'],
+			enumDescriptions: [
+				nls.localize('agents.voice.voice.victoria', "Victoria."),
+				nls.localize('agents.voice.voice.kevin', "Kevin."),
+				nls.localize('agents.voice.voice.maya', "Maya."),
+				nls.localize('agents.voice.voice.daniel', "Daniel."),
+			],
+			description: nls.localize('agents.voice.voice', "The voice used when the assistant reads responses aloud. Changing this while voice mode is connected takes effect immediately."),
+			default: 'maya_neutral',
+			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.showTranscript': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active."),
+			markdownDescription: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active. Enable this to read responses as text when `#agents.voice.speakResponses#` is disabled."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			included: false,
-			tags: ['advanced'],
 		},
-		'agents.voice.autoSendDelay': {
+		'agents.voice.handsFree': {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+		},
+		'agents.voice.turn.silenceMs': {
 			type: 'number',
-			description: nls.localize('agents.voice.autoSendDelay', "In toggle voice mode (short tap), automatically finish recording after this many milliseconds of silence. Set to -1 to disable."),
-			default: 500,
-			minimum: -1,
+			markdownDescription: nls.localize('agents.voice.turn.silenceMs', "Trailing silence in milliseconds before the backend ends the turn automatically. Set to `-1` to disable ending the turn on silence, in which case the turn ends only via a stop phrase ({0}) or manually. When enabled, the backend clamps this to its supported range (currently 200-5000 ms) and is the source of truth.", '`#agents.voice.turn.stopPhrases#`'),
+			default: 800,
+			anyOf: [
+				{
+					const: -1,
+					description: nls.localize('agents.voice.turn.silenceMs.disabled', "Do not end the turn on trailing silence."),
+				},
+				{
+					type: 'number',
+					minimum: 200,
+					maximum: 5000,
+				},
+			],
 			scope: ConfigurationScope.APPLICATION,
-			included: false,
-			tags: ['advanced'],
 		},
-		'agents.voice.sendKeyword': {
-			type: 'string',
-			description: nls.localize('agents.voice.sendKeyword', "A keyword phrase (e.g. \"send it\") that, when spoken at the end of an utterance in toggle mode, triggers sending the request immediately. The keyword is stripped from the sent message. Leave empty to disable."),
-			default: '',
+		'agents.voice.turn.stopPhrases': {
+			type: 'array',
+			items: { type: 'string' },
+			markdownDescription: nls.localize('agents.voice.turn.stopPhrases', "Phrases that end the turn when spoken at the end of an utterance. Leave empty to disable ending the turn on a stop phrase, in which case the turn ends only on trailing silence ({0}) or manually. The backend strips the matched phrase from the transcript before it reaches the agent.", '`#agents.voice.turn.silenceMs#`'),
+			default: ['send it'],
 			scope: ConfigurationScope.APPLICATION,
-			included: false,
-			tags: ['advanced'],
 		},
 	}
 });
+
+// Migrate the removed `agents.voice.turn.autoEndMode` setting onto the two
+// settings that now govern turn-ending, preserving the previous behavior:
+// silence ending is disabled (`silenceMs: -1`) unless the old mode was `vad`
+// or `both`, and stop-phrase ending is disabled (`stopPhrases: []`) unless the
+// old mode was `phrase` or `both`.
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'agents.voice.turn.autoEndMode',
+		migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [['agents.voice.turn.autoEndMode', { value: undefined }]];
+			if (value === 'off' || value === 'vad' || value === 'phrase' || value === 'both') {
+				const silenceEnabled = value === 'vad' || value === 'both';
+				const phraseEnabled = value === 'phrase' || value === 'both';
+				if (!silenceEnabled) {
+					result.push(['agents.voice.turn.silenceMs', { value: -1 }]);
+				}
+				if (!phraseEnabled) {
+					result.push(['agents.voice.turn.stopPhrases', { value: [] }]);
+				}
+			}
+			return result;
+		}
+	}]);

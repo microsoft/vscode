@@ -6,8 +6,9 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, shouldHideChatUserIdentity, shouldScheduleInitialHeightChange } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
@@ -29,6 +30,56 @@ suite('ChatListRenderer', () => {
 				true,
 				true,
 			]);
+		});
+	});
+
+	suite('shouldRenderInitialProgressiveContentImmediately', () => {
+		test('renders accumulated markdown immediately only when progressive rendering has not started', () => {
+			assert.deepStrictEqual([
+				shouldRenderInitialProgressiveContentImmediately(false, true, false),
+				shouldRenderInitialProgressiveContentImmediately(false, true, true),
+				shouldRenderInitialProgressiveContentImmediately(true, true, false),
+				shouldRenderInitialProgressiveContentImmediately(false, false, false),
+			], [
+				true,
+				false,
+				false,
+				false,
+			]);
+		});
+	});
+
+	suite('shouldStartNewCollapsedThinkingGroup', () => {
+		test('separates reasoning and grouped items only in collapsed mode', () => {
+			assert.deepStrictEqual({
+				reasoningToItems: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.Collapsed, 'reasoning', 'items'),
+				itemsToReasoning: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.Collapsed, 'items', 'reasoning'),
+				reasoningToReasoning: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.Collapsed, 'reasoning', 'reasoning'),
+				itemsToItems: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.Collapsed, 'items', 'items'),
+				fixedScrolling: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.FixedScrolling, 'reasoning', 'items'),
+				collapsedPreview: shouldStartNewCollapsedThinkingGroup(ThinkingDisplayMode.CollapsedPreview, 'reasoning', 'items'),
+			}, {
+				reasoningToItems: true,
+				itemsToReasoning: true,
+				reasoningToReasoning: false,
+				itemsToItems: false,
+				fixedScrolling: false,
+				collapsedPreview: false,
+			});
+		});
+	});
+
+	suite('shouldCreateGroupedThinkingPart', () => {
+		test('honors withThinking unless a reasoning group was just separated', () => {
+			assert.deepStrictEqual({
+				withThinkingWithoutReasoning: shouldCreateGroupedThinkingPart(CollapsedToolsDisplayMode.WithThinking, false),
+				withThinkingAfterReasoning: shouldCreateGroupedThinkingPart(CollapsedToolsDisplayMode.WithThinking, true),
+				alwaysWithoutReasoning: shouldCreateGroupedThinkingPart(CollapsedToolsDisplayMode.Always, false),
+			}, {
+				withThinkingWithoutReasoning: false,
+				withThinkingAfterReasoning: true,
+				alwaysWithoutReasoning: true,
+			});
 		});
 	});
 

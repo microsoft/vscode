@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import type { Message } from '../common/state/sessionState.js';
@@ -100,6 +100,16 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			uri   TEXT NOT NULL,
 			nonce TEXT NOT NULL,
 			PRIMARY KEY (uri, nonce)
+		)`,
+	},
+	{
+		version: 8,
+		sql: `CREATE TABLE IF NOT EXISTS local_turns (
+			turn_id        TEXT PRIMARY KEY NOT NULL,
+			chat_uri       TEXT NOT NULL,
+			anchor_turn_id TEXT,
+			seq            INTEGER NOT NULL,
+			payload        TEXT NOT NULL
 		)`,
 	},
 ];
@@ -418,6 +428,41 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	// ---- Local (host-injected) turns ------------------------------------
+
+	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db,
+				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+			);
+		});
+	}
+
+	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		return rows.map(r => ({
+			turnId: r.turn_id as string,
+			chatUri: r.chat_uri as string,
+			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
+			seq: r.seq as number,
+			payload: r.payload as string,
+		}));
+	}
+
+	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+		return this._track(async () => {
+			if (turnIds.length === 0) {
+				return;
+			}
+			const db = await this._ensureDb();
+			const placeholders = turnIds.map(() => '?').join(',');
+			await dbRun(db, `DELETE FROM local_turns WHERE turn_id IN (${placeholders})`, [...turnIds]);
+		});
+	}
+
 	// ---- File edits -----------------------------------------------------
 
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
@@ -649,6 +694,18 @@ export class SessionDatabase implements ISessionDatabase {
 				for (const [oldId, newId] of mapping) {
 					await dbRun(db, 'UPDATE turns SET id = ? WHERE id = ?', [newId, oldId]);
 					await dbRun(db, 'UPDATE file_edits SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+				}
+
+				if (oldIds.length > 0) {
+					const placeholders = oldIds.map(() => '?').join(',');
+					await dbRun(db,
+						`DELETE FROM local_turns WHERE turn_id NOT IN (${placeholders})`,
+						oldIds,
+					);
+				}
+				for (const [oldId, newId] of mapping) {
+					await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+					await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
 				}
 				await dbExec(db, 'COMMIT');
 			} catch (err) {

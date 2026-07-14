@@ -7,18 +7,22 @@ import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
-import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { IDecorationOptions, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getCommandArgumentHint } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
+import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
@@ -84,6 +88,43 @@ export function getAgentHostCompletionAttachmentRange(
 }
 
 /**
+ * Determines whether an inline argument-hint placeholder should be shown for an
+ * accepted agent-host slash command. Returns the hint text and the offset just
+ * after the command token when the command is the sole content of `value`
+ * followed by exactly one trailing space (i.e. no argument has been typed yet),
+ * or `undefined` otherwise.
+ */
+export function getCommandArgumentHintPlaceholder(
+	value: string,
+	attachments: readonly IChatRequestVariableEntry[],
+	insertedReferences: ReadonlyMap<string, { text: string; range: OffsetRange | undefined }>,
+): { argumentHint: string; endOffset: number } | undefined {
+	for (const entry of attachments) {
+		if (getAgentHostCompletionReferenceKind(entry) !== AgentHostCompletionReferenceKind.Command) {
+			continue;
+		}
+		const argumentHint = getCommandArgumentHint(entry._meta);
+		if (!argumentHint) {
+			continue;
+		}
+		const reference = insertedReferences.get(entry.id);
+		if (!reference) {
+			continue;
+		}
+		const range = getAgentHostCompletionAttachmentRange(value, reference.text, reference.range, 0, value.length);
+		if (!range) {
+			continue;
+		}
+		// Only show the hint while the command is the sole content followed by exactly one trailing space.
+		if (value.slice(0, range.start).trim().length > 0 || value.slice(range.endExclusive) !== ' ') {
+			return undefined;
+		}
+		return { argumentHint, endOffset: range.endExclusive };
+	}
+	return undefined;
+}
+
+/**
  * Bridges the new-chat input editor to the agent host's `completions`
  * command for the currently-selected session type. Mirrors
  * {@link AgentHostInputCompletions} (which handles the *existing* chat
@@ -99,6 +140,8 @@ export function getAgentHostCompletionAttachmentRange(
 export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBase<void, string> {
 
 	private static readonly _className = 'sessions-agent-host-reference';
+	private static readonly _argumentHintDecorationDescription = 'sessions-chat';
+	private static readonly _argumentHintDecorationType = 'sessions-command-argument-hint';
 
 	private readonly _registration = this._register(new MutableDisposable());
 
@@ -117,8 +160,12 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
+
+		this._register(this._codeEditorService.registerDecorationType(AgentHostInputCompletionHandler._argumentHintDecorationDescription, AgentHostInputCompletionHandler._argumentHintDecorationType, {}));
 
 		this._decorations = this._editor.createDecorationsCollection();
 		this._registerDecorations();
@@ -211,7 +258,6 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
 					documentation: attachment.description,
-					detail: attachment.description,
 					command: {
 						id: ADD_REFERENCE_COMMAND,
 						title: '',
@@ -367,6 +413,30 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		}
 
 		this._decorations.set(decos);
+
+		this._editor.setDecorationsByType(
+			AgentHostInputCompletionHandler._argumentHintDecorationDescription,
+			AgentHostInputCompletionHandler._argumentHintDecorationType,
+			this._getArgumentHintDecorations(model, value),
+		);
+	}
+
+	/**
+	 * Computes the inline placeholder (ghost text) shown after an accepted
+	 * agent-host slash command whose `_meta` carries an argument hint. Shown
+	 * only while the command is the sole content followed by a single trailing
+	 * space (i.e. before any argument has been typed).
+	 */
+	private _getArgumentHintDecorations(model: ITextModel, value: string): IDecorationOptions[] {
+		const placeholder = getCommandArgumentHintPlaceholder(value, this._contextAttachments.attachments, this._insertedReferences);
+		if (!placeholder) {
+			return [];
+		}
+		const endPos = model.getPositionAt(placeholder.endOffset);
+		return [{
+			range: getRangeForPlaceholder({ startLineNumber: endPos.lineNumber, endLineNumber: endPos.lineNumber, startColumn: endPos.column, endColumn: endPos.column }),
+			renderOptions: { after: { contentText: placeholder.argumentHint, color: getInputPlaceholderColor(this._themeService) } }
+		}];
 	}
 
 	private _toOffsetRange(range: Range, insertText: string): OffsetRange | undefined {

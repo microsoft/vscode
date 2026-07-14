@@ -54,6 +54,8 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
@@ -240,6 +242,7 @@ class StubCopilotApiService implements ICopilotApiService {
 	readonly messagesCallCount = { count: 0 };
 
 	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
 
 	messages(
 		token: string,
@@ -632,6 +635,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);
@@ -652,7 +656,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		// First send materializes — drives `startup()`, which performs
 		// the real HTTP round-trip on the real proxy.
-		await agent.chats.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		await agent.chats.sendMessage(created.session, 'hi', undefined, undefined, 'turn-1');
 
 		// Snapshot what flowed through the integration in a single
 		// assertion so the failure surface is the whole pipeline.
@@ -762,6 +766,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);
@@ -773,7 +778,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const sessionId = created.session.path.replace(/^\//, '');
 		sdk.queryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		await agent.chats.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		await agent.chats.sendMessage(created.session, 'hi', undefined, undefined, 'turn-1');
 
 		const startup = sdk.capturedStartupOptions[0];
 		assert.ok(typeof startup.canUseTool === 'function', 'canUseTool was wired into Options');
@@ -821,6 +826,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
+			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
 			...claudeFileEnvServices(disposables),
 		);
@@ -863,7 +869,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			}
 		}));
 
-		await agent.chats.sendMessage(created.session, 'please read /tmp/x', undefined, 'turn-1');
+		await agent.chats.sendMessage(created.session, 'please read /tmp/x', undefined, undefined, 'turn-1');
 
 		// Snapshot the agent-side emission stream as a single shape so
 		// the failure surface is the whole pipeline.

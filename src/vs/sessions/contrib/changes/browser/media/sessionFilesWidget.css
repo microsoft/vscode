@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Session Files Widget - between the files list and the CI checks widget */
+/* Other Files widget - between the files list and the CI checks widget */
 .session-files-widget {
 	display: flex;
 	flex-direction: column;
@@ -99,6 +99,19 @@
 	white-space: nowrap;
 }
 
+/* File count — shown in the header only while collapsed */
+.session-files-widget-count {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	line-height: 1;
+}
+
+.session-files-widget-count.hidden {
+	display: none;
+}
+
 /* Body - file list */
 .session-files-widget-body {
 	flex: 1;
@@ -125,7 +138,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 0 0 0 6px;
+	padding: 0;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
@@ -143,31 +156,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* Decoration badge (A/M/D) */
-.session-files-widget-decoration-badge {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	min-width: 16px;
-	font-size: var(--vscode-agents-fontSize-body2);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	margin-right: 2px;
-	opacity: 0.9;
-}
-
-.session-files-widget-decoration-badge.added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.session-files-widget-decoration-badge.modified {
-	color: var(--vscode-gitDecoration-modifiedResourceForeground);
-}
-
-.session-files-widget-decoration-badge.deleted {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
 
 /* Inline action bar (Open File), shown on hover/focus/select — mirrors the changes view */

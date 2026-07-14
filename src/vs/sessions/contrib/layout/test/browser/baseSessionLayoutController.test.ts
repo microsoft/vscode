@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -106,11 +107,12 @@ suite('BaseLayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		// Session 1 keeps editors open but the user hid the editor part (e.g. by
-		// closing the Side Panel).
+		// closing the Side Panel). The [B2] listener captures this eagerly.
 		harness.visibleEditorsList = [{}];
 		harness.activeSessionObs.set(session1, undefined);
 		await timeout(0);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 
 		// Switch away (captures session 1's working set + hidden editor part)…
 		harness.activeSessionObs.set(session2, undefined);
@@ -135,11 +137,13 @@ suite('BaseLayoutController', () => {
 		const session2 = makeSession(URI.parse('session:2'));
 
 		// Two sessions visible at once: the editor area is shared, so its
-		// visibility is not a per-session choice.
+		// visibility is not a per-session choice — the [B2] listener must skip
+		// capturing it even when the editor part visibility changes.
 		harness.visibleEditorsList = [{}];
 		harness.visibleSessionsObs.set([session1, session2], undefined);
 		harness.activeSessionObs.set(session1, undefined);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 
 		// Persist on shutdown.
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
@@ -186,6 +190,46 @@ suite('BaseLayoutController', () => {
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
 			'editor part should not be revealed in modal mode'
 		);
+	});
+
+	test('[B2] saves the outgoing session working set eagerly even when the incoming session workspace is not ready', async () => {
+		// The workspace-gated `activeSessionForWorkingSet` derive holds back while
+		// the incoming session's workspace folders resolve. The outgoing session's
+		// working set must still be saved eagerly (on the raw active session change)
+		// so it — including which editor was active — is restored on return, rather
+		// than being lost because another autorun closed its editors during the lag.
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		// Session 2's workspace folder is not (yet) registered, so the gated derive
+		// holds back and never fires an apply for it.
+		const session2 = makeSession(URI.parse('session:2'), {
+			workspace: {
+				uri: URI.file('/other'),
+				label: 'other',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			},
+		});
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		harness.saveWorkingSetCalls = [];
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.saveWorkingSetCalls,
+			[`session-working-set:${session1.resource.toString()}`],
+			'the outgoing session working set should be saved eagerly despite the gated apply holding back'
+		);
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
 	});
 
 	// --- [B3] Persistence & migration / [B4] Save ---

@@ -26,6 +26,10 @@ export const enum SessionConfigKey {
 	Branch = 'branch',
 	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
+	/** `'worktreeBranchPrefix'` — prefix for the worktree branch name. */
+	WorktreeBranchPrefix = 'worktreeBranchPrefix',
+	/** `'worktreeIncludeFiles'` — glob patterns for git-ignored files to copy into a new worktree. */
+	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 }
 
 /**

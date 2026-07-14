@@ -90,6 +90,10 @@
 		// restore parts if possible (we might not always store layout info)
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
+			const modernUI = layoutInfo.modernUI === true;
+			const floatingMargin = 4;
+			const floatingOuterMargin = floatingMargin * 2;
+			const floatingBorderWidth = 1;
 
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
@@ -111,6 +115,47 @@
 				splash.appendChild(borderElement);
 			}
 
+			const setBounds = (element: HTMLElement, bounds: { top: number; bottom?: number; left?: number; right?: number; width?: number; height?: number }) => {
+				element.style.position = 'absolute';
+				element.style.top = `${bounds.top}px`;
+				if (typeof bounds.bottom === 'number') {
+					element.style.bottom = `${bounds.bottom}px`;
+				}
+				if (typeof bounds.left === 'number') {
+					element.style.left = `${bounds.left}px`;
+				}
+				if (typeof bounds.right === 'number') {
+					element.style.right = `${bounds.right}px`;
+				}
+				if (typeof bounds.width === 'number') {
+					element.style.width = `${bounds.width}px`;
+				}
+				if (typeof bounds.height === 'number') {
+					element.style.height = `${bounds.height}px`;
+				}
+			};
+
+			const setPartBounds = (element: HTMLElement, bounds: { top: number; left: number; width: number; height: number }) => {
+				element.style.position = 'absolute';
+				element.style.top = `${bounds.top}px`;
+				element.style.left = `${bounds.left}px`;
+				element.style.width = `${bounds.width}px`;
+				element.style.height = `${bounds.height}px`;
+			};
+
+			const applyFloatingCardStyles = (element: HTMLElement, backgroundColor: string | undefined) => {
+				element.style.boxSizing = 'border-box';
+				element.style.border = `${floatingBorderWidth}px solid ${colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'}`;
+				element.style.borderRadius = '8px';
+				element.style.backgroundColor = backgroundColor ?? colorInfo.editorBackground ?? colorInfo.background;
+				element.style.overflow = 'hidden';
+			};
+
+			const contentTop = layoutInfo.titleBarHeight;
+			const contentBottom = layoutInfo.statusBarHeight;
+			const contentHeight = `calc(100% - ${contentTop + contentBottom}px)`;
+			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingMargin}px)` : contentHeight;
+
 			if (layoutInfo.auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
 				// if auxiliary bar is maximized, it goes as wide as the
 				// window width but leaving room for activity bar
@@ -129,11 +174,11 @@
 				titleDiv.style.height = `${layoutInfo.titleBarHeight}px`;
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
-				titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
+				titleDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.titleBarBackground}`;
 				(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 
-				if (colorInfo.titleBarBorder) {
+				if (!modernUI && colorInfo.titleBarBorder) {
 					const titleBorder = document.createElement('div');
 					titleBorder.style.position = 'absolute';
 					titleBorder.style.width = '100%';
@@ -150,17 +195,17 @@
 				const activityDiv = document.createElement('div');
 				activityDiv.style.position = 'absolute';
 				activityDiv.style.width = `${layoutInfo.activityBarWidth}px`;
-				activityDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
-				activityDiv.style.top = `${layoutInfo.titleBarHeight}px`;
+				activityDiv.style.height = activityHeight;
+				activityDiv.style.top = `${contentTop}px`;
 				if (layoutInfo.sideBarSide === 'left') {
 					activityDiv.style.left = '0';
 				} else {
 					activityDiv.style.right = '0';
 				}
-				activityDiv.style.backgroundColor = `${colorInfo.activityBarBackground}`;
+				activityDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.activityBarBackground}`;
 				splash.appendChild(activityDiv);
 
-				if (colorInfo.activityBarBorder) {
+				if (!modernUI && colorInfo.activityBarBorder) {
 					const activityBorderDiv = document.createElement('div');
 					activityBorderDiv.style.position = 'absolute';
 					activityBorderDiv.style.width = '1px';
@@ -180,19 +225,31 @@
 			// part: side bar
 			if (layoutInfo.sideBarWidth > 0) {
 				const sideDiv = document.createElement('div');
-				sideDiv.style.position = 'absolute';
-				sideDiv.style.width = `${layoutInfo.sideBarWidth}px`;
-				sideDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
-				sideDiv.style.top = `${layoutInfo.titleBarHeight}px`;
-				if (layoutInfo.sideBarSide === 'left') {
-					sideDiv.style.left = `${layoutInfo.activityBarWidth}px`;
+				if (modernUI && layoutInfo.partBounds?.sideBar) {
+					setPartBounds(sideDiv, layoutInfo.partBounds.sideBar);
+				} else if (layoutInfo.sideBarSide === 'left') {
+					setBounds(sideDiv, {
+						top: contentTop,
+						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						left: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+					});
 				} else {
-					sideDiv.style.right = `${layoutInfo.activityBarWidth}px`;
+					setBounds(sideDiv, {
+						top: contentTop,
+						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						right: layoutInfo.activityBarWidth + (modernUI ? floatingMargin : 0),
+						width: modernUI ? Math.max(0, layoutInfo.sideBarWidth - floatingOuterMargin - floatingBorderWidth * 2) : layoutInfo.sideBarWidth
+					});
 				}
-				sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
+				if (modernUI) {
+					applyFloatingCardStyles(sideDiv, colorInfo.agentsPanelBackground ?? colorInfo.sideBarBackground);
+				} else {
+					sideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
+				}
 				splash.appendChild(sideDiv);
 
-				if (colorInfo.sideBarBorder) {
+				if (!modernUI && colorInfo.sideBarBorder) {
 					const sideBorderDiv = document.createElement('div');
 					sideBorderDiv.style.position = 'absolute';
 					sideBorderDiv.style.width = '1px';
@@ -212,19 +269,31 @@
 			// part: auxiliary sidebar
 			if (layoutInfo.auxiliaryBarWidth > 0) {
 				const auxSideDiv = document.createElement('div');
-				auxSideDiv.style.position = 'absolute';
-				auxSideDiv.style.width = `${layoutInfo.auxiliaryBarWidth}px`;
-				auxSideDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
-				auxSideDiv.style.top = `${layoutInfo.titleBarHeight}px`;
-				if (layoutInfo.sideBarSide === 'left') {
-					auxSideDiv.style.right = '0';
+				if (modernUI && layoutInfo.partBounds?.auxiliaryBar) {
+					setPartBounds(auxSideDiv, layoutInfo.partBounds.auxiliaryBar);
+				} else if (layoutInfo.sideBarSide === 'left') {
+					setBounds(auxSideDiv, {
+						top: contentTop,
+						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						right: modernUI ? floatingOuterMargin : 0,
+						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
+					});
 				} else {
-					auxSideDiv.style.left = '0';
+					setBounds(auxSideDiv, {
+						top: contentTop,
+						bottom: modernUI ? contentBottom + floatingMargin : contentBottom,
+						left: modernUI ? floatingOuterMargin : 0,
+						width: modernUI ? Math.max(0, layoutInfo.auxiliaryBarWidth - floatingOuterMargin - floatingMargin - floatingBorderWidth * 2) : layoutInfo.auxiliaryBarWidth
+					});
 				}
-				auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
+				if (modernUI) {
+					applyFloatingCardStyles(auxSideDiv, colorInfo.sideBarBackground);
+				} else {
+					auxSideDiv.style.backgroundColor = `${colorInfo.sideBarBackground}`;
+				}
 				splash.appendChild(auxSideDiv);
 
-				if (colorInfo.sideBarBorder) {
+				if (!modernUI && colorInfo.sideBarBorder) {
 					const auxSideBorderDiv = document.createElement('div');
 					auxSideBorderDiv.style.position = 'absolute';
 					auxSideBorderDiv.style.width = '1px';
@@ -241,6 +310,31 @@
 				}
 			}
 
+			if (modernUI && (layoutInfo.partBounds?.editor || !layoutInfo.partBounds)) {
+				const editorDiv = document.createElement('div');
+				if (layoutInfo.partBounds?.editor) {
+					setPartBounds(editorDiv, layoutInfo.partBounds.editor);
+				} else {
+					const editorLeft = (layoutInfo.sideBarSide === 'left' ? layoutInfo.activityBarWidth + layoutInfo.sideBarWidth : layoutInfo.auxiliaryBarWidth) + floatingMargin;
+					const editorRight = (layoutInfo.sideBarSide === 'left' ? layoutInfo.auxiliaryBarWidth : layoutInfo.activityBarWidth + layoutInfo.sideBarWidth) + floatingMargin;
+					setBounds(editorDiv, {
+						top: contentTop,
+						bottom: contentBottom + floatingMargin,
+						left: editorLeft,
+						right: editorRight
+					});
+				}
+				applyFloatingCardStyles(editorDiv, colorInfo.editorBackground);
+				splash.appendChild(editorDiv);
+			}
+
+			if (modernUI && layoutInfo.partBounds?.panel) {
+				const panelDiv = document.createElement('div');
+				setPartBounds(panelDiv, layoutInfo.partBounds.panel);
+				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground);
+				splash.appendChild(panelDiv);
+			}
+
 			// part: statusbar
 			if (layoutInfo.statusBarHeight > 0) {
 				const statusDiv = document.createElement('div');
@@ -249,14 +343,16 @@
 				statusDiv.style.height = `${layoutInfo.statusBarHeight}px`;
 				statusDiv.style.bottom = '0';
 				statusDiv.style.left = '0';
-				if (configuration.workspace && colorInfo.statusBarBackground) {
+				if (modernUI) {
+					statusDiv.style.backgroundColor = 'transparent';
+				} else if (configuration.workspace && colorInfo.statusBarBackground) {
 					statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
 				} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
 					statusDiv.style.backgroundColor = colorInfo.statusBarNoFolderBackground;
 				}
 				splash.appendChild(statusDiv);
 
-				if (colorInfo.statusBarBorder) {
+				if (!modernUI && colorInfo.statusBarBorder) {
 					const statusBorderDiv = document.createElement('div');
 					statusBorderDiv.style.position = 'absolute';
 					statusBorderDiv.style.width = '100%';
@@ -292,6 +388,9 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
+
+		// Set product configuration as global (used e.g. to select the ASAR path in `amdX`)
+		globalThis._VSCODE_PRODUCT_JSON = { ...configuration.product };
 
 		// Dev only: CSS import map tricks
 		setupCSSImportMaps<T>(configuration, baseUrl);

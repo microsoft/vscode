@@ -5,6 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
+import { PromptSectionTokenCounts } from '../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { AggressivenessLevel, CurrentFileOptions, GlobalBudgetOptions, PromptingStrategy, PromptOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -18,7 +19,7 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { getEditDiffHistory } from './diffHistoryForPrompt';
 import { LintErrors } from './lintErrors';
 import { countTokensForLines, toUniquePath } from './promptCraftingUtils';
-import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets } from './recentFilesForPrompt';
+import { appendLanguageContextSnippets, appendNeighborFileSnippets, AppendNeighborFileSnippetsResult, buildCodeSnippetsUsingPagedClipping, getRecentCodeSnippets, prepareRecentCodeSnippets, RecentlyViewedSubsectionSnippets } from './recentFilesForPrompt';
 import { INeighborFileSnippet } from './similarFilesContextService';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
@@ -54,8 +55,13 @@ export class PromptPieces {
 export interface UserPromptResult {
 	readonly prompt: string;
 	readonly nDiffsInPrompt: number;
-	readonly diffTokensInPrompt: number;
 	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
+	/**
+	 * Approximate per-section token counts for the user prompt. `systemPrompt` is
+	 * left at 0 here (the system message is not part of the user prompt) and is
+	 * filled in by the provider.
+	 */
+	readonly sectionTokens: PromptSectionTokenCounts;
 }
 
 export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
@@ -64,11 +70,11 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	const currentFileContent = taggedCurrentDocLines.join('\n');
 
 	let recentlyViewedCodeSnippets: string;
+	let recentlyViewedSubsections: RecentlyViewedSubsectionSnippets;
 	let docsInPrompt: Set<DocumentId>;
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
-	let diffTokensInPrompt: number;
 
 	if (opts.globalBudget !== undefined) {
 		// Reuse a cascade the caller already ran (the provider runs it first so it can
@@ -76,14 +82,15 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 		// that set a global budget without precomputing (e.g. tests).
 		const cascade = precomputedCascade ?? runGlobalBudgetCascade(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets, opts.globalBudget);
 		recentlyViewedCodeSnippets = cascade.codeSnippets;
+		recentlyViewedSubsections = cascade.subsections;
 		docsInPrompt = cascade.documents;
 		neighborSnippetsResult = cascade.neighborSnippetsResult;
 		editDiffHistory = cascade.editDiffHistory;
 		nDiffsInPrompt = cascade.nDiffsInPrompt;
-		diffTokensInPrompt = cascade.diffTokensInPrompt;
 	} else {
 		const r = getRecentCodeSnippets(activeDoc, xtabHistory, langCtx, computeTokens, opts, neighborSnippets);
 		recentlyViewedCodeSnippets = r.codeSnippets;
+		recentlyViewedSubsections = r.subsections;
 		docsInPrompt = r.documents;
 		neighborSnippetsResult = r.neighborSnippetsResult;
 
@@ -92,7 +99,6 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 		const diff = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, opts.diffHistory);
 		editDiffHistory = diff.promptPiece;
 		nDiffsInPrompt = diff.nDiffs;
-		diffTokensInPrompt = diff.totalTokens;
 	}
 
 	const relatedInformation = getRelatedInformation(langCtx);
@@ -103,20 +109,20 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 
 	const lintsWithNewLinePadding = opts.lintOptions ? `\n${lintErrors.getFormattedLintErrors(opts.lintOptions)}\n` : '';
 
-	const basePrompt = `${PromptTags.RECENT_FILES.start}
-${recentlyViewedCodeSnippets}
-${PromptTags.RECENT_FILES.end}
+	// Build each rendered section string exactly once and assemble `basePrompt`
+	// from those same locals, so the per-section token counts below are derived
+	// from the identical text that goes into the prompt (single source of truth,
+	// no rebuild and no drift). `areaAroundCodeToEdit`/`cursorLocation` are
+	// mutually exclusive and appended per-strategy below.
+	const recentFilesSection = `${PromptTags.RECENT_FILES.start}\n${recentlyViewedCodeSnippets}\n${PromptTags.RECENT_FILES.end}`;
+	const currentFileSection = `${PromptTags.CURRENT_FILE.start}\ncurrent_file_path: ${currentFilePath}\n${currentFileContent}\n${PromptTags.CURRENT_FILE.end}`;
+	const editHistorySection = `${PromptTags.EDIT_HISTORY.start}\n${editDiffHistory}\n${PromptTags.EDIT_HISTORY.end}`;
 
-${PromptTags.CURRENT_FILE.start}
-current_file_path: ${currentFilePath}
-${currentFileContent}
-${PromptTags.CURRENT_FILE.end}
-${lintsWithNewLinePadding}
-${PromptTags.EDIT_HISTORY.start}
-${editDiffHistory}
-${PromptTags.EDIT_HISTORY.end}`;
+	const basePrompt = `${recentFilesSection}\n\n${currentFileSection}\n${lintsWithNewLinePadding}\n${editHistorySection}`;
 
 	let mainPrompt: string;
+	let cursorLocationSection = '';
+	let areaAroundSection = '';
 	switch (opts.promptingStrategy) {
 		case PromptingStrategy.PatchBased01:
 			mainPrompt = basePrompt;
@@ -147,10 +153,12 @@ ${PromptTags.EDIT_HISTORY.end}`;
 				`${lineNumbering}${cursorLineWithTag}`,
 				PromptTags.CURSOR_LOCATION.end
 			].join('\n');
+			cursorLocationSection = lineWithCursorSnippet;
 			mainPrompt = basePrompt + `\n\n${lineWithCursorSnippet}`;
 			break;
 		}
 		default:
+			areaAroundSection = areaAroundCodeToEdit;
 			mainPrompt = basePrompt + `\n\n${areaAroundCodeToEdit}`;
 			break;
 	}
@@ -168,7 +176,36 @@ ${PromptTags.EDIT_HISTORY.end}`;
 
 	const trimmedPrompt = prompt.trim();
 
-	return { prompt: trimmedPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult };
+	const recentlyViewedTokens = computeTokens(recentFilesSection);
+	const currentFileTokens = computeTokens(currentFileSection);
+	const lintErrorsTokens = computeTokens(lintsWithNewLinePadding);
+	const editHistoryTokens = computeTokens(editHistorySection);
+	const areaAroundCodeToEditTokens = computeTokens(areaAroundSection);
+	const cursorLocationTokens = computeTokens(cursorLocationSection);
+	const relatedInformationTokens = computeTokens(relatedInformation);
+	const postScriptTokens = computeTokens(postScript);
+	const userPromptTotalTokens = computeTokens(trimmedPrompt);
+	const sectionsSum = recentlyViewedTokens + currentFileTokens + lintErrorsTokens + editHistoryTokens + areaAroundCodeToEditTokens + cursorLocationTokens + relatedInformationTokens + postScriptTokens;
+	const sectionTokens: PromptSectionTokenCounts = {
+		recentlyViewed: recentlyViewedTokens,
+		currentFile: currentFileTokens,
+		lintErrors: lintErrorsTokens,
+		editHistory: editHistoryTokens,
+		areaAroundCodeToEdit: areaAroundCodeToEditTokens,
+		cursorLocation: cursorLocationTokens,
+		relatedInformation: relatedInformationTokens,
+		postScript: postScriptTokens,
+		overhead: userPromptTotalTokens - sectionsSum,
+		userPromptTotal: userPromptTotalTokens,
+		systemPrompt: 0,
+		recentlyViewedSubsections: {
+			recentlyViewedFiles: computeTokens(recentlyViewedSubsections.recentlyViewedFiles),
+			languageContext: computeTokens(recentlyViewedSubsections.languageContext),
+			neighborFiles: computeTokens(recentlyViewedSubsections.neighborFiles),
+		},
+	};
+
+	return { prompt: trimmedPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens };
 }
 
 export interface CascadeResult {
@@ -177,7 +214,8 @@ export interface CascadeResult {
 	readonly neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	readonly editDiffHistory: string;
 	readonly nDiffsInPrompt: number;
-	readonly diffTokensInPrompt: number;
+	/** Per-source breakdown of {@link codeSnippets} for per-subsection token reporting. */
+	readonly subsections: RecentlyViewedSubsectionSnippets;
 	/**
 	 * Budget left unused after the last part in `order` ran. The provider adds it
 	 * to the current file's clip budget (`currentFileBudget + finalSurplus`) so the
@@ -226,7 +264,6 @@ export function runGlobalBudgetCascade(
 	let neighborSnippetsResult: AppendNeighborFileSnippetsResult | undefined;
 	let editDiffHistory = '';
 	let nDiffsInPrompt = 0;
-	let diffTokensInPrompt = 0;
 
 	const preparedRecent = prepareRecentCodeSnippets(activeDoc, xtabHistory, opts);
 
@@ -249,7 +286,7 @@ export function runGlobalBudgetCascade(
 			}
 			case 'languageContext': {
 				if (langCtx) {
-					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens);
 				}
 				break;
 			}
@@ -265,7 +302,6 @@ export function runGlobalBudgetCascade(
 				const r = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, overriddenDiff);
 				editDiffHistory = r.promptPiece;
 				nDiffsInPrompt = r.nDiffs;
-				diffTokensInPrompt = r.totalTokens;
 				tokensConsumed = r.totalTokens;
 				break;
 			}
@@ -288,7 +324,11 @@ export function runGlobalBudgetCascade(
 		neighborSnippetsResult,
 		editDiffHistory,
 		nDiffsInPrompt,
-		diffTokensInPrompt,
+		subsections: {
+			recentlyViewedFiles: recentlyViewedSnippets.join('\n\n'),
+			languageContext: langCtxSnippets.join('\n\n'),
+			neighborFiles: neighborOutSnippets.join('\n\n'),
+		},
 		finalSurplus: surplus,
 	};
 }

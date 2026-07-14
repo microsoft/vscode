@@ -13,6 +13,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService, ILoggerService } from '../../log/common/log.js';
 import { NullPolicyService } from '../../policy/common/policy.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IRequestService } from '../../request/common/request.js';
 import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
 import { resolveCommonProperties } from '../../telemetry/common/commonProperties.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../telemetry/common/gdprTypings.js';
@@ -21,6 +22,7 @@ import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppende
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
 export interface IAgentHostTelemetryServiceOptions {
@@ -31,6 +33,8 @@ export interface IAgentHostTelemetryServiceOptions {
 	readonly logService: ILogService;
 	readonly disposables: DisposableStore;
 	readonly disableTelemetry?: boolean;
+	readonly fetchFn?: typeof globalThis.fetch;
+	readonly requestService?: IRequestService;
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
@@ -195,15 +199,19 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	];
 	const internalTelemetry = isInternalTelemetry(productService, configurationService);
 	if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
-		const collectorAppender = new OneDataSystemAppender(undefined, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+		const collectorAppender = new OneDataSystemAppender(options.requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 		disposables.add(toDisposable(() => { void collectorAppender.flush(); }));
 		appenders.push(collectorAppender);
 	}
 
+	// Prefer the host-forwarded identifiers (see `agentHostTelemetryEnv`) so the
+	// agent host reports the same persisted machineId/sqmId/devDeviceId as the
+	// workbench. Fall back to computing them live when not provided (e.g. the
+	// remote/server agent host, which does not forward them).
 	const [machineId, sqmId, devDeviceId] = await Promise.all([
-		getMachineId(error => logService.error(error)),
-		getSqmMachineId(error => logService.error(error)),
-		getDevDeviceId(error => logService.error(error)),
+		process.env[AgentHostMachineIdEnvKey] || getMachineId(error => logService.error(error)),
+		process.env[AgentHostSqmIdEnvKey] || getSqmMachineId(error => logService.error(error)),
+		process.env[AgentHostDevDeviceIdEnvKey] || getDevDeviceId(error => logService.error(error)),
 	]);
 
 	const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, devDeviceId, internalTelemetry, productService.date);
@@ -215,7 +223,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
 	}, configurationService, productService);
 
-	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService);
+	const restricted = new AgentHostRestrictedTelemetrySender(commonProperties, logService, undefined, undefined, options.fetchFn);
 
 	return disposables.add(new AgentHostTelemetryService(telemetryService, restricted));
 }
