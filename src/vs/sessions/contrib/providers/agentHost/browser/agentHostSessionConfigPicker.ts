@@ -352,7 +352,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			const tooltip = schema.description ?? schema.title;
+			// The Branch chip skips the hover: when read-only it just
+			// mirrors the current/default branch name (already visible as
+			// the label), and when editable the schema description reads
+			// awkwardly as a hover.
+			const tooltip = property === SessionConfigKey.Branch ? undefined : (schema.description ?? schema.title);
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
@@ -462,7 +466,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 
-		const tooltip = schema.description ?? schema.title;
+		// Reuse the schema's own `worktree` enum description (e.g. "Create a
+		// Git worktree for isolation") since it already explains what
+		// checking the box does. Fall back to the schema's description/title
+		// if the enum shape is unexpected.
+		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
+		const tooltip = (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
 		if (tooltip) {
 			this._renderDisposables.add(this._hoverService.setupDelayedHover(row, { content: tooltip }));
 		}
