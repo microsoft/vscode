@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, PRIVATE_MARKETPLACE_SCOPES, CONTEXT_MARKETPLACE_AUTH_PROVIDER, discoverMarketplaceProtectedResource } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -79,9 +79,41 @@ type MarketplaceAuthClassification = {
  * rather than mislabeling an auth-gated index as "unreachable".
  */
 class MarketplaceAuthRequiredError extends Error {
-	constructor(readonly statusCode: number) {
+	constructor(
+		readonly statusCode: number,
+		/**
+		 * The raw `WWW-Authenticate` challenge header returned alongside a 401, when present.
+		 * RFC 9728 negotiation reads the `resource_metadata` (and optionally `scope`) parameters
+		 * from this challenge to discover the marketplace's Protected Resource Metadata and the
+		 * resource-scoped token to acquire. Absent on 403 (the identity is refused, not
+		 * un-authenticated) and on servers that omit the header.
+		 */
+		readonly wwwAuthenticate?: string,
+	) {
 		super(`Extension gallery request requires authentication (status ${statusCode}).`);
 	}
+}
+
+/**
+ * Reads a response header case-insensitively. HTTP header names are case-insensitive
+ * (RFC 7230 §3.2) and different transports normalize casing differently (Node lowercases,
+ * others preserve the wire casing), so a fixed-case lookup on `WWW-Authenticate` is unsafe.
+ */
+function getResponseHeader(headers: IHeaders | undefined, name: string): string | undefined {
+	if (!headers) {
+		return undefined;
+	}
+	const lowerName = name.toLowerCase();
+	for (const key of Object.keys(headers)) {
+		if (key.toLowerCase() === lowerName) {
+			const value = headers[key];
+			// A header may be delivered as a single string or, if repeated, an array of values.
+			// RFC 7235 permits multiple challenges in a single `WWW-Authenticate` value, so join
+			// repeated headers with commas to reconstruct the full challenge list for the parser.
+			return Array.isArray(value) ? value.join(', ') : value;
+		}
+	}
+	return undefined;
 }
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
@@ -108,6 +140,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// stale in-flight eligibility check could restore access for an account that is no longer
 	// current.
 	private validationEpoch = 0;
+
+	// The resource-scoped bearer token negotiated (RFC 9728) when the marketplace service index
+	// is `[Authorize]`-gated. It is set only when access was actually negotiated via a
+	// `WWW-Authenticate` challenge AND the user is eligible/Available, and is exposed via
+	// `getAccessToken()` so the gallery service can authenticate protected marketplace requests
+	// (extensionquery, asset download). It is cleared whenever access is revoked — every
+	// non-Available transition routes through `update(null, …)`, which resets it — so a stale
+	// token can never survive a sign-out, account switch, or config change.
+	private negotiatedAccessToken: string | undefined;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -186,6 +227,16 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 		await this.extensionGalleryManifestPromise;
 		return this.extensionGalleryManifest;
+	}
+
+	/**
+	 * Returns the resource-scoped bearer token negotiated for a `[Authorize]`-gated marketplace,
+	 * or `undefined` for an open marketplace. Ensures the manifest resolution has completed first
+	 * so the token reflects the current access state.
+	 */
+	override async getAccessToken(): Promise<string | undefined> {
+		await this.getExtensionGalleryManifest();
+		return this.negotiatedAccessToken;
 	}
 
 	private async doGetExtensionGalleryManifest(): Promise<void> {
@@ -421,8 +472,27 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			return;
 		}
 		let manifest: IExtensionGalleryManifest;
+		// The token that successfully reads the service index. Starts as the initially-acquired
+		// (OpenID) session token; if the index is auth-gated and returns an RFC 9728 challenge,
+		// `fetchServiceIndexNegotiated` upgrades this to a resource-scoped token, which is then
+		// reused for the protected eligibility POST below.
+		let indexToken: string = session.accessToken;
+		// Whether the index was actually behind an RFC 9728 challenge (i.e. `indexToken` is a
+		// resource-scoped token that protected marketplace API requests must present), as opposed
+		// to an open index read with the plain sign-in token.
+		let indexWasNegotiated = false;
 		try {
-			manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, session.accessToken);
+			const negotiated = await this.fetchServiceIndexNegotiated(
+				configuredServiceUrl,
+				'microsoft',
+				session.accessToken,
+				WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES,
+			);
+			manifest = negotiated.manifest;
+			// `negotiated.token` is only undefined when the initial token was undefined; on the
+			// Microsoft path we always start with the signed-in session token, so fall back to it.
+			indexToken = negotiated.token ?? session.accessToken;
+			indexWasNegotiated = negotiated.negotiated;
 		} catch (error) {
 			if (this.validationEpoch !== epoch) {
 				return;
@@ -479,7 +549,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		// Check eligibility via server
 		try {
-			const result = await this.checkMicrosoftEligibility(eligibilityUrl, session.accessToken);
+			const result = await this.checkMicrosoftEligibility(eligibilityUrl, indexToken);
 			if (this.validationEpoch !== epoch) {
 				return;
 			}
@@ -500,6 +570,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 					eligible: result.eligible,
 				}
 			);
+			// The index was gated and we negotiated a resource-scoped token for it: expose that
+			// token (via getAccessToken) for protected marketplace API requests when the user is
+			// eligible. On the open-index path (indexWasNegotiated === false) the marketplace
+			// needs no bearer, so leave the token cleared. Any later non-Available transition
+			// routes through update(null, …) and clears it.
+			if (indexWasNegotiated && result.eligible) {
+				this.negotiatedAccessToken = indexToken;
+			}
 			this.applyEligibilityResult(result, manifest);
 		} catch (error) {
 			if (this.validationEpoch !== epoch) {
@@ -530,6 +608,86 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 				this.update(null, ExtensionGalleryManifestStatus.Unreachable);
 			}
+		}
+	}
+
+	/**
+	 * Fetches the service index, negotiating a resource-scoped bearer token if the marketplace's
+	 * index is protected (RFC 9728). It first presents `initialToken`; if the marketplace responds
+	 * `401`, the marketplace's Protected Resource Metadata is discovered via its well-known endpoint
+	 * (RFC 9728) and a token bound to the advertised authorization server + resource scopes is
+	 * acquired silently (RFC 8707), then the index fetch is retried once with that token.
+	 *
+	 * Discovery deliberately does NOT depend on the `WWW-Authenticate` challenge header: that header
+	 * is not CORS-safelisted, so the renderer's cross-origin index fetch usually cannot read it. The
+	 * challenge is passed only as a best-effort hint for the explicit metadata URL.
+	 *
+	 * Returns the manifest together with the token that successfully read the index, so callers can
+	 * reuse it for subsequent protected requests (e.g. the Microsoft eligibility POST). Any auth
+	 * failure that negotiation cannot resolve (no metadata, no session obtainable, or a `401`/`403`
+	 * on the retry) propagates as a {@link MarketplaceAuthRequiredError} for the caller to classify.
+	 */
+	private async fetchServiceIndexNegotiated(
+		configuredServiceUrl: string,
+		providerId: string,
+		initialToken: string | undefined,
+		fallbackScopes: readonly string[],
+	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean }> {
+		try {
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, initialToken);
+			return { manifest, token: initialToken, negotiated: false };
+		} catch (error) {
+			// Only a 401 (index is auth-gated) is negotiable. A 403 (identity refused) or any other
+			// error is not — let it propagate so the caller applies its existing classification.
+			if (!(error instanceof MarketplaceAuthRequiredError) || error.statusCode !== 401) {
+				throw error;
+			}
+			const protectedResource = await discoverMarketplaceProtectedResource(
+				this.requestService,
+				configuredServiceUrl,
+				error.wwwAuthenticate,
+				CancellationToken.None,
+			);
+			if (!protectedResource) {
+				// The index is gated but exposes no Protected Resource Metadata we can act on —
+				// re-throw the original 401 so the caller prompts for sign-in.
+				throw error;
+			}
+			const session = await this.acquireResourceToken(providerId, protectedResource, fallbackScopes);
+			if (!session) {
+				// No resource-scoped session could be obtained silently (e.g. consent not yet
+				// granted) — re-throw the original 401 so the caller prompts for sign-in rather
+				// than mislabeling it.
+				throw error;
+			}
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, session.accessToken);
+			return { manifest, token: session.accessToken, negotiated: true };
+		}
+	}
+
+	/**
+	 * Silently acquires a resource-scoped bearer token bound to the marketplace's advertised
+	 * authorization server (RFC 8707). `getSessions` never prompts, so this returns `undefined`
+	 * when no consented session exists yet, leaving interactive acquisition to the sign-in action.
+	 * The advertised authorization server is validated against the provider's configured globs by
+	 * the authentication service; a mismatch throws, which we treat as "no session".
+	 */
+	private async acquireResourceToken(
+		providerId: string,
+		protectedResource: { authorizationServer: string; scopes: readonly string[] },
+		fallbackScopes: readonly string[],
+	): Promise<AuthenticationSession | undefined> {
+		const scopes = protectedResource.scopes.length ? protectedResource.scopes : fallbackScopes;
+		try {
+			const sessions = await this.authenticationService.getSessions(
+				providerId,
+				[...scopes],
+				{ authorizationServer: URI.parse(protectedResource.authorizationServer) },
+			);
+			return sessions[0];
+		} catch (error) {
+			this.logService.error('[Marketplace] Error acquiring resource-scoped marketplace token', error);
+			return undefined;
 		}
 	}
 
@@ -785,6 +943,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
+		if (!manifest) {
+			// Any transition to a non-Available state (sign-out, account switch, config change,
+			// access denied, unreachable, …) routes through here with a null manifest. Drop the
+			// negotiated resource token so it can never outlive the access that produced it; the
+			// eligible→Available path re-sets it after a successful negotiation.
+			this.negotiatedAccessToken = undefined;
+		}
 		if (this.extensionGalleryManifest !== manifest) {
 			this.extensionGalleryManifest = manifest;
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
@@ -837,8 +1002,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			if (context.res.statusCode === 401 || context.res.statusCode === 403) {
 				// The service index is auth-gated and this request was not authorized.
 				// Surface a typed error so the Entra path can prompt for sign-in (or treat a
-				// rejected token as denied) rather than mislabeling it as unreachable.
-				throw new MarketplaceAuthRequiredError(context.res.statusCode);
+				// rejected token as denied) rather than mislabeling it as unreachable. Capture
+				// the `WWW-Authenticate` challenge (present on a 401) so RFC 9728 negotiation
+				// can discover the Protected Resource Metadata and resource-scoped token.
+				throw new MarketplaceAuthRequiredError(
+					context.res.statusCode,
+					getResponseHeader(context.res.headers, 'WWW-Authenticate'),
+				);
 			}
 
 			if (context.res.statusCode && (context.res.statusCode < 200 || context.res.statusCode >= 300)) {

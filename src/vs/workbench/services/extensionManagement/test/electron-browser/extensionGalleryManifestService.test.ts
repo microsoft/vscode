@@ -7,7 +7,8 @@ import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,9 +33,9 @@ import { IHostService } from '../../../host/browser/host.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { WorkbenchExtensionGalleryManifestService } from '../../electron-browser/extensionGalleryManifestService.js';
 
-function mockResponse(statusCode: number, body: object): IRequestContext {
+function mockResponse(statusCode: number, body: object, headers: IHeaders = {}): IRequestContext {
 	return {
-		res: { headers: {}, statusCode },
+		res: { headers, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
 	};
 }
@@ -69,6 +70,21 @@ function createGalleryManifest(includeEligibility = false) {
 	};
 }
 
+// RFC 9728 Protected Resource Metadata stub served from the marketplace's well-known endpoint.
+// `resource` must equal the configured service URL's origin for discovery validation to pass.
+function createProtectedResourceMetadata() {
+	return {
+		resource: 'https://marketplace.example.com',
+		authorization_servers: ['https://login.microsoftonline.com/test-tenant/v2.0'],
+		scopes_supported: ['api://test-client-id/access_as_user'],
+	};
+}
+
+// True when a request targets the marketplace's well-known Protected Resource Metadata endpoint.
+function isProtectedResourceMetadataRequest(url: string | undefined): boolean {
+	return !!url?.includes('/.well-known/oauth-protected-resource');
+}
+
 suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -79,6 +95,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let requestHandler: (options: IRequestOptions) => IRequestContext | Promise<IRequestContext>;
 	let defaultAccount: IDefaultAccount | null;
 	let microsoftSessions: AuthenticationSession[];
+	let microsoftResourceSessions: AuthenticationSession[] | undefined;
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
 	let entraAuthEnabled: boolean;
@@ -86,6 +103,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	setup(() => {
 		defaultAccount = null;
 		microsoftSessions = [];
+		microsoftResourceSessions = undefined;
 		requestHandler = () => mockResponse(200, createGalleryManifest());
 		storageData = new Map();
 		entraAuthEnabled = true;
@@ -169,8 +187,14 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			override async getSessions(providerId: string) {
+			override async getSessions(providerId: string, _scopes?: readonly string[], options?: { authorizationServer?: URI }) {
 				if (providerId === 'microsoft') {
+					// A resource-scoped request (RFC 8707: getSessions carrying an authorizationServer
+					// discovered from well-known PRM) yields the resource-scoped session when the test
+					// provides one; otherwise fall back to the base (OpenID) sessions.
+					if (options?.authorizationServer) {
+						return microsoftResourceSessions ?? microsoftSessions;
+					}
 					return microsoftSessions;
 				}
 				return [];
@@ -422,6 +446,10 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		// No RFC 9728 challenge was issued (the index accepted the initial token directly), so no
+		// resource-scoped token was negotiated — getAccessToken stays undefined. A resource token is
+		// only exposed when the index challenges and negotiation upgrades the token (covered below).
+		assert.strictEqual(await service.getAccessToken(), undefined);
 	});
 
 	test('Microsoft provider — auth-gated service index, token forbidden (403) → AccessDenied', async () => {
@@ -498,6 +526,100 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
+	});
+
+	test('Microsoft provider — auth-gated index → well-known PRM discovery negotiates resource-scoped token → Available', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// The initially-acquired (OpenID) token is not resource-scoped; the resource-scoped token
+		// is obtained by discovering the marketplace's well-known Protected Resource Metadata and
+		// acquiring a token bound to the advertised authorization server.
+		microsoftSessions = [createMicrosoftSession('ms-openid-token')];
+		microsoftResourceSessions = [createMicrosoftSession('ms-resource-token')];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let eligibilityAuthHeader: string | undefined;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createProtectedResourceMetadata());
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (options.url?.includes('eligibility')) {
+				eligibilityAuthHeader = auth;
+				return mockResponse(200, { eligible: true });
+			}
+			// The service index only accepts the resource-scoped token; the OpenID token is
+			// challenged with a 401 carrying the RFC 9728 resource_metadata pointer.
+			if (auth === 'Bearer ms-resource-token') {
+				return mockResponse(200, createGalleryManifest(true));
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		// The negotiated resource-scoped token — not the initial OpenID token — is reused for the
+		// protected eligibility POST.
+		assert.strictEqual(eligibilityAuthHeader, 'Bearer ms-resource-token');
+		// The negotiated resource-scoped token is exposed for authenticating protected marketplace
+		// API requests (extensionquery, asset download).
+		assert.strictEqual(await service.getAccessToken(), 'ms-resource-token');
+	});
+
+	test('Microsoft provider — auth-gated index 401 with NO WWW-Authenticate header (CORS-stripped) → well-known PRM discovery still negotiates → Available', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// Regression: the renderer's cross-origin index fetch usually cannot read the
+		// WWW-Authenticate challenge header (it is not CORS-safelisted). Negotiation must not
+		// depend on it — discovery is driven by the well-known Protected Resource Metadata body,
+		// which IS CORS-readable. Here the 401 carries no challenge header at all.
+		microsoftSessions = [createMicrosoftSession('ms-openid-token')];
+		microsoftResourceSessions = [createMicrosoftSession('ms-resource-token')];
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createProtectedResourceMetadata());
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: true });
+			}
+			// The index only accepts the resource-scoped token; the OpenID token is rejected with
+			// a bare 401 (no WWW-Authenticate header).
+			if (auth?.includes('ms-resource-token')) {
+				return mockResponse(200, createGalleryManifest(true));
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'ms-resource-token');
+	});
+
+	test('Microsoft provider — negotiated token still forbidden on retry (403) → AccessDenied (cached ineligible)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('ms-openid-token')];
+		microsoftResourceSessions = [createMicrosoftSession('ms-resource-token')];
+		const challenge = 'Bearer resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		// The challenge is negotiated and a resource-scoped token acquired, but the identity is
+		// still forbidden from the index (403) — a durable denial that is cached.
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createProtectedResourceMetadata());
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (auth === 'Bearer ms-resource-token') {
+				return mockResponse(403, { message: 'forbidden' });
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).eligible, false);
 	});
 
 	test('Microsoft provider — eligibility endpoint forbids (403) → AccessDenied (cached ineligible)', async () => {
