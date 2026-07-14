@@ -333,13 +333,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			const validate = () => this.handleMicrosoftAccess(configuredServiceUrl, ++this.validationEpoch);
 			this._register(this.authenticationService.onDidChangeSessions(e => {
 				if (e.providerId === 'microsoft') {
-					this.clearCachedAccess();
-					// Revoke the manifest that was authorized for the previous session before
-					// revalidating. Without this, the active status stays `Available`, and if the
-					// new session's validation hits a transient index/eligibility failure the catch
-					// paths preserve `Available` — leaking the prior account's authorization to the
-					// new (possibly ineligible) account.
-					this.update(null);
+					// Re-validate on any Microsoft session change, but deliberately do NOT clear the
+					// cache or revoke the manifest here. `onDidChangeSessions` also fires on routine
+					// token refreshes for the SAME account, and unconditionally clearing would force
+					// a redundant eligibility round-trip (and a brief manifest flash) on every
+					// refresh. handleMicrosoftAccess resolves the current account and, only when it
+					// actually differs from the cached verdict (or no verdict is cached), revokes the
+					// prior authorization and re-checks eligibility.
 					validate();
 				}
 			}));
@@ -464,6 +464,24 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			return;
 		}
 
+		// Whether we already hold a durable eligibility verdict for THIS account against THIS
+		// marketplace. `getCachedAccess` returns the verdict only when it was written under the
+		// currently-effective provider and for the configured serviceUrl (dropping it otherwise),
+		// so a same-account match here means "same provider + same marketplace + same account".
+		// When present we skip the eligibility POST below — it is only needed on first sign-in or
+		// when the account changes. We still (re)negotiate the service index token so a gated
+		// marketplace's resource-scoped token is refreshed for this session.
+		const cached = this.getCachedAccess(configuredServiceUrl);
+		const matchedVerdict = cached && cached.accountId === session.account.id ? cached : undefined;
+		if (!matchedVerdict && this.currentStatus === ExtensionGalleryManifestStatus.Available) {
+			// No verdict for the current account, yet the marketplace is still showing Available
+			// for a previous account (e.g. an account switch). Revoke that authorization NOW,
+			// before the async negotiation/eligibility round-trip, so a transient failure below
+			// cannot preserve the prior account's manifest — the "unreachable" catch paths only
+			// overwrite the status when it is not already Available.
+			this.update(null);
+		}
+
 		// We have a token — fetch the service index (presenting the token so a gated index is
 		// readable), then discover the eligibility endpoint from it. The manifest is carried
 		// forward to `applyEligibilityResult` so it is fetched exactly once: this keeps the
@@ -530,6 +548,25 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 
 		if (this.validationEpoch !== epoch) {
+			return;
+		}
+
+		// The service index read above succeeded with the current session's token, so the token
+		// is valid. If we already hold a durable verdict for this account+marketplace, apply it
+		// without re-POSTing eligibility — that check is only needed on first sign-in or when the
+		// account changes (both of which arrive with no matching cache). The negotiation above
+		// refreshed the resource-scoped token for this session; expose it when the index was gated
+		// and the user is eligible. Verdict invalidation for a rejected/expired token is handled by
+		// the negotiation catch above (401 → RequiresSignIn, 403 → AccessDenied) before we get here.
+		if (matchedVerdict) {
+			if (matchedVerdict.eligible) {
+				if (indexWasNegotiated) {
+					this.negotiatedAccessToken = indexToken;
+				}
+				this.applyEligibilityResult({ eligible: true }, manifest);
+			} else {
+				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			}
 			return;
 		}
 
