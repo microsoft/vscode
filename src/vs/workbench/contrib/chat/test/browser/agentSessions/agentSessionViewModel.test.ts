@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, getAgentSessionProviderSource } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -2207,6 +2207,28 @@ suite('AgentSessions', () => {
 		test('should return correct icon for AgentHostCodex provider', () => {
 			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCodex);
 			assert.strictEqual(icon.id, Codicon.openai.id);
+		});
+
+		test('should distinguish Codex providers by source and description', () => {
+			assert.deepStrictEqual({
+				extension: {
+					source: getAgentSessionProviderSource(AgentSessionProviders.Codex),
+					description: getAgentSessionProviderDescription(AgentSessionProviders.Codex),
+				},
+				agentHost: {
+					source: getAgentSessionProviderSource(AgentSessionProviders.AgentHostCodex),
+					description: getAgentSessionProviderDescription(AgentSessionProviders.AgentHostCodex),
+				},
+			}, {
+				extension: {
+					source: '(OpenAI Extension)',
+					description: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
+				},
+				agentHost: {
+					source: '(Local Agent Host)',
+					description: 'Delegate tasks to the Codex App Server using the Codex models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.',
+				},
+			});
 		});
 
 		test('should resolve AgentHostClaude provider from session type', () => {

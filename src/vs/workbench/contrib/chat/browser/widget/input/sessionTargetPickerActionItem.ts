@@ -25,7 +25,7 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, getAgentSessionProviderSource, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -77,6 +77,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				for (const sessionTypeItem of this._sessionTypeItems) {
 					const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
 					const unavailable = availability !== SessionTypeAvailability.Available;
+					const description = getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem);
+					const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
+					const ariaDescription = typeof description === 'string' ? description : description?.value;
+					const ariaHoverDescription = typeof hoverDescription === 'string' ? hoverDescription : hoverDescription?.value;
 					actions.push({
 						...action,
 						id: sessionTypeItem.commandId,
@@ -85,9 +89,12 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						icon: this._getSessionIcon(sessionTypeItem),
 						enabled: unavailable ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
-						description: getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem),
+						description,
+						ariaDescription: ariaDescription && ariaHoverDescription
+							? localize('chat.sessionTarget.ariaDescription', "{0}. {1}", ariaDescription, ariaHoverDescription)
+							: undefined,
 						tooltip: '',
-						hover: { content: getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription },
+						hover: { content: hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -256,7 +263,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		return undefined;
+		return getAgentSessionProviderSource(sessionTypeItem.type);
 	}
 
 	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {
