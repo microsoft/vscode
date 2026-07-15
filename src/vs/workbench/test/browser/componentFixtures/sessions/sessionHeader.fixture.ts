@@ -117,6 +117,7 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(options.changes ?? []);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([createMockBranchChangeset(options.changes ?? [])]);
