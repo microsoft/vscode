@@ -160,7 +160,10 @@ export class ModelPicker extends Disposable {
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));
-		this._register(this._newChatModelPickerService.registerModelPicker(() => this._modelPicker.openModelPicker()));
+		this._register(this._newChatModelPickerService.registerModelPicker({
+			open: () => this._modelPicker.openModelPicker(),
+			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
+		}));
 
 		this._initModel();
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._initModel()));
@@ -314,6 +317,21 @@ export class ModelPicker extends Disposable {
 		this._container = container;
 		this._modelPicker.render(container);
 		this._updateVisibility(this._shouldShowPicker(this._session.get()));
+	}
+
+	switchToModel(modelIdentifier: string): boolean {
+		const model = this._delegate.getModels().find(model => model.identifier === modelIdentifier);
+		if (!model) {
+			return false;
+		}
+		// Notification actions have their own telemetry and do not close this picker.
+		this._settingModelInternally = true;
+		try {
+			this._delegate.setModel(model);
+		} finally {
+			this._settingModelInternally = false;
+		}
+		return true;
 	}
 
 	/**

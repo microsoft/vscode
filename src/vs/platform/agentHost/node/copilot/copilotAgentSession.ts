@@ -58,7 +58,7 @@ import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFrom
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
-import { McpAuthRequiredReason, McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 
@@ -80,7 +80,14 @@ interface IPendingMcpAuthRequest {
 	readonly serverName: string;
 	readonly resource: ProtectedResourceMetadata;
 	readonly requiredScopes: readonly string[];
+	readonly toolCalls: IMcpAuthToolCall[];
 	readonly deferred: DeferredPromise<McpAuthResult | null | undefined>;
+}
+
+interface IMcpAuthToolCall {
+	readonly turnId: string;
+	readonly toolCallId: string;
+	readonly parentToolCallId: string | undefined;
 }
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
@@ -1040,6 +1047,10 @@ export class CopilotAgentSession extends Disposable {
 	 * resolves immediately once it does.
 	 */
 	handleClientToolCallComplete(toolCallId: string, result: ToolCallResult) {
+		if (!result.success && this._cancelMcpAuthenticationForToolCall(toolCallId)) {
+			this._activeToolCalls.delete(toolCallId);
+			return;
+		}
 		const textContent = result.content
 			?.filter(c => c.type === ToolResultContentType.Text)
 			.map(c => c.text)
@@ -1068,6 +1079,22 @@ export class CopilotAgentSession extends Disposable {
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
 		this.respondToPermissionRequest(toolCallId, true);
+	}
+
+	private _cancelMcpAuthenticationForToolCall(toolCallId: string): boolean {
+		for (const [requestId, pending] of this._pendingMcpAuthRequests) {
+			const toolCallIndex = pending.toolCalls.findIndex(toolCall => toolCall.toolCallId === toolCallId);
+			if (toolCallIndex === -1) {
+				continue;
+			}
+			pending.toolCalls.splice(toolCallIndex, 1);
+			if (pending.toolCalls.length === 0) {
+				this._pendingMcpAuthRequests.delete(requestId);
+				pending.deferred.complete({ kind: 'cancelled' });
+			}
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -1118,6 +1145,13 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			this._pendingMcpAuthRequests.delete(requestId);
+			for (const toolCall of pending.toolCalls) {
+				this._emitAction({
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: toolCall.turnId,
+					toolCallId: toolCall.toolCallId,
+				}, toolCall.parentToolCallId);
+			}
 			pending.deferred.complete({ kind: 'token', accessToken: params.token });
 			resolved = true;
 		}
@@ -1132,25 +1166,51 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const resource = this._protectedResourceFromMcpAuthRequest(request);
 		const requiredScopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
+		const auth: McpAuthRequirement = {
+			reason: this._mcpAuthRequiredReason(request.reason),
+			resource,
+			requiredScopes: requiredScopes.length ? [...requiredScopes] : undefined,
+			description: request.wwwAuthenticateParams?.error,
+		};
+		const toolCalls = this._activeMcpToolCalls(request.serverName);
 		const deferred = new DeferredPromise<McpAuthResult | null | undefined>();
 		this._pendingMcpAuthRequests.set(request.requestId, {
 			serverName: request.serverName,
 			resource,
 			requiredScopes,
+			toolCalls,
 			deferred,
 		});
 		this._mcpCustomizations.applyOne({
 			name: request.serverName,
 			state: {
 				kind: McpServerStatus.AuthRequired,
-				reason: this._mcpAuthRequiredReason(request.reason),
-				resource,
-				requiredScopes: requiredScopes.length ? [...requiredScopes] : undefined,
-				description: request.wwwAuthenticateParams?.error,
+				...auth,
 			},
 		});
+		for (const toolCall of toolCalls) {
+			this._emitAction({
+				type: ActionType.ChatToolCallAuthRequired,
+				turnId: toolCall.turnId,
+				toolCallId: toolCall.toolCallId,
+				auth,
+			}, toolCall.parentToolCallId);
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
 		return deferred.p.finally(() => this._pendingMcpAuthRequests.delete(request.requestId));
+	}
+
+	private _activeMcpToolCalls(serverName: string): IMcpAuthToolCall[] {
+		if (!this._turnId) {
+			return [];
+		}
+		const result: IMcpAuthToolCall[] = [];
+		for (const [toolCallId, toolCall] of this._activeToolCalls) {
+			if (toolCall.mcpServerName === serverName) {
+				result.push({ turnId: this._turnId, toolCallId, parentToolCallId: toolCall.parentToolCallId });
+			}
+		}
+		return result;
 	}
 
 	private _initialGitHubMcpToken(request: McpAuthRequest): string | undefined {

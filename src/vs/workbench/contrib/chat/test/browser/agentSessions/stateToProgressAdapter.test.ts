@@ -9,9 +9,10 @@ import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -795,6 +796,49 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('creates authentication-required invocation for an MCP tool call', () => {
+			const invocation = rawToolCallStateToInvocation({
+				...createToolCallState(),
+				status: ToolCallStatus.AuthRequired,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				auth: {
+					reason: McpAuthRequiredReason.InsufficientScope,
+					resource: {
+						resource: 'https://mcp.example.com',
+						resource_name: 'Example MCP',
+						authorization_servers: ['https://auth.example.com'],
+						scopes_supported: ['repo'],
+					},
+					requiredScopes: ['repo'],
+				},
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+				assert.fail('Expected authentication-required state');
+			}
+			const { cancel, ...stateWithoutCancel } = state;
+			assert.strictEqual(typeof cancel, 'function');
+			assert.deepStrictEqual(stateWithoutCancel, {
+				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: undefined },
+				parameters: undefined,
+				confirmationMessages: undefined,
+				server: {
+					id: 'frontend/mcp-1',
+					name: 'Example MCP',
+					resource: 'https://mcp.example.com',
+					authorizationServers: ['https://auth.example.com'],
+					supportedScopes: ['repo'],
+					requiredScopes: ['repo'],
+					reason: McpAuthRequiredReason.InsufficientScope,
+				},
+			});
+			invocation.setAuthenticationResolved();
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
 
 		test('sets terminal toolSpecificData when content has terminal block', () => {

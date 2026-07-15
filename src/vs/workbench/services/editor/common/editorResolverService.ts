@@ -40,7 +40,7 @@ export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociation
 /**
  * Setting that controls whether the Markdown editor is the default editor for
  * `*.md` files in the Agents window. Gated behind an experiment so it can be
- * rolled out gradually. Defaults to off.
+ * rolled out gradually. Defaults to on.
  */
 export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
 
@@ -66,7 +66,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		[markdownDefaultEditorAgentsWindowSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),

@@ -41,6 +41,20 @@
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
+/*
+ * Webviews are iframes that cannot be reparented, so they are mounted at the workbench
+ * root and floated over their card via `OverlayLayoutElement` (see `overlayWebview.ts`).
+ * The overlay content directly wraps the iframe and already clips its overflow, so a
+ * `border-radius` here rounds the otherwise square iframe corners that would poke over the
+ * card's rounded corners.
+ *
+ * Note: rounding the overlay *root* instead does not work - its `clip-path` does not clip the
+ * `position: fixed` content child, so the square iframe corners remain.
+ */
+.monaco-workbench.floating-panels .webview-overlay-content {
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
 /* Keep the auxiliary bar background aligned with the primary sidebar in light theme. */
 .monaco-workbench.floating-panels .part.auxiliarybar {
 	background-color: var(--vscode-sideBar-background) !important;
@@ -153,6 +167,12 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+/* At the default (non-compact) size, separate the activity bar items with a 4px gap
+ * so they read as distinct floating targets. Compact keeps the tighter default stack. */
+.monaco-workbench.floating-panels .part.activitybar:not(.compact) > .content .monaco-action-bar .action-item + .action-item {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 /* The status bar draws its top border via a pseudo-element — hide it too. */
 .monaco-workbench.floating-panels .part.statusbar::after {
 	display: none !important;
@@ -160,19 +180,33 @@
 
 /* Inset and vertically center the status bar items within its floating gutter. */
 .monaco-workbench.floating-panels .part.statusbar {
-	padding: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size60);
 	padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness)); /* offset for the border-top of the status bar */
 	padding-bottom: calc(var(--vscode-spacing-size40) + var(--vscode-strokeThickness)); /* offset for the border-bottom of the status bar */
 }
 
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
-	padding-left: 4px;
+/* With a compact activity bar the horizontal inset is tightened to match. The
+ * `compact` class lives on the activity bar element, so `:has()` lets the status
+ * bar (a sibling part) react without any code-side class plumbing. */
+.monaco-workbench.floating-panels:has(.part.activitybar.compact) .part.statusbar {
+	padding-left: var(--vscode-spacing-size20);
+	padding-right: var(--vscode-spacing-size20);
 }
 
+/* When the activity bar is hidden its grid cell loses the `visible` class the
+ * split view toggles. With no bar to align to, fall back to the standard 4px
+ * inset. This has higher specificity than the compact rule above, so a hidden
+ * compact bar still resolves to 4px. */
+.monaco-workbench.floating-panels:has(.split-view-view:not(.visible) .part.activitybar) .part.statusbar {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
 .monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
-	padding-left: 4px;
+	padding-left: var(--vscode-spacing-size40);
 }
-
 /*
  * When the status bar is hidden every floating card sits directly against the window
  * bottom edge. Double the bottom margin (4px → 8px) to match the doubled outer gutter

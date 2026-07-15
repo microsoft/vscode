@@ -1758,7 +1758,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => s.isRead.get(), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
 			approvalModel,
 			undefined,
 			instantiationService,
@@ -2030,14 +2030,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
-		// Re-update when the active session changes so that a filtered-out
-		// session becomes visible while active and hides again when unselected.
-		// Also mark the newly active session as read.
+		// Re-render when the active session changes.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
-			if (activeSession) {
-				this._sessionsListModelService.markRead(activeSession);
-			}
+			this._sessionsService.activeSession.read(reader);
 			if (this.visible) {
 				this.update();
 			}
@@ -2077,6 +2072,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		for (const session of this.sessions) {
+			this._sessionsListModelService.migrateLegacyReadState(session);
+		}
 		this.update();
 	}
 
@@ -2099,7 +2097,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !s.isArchived.get());
 		}
 		if (this._excludeRead) {
-			filtered = filtered.filter(s => !this.isSessionRead(s));
+			filtered = filtered.filter(s => !s.isRead.get());
 		}
 
 		// Always include the active session even if it was filtered out,
@@ -2720,7 +2718,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
-			[SessionIsReadContext.key, this.isSessionRead(element)],
+			[SessionIsReadContext.key, element.isRead.get()],
 			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionTypeContext.key, element.sessionType],
@@ -2850,15 +2848,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Read/Unread --
 
 	markRead(session: ISession): void {
-		this._sessionsListModelService.markRead(session);
+		this._sessionsManagementService.markRead(session);
 	}
 
 	markUnread(session: ISession): void {
-		this._sessionsListModelService.markUnread(session);
-	}
-
-	isSessionRead(session: ISession): boolean {
-		return this._sessionsListModelService.isSessionRead(session);
+		this._sessionsManagementService.markUnread(session);
 	}
 
 	// -- Session type filtering --
@@ -3406,6 +3400,7 @@ export class SessionsFlatList extends Disposable {
 		private readonly options: ISessionsFlatListOptions,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
@@ -3430,7 +3425,7 @@ export class SessionsFlatList extends Disposable {
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
-				isRead: s => this._sessionsListModelService.isSessionRead(s),
+				isRead: s => s.isRead.get(),
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
@@ -3477,7 +3472,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			this._sessionsListModelService.markRead(element);
+			this._sessionsManagementService.markRead(element);
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
 			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);

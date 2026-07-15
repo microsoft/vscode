@@ -12,7 +12,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { observableContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
@@ -29,7 +29,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
+import { agentHostModelPickerStorageKey, setAgentHostModelSelection } from '../agentHostModelPicker.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 
 function getAgentHostModeIcon(value: string | undefined): ThemeIcon | undefined {
@@ -281,8 +281,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 						// remembers the same selection across surfaces,
 						// and push to the agent-host provider so the
 						// next send goes out with the picked model.
-						this._storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), action.model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
-						ahProvider.setModel(session.sessionId, action.model.identifier);
+						setAgentHostModelSelection(session, [action.model], action.model.identifier, ahProvider, this._storageService);
 					}
 					break;
 			}

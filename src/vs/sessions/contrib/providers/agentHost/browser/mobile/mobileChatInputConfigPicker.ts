@@ -32,7 +32,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { type ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
-import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
+import { agentHostModelPickerStorageKey, setAgentHostModelSelection } from '../agentHostModelPicker.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
 
@@ -113,7 +113,10 @@ class MobileChatInputConfigPicker extends Disposable {
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
-		this._register(this._newChatModelPickerService.registerModelPicker(() => { void this._showSheet(); }));
+		this._register(this._newChatModelPickerService.registerModelPicker({
+			open: () => { void this._showSheet(); },
+			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
+		}));
 
 		// Re-render the trigger whenever the active session, its config,
 		// its model, or the available language models change. The
@@ -315,6 +318,14 @@ class MobileChatInputConfigPicker extends Disposable {
 		const resolved = rememberedModel ?? ctx.modelItems[0];
 		ctx.provider.setModel(ctx.session.sessionId, resolved.identifier);
 		return resolved.identifier;
+	}
+
+	private _switchToModel(modelIdentifier: string): boolean {
+		const ctx = this._getContext();
+		if (!ctx) {
+			return false;
+		}
+		return setAgentHostModelSelection(ctx.session, ctx.modelItems, modelIdentifier, ctx.provider, this._storageService);
 	}
 
 	private async _showSheet(): Promise<void> {

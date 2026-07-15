@@ -27,7 +27,7 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, getAgentSessionProviderSource, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -72,7 +72,7 @@ export function createSessionTypePickerAction(
 		description,
 		ariaDescription: ariaDescription && ariaHoverDescription
 			? localize('chat.sessionTarget.ariaDescription', "{0}. {1}", ariaDescription, ariaHoverDescription)
-			: undefined,
+			: ariaDescription ?? ariaHoverDescription,
 		tooltip: '',
 		hover: { content: hoverDescription },
 		run: async () => run(),
@@ -289,8 +289,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		return knownType && isFirstPartyAgentSessionProvider(knownType) ? firstPartyCategory : otherCategory;
 	}
 
-	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		return getAgentSessionProviderSource(sessionTypeItem.type);
+	protected _getSessionDescription(_sessionTypeItem: ISessionTypeItem): string | undefined {
+		return undefined;
 	}
 
 	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {

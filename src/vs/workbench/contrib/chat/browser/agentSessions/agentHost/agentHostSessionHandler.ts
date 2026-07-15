@@ -38,7 +38,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ChatAction, type ClientChatAction, type ClientSessionAction, type ChatInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -93,7 +93,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -987,7 +987,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								participant: this._config.agentId,
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
-							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
+							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority, sessionResource.authority);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
@@ -1923,7 +1923,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
-			const authRequiredServers = servers.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired);
+			const toolAuthServerIds = new Set(state?.inputNeeded
+				?.filter(request => request.kind === SessionInputRequestKind.ToolAuthentication)
+				.map(request => request.kind === SessionInputRequestKind.ToolAuthentication
+					? request.toolCall.contributor.customizationId
+					: undefined)
+				.filter(id => id !== undefined));
+			const authRequiredServers = servers.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id));
 			return authRequiredServers.map((server): IChatMcpAuthenticationRequiredServer => {
 				const state = server.state as McpServerAuthRequiredState;
 				return {
@@ -2442,7 +2448,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const subAgentInvocationId = opts.subAgentInvocationId;
 		const adopted = opts.adoptInvocations?.get(toolCallId);
 		let invocation = adopted
-			?? toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+			?? toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 		if (!adopted) {
 			opts.sink([invocation]);
 		}
@@ -2529,6 +2535,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
+			const priorStatus = previousStatus;
 			const isReconfirmation = previousStatus !== undefined
 				&& previousStatus !== ToolCallStatus.PendingConfirmation
 				&& status === ToolCallStatus.PendingConfirmation;
@@ -2540,11 +2547,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// invocation and replace it with a fresh one carrying the
 				// new confirmation messages.
 				invocation.didExecuteTool(undefined);
-				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority);
+				const confirmInvocation = toolCallStateToInvocation(tc, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 				opts.sink([confirmInvocation]);
 				invocation = confirmInvocation;
 				this._awaitToolConfirmation(confirmInvocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options, opts.chatURI);
+			} else if (status === ToolCallStatus.AuthRequired) {
+				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority), () => {
+					this._dispatchAction(opts.backendSession, {
+						type: ActionType.ChatToolCallComplete,
+						turnId: opts.turnId,
+						toolCallId,
+						result: {
+							success: false,
+							pastTenseMessage: localize('agentHost.mcpToolAuthentication.cancelled', "Cancelled tool call"),
+							error: { message: localize('agentHost.mcpToolAuthentication.cancelledError', "MCP authentication was cancelled"), code: 'cancelled' },
+						},
+					}, opts.chatURI);
+				});
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
+				if (priorStatus === ToolCallStatus.AuthRequired) {
+					invocation.setAuthenticationResolved();
+				}
 				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
 				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);

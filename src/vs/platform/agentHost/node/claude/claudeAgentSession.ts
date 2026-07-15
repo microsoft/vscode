@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -59,6 +59,7 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
 export interface IMaterializeContext {
 	readonly transport: ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
+	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
 	/**
 	 * Working directory the host resolved for this session's first send (e.g. an
@@ -447,6 +448,7 @@ export class ClaudeAgentSession extends Disposable {
 				abortController: this.abortController,
 				permissionMode,
 				canUseTool: ctx.canUseTool,
+				onElicitation: ctx.onElicitation,
 				isResume: ctx.isResume,
 				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
@@ -456,7 +458,6 @@ export class ClaudeAgentSession extends Disposable {
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
-			msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 		);
 
 		this._logService.info(`[Claude] session ${this.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} isResume=${ctx.isResume}`);
@@ -544,6 +545,7 @@ export class ClaudeAgentSession extends Disposable {
 						abortController: rebuildAbort,
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
+						onElicitation: ctx.onElicitation,
 						isResume: true,
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
@@ -553,7 +555,6 @@ export class ClaudeAgentSession extends Disposable {
 					},
 					ctx.transport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
-					msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });

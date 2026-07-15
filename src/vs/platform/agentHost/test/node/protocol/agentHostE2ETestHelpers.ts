@@ -17,8 +17,9 @@
 import assert from 'assert';
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir, homedir } from 'os';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -59,11 +60,55 @@ const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
 const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
+const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
+const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
 const isWindows = process.platform === 'win32';
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
+
+async function stopServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+
+	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
+	serverProcess.stdin?.end();
+	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+		serverProcess.kill();
+		await serverExit;
+	}
+}
+
+async function removeTempDirs(tempDirs: string[]): Promise<void> {
+	const pendingDirs = tempDirs.splice(0);
+	const errors = new Map<string, Error>();
+	const deadline = Date.now() + TEMP_DIR_CLEANUP_TIMEOUT_MS;
+	while (pendingDirs.length > 0) {
+		for (let index = pendingDirs.length - 1; index >= 0; index--) {
+			const dir = pendingDirs[index];
+			try {
+				rmSync(dir, { recursive: true, force: true });
+				pendingDirs.splice(index, 1);
+				errors.delete(dir);
+			} catch (error) {
+				errors.set(dir, error instanceof Error ? error : new Error(String(error)));
+			}
+		}
+		if (pendingDirs.length === 0) {
+			return;
+		}
+		if (Date.now() >= deadline) {
+			throw new AggregateError(
+				Array.from(errors.values()),
+				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+			);
+		}
+		await timeout(500);
+	}
+}
 
 /**
  * Fixtures live in the source tree (committed) though the compiled test runs
@@ -619,7 +664,7 @@ export class AgentHostE2EServerLease {
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string },
+		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string; readonly userDataDir?: string },
 	) {
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -648,7 +693,7 @@ export class AgentHostE2EServerLease {
 	/**
 	 * Release a test: dispose its sessions, disconnect the client, and verify the
 	 * replay traffic. A shared server is kept alive (with its cached SDK client)
-	 * for the next test; a per-test server is stopped and killed.
+	 * for the next test; a per-test server is stopped.
 	 */
 	async release(createdSessions: string[]): Promise<void> {
 		const client = this._client;
@@ -681,7 +726,7 @@ export class AgentHostE2EServerLease {
 			try {
 				await this._server?.capiReplay?.stop();
 			} finally {
-				this._server?.process.kill();
+				await stopServer(this._server);
 				this._server = undefined;
 			}
 		}
@@ -693,7 +738,7 @@ export class AgentHostE2EServerLease {
 			try {
 				await this._server.capiReplay?.close();
 			} finally {
-				this._server.process.kill();
+				await stopServer(this._server);
 				this._server = undefined;
 			}
 		}
@@ -713,31 +758,44 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
 		let client: TestProtocolClient;
+		let lease: AgentHostE2EServerLease | undefined;
+		let suiteDataDir: string | undefined;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
-		const lease = new AgentHostE2EServerLease(config, {
-			claudeSdkRoot: config.claudeSdkRoot,
-			codexSdkRoot: config.codexSdkRoot,
-			// Normalize the real home + temp roots out of recorded request
-			// bodies so committed fixtures carry no local absolute paths.
-			homeDir: homedir(),
-		});
 
 		suiteSetup(async function () {
 			this.timeout(60_000);
+			suiteDataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+			lease = new AgentHostE2EServerLease(config, {
+				claudeSdkRoot: config.claudeSdkRoot,
+				codexSdkRoot: config.codexSdkRoot,
+				homeDir: suiteDataDir,
+				userDataDir: join(suiteDataDir, 'user-data'),
+			});
 		});
 
 		suiteTeardown(async function () {
 			// In replay the lease reuses one server across the suite (swapping the
 			// replay fixture per test); tear it down here. While recording the
-			// lease already killed the per-test server in each teardown and this is
+			// lease already stopped the per-test server in each teardown and this is
 			// a no-op.
-			this.timeout(60_000);
-			await lease.dispose();
+			this.timeout(90_000);
+			try {
+				await lease?.dispose();
+			} finally {
+				if (suiteDataDir) {
+					tempDirs.push(suiteDataDir);
+					suiteDataDir = undefined;
+				}
+				await removeTempDirs(tempDirs);
+			}
 		});
 
 		setup(async function () {
 			this.timeout(60_000);
+			if (!lease) {
+				throw new Error('Agent Host E2E server lease was not initialized.');
+			}
 			({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 		});
 
@@ -746,15 +804,11 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			// test for Claude, where the model hasn't yielded `turnComplete`)
 			// has to abort an in-flight SDK query before disposeSession
 			// resolves, which can take longer than the default 5s.
-			this.timeout(60_000);
-			await lease.release(createdSessions);
-
-			for (const dir of tempDirs) {
-				try {
-					rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-				} catch { /* best-effort */ }
+			this.timeout(90_000);
+			if (!lease) {
+				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
-			tempDirs.length = 0;
+			await lease.release(createdSessions);
 		});
 
 		test('sends a simple message and receives a response', async function () {

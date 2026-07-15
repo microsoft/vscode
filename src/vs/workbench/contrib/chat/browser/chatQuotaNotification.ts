@@ -20,7 +20,7 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
@@ -409,19 +409,19 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown) {
 			description = localize('quota.exhausted.anonymous', "Sign in to keep going.");
-			actions = [{ label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
 		} else if (entitlement === ChatEntitlement.Free) {
 			description = localize('quota.exhausted.free', "Upgrade to keep going.");
-			actions = [{ label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.exhausted.managed', "Contact your admin to increase your limits.");
 			actions = [];
 		} else if (hadOverage) {
 			description = localize('quota.exhausted.hadOverage', "Increase your budget to keep building.");
-			actions = [{ label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		} else {
 			description = localize('quota.exhausted.default', "Manage your budget to keep building.");
-			actions = [{ label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({
@@ -466,7 +466,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free) {
 			description = localize('quota.approaching.free', "Upgrade to continue past the limit.");
-			actions = [{ label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.approaching.managed', "Contact your admin to increase your limits.");
 			actions = [];
@@ -475,7 +475,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions = [];
 		} else {
 			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-			actions = [{ label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({

@@ -50,7 +50,9 @@ function createMockAgentSession(resource: URI, opts?: {
 	archived?: boolean;
 	read?: boolean;
 	createdAt?: number;
+	status?: ChatSessionStatus;
 	metadata?: Record<string, unknown>;
+	onSetRead?: () => void;
 }): IAgentSession {
 	const providerType = opts?.providerType ?? AgentSessionProviders.Background;
 	let archived = opts?.archived ?? false;
@@ -60,7 +62,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly providerType = providerType;
 		override readonly providerLabel = 'Copilot';
 		override readonly label = opts?.title ?? 'Test Session';
-		override readonly status = ChatSessionStatus.Completed;
+		override readonly status = opts?.status ?? ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
 		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 		override readonly metadata = opts?.metadata ?? { repositoryPath: '/test/repo' };
@@ -70,7 +72,12 @@ function createMockAgentSession(resource: URI, opts?: {
 		override setPinned(): void { }
 		override isRead(): boolean { return read; }
 		override isMarkedUnread(): boolean { return false; }
-		override setRead(value: boolean): void { read = value; }
+		override setRead(value: boolean): void {
+			read = value;
+			// The real model fires its change event from `setRead`, which is how
+			// the provider mirrors the new read state back onto the adapter.
+			opts?.onSetRead?.();
+		}
 	}();
 }
 
@@ -602,7 +609,62 @@ suite('CopilotChatSessionsProvider', () => {
 		}]);
 	});
 
+	test('marks a session unread when its turn completes (InProgress → terminal)', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/turn-session' });
+		// Session starts a turn (in progress) and is currently read.
+		model.addSession(createMockAgentSession(resource, { title: 'Turn Session', createdAt: 1, status: ChatSessionStatus.InProgress, read: true }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions(); // Initialize cache with the in-progress session
+
+		// The turn completes: the underlying session flips to a terminal status.
+		model.replaceSession(createMockAgentSession(resource, { title: 'Turn Session', createdAt: 1, status: ChatSessionStatus.Completed, read: true, onSetRead: () => model.fireDidChangeSessions() }));
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
+	});
+
+	test('does not mark unread when status stays in progress', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/still-running' });
+		model.addSession(createMockAgentSession(resource, { title: 'Running', createdAt: 1, status: ChatSessionStatus.InProgress, read: true }));
+
+		const provider = createProvider(disposables, model);
+		provider.getSessions();
+
+		// A refresh that does not complete the turn must not mark it unread.
+		model.replaceSession(createMockAgentSession(resource, { title: 'Running (updated)', createdAt: 1, status: ChatSessionStatus.InProgress, read: true }));
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), true);
+	});
+
+	test('setSessionReadState clears unread across every chat in the group', async () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-session' });
+		const childResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/child-session' });
+
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 1, read: true, onSetRead: () => model.fireDidChangeSessions() }));
+		model.addSession(createMockAgentSession(childResource, {
+			title: 'Child', createdAt: 2, read: false,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' },
+			onSetRead: () => model.fireDidChangeSessions(),
+		}));
+
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const readBefore = session.isRead.get();
+
+		await provider.setSessionReadState(session.sessionId, true);
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: false,
+			readAfter: true,
+		});
+	});
+
+
 	// ---- Session creation -------
+
 	// Note: createNewSession tests are limited because CopilotCLISession
 	// requires IGitService and creates disposables that are hard to clean
 	// up in isolation. Full integration tests should cover session creation.

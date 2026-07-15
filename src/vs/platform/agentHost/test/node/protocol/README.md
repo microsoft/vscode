@@ -55,6 +55,7 @@ Key properties:
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
+- **Isolated persistent state**: each shared test uses a temporary home and VS Code user-data directory, which teardown removes after the agent host exits.
 
 ---
 

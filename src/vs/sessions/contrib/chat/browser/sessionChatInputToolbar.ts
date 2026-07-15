@@ -20,7 +20,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import './media/sessionChatInputToolbar.css';
@@ -79,10 +79,10 @@ function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
 /**
  * A floating toolbar shown above the chat input that surfaces the current turn's
  * chat status as clickable pills (see {@link ChatTurnPillsWidget}). Only shown
- * for agent host sessions while the viewed chat's turn is actively in progress;
- * once the turn completes the pills disappear here and reappear inside the
- * completed response. The pills are scoped to the viewed chat's last-turn changes
- * so they reflect only what that chat's most recent request produced.
+ * for agent host sessions while the viewed chat's turn is running or waiting for
+ * input; once the turn completes the pills disappear here and reappear inside
+ * the completed response. The pills are scoped to the viewed chat's last-turn
+ * changes so they reflect only what that chat's most recent request produced.
  */
 export class SessionChatInputToolbar extends Disposable {
 
@@ -121,11 +121,14 @@ export class SessionChatInputToolbar extends Disposable {
 		return chat?.lastTurnBrowserUrl?.read(reader);
 	});
 
-	/** Whether pills may show at all: an agent host session while the viewed chat's turn is streaming. */
+	/** Whether pills may show at all: an agent host session with an active turn. */
 	private readonly _active = derived(reader => {
 		const session = this._session.read(reader);
 		const chat = this._chat.read(reader);
-		return !!session && !!chat && isAgentHostProviderId(session.providerId) && chat.status.read(reader) === SessionStatus.InProgress;
+		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
+			return false;
+		}
+		return isActiveSessionStatus(chat.status.read(reader));
 	});
 
 	constructor(

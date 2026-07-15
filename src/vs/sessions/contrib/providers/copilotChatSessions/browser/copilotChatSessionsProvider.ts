@@ -1928,6 +1928,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+		// A grouped session's read state aggregates across all its chats, so
+		// update every chat in the group; fall back to the id itself when the
+		// session is ungrouped.
+		const chatIds = this._getChatIdsInGroup(sessionId);
+		const targetIds = chatIds.length > 0 ? chatIds : [sessionId];
+		for (const chatId of targetIds) {
+			const agentSession = this._findAgentSession(chatId);
+			if (agentSession && agentSession.isRead() !== isRead) {
+				agentSession.setRead(isRead);
+			}
+		}
+	}
+
 	async deleteSession(sessionId: string): Promise<void> {
 		const chatIds = this._getChatIdsInGroup(sessionId);
 
@@ -2774,6 +2788,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const currentKeys = new Set<string>();
 		const addedData: ICopilotChatSession[] = [];
 		const changedData: ICopilotChatSession[] = [];
+		// Underlying agent sessions whose turn just completed and should be marked
+		// unread. Processed after the loop so `setRead` does not re-enter mid-iteration.
+		const sessionsToMarkUnread: IAgentSession[] = [];
 		let cacheChanged = false;
 
 		for (const session of this.agentSessionsService.model.sessions) {
@@ -2792,8 +2809,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			const existing = this._sessionCache.get(key);
 			if (existing) {
+				const previousStatus = existing.status.get();
 				if (existing.update(session)) {
 					changedData.push(existing);
+				}
+				// A completed turn (InProgress → terminal) marks the session
+				// unread. Copilot read state is owned by the agent session model,
+				// so route through `setRead(false)`; the adapter mirrors it back.
+				const currentStatus = existing.status.get();
+				if (previousStatus === SessionStatus.InProgress
+					&& currentStatus !== SessionStatus.InProgress
+					&& currentStatus !== SessionStatus.Untitled
+					&& existing.isRead.get()) {
+					sessionsToMarkUnread.push(session);
 				}
 			} else {
 				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
@@ -2841,6 +2869,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					changed: changedData.map(d => this._chatToSession(d)),
 				});
 			}
+		}
+
+		// Mark completed-turn sessions unread after the change events above (and
+		// outside the iteration) so the model's change event re-enters cleanly.
+		for (const session of sessionsToMarkUnread) {
+			session.setRead(false);
 		}
 	}
 

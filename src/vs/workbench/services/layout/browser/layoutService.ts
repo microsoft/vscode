@@ -310,6 +310,7 @@ export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
 export interface IPartVisibilityChangeEvent {
 	readonly partId: string;
 	readonly visible: boolean;
+	readonly source?: 'resize';
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {

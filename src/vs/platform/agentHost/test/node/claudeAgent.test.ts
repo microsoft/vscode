@@ -4733,6 +4733,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		await session.materialize({
 			transport: { kind: 'proxy', handle: { baseUrl: 'http://127.0.0.1:0', nonce: 'n', dispose: () => { } } },
 			canUseTool: async () => ({ behavior: 'deny', message: 'unused' }),
+			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,
 		});
 
@@ -5355,37 +5356,150 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 	});
 });
 
-suite('ClaudeAgent (Phase 7 §3.7 — onElicitation cancel stub)', () => {
+suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Test 18 — Options.onElicitation returns { action: cancel } and logs the decline', async () => {
-		// Plan §3.7: full MCP wiring is Phase 10. Until then, the agent
-		// installs a `cancel` stub so any incidental MCP elicitation
-		// gets a deterministic response (instead of the SDK's auto-
-		// decline path) and a log line surfaces for diagnostics.
-		const logService = new CapturingLogService();
-		const ctx = createTestContext(disposables, { logService });
+	/**
+	 * Materialize a session and return its captured `onElicitation` closure plus
+	 * the {@link ChatInputRequest} stream, so the elicitation tests can drive an
+	 * `elicit/create` round-trip directly without the SDK's `for await` loop.
+	 */
+	async function materialize(): Promise<{
+		ctx: ITestContext;
+		onElicitation: NonNullable<Options['onElicitation']>;
+		inputRequests: ChatInputRequest[];
+	}> {
+		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
 
+		const inputRequests: ChatInputRequest[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(s => {
+			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
+				inputRequests.push(s.action.request);
+			}
+		}));
+
+		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
 		const onElicitation = ctx.sdk.capturedStartupOptions[0]?.onElicitation;
 		assert.ok(onElicitation, 'onElicitation callback was wired into Options');
+		return { ctx, onElicitation, inputRequests };
+	}
+
+	test('form-mode elicitation surfaces ChatInputRequested and returns accepted content', async () => {
+		const { ctx, onElicitation, inputRequests } = await materialize();
+
+		const promise = onElicitation(
+			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
+			{ signal: new AbortController().signal },
+		);
+		await tick();
+
+		const inputRequest = inputRequests.at(-1)!;
+		ctx.agent.respondToUserInputRequest(inputRequest.id, ChatInputResponseKind.Accept, {
+			side: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'left' } },
+		});
+
+		assert.deepStrictEqual({
+			message: inputRequest.message,
+			questions: inputRequest.questions?.map(q => ({ id: q.id, kind: q.kind } as const)),
+			result: await promise,
+		}, {
+			message: 'Pick a side',
+			questions: [{ id: 'side', kind: 'text' }],
+			result: { action: 'accept', content: { side: 'left' } },
+		});
+	});
+
+	test('declined form-mode elicitation returns a decline result', async () => {
+		const { ctx, onElicitation, inputRequests } = await materialize();
+
+		const promise = onElicitation(
+			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
+			{ signal: new AbortController().signal },
+		);
+		await tick();
+		ctx.agent.respondToUserInputRequest(inputRequests.at(-1)!.id, ChatInputResponseKind.Decline);
+
+		assert.deepStrictEqual(await promise, { action: 'decline' });
+	});
+
+	test('aborting the SDK signal cancels a parked elicitation', async () => {
+		const { onElicitation, inputRequests } = await materialize();
+
+		const controller = new AbortController();
+		const promise = onElicitation(
+			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
+			{ signal: controller.signal },
+		);
+		await tick();
+		assert.ok(inputRequests.at(-1), 'the elicitation parked as a ChatInputRequested action');
+		controller.abort();
+
+		assert.deepStrictEqual(await promise, { action: 'cancel' });
+	});
+
+	test('url-mode elicitation surfaces the url with no questions and accepts with no content', async () => {
+		const { ctx, onElicitation, inputRequests } = await materialize();
+
+		const promise = onElicitation(
+			{ serverName: 'm', message: 'Authorize', mode: 'url', url: 'https://example.com/auth' },
+			{ signal: new AbortController().signal },
+		);
+		await tick();
+
+		const inputRequest = inputRequests.at(-1)!;
+		ctx.agent.respondToUserInputRequest(inputRequest.id, ChatInputResponseKind.Accept);
+
+		assert.deepStrictEqual({
+			message: inputRequest.message,
+			url: inputRequest.url,
+			questions: inputRequest.questions,
+			result: await promise,
+		}, {
+			message: 'Authorize',
+			url: 'https://example.com/auth',
+			questions: undefined,
+			result: { action: 'accept' },
+		});
+	});
+
+	test('a pre-aborted signal cancels without ever parking', async () => {
+		const { onElicitation, inputRequests } = await materialize();
+
+		const controller = new AbortController();
+		controller.abort();
 		const result = await onElicitation(
-			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form' },
+			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
+			{ signal: controller.signal },
+		);
+
+		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
+	});
+
+	test('a url-mode request with no url cancels without surfacing a prompt', async () => {
+		const { onElicitation, inputRequests } = await materialize();
+
+		const result = await onElicitation(
+			{ serverName: 'm', message: 'Authorize', mode: 'url' },
 			{ signal: new AbortController().signal },
 		);
 
-		assert.deepStrictEqual({
-			result,
-			logCount: logService.infos.filter(m => m.includes('declining elicitation')).length,
-		}, {
-			result: { action: 'cancel' },
-			logCount: 1,
-		});
+		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
+	});
+
+	test('a form with no representable fields cancels without surfacing a prompt', async () => {
+		const { onElicitation, inputRequests } = await materialize();
+
+		const result = await onElicitation(
+			{ serverName: 'm', message: 'q', mode: 'form', requestedSchema: { type: 'object', properties: {} } },
+			{ signal: new AbortController().signal },
+		);
+
+		assert.deepStrictEqual({ result, parked: inputRequests.length }, { result: { action: 'cancel' }, parked: 0 });
 	});
 });
 

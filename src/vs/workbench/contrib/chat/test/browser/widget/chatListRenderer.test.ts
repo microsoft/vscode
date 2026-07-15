@@ -7,8 +7,8 @@ import assert from 'assert';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, isWaitingForMcpServers, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
-import { IChatMcpServersStartingSlow, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, isWaitingForMcpServers, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { IChatMcpServersStartingSlow, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -81,6 +81,24 @@ suite('ChatListRenderer', () => {
 				withThinkingWithoutReasoning: false,
 				withThinkingAfterReasoning: true,
 				alwaysWithoutReasoning: true,
+			});
+		});
+	});
+
+	suite('shouldPinToolInvocationToThinking', () => {
+		test('keeps tool invocations requiring user input outside Thinking', () => {
+			assert.deepStrictEqual({
+				executionConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForConfirmation, false),
+				resultApproval: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForPostApproval, false),
+				authentication: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForAuthentication, false),
+				executingWithConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, true),
+				executingWithoutConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, false),
+			}, {
+				executionConfirmation: false,
+				resultApproval: false,
+				authentication: false,
+				executingWithConfirmation: false,
+				executingWithoutConfirmation: true,
 			});
 		});
 	});

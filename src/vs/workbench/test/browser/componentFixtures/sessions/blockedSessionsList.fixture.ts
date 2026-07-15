@@ -18,7 +18,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, IGitHubInfo, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -182,9 +182,7 @@ function buildCIFixScenario(specs: readonly ICIBlockedSessionOptions[]): { sessi
 function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
-		override isSessionRead(): boolean { return true; }
 		override isSessionPinned(): boolean { return false; }
-		override markRead(): void { }
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:
@@ -250,6 +248,9 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 			}());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override markRead(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }

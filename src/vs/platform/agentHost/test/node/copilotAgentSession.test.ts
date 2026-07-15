@@ -4754,6 +4754,141 @@ suite('CopilotAgentSession', () => {
 
 	suite('MCP server inventory', () => {
 
+		test('tool-triggered MCP auth transitions the active MCP tool call until authentication resolves', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-auth');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tool-auth',
+				toolName: 'mcp_tool',
+				mcpServerName: 'github',
+				arguments: { owner: 'microsoft', repo: 'vscode' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-tool',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://api.githubcopilot.com/mcp/',
+					resource_name: 'GitHub MCP Server',
+					authorization_servers: ['https://github.com/login/oauth'],
+					scopes_supported: ['repo', 'notifications'],
+				}),
+				wwwAuthenticateParams: { scope: 'repo notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+			await timeout(0);
+
+			const beforeResolve = getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallAuthRequired)
+				.map(action => action.type === ActionType.ChatToolCallAuthRequired ? action : undefined);
+			const resolved = await session.resolveMcpAuthentication({
+				resource: 'https://api.githubcopilot.com/mcp/',
+				scopes: ['repo', 'notifications'],
+				token: 'token',
+			});
+			await authPromise;
+			const afterResolve = getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
+				.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action : undefined);
+
+			assert.deepStrictEqual({
+				beforeResolve,
+				resolved,
+				afterResolve,
+			}, {
+				beforeResolve: [{
+					type: ActionType.ChatToolCallAuthRequired,
+					turnId: 'turn-auth',
+					toolCallId: 'tool-auth',
+					auth: {
+						reason: McpAuthRequiredReason.InsufficientScope,
+						resource: {
+							resource: 'https://api.githubcopilot.com/mcp/',
+							resource_name: 'GitHub MCP Server',
+							authorization_servers: ['https://github.com/login/oauth'],
+							scopes_supported: ['repo', 'notifications'],
+						},
+						requiredScopes: ['repo', 'notifications'],
+						description: 'insufficient_scope',
+					},
+				}],
+				resolved: true,
+				afterResolve: [{
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-auth',
+					toolCallId: 'tool-auth',
+				}],
+			});
+		});
+
+		test('client tool completion cancels a pending MCP authentication for that tool call', async () => {
+			const { session, mockSession, runtime } = await createAgentSession(disposables);
+			session.resetTurnState('turn-auth-cancel');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tool-auth-cancel',
+				toolName: 'mcp_tool',
+				mcpServerName: 'github',
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-tool-cancel',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				wwwAuthenticateParams: { scope: 'notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+
+			session.handleClientToolCallComplete('tool-auth-cancel', {
+				success: false,
+				pastTenseMessage: 'Cancelled tool call',
+				error: { message: 'MCP authentication was cancelled', code: 'cancelled' },
+			});
+
+			assert.deepStrictEqual(await authPromise, { kind: 'cancelled' });
+		});
+
+		test('client tool completion preserves shared MCP authentication for other tool calls', async () => {
+			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shared-auth');
+			for (const toolCallId of ['tool-auth-cancel', 'tool-auth-continue']) {
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: 'mcp_tool',
+					mcpServerName: 'github',
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+			}
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'shared-auth',
+				serverName: 'github',
+				serverUrl: 'https://api.githubcopilot.com/mcp/',
+				reason: 'upscope',
+				wwwAuthenticateParams: { scope: 'notifications', error: 'insufficient_scope' },
+			}, { sessionId: 'test-session-1' });
+
+			session.handleClientToolCallComplete('tool-auth-cancel', {
+				success: false,
+				pastTenseMessage: 'Cancelled tool call',
+				error: { message: 'MCP authentication was cancelled', code: 'cancelled' },
+			});
+			const resolved = await session.resolveMcpAuthentication({
+				resource: 'https://api.githubcopilot.com/mcp/',
+				scopes: ['notifications'],
+				token: 'token',
+			});
+
+			assert.deepStrictEqual({
+				resolved,
+				authResult: await authPromise,
+				resolvedToolCalls: getActions(signals)
+					.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
+					.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action.toolCallId : undefined),
+			}, {
+				resolved: true,
+				authResult: { kind: 'token', accessToken: 'token' },
+				resolvedToolCalls: ['tool-auth-continue'],
+			});
+		});
+
 		test('initial GitHub MCP auth reuses the existing token without requesting the advertised scope catalog', async () => {
 			const { runtime, signals } = await createAgentSession(disposables, { githubToken: 'existing-token' });
 

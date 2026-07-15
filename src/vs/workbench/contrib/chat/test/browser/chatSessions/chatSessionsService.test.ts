@@ -8,12 +8,64 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
+import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { ChatSessionOptionsMap, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+
+suite('Codex Agent Host preference', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function isCodexExtensionHostAvailable(options: {
+		agentHostEnabled: boolean;
+		codexAgentEnabled: boolean;
+		isSessionsWindow: boolean;
+		preferAgentHost: boolean;
+	}): boolean {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: options.codexAgentEnabled,
+			[CodexPreferAgentHostEditorSettingId]: options.preferAgentHost,
+		});
+		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService).set(options.agentHostEnabled);
+		IsSessionsWindowContext.bindTo(contextKeyService).set(options.isSessionsWindow);
+
+		const contribution = applyCodexAgentHostPreference({
+			type: SessionType.Codex,
+			name: 'codex',
+			displayName: 'Codex',
+			description: '',
+		});
+		const when = ContextKeyExpr.deserialize(contribution.when);
+		return !!when && contextKeyService.contextMatchesRules(when);
+	}
+
+	test('never surfaces extension-host Codex in the Agents window and replaces it when preferred in the editor', () => {
+		assert.deepStrictEqual({
+			agentsWindowPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: true, preferAgentHost: true }),
+			agentsWindowNotPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: true, preferAgentHost: false }),
+			agentsWindowAgentHostDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: false, codexAgentEnabled: false, isSessionsWindow: true, preferAgentHost: false }),
+			editorWindowPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: true }),
+			editorWindowNotPreferred: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: false }),
+			agentHostDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: false, codexAgentEnabled: true, isSessionsWindow: false, preferAgentHost: true }),
+			codexAgentDisabled: isCodexExtensionHostAvailable({ agentHostEnabled: true, codexAgentEnabled: false, isSessionsWindow: false, preferAgentHost: true }),
+		}, {
+			agentsWindowPreferred: false,
+			agentsWindowNotPreferred: false,
+			agentsWindowAgentHostDisabled: false,
+			editorWindowPreferred: false,
+			editorWindowNotPreferred: true,
+			agentHostDisabled: true,
+			codexAgentDisabled: true,
+		});
+	});
+});
 
 suite.skip('ChatSessionsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

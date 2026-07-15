@@ -385,7 +385,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
-	private readonly _githubTokensBySdkSession = new Map<string, string>();
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -534,7 +533,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
 			this._mcpNotificationSubs.clearAndDisposeAll();
-			this._githubTokensBySdkSession.clear();
 			await this._stopClient();
 		}
 	}
@@ -717,15 +715,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const sessionId = notification.sessionId;
-		const githubToken = sessionId ? this._githubTokensBySdkSession.get(sessionId) : undefined;
-		if (!sessionId || !githubToken) {
+		const githubToken = this._githubToken;
+		if (!githubToken) {
 			router.route(notification);
 			return;
 		}
 
 		try {
 			const context = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
-			if (this._githubTokensBySdkSession.get(sessionId) !== githubToken) {
+			if (this._githubToken !== githubToken) {
 				return;
 			}
 			router.route(notification, {
@@ -739,25 +737,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (error) {
 			this._logService.debug(`[Copilot:${sessionId}] Restricted telemetry context resolution failed; dropping ${notification.event.kind}: ${error instanceof Error ? error.message : String(error)}`);
 		}
-	}
-
-	private _registerGitHubTelemetrySession(launchPlan: CopilotSessionLaunchPlan): () => void {
-		const previousToken = this._githubTokensBySdkSession.get(launchPlan.sessionId);
-		if (launchPlan.githubToken) {
-			this._githubTokensBySdkSession.set(launchPlan.sessionId, launchPlan.githubToken);
-		} else {
-			this._githubTokensBySdkSession.delete(launchPlan.sessionId);
-		}
-		return () => {
-			if (this._githubTokensBySdkSession.get(launchPlan.sessionId) !== launchPlan.githubToken) {
-				return;
-			}
-			if (previousToken) {
-				this._githubTokensBySdkSession.set(launchPlan.sessionId, previousToken);
-			} else {
-				this._githubTokensBySdkSession.delete(launchPlan.sessionId);
-			}
-		};
 	}
 
 	private async _refreshModels(attempt = 0): Promise<void> {
@@ -1773,7 +1752,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
-		let rollbackGitHubTelemetrySession = () => { };
 		try {
 			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
@@ -1792,12 +1770,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
-			rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (error) {
-			rollbackGitHubTelemetrySession();
 			agentSession?.dispose();
 			throw error;
 		}
@@ -2289,7 +2265,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 			}
 			let agentSession: CopilotAgentSession | undefined;
-			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
 				await agentSession.initializeSession();
@@ -2305,7 +2280,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
 			} catch (error) {
-				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				throw error;
 			}
@@ -2387,7 +2361,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.delete(chatKey);
 		this._sessions.get(AgentSession.id(session))?.disposePeerChat(chatKey);
 		if (sdkSessionId) {
-			this._githubTokensBySdkSession.delete(sdkSessionId);
 			try {
 				const client = await this._ensureClient();
 				await client.deleteSession(sdkSessionId);
@@ -2526,7 +2499,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
 			let agentSession: CopilotAgentSession | undefined;
-			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
 				await agentSession.initializeSession();
@@ -2534,7 +2506,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Resumed additional chat ${chatKey} in session ${session.toString()}`);
 				return agentSession;
 			} catch (error) {
-				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				this._logService.warn(`[Copilot] Failed to resume additional chat ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;
@@ -2641,24 +2612,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		this._shutdownPromise ??= (async () => {
-			this._githubTokensBySdkSession.clear();
-			try {
-				// Cancel any pending model-refresh retry so its timer cannot fire
-				// after teardown and resurrect the client.
-				this._modelRefreshRetry.clear();
-				this._logService.info('[Copilot] Shutting down...');
-				const sessionIds = new Set([...this._sessions.keys()]);
-				for (const sessionId of sessionIds) {
-					await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
-				}
-				await this._client?.stop();
-				this._client = undefined;
-				// Release the BYOK proxy handle only after the runtime subprocess is
-				// gone, mirroring `_stopClient` and the proxy ownership invariant.
-				await this._sessionLauncher.disposeByokProxyHandle();
-			} finally {
-				this._githubTokensBySdkSession.clear();
+			// Cancel any pending model-refresh retry so its timer cannot fire
+			// after teardown and resurrect the client.
+			this._modelRefreshRetry.clear();
+			this._logService.info('[Copilot] Shutting down...');
+			const sessionIds = new Set([...this._sessions.keys()]);
+			for (const sessionId of sessionIds) {
+				await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
 			}
+			await this._client?.stop();
+			this._client = undefined;
+			// Release the BYOK proxy handle only after the runtime subprocess is
+			// gone, mirroring `_stopClient` and the proxy ownership invariant.
+			await this._sessionLauncher.disposeByokProxyHandle();
 		})();
 		return this._shutdownPromise;
 	}
@@ -2762,7 +2728,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
 		this._sessions.clearAndDisposeAll();
 		this._mcpNotificationSubs.clearAndDisposeAll();
-		this._githubTokensBySdkSession.clear();
 		await this._stopClient();
 	}
 
@@ -2881,9 +2846,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * latter reaps the worktree afterwards).
 	 */
 	private async _releaseSessionResources(sessionId: string): Promise<void> {
-		for (const chat of this._sessions.get(sessionId)?.allChatSessions() ?? []) {
-			this._githubTokensBySdkSession.delete(chat.sessionId);
-		}
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
@@ -2992,12 +2954,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
-		const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 		try {
 			await agentSession.initializeSession();
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (err) {
-			rollbackGitHubTelemetrySession();
 			agentSession.dispose();
 			throw err;
 		}

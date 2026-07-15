@@ -309,6 +309,13 @@ export function shouldCreateGroupedThinkingPart(collapsedToolsMode: CollapsedToo
 	return collapsedToolsMode === CollapsedToolsDisplayMode.Always || separatedFromReasoning;
 }
 
+export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.StateKind, hasConfirmationMessages: boolean): boolean {
+	return state !== IChatToolInvocation.StateKind.WaitingForConfirmation
+		&& state !== IChatToolInvocation.StateKind.WaitingForPostApproval
+		&& state !== IChatToolInvocation.StateKind.WaitingForAuthentication
+		&& !hasConfirmationMessages;
+}
+
 const forceVerboseLayoutTracing = false
 	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
 	;
@@ -2390,12 +2397,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (IChatToolInvocation.isStreaming(part)) {
 				return true;
 			}
-			// don't pin if waiting for confirmation or post-approval
 			const state = part.state.get();
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				return false;
-			}
-			return !IChatToolInvocation.getConfirmationMessages(part);
+			return shouldPinToolInvocationToThinking(state.type, !!IChatToolInvocation.getConfirmationMessages(part));
 		}
 
 		if (part.kind === 'toolInvocationSerialized') {

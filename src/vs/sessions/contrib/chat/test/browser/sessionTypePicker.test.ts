@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -71,8 +71,8 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 	} as unknown as ISession;
 }
 
-function sessionType(providerId: string, id: string, label: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal } };
+function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
+	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType } };
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI): ISession {
@@ -302,6 +302,21 @@ suite('SessionTypePicker', () => {
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
 		assert.deepStrictEqual(fired, [{ providerId: 'local-1', sessionTypeId: 'local' }]);
+	});
+
+	test('exposes the selected concrete model target reactively', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('agent-host', 'copilotcli', 'Copilot CLI', 'agent-host-copilotcli'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+		const targets: (string | undefined)[] = [];
+		disposables.add(autorun(reader => targets.push(picker.modelTargetChatSessionType.read(reader))));
+
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folder));
+		picker.pick({ providerId: 'agent-host', sessionTypeId: 'copilotcli' });
+
+		assert.deepStrictEqual(targets, [undefined, 'local', 'agent-host-copilotcli']);
 	});
 
 	test('a quick chat sources its types from the quick-chat list, not the folder list', () => {

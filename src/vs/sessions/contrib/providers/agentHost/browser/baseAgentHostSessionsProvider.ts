@@ -406,12 +406,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
-	// Agent host sessions defer unread tracking to the workbench view-level
-	// state (see SessionsListModelService). The agent host protocol still
-	// carries an isRead bit but exposing it here would conflict with the
-	// view's own tracking, so we always report `true` from this observable
-	// and let the view be the source of truth.
-	readonly isRead = constObservable(true);
+	// Read/unread state is owned by the provider and backed by the agent host
+	// protocol's `IsRead` status bit (persisted as session metadata). It is
+	// seeded from the session metadata, kept in sync with protocol updates, and
+	// mutated via {@link BaseAgentHostSessionsProvider.setSessionReadState}.
+	readonly isRead = observableValue('isRead', true);
 	readonly description: IObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
@@ -662,6 +661,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		if (metadata.isArchived) {
 			this.isArchived.set(true, undefined);
+		}
+
+		if (metadata.isRead !== undefined) {
+			this.isRead.set(metadata.isRead, undefined);
 		}
 
 		this.isActiveSessionObs = derived(this, reader => {
@@ -1119,6 +1122,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				didChange = true;
 			}
 
+			if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
+				this.isRead.set(metadata.isRead, tx);
+				didChange = true;
+			}
 
 			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
@@ -2974,6 +2981,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId && cached.isRead.get() !== isRead) {
+			cached.isRead.set(isRead, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			const connection = this.connection;
+			if (connection) {
+				const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+				const action = { type: ActionType.SessionIsReadChanged as const, isRead };
+				connection.dispatch(sessionUri.toString(), action);
+			}
+		}
+	}
+
 	async deleteSession(sessionId: string): Promise<void> {
 		await this.deleteSessions([sessionId]);
 	}
@@ -3835,8 +3857,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * own constructor. Persisted summaries are hydrated into {@link _sessionCache}
 	 * immediately so {@link getSessions} returns them before the first
 	 * `listSessions()` round-trip resolves.
+	 *
+	 * `legacyStorageKey`, when given, is removed so stale entries are discarded.
 	 */
-	protected _enableSessionCachePersistence(storageKey: string): void {
+	protected _enableSessionCachePersistence(storageKey: string, legacyStorageKey?: string): void {
+		if (legacyStorageKey) {
+			this._storageService.remove(legacyStorageKey, StorageScope.APPLICATION);
+		}
 		this._sessionCacheStorageKey = storageKey;
 		this._loadCachedSessions();
 	}
@@ -4122,6 +4149,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleTitleChanged(e.channel, e.action.title);
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
 				this._handleIsArchivedChanged(e.channel, e.action.isArchived);
+			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
+				this._handleIsReadChanged(e.channel, e.action.isRead);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
 			} else if (e.action.type === ActionType.SessionChangesetsChanged && isSessionAction(e.action)) {
@@ -4154,6 +4183,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			workingDirectory: workingDir,
 			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
+			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
 			// Carry `_meta` so the adapter's session-kind (workspace-less vs.
 			// workspace) resolves correctly at construction — it is fixed once
 			// and cannot be flipped by a later `update`/`setMeta`.
@@ -4206,6 +4236,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	private _handleIsReadChanged(session: string, isRead: boolean): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached && cached.isRead.get() !== isRead) {
+			cached.isRead.set(isRead, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
 	private _handleSessionSummaryChanged(session: string, changes: Partial<SessionSummary>): void {
 		transaction((tx) => {
 			const rawId = AgentSession.id(session);
@@ -4226,6 +4265,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
 				if (isArchived !== cached.isArchived.get()) {
 					cached.isArchived.set(isArchived, tx);
+					didChange = true;
+				}
+
+				const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
+				if (isRead !== cached.isRead.get()) {
+					cached.isRead.set(isRead, tx);
 					didChange = true;
 				}
 			}

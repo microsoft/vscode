@@ -23,7 +23,7 @@ import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSess
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -870,7 +870,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage);
 	if (usage) {
@@ -893,8 +893,8 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				const tc = rp.toolCall;
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
-				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
-					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority));
+				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
+					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
 				}
 				break;
 			}
@@ -1741,7 +1741,7 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -1827,6 +1827,9 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	if (tc.status === ToolCallStatus.AuthRequired) {
+		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
+	}
 
 	// Tools that render a bespoke, client-authored invocation message override
 	// the server text here. Add new per-tool cases alongside this branch.
@@ -1867,6 +1870,19 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	return invocation;
+}
+
+export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string): IChatMcpAuthenticationRequiredServer {
+	const metadata = readToolCallMeta(tc);
+	return {
+		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
+		name: tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		resource: tc.auth.resource.resource,
+		authorizationServers: tc.auth.resource.authorization_servers,
+		supportedScopes: tc.auth.resource.scopes_supported,
+		requiredScopes: tc.auth.requiredScopes,
+		reason: tc.auth.reason,
+	};
 }
 
 /**

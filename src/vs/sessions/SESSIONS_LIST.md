@@ -14,7 +14,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 |------|---------|
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
-| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/sort state + shared status icon (UI-only, not synced to providers) |
 | `services/sessions/browser/sessionGroupsService.ts` | `ISessionGroupsService` — user-created groups and session→group membership (UI-only) |
 | `services/sessions/browser/sessionSectionOrderService.ts` | `ISessionSectionOrderService` — manual top-level order of groups + workspace sections and workspace promotion (UI-only) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
@@ -133,10 +133,12 @@ Archived sessions do not show the session group context menu actions ("Create Gr
 
 ### Read / Unread
 
+- Read/unread state is **owned by the sessions provider** and surfaced via `ISession.isRead`. Marking happens through `ISessionsManagementService.markRead` / `markUnread` / `markAllRead`, which route to the provider's `setSessionReadState`. The agent-host provider persists it via the protocol `IsRead` status bit; the Copilot Chat provider via its agent session model (`setRead`); the local chat provider via its persisted session metadata.
 - Sessions start as **unread**
 - A session becomes **read** when the user opens it or explicitly marks it
-- A session becomes **unread** when it completes in the background (transitions from InProgress to a terminal status while not active)
-- Pin and read state are cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
+- A session becomes **unread** when it produces new output in the background — a turn completes, is cancelled, or errors while the session is not being viewed. Each provider detects this and marks its own session unread: the agent-host provider server-side in `agentSideEffects`, the local chat provider via its tracked session model, and the Copilot Chat provider on the `InProgress` → terminal transition. `SessionsService` only keeps the **active** session marked read.
+- Legacy view-level read state (previously persisted by `SessionsListModelService` under `sessionsListControl.readSessions`) is migrated once into provider ownership by `SessionsListModelService.migrateLegacyReadState`. The migration is additive — it only ever promotes a session to read (never back to unread) — and runs once per session.
+- Pin/sort state is cleaned up when a provider reports a real session removal; remote agent host disconnects hide cached sessions without reporting them as removed
 
 ### Navigation
 

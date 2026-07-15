@@ -115,6 +115,8 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatToolCallComplete]: '0.4.0',
 	[ActionType.ChatToolCallResultConfirmed]: '0.4.0',
 	[ActionType.ChatToolCallContentChanged]: '0.4.0',
+	[ActionType.ChatToolCallAuthRequired]: '0.6.0',
+	[ActionType.ChatToolCallAuthResolved]: '0.6.0',
 	[ActionType.ChatTurnComplete]: '0.4.0',
 	[ActionType.ChatTurnCancelled]: '0.4.0',
 	[ActionType.ChatError]: '0.4.0',

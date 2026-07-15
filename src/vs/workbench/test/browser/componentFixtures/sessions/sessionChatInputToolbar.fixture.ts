@@ -38,6 +38,7 @@ function editedFile(name: string, insertions: number, deletions: number): ISessi
 
 interface ISessionSpec {
 	readonly providerId?: string;
+	readonly status?: SessionStatus;
 	/** File changes in the last turn; omit for a chat with no last-turn changes. */
 	readonly turnChanges?: readonly ISessionFileChange[];
 	/** URL of the last browser tool call in the turn; omit for a chat with none. */
@@ -53,8 +54,8 @@ interface IMockSessionAndChat {
 function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	const chat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('chat:1');
-		// Pills above the input only show while the chat's turn is in progress.
-		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.InProgress);
+		// Pills above the input show while the chat has an active turn.
+		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.InProgress);
 		override readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]> | undefined =
 			spec.turnChanges !== undefined ? constObservable(spec.turnChanges) : undefined;
 		override readonly lastTurnBrowserUrl: IObservable<string | undefined> | undefined =
@@ -157,6 +158,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_PreviewMarkdown: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
 			turnChanges: [createdFile('README.md', 20, 0), editedFile('app.ts', 8, 3)],
 		})),
 	}),
@@ -192,6 +194,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_LiveBrowserWithChanges: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
 			turnChanges: [createdFile('index.html', 30, 4), editedFile('app.ts', 8, 3)],
 			browserUrl: 'https://example.com/preview',
 		})),

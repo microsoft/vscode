@@ -1375,6 +1375,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 					if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 						return localize('waitingForPostApproval', "Approve tool result?");
 					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+						return localize('waitingForToolAuthentication', "Authenticate {0} to continue...", state.server.name);
+					}
 				}
 				if (part.kind === 'confirmation' && !part.isUsed) {
 					return part.title;

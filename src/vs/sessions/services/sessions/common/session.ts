@@ -48,6 +48,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/** Whether a session still has active work, including work blocked on user input. */
+export function isActiveSessionStatus(status: SessionStatus): boolean {
+	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that

@@ -10,7 +10,7 @@ import { truncate } from '../../../base/common/strings.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
@@ -194,46 +194,31 @@ export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAg
 export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
 
 /**
- * The per-window setting that selects which Claude implementation surfaces:
- * the Agents Window reads {@link ClaudePreferAgentHostAgentsSettingId}, every
- * other window reads {@link ClaudePreferAgentHostEditorSettingId}. Callers that
- * observe the gate (to react to live flips) watch the id returned here; callers
- * that evaluate it use {@link shouldSurfaceLocalAgentHostProvider}.
+ * Selects whether the regular workbench surfaces Codex from the agent host
+ * instead of the OpenAI extension.
  */
+export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgentHost';
+
 export function claudePreferAgentHostSettingId(isSessionsWindow: boolean): string {
 	return isSessionsWindow
 		? ClaudePreferAgentHostAgentsSettingId
 		: ClaudePreferAgentHostEditorSettingId;
 }
 
-/**
- * Whether this window should surface the agent host's implementation of
- * `provider`, given the per-window AH/EH preference settings. Today only the
- * `claude` provider has dual implementations (the GitHub Copilot Chat
- * extension's extension-host provider vs. the agent host's in-process
- * provider) and a corresponding preference; every other provider is AH-only
- * and unconditionally surfaced.
- *
- * Mirrors the EH-side gate declared in the extension's `chatSessions`
- * contribution `when` clause:
- *   - Agents Window  → {@link ClaudePreferAgentHostAgentsSettingId}
- *   - Editor Window  → {@link ClaudePreferAgentHostEditorSettingId}
- *
- * When the relevant setting is `false`, the extension-host Claude is the one
- * that surfaces in this window, so every agent-host surface (the chat session
- * contribution and the sessions-window picker) suppresses its own Claude to
- * avoid two identical entries.
- *
- * TODO: Remove this gate (and the `claude` special-case below) once the
- * extension-host Claude implementation is retired. With only the agent host
- * providing Claude there is no dual implementation to disambiguate, so this
- * should unconditionally return `true` and callers can drop the gate entirely.
- */
+export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
+	return event.affectsConfiguration(claudePreferAgentHostSettingId(isSessionsWindow))
+		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+}
+
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
-	if (provider !== CLAUDE_AGENT_PROVIDER_ID) {
-		return true;
+	switch (provider) {
+		case CLAUDE_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
+		case CODEX_AGENT_PROVIDER_ID:
+			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
+		default:
+			return true;
 	}
-	return configurationService.getValue<boolean>(claudePreferAgentHostSettingId(isSessionsWindow)) === true;
 }
 
 // -- Codex agent settings --------------------------------------------------------

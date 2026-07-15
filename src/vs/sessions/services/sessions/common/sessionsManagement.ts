@@ -392,6 +392,21 @@ export interface ISessionsManagementService {
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
 
+	/**
+	 * Mark a session as read or unread through its provider, which owns and
+	 * persists the read state and reflects it on {@link ISession.isRead}.
+	 */
+	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
+
+	/** Mark a session as read through its provider. */
+	markRead(session: ISession): Promise<void>;
+
+	/** Mark a session as unread through its provider. */
+	markUnread(session: ISession): Promise<void>;
+
+	/** Mark all of the given sessions as read through their providers. */
+	markAllRead(sessions: readonly ISession[]): Promise<void>;
+
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 

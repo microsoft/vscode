@@ -44,7 +44,7 @@ steps:
       npm config set registry "$env:NPM_REGISTRY"
       $NpmrcPath = (npm config get userconfig)
       Write-Host "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
     displayName: Setup NPM (Windows)
 
   - script: |
@@ -54,13 +54,13 @@ steps:
       # which does not have their own .npmrc file
       npm config set registry "$NPM_REGISTRY"
       echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup NPM (non-Windows)
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: npm ci

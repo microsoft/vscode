@@ -103,7 +103,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isEditorAreaVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-				hideAuxiliaryBar: () => layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART),
+				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getHeaderHeight: () => (this.activeGroup as EditorGroupView).headerHeight,
 			},
