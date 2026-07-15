@@ -88,7 +88,7 @@ const sortCodeActionKind = CodeActionKind.Source.concat('.sort', '.json');
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
-	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
+	function getSchemaRequestService(handledSchemas: string[] = ['file']) {
 		const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
 		for (const protocol of handledSchemas) {
 			if (protocol === 'file') {
@@ -576,7 +576,6 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 function getFullRange(document: TextDocument): Range {
 	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }
-
 
 
 
