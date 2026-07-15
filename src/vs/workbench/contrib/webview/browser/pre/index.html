@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-nXjtuhBilO++r8hfxl5VjEScSmdm07wDAk6jw228DgM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-5Ad2+eOJ0yGZkRkKpVLcNmLeB0vi7rRpxq1J/qGluu8=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1053,6 +1053,82 @@
 				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
 
 				/**
+				 * Firefox and Safari refuse to apply a stylesheet whose response was fetched
+				 * cross-origin in no-cors mode (the response is opaque). When webview resources
+				 * are served from a different origin than the content frame - i.e. the
+				 * `vscode-resource` virtual host - `<link rel="stylesheet">` elements authored
+				 * by extensions are fetched without CORS and silently dropped, leaving the
+				 * webview unstyled. Mark such links as `crossorigin` and re-fetch them so the
+				 * service worker's `Access-Control-Allow-Origin: *` response is honored.
+				 * Chromium is lenient here, so this is only needed for Firefox and Safari.
+				 *
+				 * @param {Document} contentDocument
+				 */
+				function reloadCrossOriginResourceStylesheets(contentDocument) {
+					const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
+					if (!resourceBaseAuthority) {
+						return;
+					}
+
+					const contentWindow = contentDocument.defaultView;
+					if (!contentWindow) {
+						return;
+					}
+
+					/** @param {HTMLLinkElement} link */
+					const reloadIfCrossOriginResourceLink = (link) => {
+						// `rel` is a space-separated token list, so match tokens rather than the whole string.
+						if (link.crossOrigin || !link.relList.contains('stylesheet')) {
+							return;
+						}
+
+						let host;
+						try {
+							host = new URL(link.href, link.baseURI).hostname;
+						} catch {
+							return;
+						}
+						// Mirrors the host check the service worker uses to serve webview resources, so only the
+						// links it answers with `Access-Control-Allow-Origin: *` are reloaded in CORS mode.
+						if (host !== resourceBaseAuthority && !host.endsWith('.' + resourceBaseAuthority)) {
+							return;
+						}
+
+						link.crossOrigin = 'anonymous';
+						// Re-assign the href to issue a fresh, CORS-enabled request for the stylesheet.
+						const href = link.href;
+						link.removeAttribute('href');
+						link.href = href;
+					};
+
+					/** @param {Node} node */
+					const reloadResourceLinksIn = (node) => {
+						if (node instanceof contentWindow.HTMLLinkElement) {
+							reloadIfCrossOriginResourceLink(node);
+						} else if (node.nodeType === 1 /* Element */ || node.nodeType === 11 /* DocumentFragment */) {
+							for (const link of (/** @type {Element | DocumentFragment} */ (node)).querySelectorAll('link[rel~="stylesheet"]')) {
+								reloadIfCrossOriginResourceLink(link);
+							}
+						}
+					};
+
+					for (const link of contentDocument.querySelectorAll('link[rel~="stylesheet"]')) {
+						reloadIfCrossOriginResourceLink(link);
+					}
+
+					// Extensions may inject stylesheet links - or containers of them - after the document is first written.
+					const observer = new contentWindow.MutationObserver(mutations => {
+						for (const mutation of mutations) {
+							for (const node of mutation.addedNodes) {
+								reloadResourceLinksIn(node);
+							}
+						}
+					});
+					observer.observe(contentDocument, { childList: true, subtree: true });
+					contentWindow.addEventListener('unload', () => observer.disconnect());
+				}
+
+				/**
 				 * @param {Document} contentDocument
 				 */
 				function onFrameLoaded(contentDocument) {
@@ -1063,6 +1139,9 @@
 						contentDocument.open();
 						contentDocument.write(newDocument);
 						contentDocument.close();
+						if (isFirefox || isSafari) {
+							reloadCrossOriginResourceStylesheets(contentDocument);
+						}
 						hookupOnLoadHandlers(newFrame);
 						perfMark('content/wroteInnerContent')
 
