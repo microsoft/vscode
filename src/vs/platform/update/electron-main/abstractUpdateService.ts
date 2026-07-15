@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { IntervalTimer, timeout } from '../../../base/common/async.js';
+import { CancelablePromise, IntervalTimer, Throttler, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
@@ -75,7 +77,26 @@ export type UpdateErrorClassification = {
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
-export abstract class AbstractUpdateService implements IUpdateService {
+/**
+ * States representing in-flight or pending update work that takes time to tear down when updates
+ * are disabled at runtime. Used to decide whether to surface a transient `Cancelling` state.
+ */
+function isCancellableState(type: StateType): boolean {
+	switch (type) {
+		case StateType.CheckingForUpdates:
+		case StateType.AvailableForDownload:
+		case StateType.Downloading:
+		case StateType.Downloaded:
+		case StateType.Updating:
+		case StateType.Ready:
+		case StateType.Overwriting:
+			return true;
+		default:
+			return false;
+	}
+}
+
+export abstract class AbstractUpdateService extends Disposable implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -84,10 +105,19 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private _state: State = State.Uninitialized;
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
-	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
+	private readonly overwriteUpdatesCheckInterval = this._register(new IntervalTimer());
 	private _internalOrg: string | undefined = undefined;
 
-	private readonly _onStateChange = new Emitter<State>();
+	/** Disabled for a non-reversible reason (e.g. not built, missing config); ignores `update.mode` changes. */
+	private _disabledPermanently: boolean = false;
+	/** Whether one-time platform init (e.g. background update GC, pending update resume) has run. */
+	private _postInitialized: boolean = false;
+	/** Cancels the pending scheduled update check, if any. */
+	private readonly scheduler = this._register(new MutableDisposable<IDisposable>());
+	/** Serializes reconfiguration so overlapping `update.mode` changes settle on the latest value. */
+	private readonly reconfigureThrottler = this._register(new Throttler());
+
+	private readonly _onStateChange = this._register(new Emitter<State>());
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
@@ -131,6 +161,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
 		protected readonly supportsUpdateOverwrite: boolean,
 	) {
+		super();
+
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => this.initialize());
 	}
@@ -142,21 +174,45 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 */
 	protected async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
-			this.setState(State.Disabled(DisablementReason.NotBuilt));
+			this.setDisabledPermanently(DisablementReason.NotBuilt);
 			return; // updates are never enabled when running out of sources
 		}
 
 		await this.trackVersionChange();
 
 		if (this.environmentMainService.disableUpdates) {
-			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
+			this.setDisabledPermanently(DisablementReason.DisabledByEnvironment);
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
 		if (!this.productService.updateUrl || !this.productService.commit) {
-			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
+			this.setDisabledPermanently(DisablementReason.MissingConfiguration);
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
+			return;
+		}
+
+		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('update.mode')) {
+				this.reconfigure().catch(err => this.logService.error('update#reconfigure - failed to apply update mode change', err));
+			}
+		}));
+
+		// Apply the currently configured update mode.
+		await this.reconfigure();
+	}
+
+	/**
+	 * Evaluates the current `update.mode` setting (and its policy) and brings the service into the matching state.
+	 * Runs on startup and on every change, enabling or disabling updates without a restart.
+	 */
+	private reconfigure(): Promise<void> {
+		return this.reconfigureThrottler.queue(() => this.doReconfigure());
+	}
+
+	private async doReconfigure(): Promise<void> {
+		if (this._disabledPermanently) {
 			return;
 		}
 
@@ -166,27 +222,77 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			if (policyDisablesUpdates) {
-				this.setState(State.Disabled(DisablementReason.Policy));
-				this.logService.info('update#ctor - updates are disabled by policy');
-			} else {
-				this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
-				this.logService.info('update#ctor - updates are disabled by user preference');
+			const reason = policyDisablesUpdates ? DisablementReason.Policy : DisablementReason.ManuallyDisabled;
+
+			// Skip if already disabled for this reason, so a repeated write or policy refresh is a no-op.
+			if (this._state.type === StateType.Disabled && this._state.reason === reason) {
+				return;
 			}
+
+			await this.disable(reason);
 			return;
 		}
 
 		if (!this.buildUpdateFeedUrl(quality, this.productService.commit!)) {
-			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
+			this.setDisabledPermanently(DisablementReason.InvalidConfiguration);
 			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
 		this.quality = quality;
 
-		this.setState(State.Idle(this.getUpdateType()));
+		// Move to Idle so one-time platform init (which may resume a pending update) can act; it requires Idle.
+		if (this._state.type === StateType.Disabled || this._state.type === StateType.Uninitialized) {
+			this.setState(State.Idle(this.getUpdateType()));
+		}
 
-		await this.postInitialize();
+		// One-time platform init, gated behind updates being enabled so a pending update is never resumed under `none`.
+		if (!this._postInitialized) {
+			this._postInitialized = true;
+			await this.postInitialize();
+		}
+
+		this.scheduleAccordingToMode(updateMode);
+	}
+
+	/**
+	 * Disables updates for a reversible reason (user preference or policy), cancelling the scheduled check loop
+	 * and any in-flight or pending update before moving to Disabled.
+	 */
+	private async disable(reason: DisablementReason): Promise<void> {
+		this.scheduler.clear();
+
+		// Show a transient Cancelling state only when there is in-flight or pending work to tear down.
+		if (isCancellableState(this._state.type)) {
+			this.setState(State.Cancelling);
+		}
+
+		try {
+			await this.cancelUpdate();
+		} catch (err) {
+			this.logService.warn('update#disable - failed to cancel pending update', err);
+		}
+
+		this.quality = undefined;
+
+		if (reason === DisablementReason.Policy) {
+			this.logService.info('update#disable - updates are disabled by policy');
+		} else {
+			this.logService.info('update#disable - updates are disabled by user preference');
+		}
+
+		this.setState(State.Disabled(reason));
+	}
+
+	/** Disables updates for a non-reversible reason; subsequent `update.mode` changes are ignored. */
+	private setDisabledPermanently(reason: DisablementReason): void {
+		this._disabledPermanently = true;
+		this.scheduler.clear();
+		this.setState(State.Disabled(reason));
+	}
+
+	private scheduleAccordingToMode(updateMode: 'none' | 'manual' | 'start' | 'default'): void {
+		this.scheduler.clear();
 
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
@@ -197,10 +303,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
-			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
+			this.scheduleCheckForUpdates(30 * 1000, false);
 		} else {
 			// Start checking for updates after 30 seconds
-			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+			this.scheduleCheckForUpdates(30 * 1000, true);
 		}
 	}
 
@@ -276,12 +382,22 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return updateMode === 'none' ? undefined : this.productService.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
-		return timeout(delay)
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000, repeat = true): void {
+		const promise: CancelablePromise<void> = timeout(delay);
+		this.scheduler.value = toDisposable(() => promise.cancel());
+
+		promise
 			.then(() => this.checkForUpdates(false))
 			.then(() => {
-				// Check again after 1 hour
-				return this.scheduleCheckForUpdates(60 * 60 * 1000);
+				if (repeat) {
+					// Check again after 1 hour
+					this.scheduleCheckForUpdates(60 * 60 * 1000, true);
+				}
+			})
+			.catch(err => {
+				if (!isCancellationError(err)) {
+					this.logService.error(err);
+				}
 			});
 	}
 
@@ -434,8 +550,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
 			const statusCode = context.res.statusCode;
 			this.logService.trace('update#isLatestVersion() - response', { statusCode });
-			// The update server replies with 204 (No Content) when no
-			// update is available - that's all we want to know.
+			// The update server replies with 204 (No Content) when no update is available.
 			return statusCode === 204;
 
 		} catch (error) {
@@ -476,6 +591,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	protected async cancelPendingUpdate(): Promise<void> {
 		// noop
+	}
+
+	/**
+	 * Aborts in-flight or pending update work when updates are being disabled at runtime. The default cancels a
+	 * pending update; platform services override this to also abort in-flight checks/downloads.
+	 */
+	protected async cancelUpdate(): Promise<void> {
+		await this.cancelPendingUpdate();
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined;

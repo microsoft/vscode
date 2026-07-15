@@ -8,7 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor } from './state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -51,6 +51,8 @@ export interface ChatTurnStartedAction {
 	type: ActionType.ChatTurnStarted;
 	/** Turn identifier */
 	turnId: string;
+	/** ISO 8601 timestamp when this turn started. */
+	startedAt: string;
 	/** The new message */
 	message: Message;
 	/** If this turn was auto-started from a queued message, the ID of that message */
@@ -138,6 +140,8 @@ export interface ChatToolCallStartAction extends ToolCallActionBase {
 	toolName: string;
 	/** Human-readable tool name */
 	displayName: string;
+	/** Human-readable description of what the tool invocation intends to do */
+	intention?: string;
 	/**
 	 * Reference to the contributor of the tool being called. Absent for
 	 * server-side tools that are not contributed by a client or MCP server.
@@ -258,9 +262,10 @@ export type ChatToolCallConfirmedAction =
  * Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
  * if `requiresResultConfirmation` is `true`.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action with the execution result. The server
- * SHOULD reject this action if the dispatching client does not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action with the execution result. The server SHOULD reject this action if the
+ * dispatching client does not match the contributor's `clientId`.
  *
  * Servers waiting on a client tool call MAY time out after a reasonable duration
  * if the implementing client disconnects or becomes unresponsive, and dispatch
@@ -300,10 +305,11 @@ export interface ChatToolCallResultConfirmedAction extends ToolCallActionBase {
  * use this to display live feedback (e.g. a terminal reference) before the
  * tool completes.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action to stream intermediate content while
- * executing. The server SHOULD reject this action if the dispatching client does
- * not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action to stream intermediate content while executing. The server SHOULD
+ * reject this action if the dispatching client does not match the contributor's
+ * `clientId`.
  *
  * @category Chat Actions
  * @version 1
@@ -325,6 +331,13 @@ export interface ChatTurnCompleteAction {
 	type: ActionType.ChatTurnComplete;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
 	/**
 	 * Additional provider-specific metadata for this action.
 	 *
@@ -349,6 +362,13 @@ export interface ChatTurnCancelledAction {
 	/** Turn identifier */
 	turnId: string;
 	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
+	/**
 	 * Additional provider-specific metadata for this action.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -370,6 +390,13 @@ export interface ChatErrorAction {
 	type: ActionType.ChatError;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
 	/** Error details */
 	error: ErrorInfo;
 	/**
@@ -384,6 +411,23 @@ export interface ChatErrorAction {
 	_meta?: Record<string, unknown>;
 }
 
+/**
+ * The activity description of this chat changed.
+ *
+ * Dispatched by the server to indicate what the chat is currently doing
+ * (e.g. running a tool, thinking). Clear activity by omitting it or setting it
+ * to `undefined`.
+ * Producers SHOULD also update the parent session's chat catalog with
+ * `session/chatUpdated` so `ChatSummary.activity` stays in sync.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatActivityChangedAction {
+	type: ActionType.ChatActivityChanged;
+	/** Human-readable description of current activity; omit or set `undefined` to clear */
+	activity?: string;
+}
 
 /**
  * Token usage report for a turn.
@@ -462,6 +506,26 @@ export interface ChatTruncatedAction {
 	turnId?: string;
 }
 
+/**
+ * Loads older completed turns into this chat's state.
+ *
+ * Hosts dispatch this before responding to `fetchTurns`, and before applying
+ * any operation that references a turn older than the currently loaded window.
+ * `turns` is ordered oldest-first and is prepended to the current `turns`
+ * window. `turnsNextCursor` replaces the state's cursor; omit it when all
+ * retained turns are now loaded.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatTurnsLoadedAction {
+	type: ActionType.ChatTurnsLoaded;
+	/** Older completed turns loaded into the state, ordered oldest-first. */
+	turns: Turn[];
+	/** Opaque cursor for loading the next older page, if one remains. */
+	turnsNextCursor?: string;
+}
+
 // ─── Pending Message Actions ─────────────────────────────────────────────────
 
 /**
@@ -525,6 +589,31 @@ export interface ChatQueuedMessagesReorderedAction {
 	type: ActionType.ChatQueuedMessagesReordered;
 	/** Queued message IDs in the desired order */
 	order: string[];
+}
+
+// ─── Draft Actions ───────────────────────────────────────────────────────────
+
+/**
+ * The chat's draft input changed.
+ *
+ * Clients MAY periodically sync their local input state — the message the user
+ * is composing, including its {@link Message.model | model} /
+ * {@link Message.agent | agent} selection and attachments — into the chat's
+ * {@link ChatState.draft | `draft`} so it survives reloads and is visible to
+ * other clients viewing the same chat. Eager syncing is **not** required;
+ * clients SHOULD debounce and MAY sync only at convenient points. Set `draft`
+ * to `undefined` to clear it (e.g. once the message is sent).
+ *
+ * A client is only allowed to draft {@link MessageKind.User} messages.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatDraftChangedAction {
+	type: ActionType.ChatDraftChanged;
+	/** New draft message, or `undefined` to clear it */
+	draft?: Message;
 }
 
 // ─── Session Input Actions ──────────────────────────────────────────────────
@@ -599,12 +688,15 @@ export type ChatAction =
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction
+	| ChatActivityChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatTruncatedAction
+	| ChatTurnsLoadedAction
 	| ChatPendingMessageSetAction
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
+	| ChatDraftChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

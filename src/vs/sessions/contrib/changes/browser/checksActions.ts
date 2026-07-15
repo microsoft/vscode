@@ -13,13 +13,27 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 export const hasActiveSessionFailedCIChecks = new RawContextKey<boolean>('sessions.hasActiveSessionFailedCIChecks', false);
+
+/**
+ * True when the user has already requested a CI fix for the active session's
+ * current PR head commit. Used to hide the "Fix Checks" action until a new
+ * commit lands on the PR.
+ */
+export const activeSessionCIFixRequested = new RawContextKey<boolean>('sessions.activeSessionCIFixRequested', false);
+
+/** Command that sends the `fix-ci` prompt for the active session's failed checks. */
+export const FIX_CI_CHECKS_COMMAND_ID = 'sessions.action.fixCIChecks';
+
+/** Command that opens the Changes view and reveals (expands + focuses) the CI checks section. */
+export const REVEAL_CI_CHECKS_COMMAND_ID = 'sessions.action.revealCIChecks';
 
 /** Slash command that invokes the built-in `fix-ci` skill. */
 const FIX_CI_QUERY = '/fix-ci';
@@ -102,6 +116,46 @@ export function buildFixChecksPrompt(failedChecks: ReadonlyArray<{ check: IGitHu
 }
 
 /**
+ * Builds the `fix-ci` prompt for a CI model's failing checks: fetches each
+ * failed check's annotations and assembles the prompt text. Returns `undefined`
+ * when there are no failing checks. Shared by the widget-based active-session
+ * action and the blocked-sessions list's background fix.
+ */
+export async function buildFixCIPrompt(ciModel: GitHubPullRequestCIModel): Promise<string | undefined> {
+	const checks = ciModel.checks.get();
+	const failedChecks = getFailedChecks(checks);
+	if (failedChecks.length === 0) {
+		return undefined;
+	}
+
+	const failedCheckDetails = await Promise.all(failedChecks.map(async check => {
+		const annotations = await ciModel.getCheckRunAnnotations(check.id);
+		return { check, annotations };
+	}));
+
+	return buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel));
+}
+
+/**
+ * Submits the `fix-ci` prompt for a session's failing CI checks: builds the
+ * prompt, sends it to the given chat widget, and marks the fix as requested so
+ * the "Fix Checks" affordances hide until a new commit lands. Used by the
+ * active-session action; the blocked-sessions list sends in the background via
+ * {@link buildFixCIPrompt} instead.
+ */
+export async function submitFixCIChecks(ciModel: GitHubPullRequestCIModel, chatWidget: IChatWidget): Promise<void> {
+	const prompt = await buildFixCIPrompt(ciModel);
+	if (!prompt) {
+		return;
+	}
+
+	const response = await chatWidget.acceptInput(prompt);
+	if (response) {
+		ciModel.markFixRequested();
+	}
+}
+
+/**
  * Sets the `hasActiveSessionFailedCIChecks` context key to true when the
  * active session has a PR with CI checks and at least one has failed.
  */
@@ -123,12 +177,20 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 			const checks = ciModel.checks.read(reader);
 			return getFailedChecks(checks).length > 0;
 		}));
+
+		this._register(bindContextKey(activeSessionCIFixRequested, contextKeyService, reader => {
+			const ciModel = gitHubService.activeSessionPullRequestCIObs.read(reader);
+			if (!ciModel) {
+				return false;
+			}
+			return ciModel.fixRequested.read(reader);
+		}));
 	}
 }
 
 class FixCIChecksAction extends Action2 {
 
-	static readonly ID = 'sessions.action.fixCIChecks';
+	static readonly ID = FIX_CI_CHECKS_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -136,12 +198,12 @@ class FixCIChecksAction extends Action2 {
 			title: localize2('fixChecks', 'Fix Checks'),
 			icon: Codicon.lightbulbAutofix,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate()),
 			menu: [{
 				id: MenuId.AgentsChangesPrimaryActionSubMenu,
 				group: '5_checks',
 				order: 4,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate()),
 			}],
 		});
 	}
@@ -162,18 +224,6 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		const checks = ciModel.checks.get();
-		const failedChecks = getFailedChecks(checks);
-		if (failedChecks.length === 0) {
-			return;
-		}
-
-		const failedCheckDetails = await Promise.all(failedChecks.map(async check => {
-			const annotations = await ciModel.getCheckRunAnnotations(check.id);
-			return { check, annotations };
-		}));
-
-		const prompt = buildFixChecksPrompt(failedCheckDetails, getPullRequestUrl(ciModel));
 		const sessionResource = activeSession.resource;
 		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
@@ -181,7 +231,7 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		await chatWidget.acceptInput(prompt);
+		await submitFixCIChecks(ciModel, chatWidget);
 	}
 }
 

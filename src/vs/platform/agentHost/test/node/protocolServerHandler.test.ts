@@ -11,9 +11,9 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { type IAgentCreateSessionConfig, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../../common/state/sessionActions.js';
+import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
@@ -114,8 +114,8 @@ class MockAgentService implements IAgentService {
 			provider: config?.provider ?? 'copilot',
 			title: '',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			workingDirectory: config?.workingDirectory?.toString(),
 		});
@@ -148,6 +148,8 @@ class MockAgentService implements IAgentService {
 	addSubscriber(_resource: URI, _clientId: string): void { }
 	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -238,6 +240,7 @@ suite('ProtocolServerHandler', () => {
 	let logService: CountingLogService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
+	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
 	function makeSessionSummary(resource?: string): SessionSummary {
 		return {
@@ -245,8 +248,8 @@ suite('ProtocolServerHandler', () => {
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}
@@ -439,15 +442,16 @@ suite('ProtocolServerHandler', () => {
 
 		// Chat actions are emitted on the derived default-chat channel, so the
 		// client must subscribe to it (as the real UI bridge does) to see echoes.
-		const transport = connectClient('client-1', [sessionUri, buildDefaultChatUri(sessionUri)]);
+		const transport = connectClient('client-1', [sessionUri, defaultChatUri]);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatUri,
 			clientSeq: 1,
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		}));
@@ -958,23 +962,24 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(transport.sent.length, 0);
 	});
 
-	test('client disconnect clears active client and fails owned tool calls after grace period', () => {
+	test('client disconnect retains active client during grace, then removes it and fails owned tool calls after grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -982,7 +987,7 @@ suite('ProtocolServerHandler', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -994,13 +999,18 @@ suite('ProtocolServerHandler', () => {
 			const transport = connectClient('client-tools', [sessionUri]);
 			transport.simulateClose();
 
-			assert.strictEqual(stateManager.getSessionState(sessionUri)?.activeClient, undefined);
+			// The active client is retained during the grace window so a quick
+			// reconnect can keep its slot.
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients.map(c => c.clientId), ['client-tools']);
 			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Running);
 
 			await new Promise(r => setTimeout(r, 30_001));
 
+			// After the grace window the active client is removed and its
+			// pending tool call is failed.
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients, []);
 			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind, ResponsePartKind.ToolCall);
 			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
@@ -1020,18 +1030,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1068,18 +1079,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1110,18 +1122,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1159,18 +1172,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1178,7 +1192,7 @@ suite('ProtocolServerHandler', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1217,18 +1231,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1236,7 +1251,7 @@ suite('ProtocolServerHandler', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1269,18 +1284,19 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-tools',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
 				},
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1288,7 +1304,7 @@ suite('ProtocolServerHandler', () => {
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1300,7 +1316,7 @@ suite('ProtocolServerHandler', () => {
 			const transport = connectClient('client-tools', [sessionUri]);
 			transport.simulateClose();
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionActiveClientChanged,
+				type: ActionType.SessionActiveClientSet,
 				activeClient: {
 					clientId: 'client-replacement',
 					tools: [{ name: 'runTask', description: 'Runs a task' }]
@@ -1327,15 +1343,17 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-			stateManager.dispatchServerAction(sessionUri, {
+			const chatUri = buildDefaultChatUri(sessionUri);
+			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			// Tool call stamped for a clientId that never connected (e.g. a
 			// stale stamp from a long-dead window). No disconnect event ever
 			// fires for it; the issuance-time orphan check must arm the timeout.
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1366,12 +1384,13 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1395,13 +1414,14 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			// First orphaned tool call (owner never connected) arms the grace timer.
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
@@ -1416,7 +1436,7 @@ suite('ProtocolServerHandler', () => {
 			// deadline — otherwise the first call could be kept alive
 			// indefinitely.
 			await new Promise(r => setTimeout(r, 20_000));
-			stateManager.dispatchServerAction(sessionUri, {
+			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-2',
@@ -1434,6 +1454,170 @@ suite('ProtocolServerHandler', () => {
 				.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall.status : undefined);
 			assert.deepStrictEqual(statuses, [ToolCallStatus.Completed, ToolCallStatus.Completed]);
 		});
+	});
+
+	test('unsubscribe removes the active client and fails its owned tool calls', () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			invocationMessage: 'Run Task',
+			toolInput: '{}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		const transport = connectClient('client-tools', [sessionUri]);
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+		assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients, []);
+		const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+			status: part.toolCall.status,
+			success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+			error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+		} : undefined, {
+			status: ToolCallStatus.Completed,
+			success: false,
+			error: 'Client client-tools disconnected before completing Run Task',
+		});
+
+		transport.simulateClose();
+	});
+
+	test('reconnect without resubscription removes the active client and fails its owned tool calls', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		const transport1 = connectClient('client-tools', [sessionUri]);
+		const initSeq = (findResponse(transport1.sent, 1) as { result: InitializeResult }).result.serverSeq;
+
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			invocationMessage: 'Run Task',
+			toolInput: '{}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		transport1.simulateClose();
+
+		// Reconnect, but do NOT resubscribe to the session.
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-tools',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [],
+		}));
+		await reconnectRespPromise;
+
+		assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients, []);
+		const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+			status: part.toolCall.status,
+			success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+			error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+		} : undefined, {
+			status: ToolCallStatus.Completed,
+			success: false,
+			error: 'Client client-tools disconnected before completing Run Task',
+		});
+
+		transport2.simulateClose();
+	});
+
+	test('reconnect with resubscription keeps the active client and its owned tool calls', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+
+		const transport1 = connectClient('client-tools', [sessionUri]);
+		const initSeq = (findResponse(transport1.sent, 1) as { result: InitializeResult }).result.serverSeq;
+
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
+		});
+
+		transport1.simulateClose();
+
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		const reconnectRespPromise = waitForResponse(transport2, 1);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-tools',
+			lastSeenServerSeq: initSeq,
+			subscriptions: [sessionUri],
+		}));
+		await reconnectRespPromise;
+
+		assert.deepStrictEqual(stateManager.getSessionState(sessionUri)?.activeClients.map(c => c.clientId), ['client-tools']);
+		const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+		assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+		transport2.simulateClose();
 	});
 
 	test('handshake includes defaultDirectory from side effects', () => {
@@ -1819,6 +2003,70 @@ suite('ProtocolServerHandler', () => {
 			otlpEmitter.emit({ timeUnixNano: '2', severityNumber: 9, severityText: 'info', body: 'after-unsub' });
 
 			assert.strictEqual(findOtlpLogs(transport.sent).length, 1, 'no further notifications after unsubscribe');
+		});
+	});
+
+	suite('download progress channel', () => {
+		// Progress is emitted on the state manager (so it reaches both local
+		// IPC and remote WebSocket renderers through the same path as session
+		// notifications). This suite verifies the handler forwards each frame to
+		// connected clients as a `progress` notification on the root channel.
+		// Spun up per-test with a private state manager so the outer suite is
+		// unaffected.
+		let dlStateManager: AgentHostStateManager;
+		let dlServer: MockProtocolServer;
+		let dlAgentService: MockAgentService;
+		let localDisposables: DisposableStore;
+
+		setup(() => {
+			localDisposables = new DisposableStore();
+			dlStateManager = localDisposables.add(new AgentHostStateManager(new NullLogService()));
+			dlServer = localDisposables.add(new MockProtocolServer());
+			dlAgentService = new MockAgentService();
+			dlAgentService.setStateManager(dlStateManager);
+			localDisposables.add(dlAgentService);
+			localDisposables.add(new ProtocolServerHandler(
+				dlAgentService,
+				dlStateManager,
+				dlServer,
+				{ defaultDirectory: URI.file('/home/testuser').toString() },
+				localDisposables.add(new AgentHostFileSystemProvider()),
+				new NullLogService(),
+			));
+		});
+
+		teardown(() => {
+			localDisposables.dispose();
+		});
+
+		function connectDownloadClient(clientId: string): MockProtocolTransport {
+			const transport = new MockProtocolTransport();
+			dlServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			}));
+			return transport;
+		}
+
+		function findProgress(sent: ProtocolMessage[]): ProgressParams[] {
+			return sent
+				.filter(isJsonRpcNotification)
+				.filter((m): m is AhpNotification & { method: 'root/progress'; params: ProgressParams } => m.method === 'root/progress')
+				.map(m => m.params);
+		}
+
+		test('forwards each progress frame to connected clients on the root channel', () => {
+			const transport = connectDownloadClient('client-dl-1');
+
+			dlStateManager.emitProgress({ progressToken: 't1', progress: 0, total: 1000, message: 'Claude' });
+			dlStateManager.emitProgress({ progressToken: 't1', progress: 500, total: 1000, message: 'Claude' });
+			dlStateManager.emitProgress({ progressToken: 't1', progress: 1000, total: 1000, message: 'Claude' });
+
+			const frames = findProgress(transport.sent);
+			assert.deepStrictEqual(frames.map(f => f.progress), [0, 500, 1000]);
+			assert.ok(frames.every(f => f.progressToken === 't1' && f.message === 'Claude' && f.total === 1000));
+			assert.ok(frames.every(f => (f as ProgressParams & { channel: string }).channel === 'ahp-root://'), 'frames are broadcast on the root channel');
 		});
 	});
 

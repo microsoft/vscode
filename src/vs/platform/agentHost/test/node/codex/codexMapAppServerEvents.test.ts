@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { createCodexSessionMapState, extractUserInputText, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../../common/state/sessionState.js';
+import { ActiveClientToolSet } from '../../../node/activeClientState.js';
 
 suite('codexMapAppServerEvents', () => {
 
@@ -22,12 +23,13 @@ suite('codexMapAppServerEvents', () => {
 				items: [{
 					type: 'userMessage',
 					id: 'item_user',
+					clientId: null,
 					content: [{ type: 'text', text: 'hello', text_elements: [] }],
 				}],
 				itemsView: { type: 'full' } as never,
 				status: 'inProgress' as never,
 				error: null,
-				startedAt: null,
+				startedAt: 1_752_012_321,
 				completedAt: null,
 				durationMs: null,
 			},
@@ -36,6 +38,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn_a',
+			startedAt: '2025-07-08T22:05:21.000Z',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		}]);
 	});
@@ -56,6 +59,26 @@ suite('codexMapAppServerEvents', () => {
 			},
 		}, 'the prompt');
 		assert.strictEqual((actions[0] as { message: { text: string } }).message.text, 'the prompt');
+	});
+
+	test('turn/started uses a current timestamp when Codex omits startedAt', () => {
+		const before = new Date().toISOString();
+		const actions = mapTurnStarted(createCodexSessionMapState(), {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_c',
+				items: [],
+				itemsView: { type: 'full' } as never,
+				status: 'inProgress' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			},
+		}, 'prompt');
+
+		const startedAt = actions[0].type === ActionType.ChatTurnStarted ? actions[0].startedAt : undefined;
+		assert.ok(typeof startedAt === 'string' && startedAt >= before && startedAt <= new Date().toISOString());
 	});
 
 	test('item/started for agentMessage seeds a markdown part', () => {
@@ -216,6 +239,126 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual((delta as { content: string }).content, 'ls -la');
 		assert.strictEqual((ready as { confirmed: ToolCallConfirmationReason }).confirmed, ToolCallConfirmationReason.NotNeeded);
 		assert.deepStrictEqual((start as { _meta?: Record<string, unknown> })._meta, { toolKind: 'terminal' });
+	});
+
+	test('commandExecution unwraps the OS shell wrapper for display (start + completed)', () => {
+		const state = createCodexSessionMapState();
+		const started = mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_wrap',
+				command: '/bin/zsh -lc \'touch ~/foo\'', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const delta = started[1] as { content: string };
+		const ready = started[2] as { invocationMessage: string; toolInput: string };
+		// A successful no-output command is deferred to coalesce a possible
+		// sandbox pre-flight re-run; with no re-run it flushes at turn end.
+		const deferred = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_wrap',
+				command: '/bin/zsh -lc \'touch ~/foo\'', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '',
+				exitCode: 0, durationMs: 4,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const flushed = mapTurnCompleted(state, {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_a',
+				items: [], itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			},
+		} as never);
+		const complete = flushed[0] as { result: { pastTenseMessage: string } };
+		assert.deepStrictEqual({
+			deferred,
+			delta: delta.content,
+			invocationMessage: ready.invocationMessage,
+			toolInput: ready.toolInput,
+			pastTenseMessage: complete.result.pastTenseMessage,
+		}, {
+			deferred: [],
+			delta: 'touch ~/foo',
+			invocationMessage: 'touch ~/foo',
+			toolInput: 'touch ~/foo',
+			pastTenseMessage: 'Ran `touch ~/foo`',
+		});
+	});
+
+	test('commandExecution coalesces a sandbox pre-flight with its approved re-run into one box', () => {
+		const state = createCodexSessionMapState();
+		// Pre-flight: codex runs the command in the sandbox first; it produces
+		// no output and completes successfully.
+		const preStarted = mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_preflight',
+				command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('cmd_preflight')!.toolCallId;
+		const preCompleted = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_preflight',
+				command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: '', exitCode: 0, durationMs: 4,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		// Escalation: same command re-run under an approval prompt, new item id.
+		const escStarted = mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_escalated',
+				command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const escCompleted = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_escalated',
+				command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'completed' as never,
+				commandActions: [], aggregatedOutput: 'Example Domain', exitCode: 0, durationMs: 40,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const startCount = (actions: readonly unknown[]) => actions.filter(a => (a as { type: ActionType }).type === ActionType.ChatToolCallStart).length;
+		assert.deepStrictEqual({
+			// exactly one box opened (pre-flight's), escalation reuses it
+			starts: startCount(preStarted) + startCount(escStarted),
+			// pre-flight completion deferred, escalation start emits nothing
+			preCompleted,
+			escStarted,
+			// single completion carries the escalation's real output
+			escComplete: escCompleted[0],
+		}, {
+			starts: 1,
+			preCompleted: [],
+			escStarted: [],
+			escComplete: {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran `curl -s https://example.com`',
+					content: [{ type: ToolResultContentType.Text, text: 'Example Domain' }],
+					error: undefined,
+				},
+			},
+		});
 	});
 
 	test('item/commandExecution/outputDelta streams running tool content', () => {
@@ -393,9 +536,263 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
-	test('dynamicToolCall item carries a Client contributor when toolsClientId is set', () => {
+	test('mcpToolCall start carries an MCP contributor when the server has a customization', () => {
 		const state = createCodexSessionMapState();
-		state.toolsClientId = 'win-7';
+		state.mcpCustomizationIds.set('github', 'cust-gh');
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_c', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0];
+		if (start.type !== ActionType.ChatToolCallStart) {
+			throw new Error('expected a ChatToolCallStart action');
+		}
+		assert.deepStrictEqual(start.contributor, { kind: ToolCallContributorKind.MCP, customizationId: 'cust-gh' });
+	});
+
+	test('mcpToolCall start carries no contributor when the server has no customization', () => {
+		const state = createCodexSessionMapState();
+		// mcpCustomizationIds is empty: the agent has not applied an MCP
+		// inventory yet, so the start must not stamp a (bogus) MCP contributor —
+		// the tool then reports the default `agentHost` source.
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_n', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const start = startActions[0];
+		if (start.type !== ActionType.ChatToolCallStart) {
+			throw new Error('expected a ChatToolCallStart action');
+		}
+		assert.strictEqual(start.contributor, undefined);
+	});
+
+	test('a host-declined commandExecution reports result.error.code = denied', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_d',
+				command: 'rm file', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'inProgress' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const entry = state.itemToToolCall.get('cmd_d');
+		if (!entry) {
+			throw new Error('expected a tracked tool call');
+		}
+		// The host declined the approval (recorded by respondToPermissionRequest).
+		state.declinedToolCalls.add(entry.toolCallId);
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'commandExecution', id: 'cmd_d',
+				command: 'rm file', cwd: '/tmp', processId: null,
+				source: 'agent' as never, status: 'failed' as never,
+				commandActions: [], aggregatedOutput: null,
+				exitCode: null, durationMs: 1,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const complete = actions[0];
+		if (complete.type !== ActionType.ChatToolCallComplete) {
+			throw new Error('expected a ChatToolCallComplete action');
+		}
+		assert.strictEqual(complete.result.success, false);
+		assert.strictEqual(complete.result.error?.code, 'denied');
+	});
+
+	test('a host-declined mcpToolCall reports result.error.code = denied', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_d', server: 'github', tool: 'search',
+				status: 'inProgress', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: null,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const entry = state.itemToToolCall.get('mcp_d');
+		if (!entry) {
+			throw new Error('expected a tracked tool call');
+		}
+		// The host declined the approval (recorded by respondToPermissionRequest).
+		// The decline is drained once in the shared completion prologue, so a
+		// non-command tool type is classified as a denial just like a command.
+		state.declinedToolCalls.add(entry.toolCallId);
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'mcpToolCall', id: 'mcp_d', server: 'github', tool: 'search',
+				status: 'failed', arguments: {}, mcpAppResourceUri: undefined,
+				pluginId: null, result: null, error: null, durationMs: 1,
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const complete = actions[0];
+		if (complete.type !== ActionType.ChatToolCallComplete) {
+			throw new Error('expected a ChatToolCallComplete action');
+		}
+		assert.strictEqual(complete.result.success, false);
+		assert.strictEqual(complete.result.error?.code, 'denied');
+	});
+
+	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the peer chat shows it)', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_1', tool: 'spawnAgent',
+				status: 'inProgress', senderThreadId: 'thr_1', receiverThreadIds: [],
+				prompt: 'Investigate the failing test', model: 'gpt-5.5',
+				reasoningEffort: null, agentsStates: {},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('collab_1')!.toolCallId;
+		// spawnAgent opens a read-only peer chat (the host attaches the
+		// subagent-discovery block to this tool call), so the raw prompt is
+		// deliberately NOT dumped into the tool box.
+		assert.deepStrictEqual({
+			actions: startActions,
+			entryToolName: state.itemToToolCall.get('collab_1')!.toolName,
+		}, {
+			actions: [
+				{ type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'codex.spawnAgent', displayName: 'Spawn agent' },
+				{ type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Spawning agent', confirmed: ToolCallConfirmationReason.NotNeeded },
+			],
+			entryToolName: 'codex.spawnAgent',
+		});
+	});
+
+	test('collabAgentToolCall sendInput start still carries the prompt (only spawnAgent is compacted)', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_si', tool: 'sendInput',
+				status: 'inProgress', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1'],
+				prompt: 'Also check the CHANGELOG', model: null,
+				reasoningEffort: null, agentsStates: {},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('collab_si')!.toolCallId;
+		assert.deepStrictEqual(startActions, [
+			{ type: ActionType.ChatToolCallStart, turnId: 'turn_a', toolCallId, toolName: 'codex.sendInput', displayName: 'Send input to agent' },
+			{ type: ActionType.ChatToolCallDelta, turnId: 'turn_a', toolCallId, content: 'Also check the CHANGELOG' },
+			{ type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Sending input to agent', toolInput: 'Also check the CHANGELOG', confirmed: ToolCallConfirmationReason.NotNeeded },
+		]);
+	});
+
+	test('collabAgentToolCall spawnAgent completed renders the subagent result as tool output', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_2', tool: 'spawnAgent',
+				status: 'inProgress', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1'],
+				prompt: 'Investigate the failing test', model: 'gpt-5.5',
+				reasoningEffort: null, agentsStates: {},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('collab_2')!.toolCallId;
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_2', tool: 'spawnAgent',
+				status: 'completed', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1'],
+				prompt: 'Investigate the failing test', model: 'gpt-5.5',
+				reasoningEffort: null,
+				agentsStates: { sub_1: { status: 'completed', message: 'Found the bug in foo.ts' } },
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({ actions, remainingToolCalls: state.itemToToolCall.size }, {
+			actions: [{
+				type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Spawned agent',
+					content: [{ type: ToolResultContentType.Text, text: 'Completed — Found the bug in foo.ts' }],
+				},
+			}],
+			remainingToolCalls: 0,
+		});
+	});
+
+	test('collabAgentToolCall wait aggregates results from multiple subagents', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_wait', tool: 'wait',
+				status: 'inProgress', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1', 'sub_2'],
+				prompt: null, model: null, reasoningEffort: null, agentsStates: {},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('collab_wait')!.toolCallId;
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_wait', tool: 'wait',
+				status: 'completed', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1', 'sub_2'],
+				prompt: null, model: null, reasoningEffort: null,
+				agentsStates: {
+					sub_1: { status: 'completed', message: 'Migration finished' },
+					sub_2: { status: 'running', message: 'Still analysing' },
+				},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: 'Finished waiting',
+				content: [{ type: ToolResultContentType.Text, text: 'Agent 1: Completed — Migration finished\nAgent 2: Running — Still analysing' }],
+			},
+		}]);
+	});
+
+	test('collabAgentToolCall failure reports the errored subagent state', () => {
+		const state = createCodexSessionMapState();
+		mapItemStarted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_fail', tool: 'spawnAgent',
+				status: 'inProgress', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1'],
+				prompt: 'Refactor the parser', model: 'gpt-5.5', reasoningEffort: null, agentsStates: {},
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('collab_fail')!.toolCallId;
+		const actions = mapItemCompleted(state, {
+			item: {
+				type: 'collabAgentToolCall', id: 'collab_fail', tool: 'spawnAgent',
+				status: 'failed', senderThreadId: 'thr_1', receiverThreadIds: ['sub_1'],
+				prompt: 'Refactor the parser', model: 'gpt-5.5', reasoningEffort: null,
+				agentsStates: { sub_1: { status: 'errored', message: 'Model unavailable' } },
+			} as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId,
+			result: {
+				success: false,
+				pastTenseMessage: 'Spawn agent failed',
+				content: [{ type: ToolResultContentType.Text, text: 'Errored — Model unavailable' }],
+				error: { message: 'Collab agent failed' },
+			},
+		}]);
+	});
+
+	test('dynamicToolCall item carries a Client contributor when a client owns the tool', () => {
+		const toolSet = new ActiveClientToolSet();
+		toolSet.set('win-7', [{ name: 'get_magic_word' }]);
+		const state = createCodexSessionMapState(new Set(), toolSet);
 		const startActions = mapItemStarted(state, {
 			item: { type: 'dynamicToolCall', id: 'dyn_2', namespace: null, tool: 'get_magic_word', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
@@ -416,8 +813,9 @@ suite('codexMapAppServerEvents', () => {
 		// A server tool is registered under its bare name and executes
 		// in-process, so it must not carry a Client contributor even when a
 		// workbench client owns the (other) client tools.
-		const state = createCodexSessionMapState(new Set(['addComment']));
-		state.toolsClientId = 'win-7';
+		const toolSet = new ActiveClientToolSet();
+		toolSet.set('win-7', [{ name: 'get_magic_word' }]);
+		const state = createCodexSessionMapState(new Set(['addComment']), toolSet);
 		const startActions = mapItemStarted(state, {
 			item: { type: 'dynamicToolCall', id: 'dyn_3', namespace: null, tool: 'addComment', arguments: {}, status: 'inProgress', contentItems: null, success: null, durationMs: null } as never,
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
@@ -469,10 +867,10 @@ suite('codexMapAppServerEvents', () => {
 				id: 'turn_a',
 				items: [], itemsView: { type: 'full' } as never,
 				status: 'completed' as never,
-				error: null, startedAt: null, completedAt: null, durationMs: null,
+				error: null, startedAt: 1_752_012_321, completedAt: 1_752_012_323.5, durationMs: 2500,
 			},
 		});
-		assert.deepStrictEqual(actions, [{ type: ActionType.ChatTurnComplete, turnId: 'turn_a' }]);
+		assert.deepStrictEqual(actions, [{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 2500 }]);
 		assert.strictEqual(state.currentTurnId, undefined);
 	});
 
@@ -486,14 +884,17 @@ suite('codexMapAppServerEvents', () => {
 				status: 'completed' as never,
 				error: null, startedAt: null, completedAt: null, durationMs: null,
 			},
-		});
-		assert.deepStrictEqual({ actions, remainingToolCalls: state.itemToToolCall.size }, {
+		}, 321);
+		const completeAction = actions[1] as { type: ActionType; turnId: string; duration: number };
+		const { duration: completeDuration, ...completeRest } = completeAction;
+		assert.deepStrictEqual({ actions: [actions[0], completeRest], remainingToolCalls: state.itemToToolCall.size }, {
 			actions: [
 				{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId: 'tc_1', result: { success: false, pastTenseMessage: 'Stopped shell', content: [{ type: ToolResultContentType.Text, text: 'partial output' }], error: { message: 'Turn completed before the tool reported completion' } } },
 				{ type: ActionType.ChatTurnComplete, turnId: 'turn_a' },
 			],
 			remainingToolCalls: 0,
 		});
+		assert.strictEqual(completeDuration, 321);
 	});
 
 	test('turn/completed with status=failed emits ChatError + ChatTurnComplete', () => {
@@ -507,9 +908,10 @@ suite('codexMapAppServerEvents', () => {
 				startedAt: null, completedAt: null, durationMs: null,
 			},
 		});
-		assert.strictEqual(actions.length, 2);
-		assert.strictEqual((actions[0] as { type: ActionType }).type, ActionType.ChatError);
-		assert.strictEqual((actions[1] as { type: ActionType }).type, ActionType.ChatTurnComplete);
+		assert.deepStrictEqual(actions, [
+			{ type: ActionType.ChatError, turnId: 'turn_a', duration: 0, error: { errorType: 'CodexError', message: 'boom' } },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn_a', duration: 0 },
+		]);
 	});
 
 	test('turn/completed with status=interrupted emits ChatTurnCancelled', () => {
@@ -522,8 +924,7 @@ suite('codexMapAppServerEvents', () => {
 				error: null, startedAt: null, completedAt: null, durationMs: null,
 			},
 		});
-		assert.strictEqual(actions.length, 1);
-		assert.strictEqual((actions[0] as { type: ActionType }).type, ActionType.ChatTurnCancelled);
+		assert.deepStrictEqual(actions, [{ type: ActionType.ChatTurnCancelled, turnId: 'turn_a', duration: 0 }]);
 	});
 
 	test('turnStateFromStatus maps strings correctly', () => {
@@ -553,12 +954,14 @@ suite('codexMapAppServerEvents', () => {
 		state.itemToPartId.set('i1', 'p1');
 		state.itemToToolCall.set('i2', { toolCallId: 'tc', turnId: 'turn_a', toolName: 'shell', output: '' });
 		state.itemToReasoningPartId.set('i3', 'r1');
+		state.declinedToolCalls.add('tc-stale');
 		resetCodexTurnMapState(state);
 		assert.deepStrictEqual({
 			currentTurnId: state.currentTurnId,
 			parts: state.itemToPartId.size,
 			toolCalls: state.itemToToolCall.size,
 			reasoning: state.itemToReasoningPartId.size,
-		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0 });
+			declined: state.declinedToolCalls.size,
+		}, { currentTurnId: 'turn_a', parts: 0, toolCalls: 0, reasoning: 0, declined: 0 });
 	});
 });

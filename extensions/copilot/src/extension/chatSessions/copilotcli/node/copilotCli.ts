@@ -25,8 +25,9 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
+import { resolveAppModulePathSync } from './appNodeModules';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { formatTokenCount, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -60,6 +61,7 @@ export interface CopilotCLIModelInfo {
 	readonly supportsReasoningEffort?: boolean;
 	readonly defaultReasoningEffort?: string;
 	readonly supportedReasoningEfforts?: string[];
+	readonly warningText?: Record<string, string>;
 }
 
 export interface ICopilotCLIModels {
@@ -225,6 +227,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
 		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+		const preferLongContext = this.configurationService.getConfig(ConfigKey.PreferLongContext);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
 			const modelInfo: vscode.LanguageModelChatInformation = {
@@ -246,12 +249,13 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled),
+				...buildConfigurationSchema(model, isReasoningEffortEnabled, preferLongContext),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
 				},
 				targetChatSessionType: 'copilotcli',
+				warningText: model.warningText,
 				isDefault: !isAutoModelEnabled && index === 0 ? true : undefined,
 			};
 			const tooltip = getModelCapabilitiesDescription(modelInfo) ?? '';
@@ -271,7 +275,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance.'),
+		tooltip: getAutoModelDescription(),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -288,7 +292,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
@@ -315,20 +319,33 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	if (defaultContextMax && defaultContextMax < fullMax) {
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
-		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-			type: 'number',
-			title: l10n.t('Context Size'),
-			enum: [defaultContextMax, fullMax],
-			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
-			enumDescriptions: [
-				l10n.t('Default'),
-				hasLongContextSurcharge
-					? l10n.t('Longer sessions')
-					: l10n.t('Longer sessions without compaction'),
-			],
-			default: defaultContextMax,
-			group: 'tokens',
-		};
+		if (hasLongContextSurcharge || !preferLongContext) {
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [defaultContextMax, fullMax],
+				enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Default'),
+					l10n.t('Longer sessions'),
+				],
+				default: defaultContextMax,
+				group: 'tokens',
+			};
+		} else {
+			// No surcharge and the user prefers long context — show only the long context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
+			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+				type: 'number',
+				title: l10n.t('Context Size'),
+				enum: [fullMax],
+				enumItemLabels: [formatTokenCount(fullMax)],
+				enumDescriptions: [
+					l10n.t('Longer sessions'),
+				],
+				default: fullMax,
+				group: 'tokens',
+			};
+		}
 	}
 
 	if (Object.keys(properties).length === 0) {
@@ -575,10 +592,11 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			await this._ensureShimsPromise;
 			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
 			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
-			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so
-			// point `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
+			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`
+			// (or `node_modules.asar.unpacked/...` in a packaged build), so point
+			// `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
 			// from the product build (see build/.moduleignore).
-			process.env['MXC_BIN_DIR'] = path.join(this.envService.appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin');
+			process.env['MXC_BIN_DIR'] = resolveAppModulePathSync(this.envService.appRoot, '@microsoft', 'mxc-sdk', 'bin');
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can

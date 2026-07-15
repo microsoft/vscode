@@ -10,7 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -26,6 +27,7 @@ import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
+import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -162,9 +164,20 @@ export interface IAgentFeedbackService {
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
 
 	/**
+	 * Whether {@link getFeedback} reflects the authoritative item set for the
+	 * session. For agent-host sessions this is `false` until the session's
+	 * annotations snapshot has been received; for other sessions it is always
+	 * `true`. Callers that seed feedback from another source must wait for this
+	 * to avoid acting on a transiently-empty list.
+	 */
+	hasLoadedFeedback(sessionResource: URI): boolean;
+
+	/**
 	 * Resolve the session that owns the given file resource. Returns the
 	 * session that was active when the file's editor was first opened; if the
 	 * file has never been tracked, falls back to the currently active session.
+	 * Returns `undefined` when the file is not in scope for the session (e.g.
+	 * the Output view or files outside the session's workspace folders).
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
 
@@ -214,9 +227,9 @@ export interface IAgentFeedbackService {
 
 	/**
 	 * Submit the currently accumulated accepted feedback for the session to the
-	 * agent and mark those items as submitted.
+	 * agent and mark those items as submitted. Returns whether the feedback was submitted.
 	 */
-	submitFeedback(sessionResource: URI): Promise<void>;
+	submitFeedback(sessionResource: URI): Promise<boolean>;
 
 	/**
 	 * Add a feedback item and then submit the feedback. Waits for the
@@ -332,7 +345,41 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!session || session.status.get() === SessionStatus.Untitled) {
 			return undefined;
 		}
+		if (!this._isFileInSessionScope(session, resourceUri)) {
+			return undefined;
+		}
 		return session;
+	}
+
+	/**
+	 * Whether the given file belongs to the session and is therefore eligible
+	 * for agent feedback. This keeps the feedback affordances scoped to the
+	 * session's own files and excludes editors that merely happen to be open
+	 * while the session is active (e.g. user settings opened from the user
+	 * data directory, or the Output view which is not backed by a real file).
+	 */
+	private _isFileInSessionScope(session: ISession, resourceUri: URI): boolean {
+		// The Output view renders into a code editor but is not a real file the
+		// user can give feedback on, so always exclude it.
+		if (resourceUri.scheme === Schemas.outputChannel) {
+			return false;
+		}
+
+		// Files that are part of the session's changes are always in scope,
+		// regardless of where they live on disk.
+		if (session.changes.get().some(change => changeMatchesResource(change, resourceUri))) {
+			return true;
+		}
+
+		// Otherwise the file must live within one of the session's workspace
+		// folders. When the session has no workspace information we cannot make
+		// that determination, so fall back to allowing the file.
+		const workspace = session.workspace.get();
+		if (!workspace) {
+			return true;
+		}
+		return workspace.folders.some(folder =>
+			isEqualOrParent(resourceUri, folder.root) || isEqualOrParent(resourceUri, folder.workingDirectory));
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
@@ -440,6 +487,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return this._backendForSession(sessionResource).getItems(sessionResource);
 	}
 
+	hasLoadedFeedback(sessionResource: URI): boolean {
+		return this._backendForSession(sessionResource).hasLoaded(sessionResource);
+	}
+
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined {
 		let bestSession: URI | undefined;
 		let bestSequence = -1;
@@ -499,7 +550,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
-		await this.revealSessionComment(sessionResource, feedbackId, feedback.resourceUri, feedback.range);
+		// Anchor using the session-editor-comment id (not the raw feedback id) so the editor widget contribution matches the active item and expands its widget.
+		await this.revealSessionComment(sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedbackId), feedback.resourceUri, feedback.range);
 	}
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
@@ -648,11 +700,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
-	async submitFeedback(sessionResource: URI): Promise<void> {
+	async submitFeedback(sessionResource: URI): Promise<boolean> {
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
-			return;
+			return false;
 		}
 
 		// Agent-host sessions don't keep a reactive feedback attachment in the
@@ -674,13 +726,13 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				await widget.acceptInput('/act-on-feedback');
 			} catch (err) {
 				this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-				return;
+				return false;
 			} finally {
 				widget.attachmentModel.delete(attachmentId);
 			}
 
 			this.markFeedbackSubmitted(sessionResource);
-			return;
+			return true;
 		}
 
 		// Send first so the accepted feedback is still attached to the request,
@@ -691,10 +743,11 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await widget.acceptInput('/act-on-feedback');
 		} catch (err) {
 			this._logService.error('[AgentFeedback] Failed to submit feedback', err);
-			return;
+			return false;
 		}
 
 		this.markFeedbackSubmitted(sessionResource);
+		return true;
 	}
 
 	markFeedbackSubmitted(sessionResource: URI): void {

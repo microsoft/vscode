@@ -5,11 +5,13 @@
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
+import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -18,6 +20,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
 const REQUIRED_PERMISSION_MODE_VALUE = 'default';
+const REQUIRED_CODEX_APPROVALS_VALUE = 'default';
 
 /**
  * Returns `true` when an `autoApprove` session-config property uses the
@@ -37,7 +40,7 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 	if (!schema.enum.includes(REQUIRED_AUTO_APPROVE_VALUE)) {
 		return false;
 	}
-	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
 }
 
 /**
@@ -111,6 +114,17 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, level)
 			.catch(() => { /* best-effort */ });
+	}
+
+	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
+		switch (level) {
+			case ChatPermissionLevel.Default:
+				return localize('agentHostPermissionPicker.defaultApprovalsHover', "Copilot asks before running tools unless your configured settings allow the tool.");
+			case ChatPermissionLevel.AutoApprove:
+				return localize('agentHostPermissionPicker.autoApproveHover', "Copilot runs all tools without asking for approval.");
+			case ChatPermissionLevel.Autopilot:
+				return localize('agentHostPermissionPicker.autopilotApprovalsHover', "Copilot runs tools without asking for approval and continues until the task is done.");
+		}
 	}
 
 	private _readLevel(reader: IReader): ChatPermissionLevel {
@@ -196,4 +210,23 @@ export function isWellKnownClaudePermissionModeSchema(schema: SessionConfigPrope
 		return false;
 	}
 	return schema.enum.every(value => narrowClaudePermissionMode(value) !== undefined);
+}
+
+/**
+ * Returns `true` when a `codex.permissionsPreset` session-config property uses
+ * the Codex permissions-preset value set and includes `default`.
+ *
+ * Codex collapses its three security axes (sandbox × approval policy ×
+ * approvals reviewer) into a single user-facing preset; this guard lets the
+ * dedicated {@link AgentHostCodexApprovalsPicker} claim the property while the
+ * generic per-property picker stands down.
+ */
+export function isWellKnownCodexApprovalsSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_CODEX_APPROVALS_VALUE)) {
+		return false;
+	}
+	return schema.enum.every(value => narrowCodexPermissionsPreset(value) !== undefined);
 }

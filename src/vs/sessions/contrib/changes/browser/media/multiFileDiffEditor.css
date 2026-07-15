@@ -1,0 +1,157 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Agents window styling for the multi-file diff editor (the embedded multi-diff
+ * used by the Changes view / editor). Kept out of the shared workbench style so
+ * these overrides live next to the Changes contribution that owns them. */
+
+/* The per-file diff rows intentionally render flush with the panel (the old
+ * `padding: 0 8px` inset was removed as part of the spacing rework); only
+ * `box-sizing` is kept here. */
+.agent-sessions-workbench .part.editor .multiDiffEntry {
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header {
+	cursor: pointer;
+	background: transparent;
+	position: relative;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--vscode-agentsPanel-background);
+	z-index: -1;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
+	border-radius: var(--vscode-cornerRadius-medium);
+	border: none;
+	background: var(--vscode-sideBarSectionHeader-background);
+	margin: 0;
+	align-items: center;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:not(.collapsed) .header-content {
+	border-bottom: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container {
+	gap: 4px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus,
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible {
+	outline: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus .header-content,
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible .header-content {
+	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
+	border-bottom: none;
+}
+
+.agent-sessions-workbench .part.editor .diff-hidden-lines .center {
+	box-shadow: none;
+	overflow: hidden;
+}
+
+/* Left-align the hidden-lines expand/collapse control (`$(unfold)`) so it lines
+ * up with the file header twistie, instead of being centered in the original
+ * line-number gutter width (which pushes it to the right). */
+.agent-sessions-workbench .part.editor .diff-hidden-lines .center > div:first-child {
+	justify-content: flex-start !important;
+	padding-left: 10px;
+	box-sizing: border-box;
+}
+
+/* Align the "Fold Unchanged Region" glyph-margin control with the same offset so
+ * the collapse (fold) and expand (unfold) controls share the header twistie's
+ * horizontal position. */
+.agent-sessions-workbench .part.editor .fold-unchanged {
+	margin-left: 10px;
+	box-sizing: border-box;
+}
+
+/* The hidden-lines bar is split into two halves (original / modified) sitting
+ * side by side. Round only the outer corners so the pair forms a single pill. */
+.agent-sessions-workbench .part.editor .editor.original .diff-hidden-lines .center {
+	border-top-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+}
+
+.agent-sessions-workbench .part.editor .editor.modified .diff-hidden-lines .center {
+	border-top-right-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	opacity: 0.9;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .action-item.checkbox-action-item.changeset-review-action {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-toolbar-hoverBackground);
+	height: 20px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .action-item.checkbox-action-item.changeset-review-action:has(> .monaco-checkbox.checked) {
+	background: var(--vscode-actionBar-toggledBackground) !important;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action .checkbox-label {
+	font-size: var(--vscode-agents-fontSize-body2);
+	line-height: 20px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .changeset-review-action.disabled .checkbox-label {
+	cursor: default;
+}

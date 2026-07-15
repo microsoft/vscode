@@ -1,0 +1,118 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: report_intent
+          input:
+            intent: Delegating directory listing
+        - type: tool_use
+          id: toolcall_1
+          name: task
+          input:
+            name: list-dir
+            prompt: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+            agent_type: explore
+            description: List directory files
+            mode: sync
+      stopReason: tool_use
+      usage:
+        inputTokens: 3
+        outputTokens: 218
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: view
+          input:
+            path: ${workdir}/ahp-subagent-test-uwYpoY
+      stopReason: tool_use
+      usage:
+        inputTokens: 4006
+        outputTokens: 173
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/ahp-subagent-test-uwYpoY
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                file-a.txt
+                file-b.txt
+    response:
+      content: |-
+        The directory `${workdir}/ahp-subagent-test-uwYpoY` contains two files:
+
+        1. **file-a.txt**
+        2. **file-b.txt**
+      stopReason: end_turn
+      usage:
+        inputTokens: 6
+        outputTokens: 73
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to list the files in the current working directory. The subagent should call a single read-only tool (e.g. `view` or shell with `ls`) to enumerate the directory. Do not enumerate the directory yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: report_intent
+              input:
+                intent: Delegating directory listing
+            - type: tool_use
+              name: task
+              input:
+                name: list-dir
+                prompt: List the files in the directory ${workdir}/ahp-subagent-test-uwYpoY using the view tool.
+                agent_type: explore
+                description: List directory files
+                mode: sync
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Intent logged
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                The directory `${workdir}/ahp-subagent-test-uwYpoY` contains two files:
+
+                1. **file-a.txt**
+                2. **file-b.txt**
+    response:
+      content: |-
+        The subagent reports the current working directory contains two files:
+
+        1. **file-a.txt**
+        2. **file-b.txt**
+      stopReason: end_turn
+      usage:
+        inputTokens: 1
+        outputTokens: 36

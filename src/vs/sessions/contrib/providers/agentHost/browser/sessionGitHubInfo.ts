@@ -11,7 +11,8 @@ import { readSessionGitState, SessionMeta } from '../../../../../platform/agentH
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubInfo } from '../../../../services/sessions/common/session.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState } from '../../../github/common/types.js';
+import { computePullRequestIcon } from '../../../github/common/types.js';
+import { computePullRequestIconStatus } from '../../../github/browser/pullRequestIconStatus.js';
 
 /**
  * Shared trace prefix for the pull-request icon pipeline that feeds the session
@@ -194,18 +195,9 @@ export class SessionGitHubInfoResolver {
 			return undefined;
 		}
 
-		let hasFailingChecks = false;
-		let hasUnresolvedComments = false;
-		if (!livePR.isDraft && livePR.state === GitHubPullRequestState.Open) {
-			const ciRef = reader.store.add(gitHubService.createPullRequestCIModelReference(coords.owner, coords.repo, prNumber, livePR.headSha));
-			hasFailingChecks = ciRef.object.overallStatus.read(reader) === GitHubCIOverallStatus.Failure;
-
-			const reviewThreadsRef = reader.store.add(gitHubService.createPullRequestReviewThreadsModelReference(coords.owner, coords.repo, prNumber));
-			hasUnresolvedComments = reviewThreadsRef.object.reviewThreads.read(reader).some(thread => !thread.isResolved);
-		}
-
-		const icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, { hasFailingChecks, hasUnresolvedComments });
-		this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this._sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR present (state ${livePR.state}, isDraft ${livePR.isDraft}, headSha ${livePR.headSha}), hasFailingChecks ${hasFailingChecks}, hasUnresolvedComments ${hasUnresolvedComments} -> icon ${icon?.id ?? 'none'}`);
+		const status = computePullRequestIconStatus(reader, gitHubService, coords.owner, coords.repo, livePR);
+		const icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state, status);
+		this._logService.trace(`${TRACE_PREFIX} [IconAdapter] Session ${this._sessionId} PR ${coords.owner}/${coords.repo}#${prNumber}: livePR present (state ${livePR.state}, isDraft ${livePR.isDraft}, headSha ${livePR.headSha}), hasFailingChecks ${!!status.hasFailingChecks}, hasUnresolvedComments ${!!status.hasUnresolvedComments} -> icon ${icon?.id ?? 'none'}`);
 		return icon;
 	}
 }

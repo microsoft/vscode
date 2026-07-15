@@ -71,9 +71,6 @@ jobs:
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
-      - name: Transpile source
-        run: npm run transpile-client
-
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
@@ -174,18 +171,21 @@ jobs:
 
       - name: Determine base SHA
         id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
-            TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
-            git fetch --no-tags --depth=50 origin "${{ github.event.pull_request.base.ref }}"
-            BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+            TARGET_REF="origin/$BASE_REF"
+            git fetch --no-tags --depth=50 origin "$BASE_REF"
+            BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF")
           else
             # For push events, diff against the parent commit.
-            BASE_SHA=$(git rev-parse "${{ github.sha }}^")
+            BASE_SHA=$(git rev-parse "$EVENT_SHA^")
           fi
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-          echo "Using base SHA: $BASE_SHA (base for ${{ github.sha }})"
+          echo "Using base SHA: $BASE_SHA (base for $EVENT_SHA)"
 
       - name: Get OIDC token (non-fork only)
         id: oidc

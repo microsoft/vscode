@@ -279,7 +279,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	constructor(
 		readonly widget: SuggestDetailsWidget,
-		private readonly _editor: ICodeEditor
+		private readonly _editor: ICodeEditor,
 	) {
 
 		this._resizable = new ResizableHTMLElement();
@@ -428,7 +428,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		const verticalPlacement = preferAlignAtTop ? southPlacement : northPlacement;
 		const placements = [eastPlacement, westPlacement, verticalPlacement];
 		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
-
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
 		let alignAtTop: boolean;
@@ -455,7 +454,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				maxSize = placement.maxSizeTop;
 			}
 		}
-
 		let { top, left } = placement;
 		if (placement === northPlacement) {
 			// For NORTH placement, position the details above the anchor

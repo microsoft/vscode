@@ -51,6 +51,7 @@ import './api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/diffEditor.workbench.contribution.js';
 import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
@@ -391,6 +392,9 @@ import './contrib/welcomeViews/common/newFile.contribution.js';
 
 // Welcome Onboarding
 import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
+
+// Onboarding (scenario engine)
+import './contrib/onboarding/browser/onboarding.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';

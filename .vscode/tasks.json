@@ -2,6 +2,112 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Install & Watch (Client)",
+			"detail": "Install dependencies, compile and watch VS Code core for fixing a bug or implementing a feature.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Compile",
+				"Watch Client Transpile"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run VS Code",
+			"detail": "Run VS Code with a user data directory inside the worktree.",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--user-data-dir=${workspaceFolder}/.profile-oss",
+				"--extensions-dir=${workspaceFolder}/.profile-oss/extensions"
+			],
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Install & Watch (All)",
+			"detail": "Install dependencies and watch all of VS Code (core, extensions and copilot).",
+			"dependsOn": [
+				"Install Dependencies",
+				"Watch"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Install Dependencies",
+			"type": "shell",
+			"command": "npm install",
+			"windows": {
+				"command": "cmd /c \"npm install\""
+			},
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Compile",
+			"type": "npm",
+			"script": "compile",
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Watch",
+			"type": "npm",
+			"script": "watch",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Watch Client Transpile",
+			"type": "npm",
+			"script": "watch-client-transpile",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"group": "session",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/src"
+				],
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+): ERROR: (.+)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
+					"endsPattern": "Finished transpilation with"
+				}
+			},
+			"inAgents": true,
+		},
+		{
 			"type": "npm",
 			"script": "watch-client-transpiled",
 			"label": "Core - Transpile",
@@ -294,7 +400,6 @@
 				"Run Dev Agents"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -304,7 +409,6 @@
 				"Run Dev"
 			],
 			"dependsOrder": "sequence",
-			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -370,6 +474,35 @@
 			},
 			"presentation": {
 				"reveal": "never"
+			}
+		},
+		{
+			"label": "Run VS Code (Web)",
+			"detail": "Run the Agents window as a web client.",
+			"type": "shell",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": [
+				"--connection-token",
+				"dev-token",
+				"--port",
+				"8080"
+			],
+			"inAgents": true,
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "always"
 			}
 		},
 		{
@@ -445,8 +578,7 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"problemMatcher": [],
-			"inAgents": true
+			"problemMatcher": []
 		},
 		{
 			"type": "npm",
@@ -477,8 +609,7 @@
 					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
 				}
-			},
-			"inAgents": true
+			}
 		},
 		{
 			"label": "Component Explorer Server",
@@ -508,10 +639,6 @@
 			"command": "npm install && npm run watch-transpile",
 			"windows": {
 				"command": "cmd /c \"npm install && npm run watch-transpile\""
-			},
-			"inAgents": true,
-			"runOptions": {
-				"runOn": "worktreeCreated"
 			},
 			"presentation": {
 				"focus": false,

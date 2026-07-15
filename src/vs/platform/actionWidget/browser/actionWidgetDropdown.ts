@@ -13,7 +13,7 @@ import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListItemInlineToggle, IActionListOptions } from './actionList.js';
 import { IActionWidgetService } from './actionWidget.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
@@ -25,6 +25,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	detail?: string;
 	/**
+	 * Optional description used in the accessible label instead of the visual description.
+	 */
+	ariaDescription?: string;
+	/**
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
 	hover?: IActionListItemHover;
@@ -32,6 +36,14 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional toolbar actions shown when the item is focused or hovered.
 	 */
 	toolbarActions?: IAction[];
+	/**
+	 * Optional CSS class name applied to the action list row container.
+	 */
+	className?: string;
+	/**
+	 * Optional inline toggle switch rendered on its own row inside the item.
+	 */
+	inlineToggle?: IActionListItemInlineToggle;
 	/**
 	 * Optional keybinding to display next to the action. When provided, this overrides the
 	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
@@ -143,9 +155,12 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					ariaDescription: action.ariaDescription,
 					detail: action.detail,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
+					className: action.className,
+					inlineToggle: action.inlineToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
@@ -263,6 +278,14 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			accessibilityProvider,
 			this._options.listOptions
 		);
+	}
+
+	override hide(): void {
+		const wasVisible = this.isVisible();
+		super.hide();
+		if (wasVisible) {
+			this.actionWidgetService.hide(true);
+		}
 	}
 
 	setEnabled(enabled: boolean): void {

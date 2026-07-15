@@ -56,6 +56,9 @@ type MessagesResult =
 class FakeCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
 
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return undefined; }
+
 	messagesResult: MessagesResult = { kind: 'error', error: new Error('not configured') };
 	modelsResult: { kind: 'value'; value: CCAModel[] } | { kind: 'error'; error: Error } = { kind: 'value', value: [] };
 
@@ -349,100 +352,14 @@ suite('ClaudeProxyService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// #region Lifecycle
+	// #region Token slot
 
-	suite('Lifecycle', () => {
+	suite('Token slot', () => {
 
-		test('start() returns handle with baseUrl and 256-bit hex nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				assert.match(handle.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-				assert.match(handle.nonce, /^[0-9a-f]{64}$/);
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
-		});
-
-		test('two concurrent handles share baseUrl and nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			// Issue both starts before the first bind resolves; they
-			// must share the runtime — without this the second caller
-			// will bind a second server and orphan the first.
-			const [h1, h2] = await Promise.all([
-				service.start(TOKEN),
-				service.start('gh-other'),
-			]);
-			try {
-				assert.strictEqual(h1.baseUrl, h2.baseUrl);
-				assert.strictEqual(h1.nonce, h2.nonce);
-			} finally {
-				h1.dispose();
-				h2.dispose();
-				service.dispose();
-			}
-		});
-
-		test('dispose() while start() is awaiting bind rejects the start', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const startPromise = service.start(TOKEN);
-			service.dispose();
-			await assert.rejects(() => startPromise, /disposed/);
-			// A subsequent start() must also reject — the service is
-			// disposed and no orphaned runtime should be reachable.
-			await assert.rejects(() => service.start(TOKEN), /disposed/);
-		});
-
-		test('disposing one handle while another is alive keeps server up', async () => {
-			const fake = new FakeCopilotApiService();
-			fake.modelsResult = { kind: 'value', value: [ANTHROPIC_MODEL] };
-			const service = createProxyService(fake);
-			const h1 = await service.start(TOKEN);
-			const h2 = await service.start(TOKEN);
-			h1.dispose();
-
-			const res = await fetchJson(`${h2.baseUrl}/v1/models`, {
-				headers: { 'Authorization': `Bearer ${h2.nonce}.s1` },
-			});
-			assert.strictEqual(res.status, 200);
-
-			h2.dispose();
-			service.dispose();
-		});
-
-		test('start() after refcount-0 dispose binds a new port and fresh nonce', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const h1 = await service.start(TOKEN);
-			const baseUrl1 = h1.baseUrl;
-			const nonce1 = h1.nonce;
-			h1.dispose();
-
-			const h2 = await service.start(TOKEN);
-			try {
-				assert.notStrictEqual(h2.nonce, nonce1);
-				// port may or may not be different depending on OS reuse,
-				// but baseUrl reflects whatever the new bind chose
-				assert.match(h2.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
-				// also: previous baseUrl is no longer reachable in tests
-				// — verified indirectly via fresh nonce above
-				void baseUrl1;
-			} finally {
-				h2.dispose();
-				service.dispose();
-			}
-		});
-
-		test('dispose() throws on subsequent start()', async () => {
-			const service = createProxyService(new FakeCopilotApiService());
-			service.dispose();
-			await assert.rejects(() => service.start(TOKEN), /disposed/);
-		});
-
+		// Base lifecycle/bind behavior (nonce + loopback bind, refcounted
+		// handles, dispose/rebind, dispose-during-bind) is covered by
+		// loopbackProxyServer.test.ts. This suite only covers Claude's
+		// `start()` override that wires the GitHub token into outbound calls.
 		test('start() updates token slot last-writer-wins', async () => {
 			const fake = new FakeCopilotApiService();
 			fake.modelsResult = { kind: 'value', value: [] };
@@ -463,22 +380,6 @@ suite('ClaudeProxyService', () => {
 	});
 
 	// #endregion
-
-	// #region Bind safety
-
-	suite('Bind safety', () => {
-		test('binds only on 127.0.0.1', async () => {
-			const fake = new FakeCopilotApiService();
-			const service = createProxyService(fake);
-			const handle = await service.start(TOKEN);
-			try {
-				assert.ok(handle.baseUrl.startsWith('http://127.0.0.1:'));
-			} finally {
-				handle.dispose();
-				service.dispose();
-			}
-		});
-	});
 
 	// #endregion
 
@@ -1354,6 +1255,8 @@ suite('ClaudeProxyService', () => {
 				models: () => Promise.resolve([]),
 				responses: () => Promise.reject(new Error('not used')),
 				utilityChatCompletion: () => Promise.reject(new Error('not used')),
+				resolveRestrictedTelemetryContext: () => Promise.resolve({ restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }),
+				resolveApiEndpoint: () => Promise.resolve(undefined),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);
@@ -1423,6 +1326,8 @@ suite('ClaudeProxyService', () => {
 				models: fake.models.bind(fake),
 				responses: fake.responses.bind(fake),
 				utilityChatCompletion: fake.utilityChatCompletion.bind(fake),
+				resolveRestrictedTelemetryContext: fake.resolveRestrictedTelemetryContext.bind(fake),
+				resolveApiEndpoint: fake.resolveApiEndpoint.bind(fake),
 			};
 			const service = new ClaudeProxyService(new NullLogService(), wrapped);
 			const handle = await service.start(TOKEN);

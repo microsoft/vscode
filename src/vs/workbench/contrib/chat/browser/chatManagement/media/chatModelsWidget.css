@@ -131,6 +131,33 @@
 	flex: 0 1 auto;
 }
 
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link .model-deprecation-link-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.models-widget .models-table-container .monaco-table-td .model-name-container .model-deprecation-link .monaco-link .model-deprecation-link-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
 .models-widget .models-table-container .monaco-list-row:not(.selected) .monaco-table-tr.models-status-row .monaco-table-td .model-name-container .model-name .monaco-highlighted-label.error-status {
 	color: var(--vscode-errorForeground);
 }

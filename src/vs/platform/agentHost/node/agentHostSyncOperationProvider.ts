@@ -33,7 +33,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 	}
 
 	getOperations({ gitState }: IChangesetOperationContext): ChangesetOperation[] | undefined {
-		if (!gitState.upstreamBranchName || (gitState.outgoingChanges ?? 0) === 0) {
+		if (!gitState?.upstreamBranchName || (gitState?.outgoingChanges ?? 0) === 0) {
 			return undefined;
 		}
 
