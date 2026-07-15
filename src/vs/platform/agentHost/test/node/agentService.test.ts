@@ -208,7 +208,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('resolveSessionConfig echoes host-owned worktree include files across isolation modes', async () => {
+	test('resolveSessionConfig echoes host-owned worktree values across isolation modes', async () => {
 		const workingDirectory = URI.file('/workspace/repo');
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async () => workingDirectory;
@@ -231,7 +231,7 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
 		});
 		const folder = await localService.resolveSessionConfig({
 			provider: 'copilot',
@@ -240,11 +240,13 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		assert.deepStrictEqual({
+			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
 		}, {
+			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
 			folderReadOnly: true,

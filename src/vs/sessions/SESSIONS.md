@@ -578,6 +578,29 @@ the scheduler records the timeout failure before cancelling the observation, so
 neither path leaves a live observable subscription even though the session may
 remain active.
 
+The automation dialog keeps a Worktree branch selection as explicit intent,
+separate from the repository's live `HEAD`. Folder isolation displays live
+`HEAD` but persists no branch. Worktree isolation persists the selected local
+branch, falling back to the current named `HEAD` until the user makes a choice.
+Repository refresh failures and deleted local refs do not silently replace an
+edited branch. The automation and new-session surfaces share the provider-agnostic
+`contrib/chat/browser/branchPicker` trigger, ActionWidget, filtering, focus, and
+accessibility behavior; their adapters supply branch state and selection side
+effects. The Automations dialog keeps its form focus cycle, popup command
+allowlist, and popup-first Escape handling in its own adapter instead of changing
+the shared Dialog widget. An edited automation's saved provider/session type
+remains pending while providers are discovered, so a provisional fallback cannot erase Worktree intent;
+the user can still explicitly choose an available alternative. `ISessionType`
+advertises Worktree configuration support; unsupported targets keep the branch
+control read-only. The headless session path awaits the existing provider
+`setIsolationMode` and `setBranch` setters before sending. Agent-host Copilot CLI
+maps the generic `workspace` isolation value to its `folder` config value and
+verifies each resolved value. Automation values are one-shot and do not replace
+the user's remembered interactive session defaults. The headless management
+operation accepts the automation run's cancellation token so repository
+configuration and commit detection are cancelled together; cancellation rejects
+the run and disposes the provisional draft.
+
 ---
 
 ## Adding a New Provider
