@@ -47,6 +47,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private _isConnected = false;
 	private _isResuming = false;
+	private _sessionStartedOnSocket = false;
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
 
@@ -177,7 +178,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _sendSetLanguage(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
 	}
@@ -246,6 +247,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			: baseUrl;
 		const ws = new win.WebSocket(url);
 		this._ws = ws;
+		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
 			this._reconnectAttempts = 0;
@@ -411,6 +413,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._lastSentById.clear();
@@ -664,6 +667,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				payload.prior_timeline = priorTimeline;
 			}
 			this._ws.send(JSON.stringify(payload));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 
@@ -672,6 +676,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			const sessionContext = { ...context, display_locale: this._getLanguage() };
 			this._seedTracking(sessionContext);
 			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 

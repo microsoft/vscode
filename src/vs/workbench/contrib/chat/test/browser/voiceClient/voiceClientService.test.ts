@@ -187,23 +187,40 @@ suite('VoiceClientService', () => {
 			'agents.voice.voice': 'victoria_neutral',
 		});
 		await service.connect(createTestWindow('en-GB'));
+		service.sendStartSession({ sessions: [], display_locale: 'en-GB' }, 'machine');
 
 		await configurationService.setUserConfiguration('agents.voice.language', 'fr-FR');
 		fireConfigurationChange(configurationService, 'agents.voice.language');
-		service.sendStartSession({ sessions: [], display_locale: 'en-GB' }, 'machine');
 
 		assert.deepStrictEqual(socket().sent.map(message => message.type === 'start_session' ? {
 			type: message.type,
 			session_context: message.session_context,
 			voice: message.voice,
 		} : message), [
-			{ type: 'set_language', language: 'fr-FR' },
 			{
 				type: 'start_session',
-				session_context: { sessions: [], display_locale: 'fr-FR' },
+				session_context: { sessions: [], display_locale: 'en-GB' },
 				voice: 'victoria_neutral',
 			},
+			{ type: 'set_language', language: 'fr-FR' },
 		]);
+	});
+
+	test('defers a language update until the session starts', async () => {
+		const { service, configurationService } = createService({ 'agents.voice.language': 'auto' });
+		await service.connect(createTestWindow('en-US'));
+
+		await configurationService.setUserConfiguration('agents.voice.language', 'fr');
+		fireConfigurationChange(configurationService, 'agents.voice.language');
+		service.sendStartSession({ sessions: [], display_locale: 'en-US' }, 'machine');
+
+		assert.deepStrictEqual(socket().sent.map(message => ({
+			type: message.type,
+			session_context: message.session_context,
+		})), [{
+			type: 'start_session',
+			session_context: { sessions: [], display_locale: 'fr' },
+		}]);
 	});
 
 	test('does not update while disconnected and retains language on resume', async () => {
