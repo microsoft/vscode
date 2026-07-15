@@ -18,7 +18,7 @@ import { IPromptTimelineRail } from './promptTimelineRail.js';
 import { MIN_HOST_WIDTH, PromptTimelineRulerRail } from './promptTimelineRulerRail.js';
 
 /** Normalized wheel distance (device-independent units, ~1 per notch) accumulated within {@link WHEEL_WINDOW_MS} to count as a hard/fast scroll. */
-const HARD_WHEEL_DISTANCE = 6;
+const HARD_WHEEL_DISTANCE = 20;
 /** Rolling window for the wheel-velocity accumulator; a pause longer than this resets it. */
 const WHEEL_WINDOW_MS = 120;
 
