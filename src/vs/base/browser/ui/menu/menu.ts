@@ -323,7 +323,7 @@ export class Menu extends ActionBar {
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
-		scrollElement.style.outline = border;
+		scrollElement.style.border = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
