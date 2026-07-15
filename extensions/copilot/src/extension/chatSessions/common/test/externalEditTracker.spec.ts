@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as vscode from 'vscode';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -183,6 +184,40 @@ describe('ExternalEditTracker', () => {
 			const completion = tracker.completeEdit('edit-complete');
 			await vi.advanceTimersByTimeAsync(1000);
 			await expect(completion).resolves.toBeUndefined();
+		});
+
+		it('cancellation after acknowledgment still finishes the tracked edit', async () => {
+			// Stream that acknowledges the edit immediately (invokes the proceed callback) and then
+			// keeps the edit open until the tracked deferred resolves — mirroring core keeping the
+			// edit in progress until completeEdit. `callbackResolved` flips only once the deferred is
+			// completed, so it proves cancellation released the edit rather than leaking it.
+			class AckThenWaitStream extends SpyChatResponseStream {
+				callbackResolved = false;
+				override async externalEdit(_target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Promise<string> {
+					await callback();
+					this.callbackResolved = true;
+					return 'done';
+				}
+			}
+
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new AckThenWaitStream();
+			const file = URI.file('/workspace/src/test.ts');
+			const tokenSource = new CancellationTokenSource();
+
+			// Core acknowledges immediately, so the permission gate resolves without the timeout.
+			await tracker.trackEdit('edit-cancel-after-ack', [file], stream, tokenSource.token);
+			expect(stream.callbackResolved).toBe(false); // edit still open, awaiting completion
+
+			// Cancelling after acknowledgment but before completeEdit must finish the edit, not leak
+			// the map entry and the pending proceed callback (regression for the disposed-listener bug).
+			tokenSource.cancel();
+			for (let i = 0; i < 5; i++) {
+				await Promise.resolve();
+			}
+			expect(stream.callbackResolved).toBe(true);
+
+			tokenSource.dispose();
 		});
 	});
 });

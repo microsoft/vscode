@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { DeferredPromise, raceTimeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 
@@ -27,7 +26,7 @@ const EXTERNAL_EDIT_ACK_TIMEOUT_MS = 10_000;
  * externalEdit API to ensure proper tracking and attribution of file changes.
  */
 export class ExternalEditTracker {
-	private _ongoingEdits = new Map<string, { complete: () => void; onDidComplete: Thenable<string> }>();
+	private _ongoingEdits = new Map<string, { complete: () => void; onDidComplete: Thenable<string>; dispose: () => void }>();
 
 	/**
 	 * Creates a new ExternalEditTracker.
@@ -66,34 +65,34 @@ export class ExternalEditTracker {
 
 		return new Promise<void>(proceedWithEdit => {
 			const deferred = new DeferredPromise<void>();
-			const store = new DisposableStore();
 
 			// The permission response is gated on this promise resolving. It must never wait forever
-			// on core acknowledging the external edit, so we proceed on whichever happens first:
-			// core acknowledges, the request is cancelled, or the safety timeout elapses.
+			// on core acknowledging the external edit, so we proceed on whichever happens first: core
+			// acknowledges, the request is cancelled, or the safety timeout elapses. Only the timeout
+			// is tied to this permission gate — the cancellation listener must outlive it (see below).
 			let settled = false;
+			const timer = setTimeout(() => settle(), this.acknowledgmentTimeoutMs);
 			const settle = () => {
 				if (settled) {
 					return;
 				}
 				settled = true;
-				store.dispose();
+				clearTimeout(timer);
 				proceedWithEdit();
 			};
 
-			// Handle cancellation if token provided
-			if (token) {
-				store.add(token.onCancellationRequested(() => {
-					this._ongoingEdits.delete(editKey);
-					deferred.complete();
-					settle();
-				}));
-			}
-
-			// Safety net: proceed with the already-decided permission if core never acknowledges the
-			// edit within the timeout, so a dropped acknowledgment can't hang the agent turn.
-			const timer = setTimeout(() => settle(), this.acknowledgmentTimeoutMs);
-			store.add(toDisposable(() => clearTimeout(timer)));
+			// The cancellation listener must live for the full edit lifecycle, not just until the
+			// permission gate settles: the request can be cancelled after core acknowledges (or the
+			// timeout fires) but before completeEdit runs. A cancelled tool may never emit a completion
+			// event, so cancellation is what deletes the map entry and completes the deferred that the
+			// externalEdit callback awaits — otherwise both leak forever. It is disposed when it fires
+			// or by completeEdit.
+			const cancellationListener = token?.onCancellationRequested(() => {
+				this._ongoingEdits.delete(editKey);
+				cancellationListener?.dispose();
+				deferred.complete();
+				settle();
+			});
 
 			const onDidComplete = stream.externalEdit(filteredUris, async () => {
 				settle();
@@ -102,7 +101,8 @@ export class ExternalEditTracker {
 
 			this._ongoingEdits.set(editKey, {
 				onDidComplete,
-				complete: () => deferred.complete()
+				complete: () => deferred.complete(),
+				dispose: () => cancellationListener?.dispose()
 			});
 		});
 	}
@@ -116,6 +116,7 @@ export class ExternalEditTracker {
 		const ongoingEdit = this._ongoingEdits.get(editKey);
 		if (ongoingEdit) {
 			this._ongoingEdits.delete(editKey);
+			ongoingEdit.dispose();
 			ongoingEdit.complete();
 			// Bound the wait so a stalled core acknowledgment cannot block request finalization.
 			return await raceTimeout(Promise.resolve(ongoingEdit.onDidComplete), this.acknowledgmentTimeoutMs);
