@@ -536,6 +536,7 @@ function parseClientAction(value: unknown): StateAction {
 			return {
 				type: ActionType.ChatTurnStarted,
 				turnId: readString(action, 'turnId'),
+				startedAt: new Date().toISOString(),
 				message: {
 					text: readString(message, 'text'),
 					origin: { kind: MessageKind.User },
