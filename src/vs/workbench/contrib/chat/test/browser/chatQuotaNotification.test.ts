@@ -649,6 +649,15 @@ suite('ChatQuotaNotificationContribution', () => {
 	// --- Quota trajectory warning --------------------------------------------
 
 	suite('quota trajectory warning', () => {
+		let clock: sinon.SinonFakeTimers;
+
+		setup(() => {
+			clock = sinon.useFakeTimers({
+				now: new Date('2026-06-25T00:00:00Z'),
+				toFake: ['Date'],
+			});
+		});
+
 		test('does not show when experiment treatment is disabled', async () => {
 			const { notificationMock } = createContribution({
 				quotas: {
@@ -769,6 +778,31 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 
 			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
+		test('uses previous calendar month as period start for 31-day cycle', async () => {
+			clock.setSystemTime(new Date('2026-07-08T00:00:00Z'));
+			const telemetryService = new TestTelemetryService();
+			const { assignmentMock, notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: '2026-08-01T00:00:00Z',
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: true, telemetryService });
+
+			await flushPromises();
+
+			assert.deepStrictEqual({
+				treatments: assignmentMock.getTreatmentCalls,
+				events: telemetryService.events,
+				notification: notificationMock.getNotification(),
+			}, {
+				treatments: [],
+				events: [],
+				notification: undefined,
+			});
 		});
 
 		test('shows trajectory nudge only after treatment resolves', async () => {
