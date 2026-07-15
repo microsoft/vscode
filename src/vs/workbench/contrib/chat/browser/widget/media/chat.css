@@ -319,8 +319,128 @@
 	white-space: nowrap;
 }
 
-.interactive-item-container .chat-footer-details.hidden {
-	display: none !important;
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details:not(.hidden) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.interactive-item-container .chat-footer-details:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.interactive-item-container .chat-response-timing {
+	display: inline-grid;
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.interactive-item-container .chat-response-timing > * {
+	grid-area: 1 / 1;
+	justify-self: end;
+	text-align: right;
+	transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.interactive-item-container .chat-response-flip-reset .chat-response-timing > * {
+	transition: none;
+}
+
+.interactive-item-container .chat-response-timing .chat-response-alternate {
+	opacity: 0;
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-down .chat-response-timing .chat-response-alternate {
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-completed-at,
+.interactive-item-container .chat-footer-details:focus-visible .chat-response-timing.has-alternate .chat-response-completed-at {
+	opacity: 0;
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-down.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-completed-at {
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-alternate,
+.interactive-item-container .chat-footer-details:focus-visible .chat-response-timing.has-alternate .chat-response-alternate {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.interactive-item-container .chat-request-timing {
+	display: inline-grid;
+	overflow: hidden;
+}
+
+.interactive-item-container .chat-request-timestamp:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.interactive-item-container .chat-request-timing > * {
+	grid-area: 1 / 1;
+	justify-self: end;
+	text-align: right;
+	transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.interactive-item-container .chat-request-flip-reset .chat-request-timing > * {
+	transition: none;
+}
+
+.interactive-item-container .chat-request-timing .chat-request-full-date {
+	opacity: 0;
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-down .chat-request-timing .chat-request-full-date {
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-relative,
+.interactive-item-container .chat-request-timestamp:focus-visible .chat-request-timing.has-alternate .chat-request-relative {
+	opacity: 0;
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-down.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-relative {
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-full-date,
+.interactive-item-container .chat-request-timestamp:focus-visible .chat-request-timing.has-alternate .chat-request-full-date {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.interactive-item-container .chat-response-model-details {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
+	display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container .chat-response-timing > * {
+		transition: none;
+	}
+
+	.interactive-item-container .chat-request-timing > * {
+		transition: none;
+	}
+}
+
+.interactive-item-container.interactive-request:not(.show-verbose-details) .value .chat-request-timestamp {
+	display: none;
 }
 
 .interactive-item-container .value {
@@ -3837,6 +3957,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 	}
 
+	.interactive-item-container.interactive-request .chat-request-timestamp {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label3);
+		line-height: var(--vscode-fontSize-label3);
+		opacity: 0.7;
+		visibility: visible;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus-visible {
+		opacity: 0.7;
+		visibility: visible;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	}
+
 	.interactive-item-container.interactive-request .chat-attached-context {
 		max-width: 100%;
 		width: fit-content;
@@ -4308,6 +4449,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.checkpoint-container {
 			opacity: 1;
+		}
+
+		.chat-request-timestamp {
+			opacity: 0.7;
+			visibility: visible;
+			transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
 		}
 	}
 

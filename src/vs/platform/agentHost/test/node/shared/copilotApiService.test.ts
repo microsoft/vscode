@@ -126,6 +126,37 @@ suite('CopilotApiService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('combines internal organizations from the Copilot token with login from user discovery', async () => {
+		const service = createService(async input => {
+			const url = getUrl(input);
+			if (url.endsWith('/copilot_internal/user')) {
+				return new Response(JSON.stringify({
+					login: 'octocat',
+					endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+				}), { status: 200 });
+			}
+			if (url.includes('/token')) {
+				return tokenResponse({
+					token: 'rt=1;tid=tracking-id',
+					organization_list: [
+						'a5db0bcaae94032fe715fb34a5e4bce2',
+						'551cca60ce19654d894e786220822482',
+					],
+				});
+			}
+			throw new Error(`Unexpected request: ${url}`);
+		});
+
+		assert.deepStrictEqual(await service.resolveRestrictedTelemetryContext('gh-token'), {
+			restrictedTelemetryEnabled: true,
+			trackingId: 'tracking-id',
+			telemetryEndpoint: 'https://telemetry.example',
+			isInternal: true,
+			userName: 'octocat',
+			isVscodeTeamMember: true,
+		});
+	});
+
 	// #region Endpoint Discovery
 
 	suite('Endpoint Discovery', () => {

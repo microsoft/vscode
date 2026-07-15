@@ -12,7 +12,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../plat
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isGptFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -251,11 +251,10 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 		const exploreAgentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.ExploreAgentEnabled, experimentationService);
 		const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
-		const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
 
 		// Only look up endpoints when a subagent that depends on model availability
 		// could actually be enabled, since the lookup is otherwise unnecessary.
-		const allEndpoints = isGptOrAnthropic && (searchSubagentEnabled || executionSubagentEnabled)
+		const allEndpoints = searchSubagentEnabled || executionSubagentEnabled
 			? await endpointProvider.getAllChatEndpoints().catch(err => {
 				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling availability-gated subagents: ${err}`);
 				return [] as IChatEndpoint[];
@@ -263,14 +262,14 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 			: [];
 
 		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
-		allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
-		allowTools[ToolName.ExploreSubagent] = isGptOrAnthropic && searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.SearchSubagent] = searchSubagentEnabled && exploreAgentEnabled && searchAgentAvailable;
+		allowTools[ToolName.ExploreSubagent] = searchSubagentEnabled && !exploreAgentEnabled && searchAgentAvailable;
 
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
 		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
-		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
+		allowTools[ToolName.ExecutionSubagent] = executionSubagentEnabled && hasGemini3Flash;
 	}
 
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);

@@ -38,6 +38,43 @@ import { createResponsesRequestBody, getResponsesApiCompactionThreshold, process
 import { filterHistoryImages } from './imageLimits';
 
 /**
+ * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
+ */
+function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+	let nextIndex = 0;
+	const mappedToolCallIds = new Map<string, string>();
+
+	return messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant && message.tool_calls) {
+			const toolCalls = message.tool_calls.map(toolCall => {
+				const toolName = toolCall.function.name;
+				if (!toolName) {
+					return toolCall;
+				}
+
+				const id = `functions.${toolName}:${nextIndex++}`;
+				if (toolCall.id) {
+					mappedToolCallIds.set(toolCall.id, id);
+				}
+				return { ...toolCall, id };
+			});
+			return { ...message, tool_calls: toolCalls };
+		}
+
+		if (message.role === OpenAI.ChatRole.Tool) {
+			if (message.tool_call_id) {
+				const toolCallId = mappedToolCallIds.get(message.tool_call_id);
+				if (toolCallId) {
+					return { ...message, tool_call_id: toolCallId };
+				}
+			}
+		}
+
+		return message;
+	});
+}
+
+/**
  * The default processor for the stream format from CAPI
  */
 export async function defaultChatResponseProcessor(
@@ -416,6 +453,9 @@ export class ChatEndpoint implements IChatEndpoint {
 
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
+			if (body.messages) {
+				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
 			body.temperature = 1;
 			body.top_p = 0.95;
 		}

@@ -460,9 +460,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
 			default: false,
+			experiment: {
+				mode: 'auto',
+			},
+			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
-			included: false,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',

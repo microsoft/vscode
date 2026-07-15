@@ -716,9 +716,10 @@ export function isChatReadOnly(interactivity: ChatInteractivity | undefined, ses
 	return effectiveChatInteractivity(interactivity, sessionArchived) === ChatInteractivity.ReadOnly;
 }
 
-export function createActiveTurn(id: string, message: Message): ActiveTurn {
+export function createActiveTurn(id: string, message: Message, startedAt: string): ActiveTurn {
 	return {
 		id,
+		startedAt,
 		message,
 		responseParts: [],
 		usage: undefined,

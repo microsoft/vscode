@@ -214,6 +214,7 @@
 .style-override .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon,
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
 	font-size: 16px;
+	line-height: 12px;
 }
 
 /*

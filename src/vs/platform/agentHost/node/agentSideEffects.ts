@@ -7,6 +7,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { NKeyMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -109,6 +110,7 @@ interface ISubagentSessionRef {
 	readonly toolCallId: string;
 	readonly sessionUri: ProtocolURI;
 	readonly chatUri: ProtocolURI;
+	readonly turnStopWatch: StopWatch;
 }
 
 /**
@@ -779,10 +781,11 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(subagentChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: new Date().toISOString(),
 			message: { text: '', origin: { kind: MessageKind.User } },
 		});
 
-		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri }, chatURI, toolCallId);
+		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
 
 		// Dispatch content on the spawning tool call so clients discover the
 		// subagent. The tool call lives in the immediate parent chat, which is
@@ -836,6 +839,11 @@ export class AgentSideEffects extends Disposable {
 		return [];
 	}
 
+	private _turnDuration(stopWatch: StopWatch | undefined): number {
+		const elapsed = stopWatch?.elapsed();
+		return typeof elapsed === 'number' && Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+	}
+
 	/**
 	 * Cancels all active subagent sessions for a given parent session.
 	 */
@@ -846,6 +854,7 @@ export class AgentSideEffects extends Disposable {
 				this._stateManager.dispatchServerAction(subagent.chatUri, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
+					duration: this._turnDuration(subagent.turnStopWatch),
 				});
 				this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'cancelled');
 			}
@@ -880,6 +889,7 @@ export class AgentSideEffects extends Disposable {
 			this._stateManager.dispatchServerAction(subagent.chatUri, {
 				type: ActionType.ChatTurnComplete,
 				turnId,
+				duration: this._turnDuration(subagent.turnStopWatch),
 			});
 		}
 		this._subagentChats.delete(parentChatURI, toolCallId);
@@ -996,6 +1006,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
+				const turnStopWatch = StopWatch.create(false);
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
@@ -1017,6 +1028,7 @@ export class AgentSideEffects extends Disposable {
 					this._stateManager.dispatchServerAction(channel, {
 						type: ActionType.ChatError,
 						turnId: action.turnId,
+						duration: this._turnDuration(turnStopWatch),
 						error: { errorType: 'noAgent', message: 'No agent found for session' },
 					});
 					return;
@@ -1033,6 +1045,7 @@ export class AgentSideEffects extends Disposable {
 					message: action.message,
 					turnId: action.turnId,
 					senderClientId: clientId,
+					turnStopWatch,
 				});
 				break;
 			}
@@ -1213,6 +1226,13 @@ export class AgentSideEffects extends Disposable {
 				if (values) {
 					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
 				}
+				// This case is reached only for client-dispatched config changes
+				// (a user picker edit); internal server-side writes use
+				// `dispatchServerAction` and never land here. So the provider can
+				// forward a live, session-mutable change (e.g. Claude's
+				// `permissionMode`) to its running SDK without re-entering its own
+				// tool callbacks.
+				this._options.getAgent(channel)?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
@@ -1326,9 +1346,11 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(session, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: new Date().toISOString(),
 			message: msg.message,
 			queuedMessageId: msg.id,
 		});
+		const turnStopWatch = StopWatch.create(false);
 
 		// Generic host commands (`/rename`, `!command`, …) are intercepted by
 		// the local-command dispatcher (see the ChatTurnStarted handler) and
@@ -1346,6 +1368,7 @@ export class AgentSideEffects extends Disposable {
 			this._stateManager.dispatchServerAction(session, {
 				type: ActionType.ChatError,
 				turnId,
+				duration: this._turnDuration(turnStopWatch),
 				error: { errorType: 'noAgent', message: 'No agent found for session' },
 			});
 			return;
@@ -1364,6 +1387,7 @@ export class AgentSideEffects extends Disposable {
 			message: msg.message,
 			turnId,
 			senderClientId: undefined,
+			turnStopWatch,
 		});
 	}
 
@@ -1392,8 +1416,9 @@ export class AgentSideEffects extends Disposable {
 		message: Message;
 		turnId: string;
 		senderClientId: string | undefined;
+		turnStopWatch: StopWatch;
 	}): Promise<void> {
-		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId } = options;
+		const { agent, sessionChannel, turnChannel, chat, message, turnId, senderClientId, turnStopWatch } = options;
 
 		// Read-only chats reject user-dispatched turns. `interactivity` is the
 		// general signal (e.g. subagent worker chats are `ReadOnly`), and an
@@ -1410,6 +1435,7 @@ export class AgentSideEffects extends Disposable {
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
+				duration: this._turnDuration(turnStopWatch),
 				error: sessionArchived
 					? { errorType: 'archived', message: 'This session is archived and read-only. Restore the session to continue the conversation.' }
 					: { errorType: 'readOnly', message: 'This chat is read-only.' },
@@ -1447,6 +1473,7 @@ export class AgentSideEffects extends Disposable {
 			this._stateManager.dispatchServerAction(turnChannel, {
 				type: ActionType.ChatError,
 				turnId,
+				duration: this._turnDuration(turnStopWatch),
 				error: buildSendFailedError(err),
 			});
 			this._turnTracker.turnCompleted(turnChannel, turnId, 'error');

@@ -65,7 +65,8 @@ import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForward
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
-import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
+import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -145,8 +146,8 @@ export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
  * worktree to remove and no on-disk state to delete.
  *
  * `model` absorbs {@link CopilotAgent.changeModel} updates that arrive
- * before the first message. The latest session config (isolation / branch /
- * etc.) is read straight from the state manager via
+ * before the first message. The latest provider-owned session config is read
+ * straight from the state manager via
  * {@link IAgentConfigurationService.getSessionConfigValues} at
  * materialization time, so no bespoke forwarding is required for it.
  */
@@ -168,6 +169,10 @@ interface IProvisionalSession {
 	readonly project: IAgentSessionProjectInfo | undefined;
 	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
+}
+
+function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
+	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
 }
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
@@ -379,6 +384,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
+	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
+	private readonly _githubTokensBySdkSession = new Map<string, string>();
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -406,6 +413,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
+		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
+			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
+			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
 		// chat channel so the orchestrator manages sub-agent chats
@@ -524,6 +534,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
 			this._mcpNotificationSubs.clearAndDisposeAll();
+			this._githubTokensBySdkSession.clear();
 			await this._stopClient();
 		}
 	}
@@ -656,7 +667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
 		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
 		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
-		this._applyRestrictedTelemetry(false, undefined, undefined);
+		this._applyRestrictedTelemetry(undefined);
 		if (githubToken) {
 			void this._resolveRestrictedTelemetry(githubToken);
 		}
@@ -668,17 +679,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubToken !== githubToken) {
 				return; // token changed while resolving; a newer call owns the state
 			}
-			this._applyRestrictedTelemetry(
-				ctx.restrictedTelemetryEnabled,
-				ctx.trackingId,
-				ctx.telemetryEndpoint ? `${ctx.telemetryEndpoint}/telemetry` : undefined,
-			);
+			this._applyRestrictedTelemetry({
+				...ctx,
+				telemetryEndpoint: toRestrictedTelemetryEndpoint(ctx.telemetryEndpoint),
+			});
 		} catch (err) {
 			this._logService.debug(`[Copilot] Restricted telemetry resolution failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
-	private _applyRestrictedTelemetry(rtEnabled: boolean, trackingId: string | undefined, telemetryEndpoint: string | undefined): void {
+	private _applyRestrictedTelemetry(context: IRestrictedTelemetryContext | undefined): void {
+		const rtEnabled = context?.restrictedTelemetryEnabled === true;
 		if (rtEnabled !== this._restrictedTelemetryEnabled) {
 			this._restrictedTelemetryEnabled = rtEnabled;
 			this._logService.info(`[Copilot] Enhanced (restricted) telemetry ${rtEnabled ? 'enabled for this account' : 'disabled'}`);
@@ -689,9 +700,64 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// the endpoint routes at the user's CAPI telemetry host (dotcom, GHE, or proxy).
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
-			this._telemetryService.setCopilotTrackingId(trackingId);
-			this._telemetryService.setRestrictedTelemetryEndpoint(telemetryEndpoint);
+			this._telemetryService.setCopilotTrackingId(context?.trackingId);
+			this._telemetryService.setRestrictedTelemetryEndpoint(context?.telemetryEndpoint);
 		}
+	}
+
+	private async _routeGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const router = this._githubTelemetryRouter;
+		if (!router?.isTarget(notification)) {
+			this._gitHubTelemetryForwarder.forward(notification);
+			return;
+		}
+		if (!notification.restricted) {
+			router.route(notification);
+			return;
+		}
+
+		const sessionId = notification.sessionId;
+		const githubToken = sessionId ? this._githubTokensBySdkSession.get(sessionId) : undefined;
+		if (!sessionId || !githubToken) {
+			router.route(notification);
+			return;
+		}
+
+		try {
+			const context = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
+			if (this._githubTokensBySdkSession.get(sessionId) !== githubToken) {
+				return;
+			}
+			router.route(notification, {
+				restrictedTelemetryEnabled: context.restrictedTelemetryEnabled,
+				trackingId: context.trackingId,
+				telemetryEndpoint: toRestrictedTelemetryEndpoint(context.telemetryEndpoint),
+				isInternal: context.isInternal === true,
+				userName: context.userName,
+				isVscodeTeamMember: context.isVscodeTeamMember === true,
+			});
+		} catch (error) {
+			this._logService.debug(`[Copilot:${sessionId}] Restricted telemetry context resolution failed; dropping ${notification.event.kind}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private _registerGitHubTelemetrySession(launchPlan: CopilotSessionLaunchPlan): () => void {
+		const previousToken = this._githubTokensBySdkSession.get(launchPlan.sessionId);
+		if (launchPlan.githubToken) {
+			this._githubTokensBySdkSession.set(launchPlan.sessionId, launchPlan.githubToken);
+		} else {
+			this._githubTokensBySdkSession.delete(launchPlan.sessionId);
+		}
+		return () => {
+			if (this._githubTokensBySdkSession.get(launchPlan.sessionId) !== launchPlan.githubToken) {
+				return;
+			}
+			if (previousToken) {
+				this._githubTokensBySdkSession.set(launchPlan.sessionId, previousToken);
+			} else {
+				this._githubTokensBySdkSession.delete(launchPlan.sessionId);
+			}
+		};
 	}
 
 	private async _refreshModels(attempt = 0): Promise<void> {
@@ -962,7 +1028,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: sessionSyncAtStartup,
-				onGitHubTelemetry: (notification: GitHubTelemetryNotification) => this._gitHubTelemetryForwarder.forward(notification),
+				onGitHubTelemetry: notification => this._routeGitHubTelemetry(notification),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
@@ -1671,8 +1737,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * naturally.
 	 *
 	 * The latest model lives on the provisional record (kept in sync via
-	 * {@link changeModel}). The latest session config (isolation / branch /
-	 * etc.) is read straight from the state manager via
+	 * {@link changeModel}). The latest provider-owned session config is read
+	 * straight from the state manager via
 	 * {@link IAgentConfigurationService.getSessionConfigValues} so any
 	 * `SessionConfigChanged` actions that arrived after `createSession` are
 	 * honoured without bespoke forwarding.
@@ -1707,6 +1773,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
+		let rollbackGitHubTelemetrySession = () => { };
 		try {
 			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
@@ -1725,10 +1792,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
+			rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (error) {
+			rollbackGitHubTelemetrySession();
 			agentSession?.dispose();
 			throw error;
 		}
@@ -2220,6 +2289,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 			}
 			let agentSession: CopilotAgentSession | undefined;
+			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
 				await agentSession.initializeSession();
@@ -2235,6 +2305,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
 			} catch (error) {
+				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				throw error;
 			}
@@ -2316,6 +2387,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.delete(chatKey);
 		this._sessions.get(AgentSession.id(session))?.disposePeerChat(chatKey);
 		if (sdkSessionId) {
+			this._githubTokensBySdkSession.delete(sdkSessionId);
 			try {
 				const client = await this._ensureClient();
 				await client.deleteSession(sdkSessionId);
@@ -2454,6 +2526,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
 			let agentSession: CopilotAgentSession | undefined;
+			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
 				await agentSession.initializeSession();
@@ -2461,6 +2534,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Resumed additional chat ${chatKey} in session ${session.toString()}`);
 				return agentSession;
 			} catch (error) {
+				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				this._logService.warn(`[Copilot] Failed to resume additional chat ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;
@@ -2567,19 +2641,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		this._shutdownPromise ??= (async () => {
-			// Cancel any pending model-refresh retry so its timer cannot fire
-			// after teardown and resurrect the client.
-			this._modelRefreshRetry.clear();
-			this._logService.info('[Copilot] Shutting down...');
-			const sessionIds = new Set([...this._sessions.keys()]);
-			for (const sessionId of sessionIds) {
-				await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
+			this._githubTokensBySdkSession.clear();
+			try {
+				// Cancel any pending model-refresh retry so its timer cannot fire
+				// after teardown and resurrect the client.
+				this._modelRefreshRetry.clear();
+				this._logService.info('[Copilot] Shutting down...');
+				const sessionIds = new Set([...this._sessions.keys()]);
+				for (const sessionId of sessionIds) {
+					await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
+				}
+				await this._client?.stop();
+				this._client = undefined;
+				// Release the BYOK proxy handle only after the runtime subprocess is
+				// gone, mirroring `_stopClient` and the proxy ownership invariant.
+				await this._sessionLauncher.disposeByokProxyHandle();
+			} finally {
+				this._githubTokensBySdkSession.clear();
 			}
-			await this._client?.stop();
-			this._client = undefined;
-			// Release the BYOK proxy handle only after the runtime subprocess is
-			// gone, mirroring `_stopClient` and the proxy ownership invariant.
-			await this._sessionLauncher.disposeByokProxyHandle();
 		})();
 		return this._shutdownPromise;
 	}
@@ -2683,6 +2762,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
 		this._sessions.clearAndDisposeAll();
 		this._mcpNotificationSubs.clearAndDisposeAll();
+		this._githubTokensBySdkSession.clear();
 		await this._stopClient();
 	}
 
@@ -2801,6 +2881,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * latter reaps the worktree afterwards).
 	 */
 	private async _releaseSessionResources(sessionId: string): Promise<void> {
+		for (const chat of this._sessions.get(sessionId)?.allChatSessions() ?? []) {
+			this._githubTokensBySdkSession.delete(chat.sessionId);
+		}
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
@@ -2909,13 +2992,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
+		const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 		try {
 			await agentSession.initializeSession();
+			this._registerInitializedSession(sessionId, agentSession);
 		} catch (err) {
+			rollbackGitHubTelemetrySession();
 			agentSession.dispose();
 			throw err;
 		}
-		this._registerInitializedSession(sessionId, agentSession);
 
 		return agentSession;
 	}

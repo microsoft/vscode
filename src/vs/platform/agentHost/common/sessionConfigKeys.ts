@@ -12,23 +12,24 @@
  * drives tool auto-approval) or that clients interpret via convention
  * (e.g. {@link SessionConfigKey.Branch}, {@link SessionConfigKey.Isolation}).
  *
- * Agents that opt into the corresponding behavior should use these exact
- * property names in their `resolveSessionConfig` response.
+ * Provider-owned platform properties use these names in an agent's
+ * `resolveSessionConfig` response. Worktree properties are owned and
+ * contributed by the host and are not passed to agents.
  */
 export const enum SessionConfigKey {
 	/** `'autoApprove'` — tool auto-approval level. */
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
-	/** `'isolation'` — `'folder'` or `'worktree'`. */
+	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
-	/** `'branch'` — base branch to work from. */
+	/** `'branch'` — host-owned base branch to work from. */
 	Branch = 'branch',
 	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
-	/** `'worktreeBranchPrefix'` — prefix for the worktree branch name. */
+	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
-	/** `'worktreeIncludeFiles'` — glob patterns for git-ignored files to copy into a new worktree. */
+	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 }
 

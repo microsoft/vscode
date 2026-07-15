@@ -1953,6 +1953,44 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Forward a user/picker `permissionMode` change to the running SDK so it
+	 * applies to the next tool this turn, not only from the next `send()`
+	 * (issue #321691). Only fires for client-originated changes (the host routes
+	 * internal server writes elsewhere), so this can forward without re-entering
+	 * a `canUseTool` callback.
+	 *
+	 * `permissionMode` is a **session-scoped** config value today (AHP has no
+	 * per-chat config), so — matching Copilot's session-scoped approvals — we
+	 * apply it to EVERY materialized chat's `Query` in the session, not just the
+	 * one the change arrived on. A `replace` that deletes the key resolves to the
+	 * chat's `permissionModeFallback`, the same value the next `send()` would
+	 * apply, so live state mirrors the reducer. Provisional chats are skipped —
+	 * their first `send()` seeds the mode into `Options.permissionMode`. Fire-and-
+	 * forget: the SDK control round-trip isn't awaited here; the pipeline caches
+	 * the mode so a later rebind / send re-applies it.
+	 *
+	 * TODO: adopt per-chat config when the protocol allows for such — see
+	 * https://github.com/microsoft/agent-host-protocol/issues/335 — so a picker
+	 * change scopes to its own chat instead of the whole session.
+	 */
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		const entry = this._sessions.get(this._getChatContext(session).sessionId);
+		if (!entry) {
+			return;
+		}
+		const narrowed = narrowClaudePermissionMode(values[ClaudeSessionConfigKey.PermissionMode]);
+		for (const chat of entry.allChatSessions()) {
+			if (!chat.isPipelineReady) {
+				continue;
+			}
+			const mode = narrowed ?? chat.permissionModeFallback;
+			chat.setPermissionMode(mode).catch(err => {
+				this._logService.warn(`[Claude:${chat.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
+			});
+		}
+	}
+
 	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {
 		const context = this._getChatContext(chat);
 		const queueKey = context.isPeerChat ? context.chatKey : context.sessionId;

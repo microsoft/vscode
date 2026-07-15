@@ -158,6 +158,11 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
 	}
 
+	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		this.onSessionConfigChangedCalls.push({ session, values });
+	}
+
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
@@ -1027,12 +1032,12 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.ChatTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatTurnComplete, turnId });
+	return _action(session, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 }
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

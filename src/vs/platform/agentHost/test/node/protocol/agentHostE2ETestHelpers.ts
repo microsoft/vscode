@@ -46,15 +46,18 @@ import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
 
 // #region Record/replay
 
 /**
- * When `AGENT_HOST_REPLAY_RECORD=1`, the shared suite runs against real CAPI (a
- * real GitHub token) and captures the wire to per-test YAML fixtures. Otherwise
- * it replays the committed fixtures deterministically with no token.
+ * `AGENT_HOST_REPLAY_RECORD=1` records only LLM fixtures, while
+ * `AGENT_HOST_UPDATE_SNAPSHOTS=1` records LLM fixtures and updates AHP
+ * snapshots in the same run.
  */
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
+const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
@@ -77,8 +80,8 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1`. Shared by {@link defineAgentHostE2ETests} and
- * provider-specific suites so both go through the same record/replay path.
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
+ * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
 export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
@@ -248,8 +251,23 @@ export async function createRealSession(
 	// action notifications are delivered to this client.
 	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 	c.clearReceived();
+	c.clearAhpSnapshot();
 
 	return sessionUri;
+}
+
+export async function runAhpSnapshotTest(
+	c: TestProtocolClient,
+	config: IAgentHostE2EProviderConfig,
+	test: Mocha.Runnable,
+	trackingList: string[],
+	tempDirs: string[],
+): Promise<void> {
+	const scenario = AhpSnapshotScenario.load(test);
+	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
+	tempDirs.push(workingDirectory);
+	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
+	await scenario.run(c, sessionUri);
 }
 
 /** Dispatch a turn with the given user message text. */
@@ -260,6 +278,7 @@ export function dispatchTurn(c: TestProtocolClient, session: string, turnId: str
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
@@ -273,6 +292,7 @@ export function dispatchTurnWithAttachments(c: TestProtocolClient, session: stri
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User }, attachments: [...attachments] },
 		},
 	});
@@ -571,6 +591,117 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 
 // #endregion
 
+// #region Server lease
+
+/**
+ * Manages the agent host server + connected client lifecycle for one e2e test,
+ * hiding the difference between two strategies:
+ *
+ * - **Per-test** (always while recording): start a fresh server + proxy for
+ *   each test and kill it in teardown. Full isolation; every test pays server
+ *   fork + provider SDK client startup.
+ * - **Shared** (the default in replay): start the server + proxy once, then swap
+ *   the per-test fixture via {@link CapiReplayProxy.resetForReplay} and reconnect
+ *   a fresh client each test. The agent host's cached SDK client / CLI subprocess
+ *   is reused, so only the first test pays that startup. Safe as long as no test
+ *   returns mid-turn (see the drain note on the permission test): one server
+ *   serves every test, so a turn left in flight would leak its continuation into
+ *   the next test's fixture window as a strict cache miss.
+ *
+ * Both strategies dispose each test's sessions (abort-first, then
+ * `disposeSession`) and verify the replay traffic; the shared strategy verifies
+ * without stopping the server so the next test can reuse it.
+ */
+export class AgentHostE2EServerLease {
+	private _server: IServerHandle | undefined;
+	private _client: TestProtocolClient | undefined;
+	private readonly _shared: boolean;
+
+	constructor(
+		private readonly _config: IAgentHostE2EProviderConfig,
+		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string },
+	) {
+		// Server reuse is a replay-only optimization: recording writes one fixture
+		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
+		// In replay it is always safe because every test drains its turns, so the
+		// reused server carries no in-flight work across tests.
+		this._shared = !RECORD;
+	}
+
+	/** Acquire a server + connected client for a test, returning both. */
+	async acquire(testTitle: string): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+		const capiReplay = capiReplayFor(this._config.provider, testTitle);
+		if (this._shared && this._server) {
+			const proxy = this._server.capiReplay;
+			if (!proxy) {
+				throw new Error('[agent-host-e2e] shared replay server has no capiReplay proxy to reset');
+			}
+			proxy.resetForReplay(capiReplay.fixturePath);
+		} else {
+			this._server = await startRealServer({ ...this._startOptions, capiReplay });
+		}
+		this._client = new TestProtocolClient(this._server.port, () => this._server?.capiReplay?.takeCacheMissError());
+		await this._client.connect();
+		return { server: this._server, client: this._client };
+	}
+
+	/**
+	 * Release a test: dispose its sessions, disconnect the client, and verify the
+	 * replay traffic. A shared server is kept alive (with its cached SDK client)
+	 * for the next test; a per-test server is stopped and killed.
+	 */
+	async release(createdSessions: string[]): Promise<void> {
+		const client = this._client;
+		if (client) {
+			for (const session of createdSessions) {
+				try {
+					// Abort first so the SDK query unwinds cleanly before we drop
+					// the session — disposing a mid-turn session directly tends to
+					// leave the agent host wedged. `session/abortTurn` is not part
+					// of the StateAction union, so it bypasses the typed dispatch.
+					client.notify('dispatchAction', {
+						clientSeq: 9999,
+						action: { type: 'session/abortTurn', session },
+					});
+					await client.call('disposeSession', { session }, 30_000);
+				} catch { /* best-effort */ }
+			}
+			client.close();
+		}
+		createdSessions.length = 0;
+		this._client = undefined;
+
+		if (this._shared) {
+			// Surface this test's strict cache-misses but keep the server (and its
+			// cached SDK client) alive for the next test.
+			this._server?.capiReplay?.assertNoCacheMisses();
+		} else {
+			// Flush the recording / surface strict replay cache-misses before the
+			// process goes away. Kill even if the strict check throws.
+			try {
+				await this._server?.capiReplay?.stop();
+			} finally {
+				this._server?.process.kill();
+				this._server = undefined;
+			}
+		}
+	}
+
+	/** Tear down a shared server at the end of the suite (no-op for per-test). */
+	async dispose(): Promise<void> {
+		if (this._server) {
+			try {
+				await this._server.capiReplay?.close();
+			} finally {
+				this._server.process.kill();
+				this._server = undefined;
+			}
+		}
+	}
+}
+
+// #endregion
+
 // #region Shared suite
 
 /**
@@ -581,35 +712,33 @@ export function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBac
 export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): void {
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
-		let server: IServerHandle;
 		let client: TestProtocolClient;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
+		const lease = new AgentHostE2EServerLease(config, {
+			claudeSdkRoot: config.claudeSdkRoot,
+			codexSdkRoot: config.codexSdkRoot,
+			// Normalize the real home + temp roots out of recorded request
+			// bodies so committed fixtures carry no local absolute paths.
+			homeDir: homedir(),
+		});
 
 		suiteSetup(async function () {
 			this.timeout(60_000);
 		});
 
-		suiteTeardown(function () {
-			// no-op: the server is started/killed per-test in setup/teardown
-			// because some agent host e2e paths (notably Claude's mid-turn dispose)
-			// leave the agent host in a bad state. Per-test isolation costs
-			// ~5s/test at startup but keeps a single broken test from
-			// poisoning every subsequent one.
+		suiteTeardown(async function () {
+			// In replay the lease reuses one server across the suite (swapping the
+			// replay fixture per test); tear it down here. While recording the
+			// lease already killed the per-test server in each teardown and this is
+			// a no-op.
+			this.timeout(60_000);
+			await lease.dispose();
 		});
 
 		setup(async function () {
 			this.timeout(60_000);
-			server = await startRealServer({
-				claudeSdkRoot: config.claudeSdkRoot,
-				codexSdkRoot: config.codexSdkRoot,
-				// Normalize the real home + temp roots out of recorded request
-				// bodies so committed fixtures carry no local absolute paths.
-				homeDir: homedir(),
-				capiReplay: capiReplayFor(config.provider, this.currentTest?.title ?? 'unknown'),
-			});
-			client = new TestProtocolClient(server.port);
-			await client.connect();
+			({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 		});
 
 		teardown(async function () {
@@ -618,29 +747,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			// has to abort an in-flight SDK query before disposeSession
 			// resolves, which can take longer than the default 5s.
 			this.timeout(60_000);
-			for (const session of createdSessions) {
-				try {
-					// Abort first so the SDK query unwinds cleanly before we
-					// drop the session — disposing a mid-turn Claude session
-					// directly tends to leave the agent host wedged.
-					// `session/abortTurn` is not part of the StateAction union,
-					// so it bypasses the typed `dispatch` helper.
-					client.notify('dispatchAction', {
-						clientSeq: 9999,
-						action: { type: 'session/abortTurn', session },
-					});
-					await client.call('disposeSession', { session }, 30_000);
-				} catch { /* best-effort */ }
-			}
-			createdSessions.length = 0;
-			client.close();
-			// Flush the recording / surface strict replay cache-misses before the
-			// process goes away. Kill even if the strict check throws.
-			try {
-				await server?.capiReplay?.stop();
-			} finally {
-				server?.process.kill();
-			}
+			await lease.release(createdSessions);
 
 			for (const dir of tempDirs) {
 				try {
@@ -779,18 +886,24 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 			assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
-			// While recording, let the post-tool continuation finish so its
-			// model call lands in the fixture. Replay always issues that
-			// continuation, so without capturing it here replay would hit an
-			// unrecorded model call. Bounded + best-effort: some providers'
-			// continuations for a trivial prompt can run long.
-			if (RECORD) {
-				try {
-					await client.waitForNotification(n =>
-						isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-						30_000);
-				} catch { /* bounded drain */ }
-			}
+
+			// Drain the post-tool continuation to `turnComplete` so the turn ends
+			// within this test's window. This is required for the shared replay
+			// server (all providers now reuse one server across the suite):
+			// returning mid-turn leaves the SDK query in flight, and its
+			// continuation HTTP call fires *after* the fixture is swapped for the
+			// next test — landing in that test's fixture window as an unrecorded
+			// call and failing the strict cache-miss check. Draining keeps every
+			// request/response inside the test that owns it. Replay serves the
+			// continuation from the fixture instantly; while recording it also
+			// lands that model call in the fixture. Bounded + best-effort: some
+			// providers' continuations for a trivial prompt can run long while
+			// recording.
+			try {
+				await client.waitForNotification(n =>
+					isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
+					30_000);
+			} catch { /* bounded drain */ }
 		});
 
 		(config.supportsPlanMode ? test : test.skip)('planning-mode session-state writes are auto-approved in default mode', async function () {
@@ -844,7 +957,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// recorded (intentionally truncated) response is served instantly, so
 		// there is no mid-stream window to abort. Run it only while recording
 		// against real CAPI; it is skipped in deterministic replay.
-		(RECORD ? test : test.skip)('can abort a running turn', async function () {
+		(RUN_RECORD_ONLY_TESTS ? test : test.skip)('can abort a running turn', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);

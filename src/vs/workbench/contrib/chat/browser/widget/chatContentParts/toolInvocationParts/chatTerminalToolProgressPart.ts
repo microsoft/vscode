@@ -386,6 +386,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			() => this._terminalData.terminalCommandOutput,
 			() => this._commandText,
 			() => this._terminalData.terminalTheme,
+			() => this._isInvocationRunning(),
 			!!this._terminalData.terminalToolSessionId,
 		));
 		// Only append the output section if there's a terminal session or stored output;
@@ -964,6 +965,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._terminalData.terminalCommandId = cmd.id;
 				this._updateToolbarContextKeys(terminalInstance, this._terminalData.terminalToolSessionId);
 			}
+			if (this._outputView.isExpanded) {
+				void this._toggleOutput(true);
+			}
 		}));
 
 		store.add(ahpSource.onCommandFinished(cmd => {
@@ -1247,6 +1251,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getCommandText: () => string,
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		private readonly _isInvocationRunning: () => boolean,
 		private readonly _hasTerminalSession: boolean,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -1428,6 +1433,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 
 		if (!this._hasTerminalSession) {
+			return;
+		}
+
+		if (this._isInvocationRunning()) {
+			this._hideEmptyMessage();
+			this._layoutOutput(0);
 			return;
 		}
 

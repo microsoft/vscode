@@ -795,6 +795,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.contextUsage.enabled', "Show the context window usage indicator in the chat input."),
 		},
+		[ChatConfiguration.Verbose]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
+		},
 		[ChatConfiguration.ChatPersistentProgressEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
@@ -1385,7 +1390,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.byokUtilityModelDefault.mainAgent.description', "Use the selected BYOK main agent model."),
 				nls.localize('chat.byokUtilityModelDefault.copilot.description', "Use the default GitHub Copilot utility models."),
 			],
-			default: BYOKUtilityModelDefault.None,
+			default: BYOKUtilityModelDefault.Copilot,
 		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',

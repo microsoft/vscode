@@ -430,6 +430,8 @@ suite('stateToProgressAdapter', () => {
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
 				message: message('Use restored model'),
+				startedAt: '2025-07-08T22:05:21.000Z',
+				duration: 2_500,
 			});
 
 			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
@@ -441,8 +443,23 @@ suite('stateToProgressAdapter', () => {
 				prompt: 'Use restored model',
 				participant: 'participant-1',
 				modelId: 'agent-host-copilot:gpt-5',
+				timestamp: 1_752_012_321_000,
 				variableData: undefined,
 			});
+			assert.deepStrictEqual(history[1].type === 'response' ? {
+				elapsedMs: history[1].elapsedMs,
+				completedAt: history[1].completedAt,
+			} : undefined, {
+				elapsedMs: 2_500,
+				completedAt: 1_752_012_323_500,
+			});
+		});
+
+		test('request history omits invalid restored timestamp', () => {
+			const turn = createTurn({ startedAt: 'invalid' });
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.strictEqual(history[0].type === 'request' ? history[0].timestamp : undefined, undefined);
 		});
 
 		test('terminal tool call in history has correct terminal data', () => {
@@ -1373,6 +1390,7 @@ suite('stateToProgressAdapter', () => {
 		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: message('Do things'),
 				responseParts: responseParts ?? [],
 				usage: undefined,

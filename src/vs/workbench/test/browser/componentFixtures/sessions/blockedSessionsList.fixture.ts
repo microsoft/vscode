@@ -26,7 +26,7 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionsList } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
+import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
@@ -268,6 +268,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
+	disposableStore.add(registerBlockedSessionsItemActions());
 
 	// The blocked-sessions list is shown as a floating dropdown anchored below
 	// the command center box in the agents window; approximate that surface (and
@@ -279,6 +280,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 
 	const list = disposableStore.add(instantiationService.createInstance(BlockedSessionsList, container, {
 		onSessionOpen: () => { },
+		onIgnoreSession: () => { },
 		approvalModel,
 		ciFixModel,
 	}));

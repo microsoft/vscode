@@ -15,6 +15,7 @@ import { isAuthorizationProtectedResourceMetadata } from '../../../../base/commo
 import { safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -408,6 +409,7 @@ interface UsageContext {
 class CopilotTurn {
 
 	private _state: CopilotTurnState = 'pending';
+	private readonly _stopWatch = StopWatch.create(false);
 
 	/**
 	 * Accumulated Copilot usage for this turn, in nano-AIU, keyed by scope.
@@ -456,6 +458,7 @@ class CopilotTurn {
 	get state(): CopilotTurnState { return this._state; }
 	get isPending(): boolean { return this._state === 'pending'; }
 	get isRunning(): boolean { return this._state === 'running'; }
+	get duration(): number { return Math.max(0, this._stopWatch.elapsed()); }
 
 	/** Transition `pending → running` on the first SDK event. No-op once running/finished. */
 	markRunning(): void {
@@ -755,15 +758,18 @@ export class CopilotAgentSession extends Disposable {
 	private _beginSteeringTurn(steering: PendingMessage): string {
 		const previousTurnId = this._turnId;
 		if (previousTurnId) {
+			const previousDuration = this._currentTurn?.duration ?? 0;
 			this._emitAction({
 				type: ActionType.ChatTurnComplete,
 				turnId: previousTurnId,
+				duration: previousDuration,
 			});
 		}
 		const newTurnId = generateUuid();
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId: newTurnId,
+			startedAt: new Date().toISOString(),
 			message: steering.message,
 			queuedMessageId: steering.id,
 		});
@@ -868,6 +874,7 @@ export class CopilotAgentSession extends Disposable {
 		this._emitAction({
 			type: ActionType.ChatTurnComplete,
 			turnId: turn.id,
+			duration: turn.duration,
 		});
 		this._currentTurn = undefined;
 	}
@@ -2484,6 +2491,7 @@ export class CopilotAgentSession extends Disposable {
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
 				turnId,
+				startedAt: new Date().toISOString(),
 				message: {
 					text: notification.messageText,
 					origin: { kind: MessageKind.SystemNotification },
@@ -2934,6 +2942,7 @@ export class CopilotAgentSession extends Disposable {
 			this._emitAction({
 				type: ActionType.ChatError,
 				turnId: this._turnId,
+				duration: this._currentTurn?.duration ?? 0,
 				error: {
 					errorType: e.data.errorType,
 					message: stripProxyErrorMarker(e.data.message),

@@ -8,12 +8,13 @@ import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -24,7 +25,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
-import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -67,7 +68,7 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -87,12 +88,29 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+
+type ILegacyTimedChatAction =
+	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
+	| { type: 'chat/turnCancelled'; turnId: string; endedAt: string }
+	| { type: 'chat/error'; turnId: string; endedAt: string; error: { errorType: string; message: string; stack?: string } };
+
+type ChatAction = AgentHostChatAction | ILegacyTimedChatAction;
+type TestActionEnvelope = Omit<ActionEnvelope, 'action'> & { action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction };
+
+function normalizeTestAction(action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction {
+	if (hasKey(action, { endedAt: true })) {
+		const { endedAt: _endedAt, ...rest } = action as ILegacyTimedChatAction;
+		return { ...rest, duration: 1000 } as AgentHostChatAction;
+	}
+	return action as SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction;
+}
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -403,7 +421,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.inflightCreates.get(resource.toString());
 	}
 
-	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | AgentHostChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
 		// logic (e.g. customization re-dispatch) sees the correct activeClient.
@@ -423,8 +441,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	// Test helpers
-	fireAction(envelope: ActionEnvelope): void {
-		this._onDidAction.fire(envelope);
+	fireAction(envelope: TestActionEnvelope): void {
+		const normalized = { ...envelope, action: normalizeTestAction(envelope.action) } satisfies ActionEnvelope;
+		this._onDidAction.fire(normalized);
 		// Route the action to the matching live subscription, applying the
 		// appropriate reducer. Chat actions (turns/tools/input) belong to the
 		// session's default-chat channel: producers may address them to either
@@ -432,22 +451,22 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// and emit there — mirroring the server's behaviour. Session actions
 		// target the session channel directly.
 		const noop = () => { };
-		if (isChatAction(envelope.action)) {
-			const chatUri = isAhpChatChannel(envelope.channel) ? envelope.channel : buildDefaultChatUri(envelope.channel);
+		if (isChatAction(normalized.action)) {
+			const chatUri = isAhpChatChannel(normalized.channel) ? normalized.channel : buildDefaultChatUri(normalized.channel);
 			const entry = this._liveSubscriptions.get(chatUri);
 			if (entry) {
-				entry.onWillApply.fire(envelope);
-				entry.state = chatReducer(entry.state as ChatState, envelope.action as Parameters<typeof chatReducer>[1], noop);
+				entry.onWillApply.fire(normalized);
+				entry.state = chatReducer(entry.state as ChatState, normalized.action as Parameters<typeof chatReducer>[1], noop);
 				entry.emitter.fire(entry.state);
-				entry.onDidApply.fire(envelope);
+				entry.onDidApply.fire(normalized);
 			}
-		} else if (isSessionAction(envelope.action)) {
-			const entry = this._liveSubscriptions.get(envelope.channel);
+		} else if (isSessionAction(normalized.action)) {
+			const entry = this._liveSubscriptions.get(normalized.channel);
 			if (entry) {
-				entry.onWillApply.fire(envelope);
-				entry.state = sessionReducer(entry.state as SessionState, envelope.action as Parameters<typeof sessionReducer>[1], noop);
+				entry.onWillApply.fire(normalized);
+				entry.state = sessionReducer(entry.state as SessionState, normalized.action as Parameters<typeof sessionReducer>[1], noop);
 				entry.emitter.fire(entry.state);
-				entry.onDidApply.fire(envelope);
+				entry.onDidApply.fire(normalized);
 			}
 		}
 	}
@@ -594,7 +613,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -767,6 +786,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		profiles: observableValue('test', []),
 		getProfileForConnection: () => undefined,
 		registerEntry: () => ({ dispose() { } }),
+		...agentHostTerminalServiceOverride,
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
@@ -844,8 +864,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1133,7 +1153,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			]);
 
-			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
@@ -1163,7 +1183,7 @@ suite('AgentHostChatContribution', () => {
 				modelRepresentation: 'Transcript text',
 			}]);
 
-			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
@@ -1203,7 +1223,7 @@ suite('AgentHostChatContribution', () => {
 				}],
 			});
 
-			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
@@ -1284,7 +1304,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			}]);
 
-			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
@@ -1336,7 +1356,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			}]);
 
-			fire({ type: 'chat/turnComplete', session: session!, turnId: turnId! } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
 		});
 
@@ -2403,7 +2423,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Hello from controller',
 				sessionResource: item.resource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2546,7 +2566,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello' });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -2579,7 +2599,7 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			// Echo the turnStarted to clear pending write-ahead
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: { type: 'chat/turnComplete', turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Second turn
@@ -2591,7 +2611,7 @@ suite('AgentHostChatContribution', () => {
 			const dispatch2 = agentHostService.turnActions[1];
 			const action2 = dispatch2.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: dispatch2.channel.toString(), action: dispatch2.action, serverSeq: 3, origin: { clientId: agentHostService.clientId, clientSeq: dispatch2.clientSeq } });
-			agentHostService.fireAction({ channel: dispatch2.channel.toString(), action: { type: 'chat/turnComplete', turnId: action2.turnId } as ChatAction, serverSeq: 4, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch2.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action2.turnId } as ChatAction, serverSeq: 4, origin: undefined });
 			await turn2Promise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 2);
@@ -2608,7 +2628,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Hi',
 				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-42' }),
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const parentSession = parseDefaultChatUri(session);
@@ -2636,7 +2656,7 @@ suite('AgentHostChatContribution', () => {
 			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Recovered']);
@@ -2704,7 +2724,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Hi',
 				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2719,7 +2739,7 @@ suite('AgentHostChatContribution', () => {
 				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
 				modelConfiguration: { thinkingLevel: 'high', contextSize: 272000 },
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2733,7 +2753,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Hi',
 				userSelectedModelId: 'gpt-4o',
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2753,7 +2773,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Hi',
 				userSelectedModelId: 'copilotcli/claude-sonnet-4.6',
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2799,7 +2819,7 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService, chatAgentService, trustController } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -2832,7 +2852,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(600);
 			assert.strictEqual(preparingStatusCount(collected), 0, 'normal session must never emit "Preparing session…"');
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(preparingStatusCount(collected), 0);
 		}));
@@ -2850,7 +2870,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(30);
 			assert.strictEqual(preparingStatusCount(collected), 1, 'must emit once the 500ms threshold elapses');
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -2865,7 +2885,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(600);
 			assert.strictEqual(preparingStatusCount(collected), 0, 'first real progress must cancel the pending status');
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -2901,7 +2921,7 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'hello ' } } as ChatAction);
 			fire({ type: 'chat/delta', session, turnId, partId: 'md-1', content: 'world' } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -2921,7 +2941,7 @@ suite('AgentHostChatContribution', () => {
 				turnId,
 				part: { kind: ResponsePartKind.SystemNotification, content: 'Background command completed' },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const notifications = collected.flat().filter(part => part.kind === 'systemNotification');
@@ -2950,7 +2970,7 @@ suite('AgentHostChatContribution', () => {
 					},
 				},
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'autoModeResolution'), [{
@@ -2967,7 +2987,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
@@ -2982,7 +3002,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
@@ -3018,7 +3038,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 0 } } } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
@@ -3036,7 +3056,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
@@ -3055,7 +3075,7 @@ suite('AgentHostChatContribution', () => {
 				{ userSelectedModelId: 'agent-host-copilot:auto' });
 
 			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
 
@@ -3068,7 +3088,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 1200, outputTokens: 300, model: 'gpt-5' } } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3122,7 +3142,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.fireAction({ channel: childSessionUri, action, serverSeq: 1000, origin: undefined });
 			};
 			fireChild({
-				type: 'chat/turnStarted',
+				type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z',
 				turnId: childTurnId,
 				message: { text: '', origin: { kind: MessageKind.User } },
 			} as ChatAction);
@@ -3133,7 +3153,7 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(50);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			// The parent session cost is emitted as-is — the client does not re-add the
@@ -3164,7 +3184,7 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
 			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-1', invocationMessage: 'Reading file', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3183,7 +3203,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-2',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3205,7 +3225,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-3',
 				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found' }], error: { message: 'command not found' } },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3222,7 +3242,7 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ChatAction);
 			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3238,7 +3258,7 @@ suite('AgentHostChatContribution', () => {
 			// tool_start without tool_complete
 			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash' } as ChatAction);
 			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-orphan', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3261,7 +3281,7 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 			fire({ type: 'chat/responsePart', turnId, part: { kind: 'markdown', id: 'md-1', content: 'right' } } as ChatAction);
-			fire({ type: 'chat/turnComplete', turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -3309,7 +3329,7 @@ suite('AgentHostChatContribution', () => {
 				{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: 'autopilot' },
 			]);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3350,7 +3370,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3391,7 +3411,7 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3439,7 +3459,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3468,7 +3488,7 @@ suite('AgentHostChatContribution', () => {
 			review.dismiss();
 			assert.strictEqual(review.isUsed, true);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 
 			assert.deepStrictEqual(chatWidgetService.clearPlanReviewCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
@@ -3540,7 +3560,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3594,7 +3614,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls, []);
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3639,12 +3659,56 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(carousel.isUsed, true);
 			assert.deepStrictEqual(carousel.data, {});
+			assert.ok(!carousel.answeredExternally, 'cancelled input should not be marked answered');
 			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
 			assert.strictEqual((await carousel.completion.p).answers, undefined);
 			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
 				{ responseId: undefined, resolveId: 'input-1' },
 			]);
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('input request accepted without answers is marked answered, not skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-answered-externally-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					message: 'What is your favorite color?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What is your favorite color?',
+						required: true,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+
+			agentHostService.dispatchedActions.length = 0;
+			// User answered via voice: server accepts the request with no structured answers.
+			fire({
+				type: ActionType.ChatInputCompleted,
+				requestId: 'input-1',
+				response: ChatInputResponseKind.Accept,
+			} as ChatAction);
+			await timeout(10);
+
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {});
+			assert.strictEqual(carousel.answeredExternally, true, 'accepted input without answers should be marked answered');
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
 
 			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
 			await turnPromise;
@@ -3676,7 +3740,7 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(part.acceptButtonLabel.includes('example.com'), 'accept button should reference the URL authority');
 			assert.strictEqual(collected.flat().some(p => p.kind === 'questionCarousel'), false, 'url-style requests must not also render a question carousel');
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3710,7 +3774,7 @@ suite('AgentHostChatContribution', () => {
 				response: (completions[0].action as { response: ChatInputResponseKind }).response,
 			}, { requestId: 'url-1', response: ChatInputResponseKind.Accept });
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3740,7 +3804,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: ChatInputResponseKind }).response, ChatInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3768,7 +3832,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: ChatInputResponseKind }).response, ChatInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3796,7 +3860,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual((completions[0].action as { response: ChatInputResponseKind }).response, ChatInputResponseKind.Decline);
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -3812,7 +3876,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			agentHostService.dispatchedActions.length = 0;
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 
 			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted);
@@ -3847,7 +3911,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(part.state.get(), ElicitationState.Accepted);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.ChatInputCompleted), false);
@@ -3877,7 +3941,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
-			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.ChatInputCompleted), false);
@@ -3972,7 +4036,7 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			// Turn completes naturally on its own.
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			// Now the request's cancellation token fires (e.g. ChatService
@@ -3997,7 +4061,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({
 				channel: session,
 				action: {
-					type: 'chat/error',
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
 					turnId,
 					error: { errorType: 'test_error', message: 'Something went wrong' },
 				} as ChatAction,
@@ -4057,7 +4121,7 @@ suite('AgentHostChatContribution', () => {
 				}
 			));
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -4091,7 +4155,7 @@ suite('AgentHostChatContribution', () => {
 				}
 			));
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -4115,7 +4179,7 @@ suite('AgentHostChatContribution', () => {
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -4135,7 +4199,7 @@ suite('AgentHostChatContribution', () => {
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -4207,7 +4271,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-race',
 				result: { success: true, pastTenseMessage: 'Ran echo hi', content: [{ type: 'text', text: 'hi\n' }] },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			// Final invariant: still the same number of invocations as right
@@ -4289,7 +4353,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-recon',
 				result: { success: true, pastTenseMessage: 'Done', content: [{ type: 'text', text: 'hi\n' }] },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 	});
@@ -4612,6 +4676,7 @@ suite('AgentHostChatContribution', () => {
 				],
 				activeTurn: {
 					id: 'turn-active',
+					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6' } },
 					responseParts: [],
 					usage: { _meta: { cost: 1 } },
@@ -4650,6 +4715,86 @@ suite('AgentHostChatContribution', () => {
 
 	suite('tool invocation rendering', () => {
 
+		test('terminal metadata is observable before terminal revival completes', async () => {
+			const terminalRevival = new DeferredPromise<ITerminalInstance>();
+			let revivalStarted = false;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					reviveTerminal: () => {
+						revivalStarted = true;
+						return terminalRevival.p;
+					},
+				},
+			});
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-live-shell', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-live-shell', invocationMessage: 'Running command', toolInput: 'long-running-command', confirmed: 'not-needed' } as ChatAction);
+			const invocation = collected[0][0] as ChatToolInvocation;
+			invocation.toolSpecificData = {
+				...(invocation.toolSpecificData as IChatTerminalToolInvocationData),
+				kind: 'terminal',
+				terminalToolSessionId: 'stale-session',
+				terminalCommandUri: URI.parse('agenthost-terminal://bang/stale'),
+				terminalCommandId: 'stale-command',
+				terminalCommandOutput: { text: 'stale output' },
+				terminalCommandState: { exitCode: 0 },
+				terminalTheme: { background: '#000000' },
+			};
+			let stateNotifications = 0;
+			disposables.add(autorun(reader => {
+				invocation.state.read(reader);
+				stateNotifications++;
+			}));
+			const notificationsBeforeTerminalContent = stateNotifications;
+
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-live-shell',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://bang/live-shell', title: 'Terminal' }],
+			} as ChatAction);
+
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
+			assert.deepStrictEqual({
+				kind: terminalData.kind,
+				commandLine: terminalData.commandLine.original,
+				terminalCommandUri: terminalData.terminalCommandUri?.toString(),
+				hasTerminalToolSessionId: !!terminalData.terminalToolSessionId,
+				terminalCommandId: terminalData.terminalCommandId,
+				terminalCommandOutput: terminalData.terminalCommandOutput,
+				terminalCommandState: terminalData.terminalCommandState,
+				terminalTheme: terminalData.terminalTheme,
+				stateNotificationDelta: stateNotifications - notificationsBeforeTerminalContent,
+				revivalStarted,
+				revivalSettled: terminalRevival.isSettled,
+			}, {
+				kind: 'terminal',
+				commandLine: 'long-running-command',
+				terminalCommandUri: 'agenthost-terminal://bang/live-shell',
+				hasTerminalToolSessionId: true,
+				terminalCommandId: undefined,
+				terminalCommandOutput: undefined,
+				terminalCommandState: undefined,
+				terminalTheme: undefined,
+				stateNotificationDelta: 1,
+				revivalStarted: true,
+				revivalSettled: false,
+			});
+
+			await terminalRevival.complete({} as ITerminalInstance);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-live-shell',
+				result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://bang/live-shell', title: 'Terminal' }] },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		});
+
 		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -4661,7 +4806,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
 				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'terminal', resource: 'agenthost-terminal:///tc-shell-term' }, { type: 'text', text: 'hello\n' }] },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -4699,7 +4844,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
 				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'terminal', resource: 'agenthost-terminal:///tc-fail-term' }, { type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -4727,7 +4872,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-gen',
 				result: { success: true, pastTenseMessage: 'Used "custom_tool"' },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -4754,7 +4899,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-noargs',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -4781,7 +4926,7 @@ suite('AgentHostChatContribution', () => {
 				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-view',
 				result: { success: true, pastTenseMessage: 'Read /tmp/test.txt' },
 			} as ChatAction);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			await turnPromise;
 
@@ -4937,7 +5082,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({
 				channel: session,
 				action: {
-					type: 'chat/error',
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
 					turnId,
 					error: { errorType: 'connection_error', message: 'connection lost' },
 				} as ChatAction,
@@ -5112,7 +5257,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5134,7 +5279,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5169,7 +5314,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5207,7 +5352,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5237,7 +5382,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5291,7 +5436,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
@@ -5342,7 +5487,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
@@ -5372,7 +5517,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
@@ -5390,7 +5535,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5427,7 +5572,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5466,7 +5611,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5487,7 +5632,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5524,7 +5669,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5565,7 +5710,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5594,7 +5739,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5614,7 +5759,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5641,7 +5786,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5668,7 +5813,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5691,7 +5836,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5712,7 +5857,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5736,7 +5881,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5760,7 +5905,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this selection?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5783,7 +5928,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5806,7 +5951,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5828,7 +5973,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'what\'s in this file?',
 				sessionResource,
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5850,7 +5995,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5873,7 +6018,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5897,7 +6042,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5920,7 +6065,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5949,7 +6094,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5973,7 +6118,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -5998,7 +6143,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6017,7 +6162,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6039,7 +6184,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6057,7 +6202,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hello',
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6115,7 +6260,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6173,7 +6318,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6199,7 +6344,7 @@ suite('AgentHostChatContribution', () => {
 					],
 				},
 			});
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.turnActions.length, 1);
@@ -6336,7 +6481,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-test' });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -6358,7 +6503,7 @@ suite('AgentHostChatContribution', () => {
 
 			const config = { isolation: 'worktree', branch: 'feature/config' };
 			const { turnPromise, session, turnId, fire } = await startDynamicAgentTurn(chatAgentService, agentHostService, 'config-test', { message: 'Add Agent Host session configuration flow', agentHostSessionConfig: config });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -6395,7 +6540,7 @@ suite('AgentHostChatContribution', () => {
 			const turnDispatch = agentHostService.turnActions[0];
 			const turnAction = turnDispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
@@ -6443,7 +6588,7 @@ suite('AgentHostChatContribution', () => {
 			const turnDispatch = agentHostService.turnActions[0];
 			const turnAction = turnDispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged) as { action: { config: Record<string, unknown>; replace?: boolean } } | undefined;
@@ -6499,7 +6644,7 @@ suite('AgentHostChatContribution', () => {
 			const turnDispatch = agentHostService.turnActions[0];
 			const turnAction = turnDispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
-			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0, 'no duplicate createSession should have been issued; eager-create branch should have been taken');
@@ -6525,7 +6670,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-resolver-test' });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -6558,7 +6703,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-agenthost-test' });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
@@ -6634,7 +6779,7 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			fire({ type: 'chat/delta', turnId, content: 'Response' } as ChatAction);
-			fire({ type: 'chat/turnComplete', turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId } as ChatAction);
 			await turnPromise;
 
 			// Turn dispatched via connection.dispatchAction
@@ -6676,7 +6821,7 @@ suite('AgentHostChatContribution', () => {
 					state: TurnState.Complete,
 				}],
 				activeTurn: {
-					...createActiveTurn('turn-active', { text: 'Second message', origin: { kind: MessageKind.User } }),
+					...createActiveTurn('turn-active', { text: 'Second message', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
 					responseParts: activeTurnParts,
 				},
 			};
@@ -6819,7 +6964,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Fire turnComplete to finish the active turn
 			agentHostService.fireAction({
-				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', turnId: 'turn-active' } as ChatAction,
+				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'turn-active' } as ChatAction,
 				serverSeq: 1,
 				origin: undefined,
 			});
@@ -6887,7 +7032,7 @@ suite('AgentHostChatContribution', () => {
 			// Complete the turn so the awaitConfirmation promise and its internal
 			// DisposableStore are cleaned up before test teardown.
 			agentHostService.fireAction({
-				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', turnId: 'turn-active' } as ChatAction,
+				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'turn-active' } as ChatAction,
 				serverSeq: 1,
 				origin: undefined,
 			});
@@ -6970,7 +7115,7 @@ suite('AgentHostChatContribution', () => {
 					modifiedAt: new Date().toISOString(),
 				}),
 				lifecycle: SessionLifecycle.Ready,
-				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }),
+				activeTurn: createActiveTurn('active-turn-1', { text: 'Working', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z'),
 			});
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-pending-sync' });
@@ -7062,7 +7207,7 @@ suite('AgentHostChatContribution', () => {
 			const session = dispatch1.channel.toString();
 			// Echo + complete the first turn
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
@@ -7073,7 +7218,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({
 				channel: session,
 				action: {
-					type: 'chat/turnStarted',
+					type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z',
 					turnId: serverTurnId,
 					message: { text: 'queued message text', origin: { kind: MessageKind.User } },
 				} as ChatAction,
@@ -7113,14 +7258,14 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = dispatch1.channel.toString();
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Server-initiated turn
 			const serverTurnId = 'server-turn-progress';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnStarted', session, turnId: serverTurnId, message: { text: 'auto queued', origin: { kind: MessageKind.User } } } as ChatAction,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId, message: { text: 'auto queued', origin: { kind: MessageKind.User } } } as ChatAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -7147,7 +7292,7 @@ suite('AgentHostChatContribution', () => {
 			// Complete the turn
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnComplete', session, turnId: serverTurnId } as ChatAction,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId } as ChatAction,
 				serverSeq: 6, origin: undefined,
 			});
 			await timeout(10);
@@ -7193,7 +7338,7 @@ suite('AgentHostChatContribution', () => {
 			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 
 			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
@@ -7221,14 +7366,14 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = dispatch1.channel.toString();
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Server-initiated turn
 			const serverTurnId = 'server-turn-tool-dedup';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnStarted', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as ChatAction,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as ChatAction,
 				serverSeq: 3, origin: undefined,
 			});
 			await timeout(10);
@@ -7262,7 +7407,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnComplete', session, turnId: serverTurnId } as ChatAction,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId } as ChatAction,
 				serverSeq: 8, origin: undefined,
 			});
 			await timeout(50);
@@ -7295,7 +7440,7 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = dispatch1.channel.toString();
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Fire turnStarted followed immediately by a response part.
@@ -7306,7 +7451,7 @@ suite('AgentHostChatContribution', () => {
 			const serverTurnId = 'server-turn-md-initial';
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnStarted', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as ChatAction,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId, message: { text: 'queued', origin: { kind: MessageKind.User } } } as ChatAction,
 				serverSeq: 3, origin: undefined,
 			});
 			agentHostService.fireAction({
@@ -7325,7 +7470,7 @@ suite('AgentHostChatContribution', () => {
 			// Complete the turn
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnComplete', session, turnId: serverTurnId } as ChatAction,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId } as ChatAction,
 				serverSeq: 5, origin: undefined,
 			});
 			await timeout(10);
@@ -7353,7 +7498,7 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = dispatch1.channel.toString();
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Add a queued message to the protocol state so it's tracked.
@@ -7369,7 +7514,7 @@ suite('AgentHostChatContribution', () => {
 			chatService.removePendingRequestCalls.length = 0;
 			agentHostService.fireAction({
 				channel: session,
-				action: { type: 'chat/turnStarted', session, turnId: 'server-turn-q', message: { text: 'will be consumed', origin: { kind: MessageKind.User } }, queuedMessageId: 'q-1' } as ChatAction,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: 'server-turn-q', message: { text: 'will be consumed', origin: { kind: MessageKind.User } }, queuedMessageId: 'q-1' } as ChatAction,
 				serverSeq: 4, origin: undefined,
 			});
 			await timeout(10);
@@ -7399,7 +7544,7 @@ suite('AgentHostChatContribution', () => {
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = dispatch1.channel.toString();
 			agentHostService.fireAction({ channel: dispatch1.channel.toString(), action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: action1.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turn1Promise;
 
 			// Set a steering message on the protocol state.
@@ -7447,7 +7592,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			// The active-client claim is now threaded through createSession
@@ -7478,7 +7623,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Create a session first
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			agentHostService.dispatchedActions.length = 0;
@@ -7581,7 +7726,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Starting a turn claims active-client for this connection.
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
@@ -7635,7 +7780,7 @@ suite('AgentHostChatContribution', () => {
 
 			// The fresh customization set is published on first turn.
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientSet');
@@ -7674,7 +7819,7 @@ suite('AgentHostChatContribution', () => {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				contributor,
 			} as ToolCallState;
-			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work', origin: { kind: MessageKind.User } });
+			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work', origin: { kind: MessageKind.User } }, '2025-01-01T00:00:00.000Z');
 			activeTurn.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall: innerTool });
 			return {
 				...createSessionState(summary),
@@ -7734,14 +7879,14 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.fireAction({
 				channel: childSessionUri,
-				action: { type: 'chat/turnComplete', turnId: 'child-turn-1' } as ChatAction,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'child-turn-1' } as ChatAction,
 				serverSeq: 1001,
 				origin: undefined,
 			});
 			await timeout(50);
 			assert.strictEqual((parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive, false);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -7784,7 +7929,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.fireAction({ channel: childSessionUri, action, serverSeq: 1000, origin: undefined });
 			};
 			fireChild({
-				type: 'chat/turnStarted',
+				type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z',
 				turnId: childTurnId,
 				message: { text: '', origin: { kind: MessageKind.User } },
 			} as ChatAction);
@@ -7800,7 +7945,7 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(50);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const allParts = collected.flat();
@@ -7857,7 +8002,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(50);
 			assert.strictEqual(capturedSubagentInvocationId, parentToolCallId);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -7903,7 +8048,7 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(50);
 
-			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const allParts = collected.flat();

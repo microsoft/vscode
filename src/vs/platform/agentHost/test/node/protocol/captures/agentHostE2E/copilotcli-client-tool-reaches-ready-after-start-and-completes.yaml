@@ -14,9 +14,6 @@ exchanges:
           name: get_magic_word
           input: {}
       stopReason: tool_use
-      usage:
-        inputTokens: 3
-        outputTokens: 39
   - request:
       model: claude-opus-4.6
       system: ${system}
@@ -34,8 +31,5 @@ exchanges:
               tool_use_id: toolcall_0
               content: XYLOPHONE
     response:
-      content: 'The magic word is: **XYLOPHONE**'
+      content: The magic word is **XYLOPHONE**.
       stopReason: end_turn
-      usage:
-        inputTokens: 1
-        outputTokens: 14

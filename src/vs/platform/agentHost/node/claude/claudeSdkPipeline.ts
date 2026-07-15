@@ -7,6 +7,7 @@ import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage,
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -397,6 +398,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid: typeof prompt.uuid === 'string' ? prompt.uuid : turnId,
 			turnId,
+			stopWatch: StopWatch.create(false),
 			deferred: new DeferredPromise<void>(),
 		};
 		return this._queue.push(entry);
@@ -432,6 +434,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			sdkMessage: prompt,
 			sdkUuid,
 			turnId: parent.turnId,
+			stopWatch: parent.stopWatch,
 			deferred: new DeferredPromise<void>(),
 			steeringPendingId: pendingMessageId,
 		}).catch(() => { /* expected on abort/crash */ });
@@ -630,8 +633,9 @@ export class ClaudeSdkPipeline extends Disposable {
 					}
 				}
 				const turnId = this._queue.peekParent()?.turnId;
+				const turnDuration = this._queue.peekParent()?.stopWatch.elapsed();
 				try {
-					await this._router.handle(message, turnId);
+					await this._router.handle(message, turnId, turnDuration);
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
@@ -648,6 +652,7 @@ export class ClaudeSdkPipeline extends Disposable {
 							action: {
 								type: ActionType.ChatTurnComplete,
 								turnId: completed.turnId,
+								duration: Math.max(0, completed.stopWatch.elapsed()),
 							},
 						});
 					}

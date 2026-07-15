@@ -1136,6 +1136,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}));
 
+		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => {
+			this._interruptAssistantPlayback();
+		}));
+
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
@@ -2808,6 +2812,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	// --- Audio FIFO queue ---
 
+	private _interruptAssistantPlayback(): void {
+		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
+		this._audioQueue.length = 0;
+		this._currentPlaybackSessionId = null;
+		this._isProcessingQueue = false;
+		this._suppressIncomingAudio = true;
+		this.ttsPlaybackService.stopPlayback();
+		this.voicePlaybackService.notifyPlaybackEnd(undefined);
+	}
+
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined): void {
 		// An incoming response frame means the assistant is actively replying, so
 		// cancel any pending auto-listen. Otherwise a debounced listen scheduled
@@ -2818,7 +2832,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// audio chunks arrive as non-first chunks and would be dropped.
 		this._clearAutoListenTimer();
 
-		// User interrupted (pttDown / onSpeechStarted): drop late chunks from the
+		// User interrupted (pttDown / onSpeechStarted / barge_in): drop late chunks from the
 		// previous turn. The backend marks the first audio chunk of a new
 		// response with `is_first_chunk: true` — that's our signal that a fresh
 		// response is starting and suppression should clear. (We can't key on

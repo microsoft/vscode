@@ -6,13 +6,15 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SimpleFileDialog } from '../../browser/simpleFileDialog.js';
 
 suite('SimpleFileDialog', () => {
@@ -48,8 +50,8 @@ suite('SimpleFileDialog', () => {
 
 	test('creates nested missing folders from a folder-only open dialog', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
-		const existingFolder = joinPath(root, 'folderA');
-		const nestedFolder = joinPath(existingFolder, 'newFolder1', 'newFolder2');
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'newFolder1', 'newFolder2');
 
 		await fileService.createFolder(existingFolder);
 
@@ -62,8 +64,8 @@ suite('SimpleFileDialog', () => {
 
 	test('does not create a missing folder below a readonly parent', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
-		const existingFolder = joinPath(root, 'folderA');
-		const nestedFolder = joinPath(existingFolder, 'newFolder');
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'newFolder');
 
 		await fileService.createFolder(existingFolder);
 		provider.setReadOnly(true);
@@ -77,8 +79,8 @@ suite('SimpleFileDialog', () => {
 
 	test('does not create a missing folder below a file', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
-		const existingFile = joinPath(root, 'file.txt');
-		const nestedFolder = joinPath(existingFile, 'newFolder');
+		const existingFile = resources.joinPath(root, 'file.txt');
+		const nestedFolder = resources.joinPath(existingFile, 'newFolder');
 
 		await fileService.createFile(existingFile, VSBuffer.fromString('contents'));
 
@@ -91,8 +93,8 @@ suite('SimpleFileDialog', () => {
 
 	test('does not create a missing folder with an invalid path segment', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
-		const existingFolder = joinPath(root, 'folderA');
-		const nestedFolder = joinPath(existingFolder, 'bad:name', 'newFolder');
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const nestedFolder = resources.joinPath(existingFolder, 'bad:name', 'newFolder');
 
 		await fileService.createFolder(existingFolder);
 
@@ -105,9 +107,9 @@ suite('SimpleFileDialog', () => {
 
 	test('does not create a missing folder when parent lookup fails for reasons other than missing files', async () => {
 		const root = URI.from({ scheme: Schemas.inMemory, path: '/root' });
-		const existingFolder = joinPath(root, 'folderA');
-		const protectedFolder = joinPath(existingFolder, 'protected');
-		const nestedFolder = joinPath(protectedFolder, 'newFolder');
+		const existingFolder = resources.joinPath(root, 'folderA');
+		const protectedFolder = resources.joinPath(existingFolder, 'protected');
+		const nestedFolder = resources.joinPath(protectedFolder, 'newFolder');
 
 		await fileService.createFolder(existingFolder);
 
@@ -127,5 +129,69 @@ suite('SimpleFileDialog', () => {
 		assert.strictEqual(await result.dialog.validate(nestedFolder), false);
 		assert.strictEqual(result.promptedUri, undefined);
 		assert.strictEqual(await fileService.exists(nestedFolder), false);
+	});
+
+	test('does not let a canceled slow folder update overwrite a newer folder', async () => {
+		const slowFolder = URI.file('/slow');
+		const fastFolder = URI.file('/fast');
+
+		let resolveSlow!: (stat: IFileStat) => void;
+		const slowResolve = new Promise<IFileStat>(resolve => resolveSlow = resolve);
+
+		function folderStat(resource: URI): IFileStat {
+			return {
+				resource,
+				name: resources.basename(resource),
+				isFile: false,
+				isDirectory: true,
+				isSymbolicLink: false,
+				mtime: 0,
+				ctime: 0,
+				etag: '',
+				size: 0,
+				readonly: false,
+				locked: false,
+				children: []
+			};
+		}
+
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IFileService, 'resolve', (resource: URI) => resources.isEqual(resource, slowFolder) ? slowResolve : Promise.resolve(folderStat(resource)));
+
+		const dialog = disposables.add(instantiationService.createInstance(SimpleFileDialog)) as unknown as {
+			updateItems(newFolder: URI, force?: boolean, trailing?: string): Promise<boolean>;
+			currentFolder: URI;
+			filePickBox: {
+				value: string;
+				valueSelection: undefined;
+				items: readonly unknown[];
+				itemActivation: ItemActivation | undefined;
+				busy: boolean;
+				inputHasFocus(): boolean;
+			};
+			createItems(): Promise<readonly unknown[]>;
+		};
+		dialog.filePickBox = {
+			value: '',
+			valueSelection: undefined,
+			items: [],
+			itemActivation: undefined,
+			busy: false,
+			inputHasFocus: () => false
+		};
+		dialog.currentFolder = URI.file('/');
+		dialog.createItems = async () => [];
+
+		const slowUpdate = dialog.updateItems(slowFolder, true).catch(() => undefined);
+		await dialog.updateItems(fastFolder, true);
+
+		assert.strictEqual(dialog.currentFolder.toString(), resources.addTrailingPathSeparator(fastFolder).toString());
+		assert.strictEqual(dialog.filePickBox.value, '/fast/');
+
+		resolveSlow(folderStat(slowFolder));
+		await slowUpdate;
+
+		assert.strictEqual(dialog.currentFolder.toString(), resources.addTrailingPathSeparator(fastFolder).toString());
+		assert.strictEqual(dialog.filePickBox.value, '/fast/');
 	});
 });

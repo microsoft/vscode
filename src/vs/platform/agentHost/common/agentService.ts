@@ -1434,13 +1434,13 @@ export interface IAgent {
 
 	// ---- Session lifecycle / configuration ---------------------------------
 
-	/** Create a new session. Returns server-owned session metadata. */
+	/** Create a new session. Host-owned worktree fields are omitted from `config.config`. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
-	/** Resolve the dynamic configuration schema for creating a session. */
+	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
-	/** Return dynamic completions for a session configuration property. */
+	/** Return dynamic completions for a provider-owned session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/**
@@ -1633,6 +1633,17 @@ export interface IAgent {
 	 * recreating it on unarchive). Optional.
 	 */
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
+
+	/**
+	 * Notifies the provider that a **client** (user) changed this session's
+	 * config — e.g. via an approvals/model picker. `values` is the post-reducer
+	 * merged config. Lets the provider propagate a session-mutable change (such
+	 * as Claude's `permissionMode`) to a running SDK mid-turn. Fires only for
+	 * client-originated changes; internal server-side config writes (e.g. a tool
+	 * persisting a mode) do NOT trigger it, so a provider can forward freely
+	 * without re-entering its own SDK callbacks. Optional.
+	 */
+	onSessionConfigChanged?(session: URI, values: Record<string, unknown>): void;
 
 	/**
 	 * Get (or lazily create) the per-session handle for an active client,

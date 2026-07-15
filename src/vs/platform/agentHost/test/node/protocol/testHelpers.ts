@@ -20,10 +20,13 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
 	type AhpNotification,
+	type JsonRpcNotification,
+	type JsonRpcRequest,
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
 	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
+import { AhpSnapshotRecorder } from './ahpSnapshot.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -34,12 +37,16 @@ interface IPendingCall {
 
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
+	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 
-	constructor(port: number) {
+	constructor(
+		port: number,
+		private readonly _takeReplayError?: () => Error | undefined,
+	) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
 	}
 
@@ -48,7 +55,8 @@ export class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text);
+					const msg = JSON.parse(text) as ProtocolMessage;
+					this._ahpSnapshot.record('s2c', msg);
 					this._handleMessage(msg);
 				});
 				resolve();
@@ -78,7 +86,9 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
-		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
+		this._ahpSnapshot.record('c2s', message);
+		this._ws.send(JSON.stringify(message));
 	}
 
 	/**
@@ -97,7 +107,9 @@ export class TestProtocolClient {
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
 		const id = this._nextId++;
-		this._ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+		this._ahpSnapshot.record('c2s', message);
+		this._ws.send(JSON.stringify(message));
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this._pendingCalls.delete(id);
@@ -202,6 +214,22 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
+	}
+
+	clearAhpSnapshot(): void {
+		this._ahpSnapshot.clear();
+	}
+
+	beginAhpSnapshotRound(): void {
+		this._ahpSnapshot.beginRound();
+	}
+
+	serializeAhpSnapshot(): string {
+		return this._ahpSnapshot.serialize();
+	}
+
+	takeReplayError(): Error | undefined {
+		return this._takeReplayError?.();
 	}
 }
 
@@ -516,6 +544,7 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
