@@ -101,15 +101,9 @@ export class DockedAuxiliaryBarController extends Disposable {
 		this.host.setEditorContentRightInset(auxWidth);
 		this.auxiliaryBarPart.layout(auxWidth, height, top, editorRect.width - auxWidth);
 
-		if (editorContentHidden) {
-			if (this._sash) {
-				this._sash.state = SashState.Disabled;
-			}
-		} else {
-			this._ensureSash();
-			this._sash!.state = SashState.Enabled;
-			this._sash!.layout();
-		}
+		this._ensureSash();
+		this._sash!.state = SashState.Enabled;
+		this._sash!.layout();
 	}
 
 	private _auxiliaryBarWidth(hostWidth: number, editorWidth: number): number {
@@ -149,7 +143,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 			const delta = e.startX - e.currentX;
 			const width = editorPartContainer.clientWidth;
 			const requestedWidth = this._sashStartWidth + delta;
-			if (requestedWidth <= DockedAuxiliaryBarController.COLLAPSE_WIDTH) {
+			const collapseWidth = this.host.isEditorVisible()
+				? DockedAuxiliaryBarController.COLLAPSE_WIDTH
+				: DockedAuxiliaryBarController.MIN_WIDTH;
+			if (requestedWidth < collapseWidth) {
 				this.host.hideAuxiliaryBar();
 				return;
 			}
