@@ -10,6 +10,7 @@ import { IRawRequestFunction, lookupKerberosAuthorization, nodeRequest } from '.
 import { isWindows } from '../../../../base/common/platform.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { IHeaders } from '../../../../base/parts/request/common/request.js';
 
 suite('Request Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -319,5 +320,58 @@ suite('Request Service', () => {
 		}
 
 		assert.strictEqual(attemptCount, 1, 'PATCH request should not have been retried');
+	});
+
+	// Redirect handling for a mock request that returns a 3xx with a `location`, then a 200.
+	const redirectingRawRequest = (capturedHeaders: (IHeaders | undefined)[], location: string): IRawRequestFunction => {
+		return ((opts: any, callback: (res: any) => void) => {
+			capturedHeaders.push(opts.headers);
+			// Choose the response by how many requests have been made so far (via the shared
+			// `capturedHeaders` array) rather than a closure-local counter: the redirect follow
+			// re-invokes `getRawRequest` and builds a fresh closure per hop, so a local counter
+			// would reset and redirect forever.
+			const res = capturedHeaders.length === 1
+				? { statusCode: 302, headers: { location }, on: () => { }, pipe: () => ({ on: () => { } }) }
+				: { statusCode: 200, headers: {}, on: () => { }, pipe: () => ({ on: () => { } }) };
+			const mockReq: any = {
+				on: () => { },
+				end: () => { setTimeout(() => callback(res), 0); },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		}) as unknown as IRawRequestFunction;
+	};
+
+	test('strips the Authorization header when following a cross-origin redirect', async () => {
+		const capturedHeaders: (IHeaders | undefined)[] = [];
+		await nodeRequest({
+			url: 'https://market.example.com/api/asset',
+			type: 'GET',
+			headers: { Authorization: 'Bearer secret-token', 'Proxy-Authorization': 'proxy-secret', 'X-Other': 'keep' },
+			getRawRequest: () => redirectingRawRequest(capturedHeaders, 'https://cdn.other.example/asset.vsix'),
+			callSite: 'requestService.test.redirectCrossOrigin'
+		}, CancellationToken.None);
+
+		assert.strictEqual(capturedHeaders.length, 2, 'Expected an initial request and one redirect');
+		assert.strictEqual(capturedHeaders[0]?.['Authorization'], 'Bearer secret-token', 'Initial request should carry Authorization');
+		assert.strictEqual(capturedHeaders[1]?.['Authorization'], undefined, 'Cross-origin redirect must not forward Authorization');
+		assert.strictEqual(capturedHeaders[1]?.['Proxy-Authorization'], 'proxy-secret', 'Proxy-Authorization is bound to the proxy, not the origin, and is preserved');
+		assert.strictEqual(capturedHeaders[1]?.['X-Other'], 'keep', 'Non-credential headers are preserved across the redirect');
+	});
+
+	test('preserves the Authorization header across a same-origin (relative) redirect', async () => {
+		const capturedHeaders: (IHeaders | undefined)[] = [];
+		await nodeRequest({
+			url: 'https://market.example.com/api/asset',
+			type: 'GET',
+			headers: { Authorization: 'Bearer secret-token' },
+			// Relative location resolves against the current URL → same origin → header kept.
+			getRawRequest: () => redirectingRawRequest(capturedHeaders, '/api/asset/v2'),
+			callSite: 'requestService.test.redirectSameOrigin'
+		}, CancellationToken.None);
+
+		assert.strictEqual(capturedHeaders.length, 2, 'Expected an initial request and one redirect');
+		assert.strictEqual(capturedHeaders[1]?.['Authorization'], 'Bearer secret-token', 'Same-origin redirect keeps the Authorization header');
 	});
 });

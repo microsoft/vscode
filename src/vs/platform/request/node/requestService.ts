@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import * as streams from '../../../base/common/stream.js';
 import { isBoolean, isNumber } from '../../../base/common/types.js';
-import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
@@ -172,6 +172,40 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 	return module.request;
 }
 
+/**
+ * Whether following `location` from `currentUrl` crosses to a different origin (scheme + host +
+ * port, with default ports normalized). Fails safe: an unparseable URL is treated as cross-origin
+ * so credentials are stripped rather than forwarded to a target we cannot verify.
+ */
+function isCrossOriginRedirect(currentUrl: string, location: string): boolean {
+	try {
+		const from = new URL(currentUrl);
+		const to = new URL(location, currentUrl); // resolves relative redirect targets
+		return from.origin !== to.origin;
+	} catch {
+		return true;
+	}
+}
+
+/**
+ * Returns a copy of `headers` with origin credential headers removed (case-insensitive
+ * `Authorization`). `Proxy-Authorization` is intentionally preserved: it authenticates to the
+ * forward proxy, which does not change when the origin server issues a redirect.
+ */
+function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders | undefined {
+	if (!headers) {
+		return headers;
+	}
+	const result: IHeaders = {};
+	for (const name of Object.keys(headers)) {
+		if (name.toLowerCase() === 'authorization') {
+			continue;
+		}
+		result[name] = headers[name];
+	}
+	return result;
+}
+
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	const maxRetries = 3;
 	let lastError: Error | undefined;
@@ -226,10 +260,20 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+				const location = res.headers['location'];
+				// On a cross-origin redirect, never forward origin credentials to the new host: an
+				// `Authorization` bearer/basic secret is bound to the original origin (this mirrors
+				// WHATWG fetch, which strips `Authorization` on cross-origin redirects, and curl,
+				// which does not resend credentials to a different host). Same-origin redirects keep
+				// the header so authenticated flows that legitimately redirect within one origin work.
+				const crossOrigin = isCrossOriginRedirect(options.url!, location);
 				nodeRequest({
 					...options,
-					url: res.headers['location'],
-					followRedirects: followRedirects - 1
+					url: location,
+					followRedirects: followRedirects - 1,
+					headers: crossOrigin ? stripOriginCredentialHeaders(options.headers) : options.headers,
+					user: crossOrigin ? undefined : options.user,
+					password: crossOrigin ? undefined : options.password
 				}, token).then(resolve, reject);
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
