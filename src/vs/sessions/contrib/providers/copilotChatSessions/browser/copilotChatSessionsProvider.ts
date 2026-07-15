@@ -2501,7 +2501,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// promise is available, also race it so we can detect
 			// cancellation immediately instead of waiting for the timeout.
 			const candidates: Promise<{ kind: 'commit'; uri: URI } | { kind: 'timeout' } | { kind: 'cancelled' }>[] = [
-				raceTimeout(commitPromise, 5_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
+				raceTimeout(commitPromise, 30_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
 			];
 			if (responseCreatedPromise) {
 				candidates.push(responseCreatedPromise.then(r => r?.isCanceled ? { kind: 'cancelled' as const } : new Promise<never>(() => { /* never resolves */ })));
