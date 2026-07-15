@@ -20,7 +20,7 @@ import {
 
 
 import { hash } from './utils/hash';
-import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
+import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem, LanguageStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 import { matchesUrlPattern } from './utils/urlMatch';
 
@@ -88,6 +88,7 @@ type Settings = {
 		format?: { enable?: boolean };
 		keepLines?: { enable?: boolean };
 		validate?: { enable?: boolean };
+		schemaStore?: { enable?: boolean };
 		resultLimit?: number;
 		jsonFoldingLimit?: number;
 		jsoncFoldingLimit?: number;
@@ -112,6 +113,7 @@ export namespace SettingIds {
 	export const enableKeepLines = 'json.format.keepLines';
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
+	export const enableSchemaStore = 'json.schemaStore.enable';
 	export const trustedDomains = 'json.schemaDownload.trustedDomains';
 	export const maxItemsComputed = 'json.maxItemsComputed';
 	export const editorFoldingMaximumRegions = 'editor.foldingMaximumRegions';
@@ -236,6 +238,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	const schemaLoadStatusItem = createSchemaLoadStatusItem((diagnostic: Diagnostic) => createSchemaLoadIssueItem(documentSelector, schemaDownloadEnabled, diagnostic));
 	toDispose.push(schemaLoadStatusItem);
+	let languageStatusItem: LanguageStatusItem | undefined;
 
 	toDispose.push(commands.registerCommand(CommandIds.clearCacheCommandId, async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
@@ -271,6 +274,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	function handleSchemaErrorDiagnostics(uri: Uri, diagnostics: Diagnostic[]): Diagnostic[] {
 		schemaLoadStatusItem.update(uri, diagnostics);
+		if (window.activeTextEditor?.document.uri.toString() === uri.toString()) {
+			languageStatusItem?.update();
+		}
 		if (!schemaDownloadEnabled) {
 			return diagnostics.filter(d => !isSchemaResolveError(d));
 		}
@@ -564,6 +570,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
 			triggerValidation();
+		} else if (e.affectsConfiguration(SettingIds.enableSchemaStore)) {
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
+			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
 		} else if (e.affectsConfiguration(SettingIds.trustedDomains)) {
@@ -573,7 +582,8 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	}));
 	toDispose.push(workspace.onDidGrantWorkspaceTrust(() => triggerValidation()));
 
-	toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
+	languageStatusItem = createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri));
+	toDispose.push(languageStatusItem);
 
 	function updateFormatterRegistration() {
 		const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
@@ -852,6 +862,7 @@ function computeSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
+			schemaStore: { enable: configuration.get(SettingIds.enableSchemaStore) },
 			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,
@@ -936,4 +947,3 @@ export namespace ErrorCodes {
 export function isSchemaResolveError(d: Diagnostic) {
 	return typeof d.code === 'number' && d.code >= ErrorCodes.SchemaResolveError;
 }
-

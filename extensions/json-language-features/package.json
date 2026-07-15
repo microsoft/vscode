@@ -127,6 +127,14 @@
             "usesOnlineServices"
           ]
         },
+        "json.schemaStore.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "%json.enableSchemaStore.desc%",
+          "tags": [
+            "usesOnlineServices"
+          ]
+        },
         "json.schemaDownload.trustedDomains": {
           "type": "object",
           "default": {

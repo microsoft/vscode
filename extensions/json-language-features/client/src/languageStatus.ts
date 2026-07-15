@@ -163,7 +163,11 @@ function showSchemaList(input: ShowSchemasInput) {
 	});
 }
 
-export function createLanguageStatusItem(documentSelector: DocumentSelector, statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
+export interface LanguageStatusItem extends Disposable {
+	update(): void;
+}
+
+export function createLanguageStatusItem(documentSelector: DocumentSelector, statusRequest: (uri: string) => Promise<JSONLanguageStatus>): LanguageStatusItem {
 	const statusItem = languages.createLanguageStatusItem('json.projectStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Validation Status');
 	statusItem.severity = LanguageStatusSeverity.Information;
@@ -213,7 +217,11 @@ export function createLanguageStatusItem(documentSelector: DocumentSelector, sta
 
 	updateLanguageStatus();
 
-	return Disposable.from(statusItem, activeEditorListener, showSchemasCommand);
+	const disposable = Disposable.from(statusItem, activeEditorListener, showSchemasCommand);
+	return {
+		update: updateLanguageStatus,
+		dispose: () => disposable.dispose()
+	};
 }
 
 export function createLimitStatusItem(newItem: (limit: number) => Disposable) {
@@ -360,5 +368,4 @@ export function createSchemaLoadIssueItem(documentSelector: DocumentSelector, sc
 	}
 	return Disposable.from(statusItem);
 }
-
 
