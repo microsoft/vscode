@@ -497,19 +497,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private static readonly _SOLICITED_NARRATION_TIMEOUT_MS = 30_000;
 
 	/**
-	 * Narrations the backend bounced with `narration_ack` `busy` (or cancelled
-	 * with `narration_interrupted`), awaiting a retry. Keyed by canonical session
-	 * key, latest-wins (a session has at most one pending narration). The retry is
-	 * driven by `narration_unblocked` — a server-side nudge sent only once the
-	 * playback guard has cleared, so it is safe in both push-to-talk and
-	 * hands-free and never interrupts a live press. On the nudge the client
-	 * REVALIDATES against current session state and only re-requests if the
-	 * narration is still warranted, reusing the same `narrationId` when the text
-	 * is unchanged so the backend can dedup. Cleared when the session starts a new
-	 * turn (`thinking`) or on teardown.
+	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
+	 * (`narration_interrupted`), awaiting retry. Keyed by canonical session key,
+	 * latest-wins (at most one pending per session). Retry is driven by the
+	 * `narration_unblocked` nudge, which the server sends only once the playback
+	 * guard clears — safe in push-to-talk and hands-free, never interrupting a
+	 * live press. See `_retryDeferredNarration` for the revalidation on retry.
+	 * Cleared on a new turn (`thinking`) or teardown.
 	 */
 	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
-
 
 	// --- Telemetry tracking ---
 	private _telemetrySessionIndex = 0;
@@ -2911,7 +2907,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const text = solicited?.text;
 		if (kind && text) {
 			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
-			this._deferNarration(key, e.narrationId, kind, text);
+			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text });
 		}
 	}
 
@@ -2931,18 +2927,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._solicitedNarrationIds.delete(e.narrationId);
 		if (solicited) {
 			this.logService.trace(`[voice] narration_interrupted id=${e.narrationId.slice(0, 8)}; deferring for revalidation`);
-			this._deferNarration(key, e.narrationId, solicited.kind, solicited.text);
+			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind: solicited.kind, text: solicited.text });
 		}
-	}
-
-	/** Remember a bounced narration for a later revalidated retry (latest-wins per session), driven by the `narration_unblocked` nudge. */
-	private _deferNarration(sessionKey: string, narrationId: string, kind: 'response' | 'confirmation', text: string): void {
-		this._deferredNarrations.set(sessionKey, { narrationId, kind, text });
 	}
 
 	/**
 	 * The `narration_unblocked` nudge fired for a deferred narration. Revalidate
-	 * against the CURRENT session state and only re-request if it is still
+	 * against the current session state and only re-request if it is still
 	 * warranted, reusing the same id when the text is unchanged (so the backend
 	 * dedups a lost ack) and minting a fresh one when the text changed. If it is
 	 * no longer warranted (resolved, or a different kind), drop it without
