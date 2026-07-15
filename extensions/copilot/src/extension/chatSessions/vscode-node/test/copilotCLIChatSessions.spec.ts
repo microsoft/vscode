@@ -35,26 +35,33 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilot
 import { ICopilotCLIChatSessionInitializer } from '../../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionParticipant, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionItemProvider } from '../copilotCLIChatSessionsContribution';
+import { ICopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from '../sessionRequestLifecycle';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
+const chatSessionRefreshHandlers: (() => Promise<void>)[] = [];
+
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).chat = {
-		createChatSessionItemController: () => ({
-			id: 'copilotcli',
-			items: {
-				get: () => undefined,
-				add: () => { },
-				delete: () => { },
-				replace: () => { },
-				[Symbol.iterator]: function* () { },
-				forEach: () => { },
-			},
-			createChatSessionItem: (resource: vscode.Uri, label: string): vscode.ChatSessionItem => ({ resource, label }),
-			dispose: () => { },
-		}),
+		createChatSessionItemController: (_id: string, refreshHandler: () => Promise<void>) => {
+			chatSessionRefreshHandlers.push(refreshHandler);
+			return {
+				id: 'copilotcli',
+				items: {
+					get: () => undefined,
+					add: () => { },
+					delete: () => { },
+					replace: () => { },
+					[Symbol.iterator]: function* () { },
+					forEach: () => { },
+				},
+				createChatSessionItem: (resource: vscode.Uri, label: string): vscode.ChatSessionItem => ({ resource, label }),
+				dispose: () => { },
+			};
+		},
 	};
 	(vscodeShim as Record<string, unknown>).workspace = {
 		...((vscodeShim as Record<string, unknown>).workspace as object),
@@ -72,7 +79,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override onDidCreateSession = Event.None;
 	override getSessionWorkingDirectory = vi.fn(() => undefined);
 	override getSessionItem = vi.fn(async () => undefined);
-	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
+	override getAllSessions = vi.fn(async (_token, _options?: { metadataLimit?: number; resolveLabels?: boolean }) => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');
 	override isNewSessionId = vi.fn((_sessionId: string) => false);
 	override deleteSession = vi.fn(async () => { });
@@ -157,6 +164,18 @@ class TestRunCommandExecutionService extends mock<IRunCommandExecutionService>()
 	override executeCommand = vi.fn(async () => undefined);
 }
 
+class TestTerminalIntegration extends mock<ICopilotCLITerminalIntegration>() {
+	declare readonly _serviceBrand: undefined;
+	override setSessionDirResolver = vi.fn();
+	override dispose = vi.fn();
+}
+
+class TestSessionTracker extends mock<ICopilotCLISessionTracker>() {
+	declare readonly _serviceBrand: undefined;
+	override getSessionIds = vi.fn(() => []);
+	override getTerminal = vi.fn(async () => undefined);
+}
+
 class TestCustomSessionTitleService extends mock<ICustomSessionTitleService>() {
 	declare readonly _serviceBrand: undefined;
 	override getCustomSessionTitle = vi.fn(async () => 'Session Title');
@@ -219,9 +238,24 @@ function createProvider() {
 		new NullWorkspaceService(),
 		worktreeService,
 	);
+	const itemProvider = new CopilotCLIChatSessionItemProvider(
+		sessionService,
+		new TestSessionTracker(),
+		new TestTerminalIntegration(),
+		metadataStore,
+		worktreeService,
+		commandExecutionService,
+		workspaceFolderService,
+		folderRepositoryManager,
+		gitService,
+		octoKitService,
+		logService,
+		configurationService,
+	);
 
 	return {
 		provider,
+		itemProvider,
 		prDetectionService,
 		sessionService,
 		worktreeService,
@@ -233,6 +267,23 @@ function createProvider() {
 describe('CopilotCLIChatSessionContentProvider', () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
+		chatSessionRefreshHandlers.length = 0;
+	});
+
+	it('bounds the initial session item refresh', async () => {
+		const { sessionService } = createProvider();
+
+		await chatSessionRefreshHandlers[0]();
+
+		expect(sessionService.getAllSessions).toHaveBeenCalledWith(CancellationToken.None, { metadataLimit: 20, resolveLabels: false });
+	});
+
+	it('bounds the legacy session item provider refresh', async () => {
+		const { itemProvider, sessionService } = createProvider();
+
+		await itemProvider.provideChatSessionItems(CancellationToken.None);
+
+		expect(sessionService.getAllSessions).toHaveBeenCalledWith(CancellationToken.None, { metadataLimit: 20, resolveLabels: false });
 	});
 
 	it('triggers pull request detection when opening an existing session', async () => {

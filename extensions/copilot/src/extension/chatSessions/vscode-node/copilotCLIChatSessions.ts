@@ -65,6 +65,7 @@ export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
 
 const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
 const CHECK_FOR_STEERING_DELAY = 100; // ms
+const INITIAL_SESSION_METADATA_LIMIT = 20;
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
 
@@ -164,7 +165,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			const stopwatch = new StopWatch();
 			void this._metadataStore.refresh().catch(error => this.logService.error(error, 'Failed to refresh session metadata store during session list refresh'));
 			try {
-				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
+				const sessions = await this.sessionService.getAllSessions(CancellationToken.None, { metadataLimit: INITIAL_SESSION_METADATA_LIMIT, resolveLabels: false });
 				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
 
 				const count = items.length;
