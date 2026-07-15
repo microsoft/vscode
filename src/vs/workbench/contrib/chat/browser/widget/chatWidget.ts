@@ -497,6 +497,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.affectsConfiguration(ChatConfiguration.ProgressBorder)) {
 				this.updateWorkingProgressBorder();
 			}
+			if (e.affectsConfiguration(ChatConfiguration.ScrollbarPromptMarkersEnabled)) {
+				this.listWidget.setScrollbarPromptMarkersEnabled(
+					!isInlineChat(this) && !isQuickChat(this)
+					&& this.configurationService.getValue<boolean>(ChatConfiguration.ScrollbarPromptMarkersEnabled)
+				);
+			}
 		}));
 
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
@@ -1660,6 +1666,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				getSelectedModelRequestOptions: () => this.getSelectedModelRequestOptions(),
 				getCurrentModeInfo: () => this.input.currentModeInfo,
+				scrollbarPromptMarkersEnabled: !isInlineChat(this) && !isQuickChat(this)
+					&& this.configurationService.getValue<boolean>(ChatConfiguration.ScrollbarPromptMarkersEnabled),
 			}
 		));
 
