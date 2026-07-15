@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/qsharp-community/qsharp-tmLanguage/commit/7e89b554ee70a0ada07561b78470def6720ff5c3",
+	"version": "https://github.com/qsharp-community/qsharp-tmLanguage/commit/36ea1c83b09f57a11f0cdd58368ba909a3ffcdc1",
 	"name": "qsharp",
 	"scopeName": "source.qsharp",
 	"fileTypes": [
@@ -90,6 +90,9 @@
 			"include": "#expression-operators"
 		},
 		{
+			"include": "#declaration-keywords"
+		},
+		{
 			"include": "#identifier"
 		}
 	],
@@ -159,6 +162,34 @@
 				{
 					"name": "keyword.other.qsharp",
 					"match": "\\b(new)\\b"
+				}
+			]
+		},
+		"declaration-keywords": {
+			"patterns": [
+				{
+					"name": "keyword.other.callable.qsharp",
+					"match": "\\b(operation|function)\\b"
+				},
+				{
+					"name": "keyword.other.let.qsharp",
+					"match": "\\b(let)\\b"
+				},
+				{
+					"name": "keyword.other.mutable.qsharp",
+					"match": "\\b(mutable)\\b"
+				},
+				{
+					"name": "keyword.other.set.qsharp",
+					"match": "\\b(set)\\b"
+				},
+				{
+					"name": "keyword.other.use.qsharp",
+					"match": "\\b(use)\\b"
+				},
+				{
+					"name": "keyword.other.borrow.qsharp",
+					"match": "\\b(borrow)\\b"
 				}
 			]
 		},
@@ -395,6 +426,9 @@
 						},
 						{
 							"include": "#expression-operators"
+						},
+						{
+							"include": "#declaration-keywords"
 						},
 						{
 							"include": "#identifier"
@@ -891,6 +925,9 @@
 					"include": "#expression-operators"
 				},
 				{
+					"include": "#declaration-keywords"
+				},
+				{
 					"include": "#identifier"
 				}
 			]
@@ -1171,35 +1208,65 @@
 			]
 		},
 		"tuple-binding": {
+			"begin": "(?x)\n\\b(?:(let)|(mutable)|(set)|(use)|(borrow))\\b\\s*\n(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.let.qsharp"
+				},
+				"2": {
+					"name": "keyword.other.mutable.qsharp"
+				},
+				"3": {
+					"name": "keyword.other.set.qsharp"
+				},
+				"4": {
+					"name": "keyword.other.use.qsharp"
+				},
+				"5": {
+					"name": "keyword.other.borrow.qsharp"
+				}
+			},
+			"end": "(?=;|\\bin\\b)",
 			"patterns": [
 				{
-					"match": "\\b(let|mutable|set)\\b(?=\\s*\\()",
-					"captures": {
-						"1": {
-							"name": "keyword.other.qsharp"
-						}
-					}
+					"include": "#tuple-pattern"
 				},
 				{
-					"match": "\\b(use)\\b(?=\\s*\\()",
-					"captures": {
-						"1": {
-							"name": "keyword.other.use.qsharp"
-						}
-					}
+					"include": "#variable-initializer"
 				},
 				{
-					"match": "\\b(borrow)\\b(?=\\s*\\()",
-					"captures": {
-						"1": {
-							"name": "keyword.other.borrow.qsharp"
-						}
-					}
+					"include": "#expression"
+				}
+			]
+		},
+		"tuple-pattern": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.open.qsharp"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.parenthesis.close.qsharp"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#tuple-pattern"
+				},
+				{
+					"name": "entity.name.variable.local.qsharp",
+					"match": "\\b[_[:alpha:]][_[:alnum:]]*\\b"
+				},
+				{
+					"include": "#punctuation-comma"
 				}
 			]
 		},
 		"array-assignment": {
-			"begin": "(?x)\n(?:\\b(set)\\b\\s*)\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?:(=)\\s*([_[:alpha:]][_[:alnum:]]*)\\b\\s*(w\\/)\\s*|\\b(w\\/=)\\s*)?\n(\\d+)\\s*\n(<-)\\s*",
+			"begin": "(?x)\n\\b(set)\\b\\s*\n([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?:(=)\\s*([_[:alpha:]][_[:alnum:]]*)\\b\\s*(w\\/)|(w\\/=))",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.set.qsharp"
@@ -1218,30 +1285,16 @@
 				},
 				"6": {
 					"name": "keyword.operator.assignment.qsharp"
-				},
-				"7": {
-					"name": "constant.numeric.decimal.qsharp"
-				},
-				"8": {
-					"name": "keyword.operator.assignment.qsharp"
 				}
 			},
 			"end": "(?=;|\\))",
 			"patterns": [
 				{
-					"include": "#callable-invocation"
+					"name": "keyword.operator.assignment.qsharp",
+					"match": "<-"
 				},
 				{
-					"include": "#strings"
-				},
-				{
-					"include": "#types"
-				},
-				{
-					"include": "#literals"
-				},
-				{
-					"include": "#identifier"
+					"include": "#expression"
 				}
 			]
 		},
