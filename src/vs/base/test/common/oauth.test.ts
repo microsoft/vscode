@@ -2255,6 +2255,39 @@ suite('OAuth', () => {
 			const headers = fetchStub.firstCall.args[1].headers;
 			assert.strictEqual(headers['Accept'], 'application/json');
 		});
+
+		test('should reject metadata whose issuer does not match the requested authorization server (RFC 8414 §3)', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			// A well-known endpoint that serves metadata bound to a different issuer must not be
+			// trusted, even when the JSON is otherwise a valid authorization-server metadata document.
+			const mismatchedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://evil.example.com/tenant',
+				authorization_endpoint: 'https://evil.example.com/tenant/authorize',
+				token_endpoint: 'https://evil.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => mismatchedMetadata,
+				text: async () => JSON.stringify(mismatchedMetadata),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.ok(
+						error.errors.some((err: Error) => /does not match the requested authorization server/.test(err.message)),
+						'Should report the issuer mismatch'
+					);
+					return true;
+				}
+			);
+			// All three discovery URLs are attempted; none is trusted.
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
 	});
 
 	suite('Cross App Access (ID-JAG) wire format', () => {
