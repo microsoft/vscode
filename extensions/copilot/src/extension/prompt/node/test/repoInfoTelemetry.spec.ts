@@ -1105,7 +1105,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds the effective cap (50 chunks * 8192 bytes ~= 400KB) when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1137,6 +1137,92 @@ suite('RepoInfoTelemetry', () => {
 		assert.strictEqual(call[1].diffsJSON, undefined);
 		assert.strictEqual(call[1].remoteUrl, 'https://github.com/microsoft/vscode.git');
 		assert.strictEqual(call[1].headCommitHash, 'abc123');
+	});
+
+	test('should detect diffTooLarge via character capacity even when under the byte budget', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// ASCII: ~500K chars = ~500KB bytes. Under the 900 KiB byte budget but over the 50 * 8192 (409600)
+		// character capacity, so it must still be rejected as diffTooLarge.
+		const largeDiff = 'x'.repeat(500 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
+	});
+
+	test('should detect diffTooLarge via byte budget even when under the character capacity', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// A 3-byte UTF-8 CJK character repeated ~350K times: ~1.05MB bytes (over the 900 KiB byte budget)
+		// but only ~350K characters (under the 50 * 8192 (409600) capacity), so it must be rejected via bytes.
+		const largeDiff = '\u4e2d'.repeat(350 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		const call = (telemetryService.sendInternalMSFTTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'diffTooLarge');
+		assert.strictEqual(call[1].diffsJSON, undefined);
 	});
 
 	test('should chunk large diffs across multiple diffsJSON columns', async () => {
@@ -1661,7 +1747,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds the effective cap (50 chunks * 8192 bytes ~= 400KB) when serialized to JSON
+		// Create a diff that exceeds both the byte budget (900 KiB) and the character capacity (50 * 8192)
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),

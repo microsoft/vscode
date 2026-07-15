@@ -43,9 +43,12 @@ const STATUS_TO_STRING: Record<number, string> = {
 // The Application Insights SDK truncates any single custom string property at 8192 characters. When
 // the serialized diffs JSON exceeds that, `multiplexProperties` (see telemetry.ts) splits it across
 // up to 50 columns (`diffsJSON`, `diffsJSON_02`, `diffsJSON_03`, ...) so the full payload survives.
-// We cap the diffs JSON at the multiplex capacity (50 * 8192) so nothing is silently dropped; anything
-// larger yields `diffTooLarge`. Byte length is a conservative proxy for character length here.
-const MAX_DIFFS_JSON_SIZE = 50 * 8192;
+// Two independent limits guard the diffs JSON, and it is dropped (`diffTooLarge`) if EITHER is exceeded:
+// - MAX_DIFFS_JSON_BYTES: conservative total-payload byte budget under the 1MB event limit.
+// - MAX_DIFFS_JSON_CHARS: the multiplex capacity in characters (UTF-16 code units), matching how
+//   `multiplexProperties` measures and slices, so nothing is silently dropped past the 50 columns.
+const MAX_DIFFS_JSON_BYTES = 900 * 1024;
+const MAX_DIFFS_JSON_CHARS = 50 * 8192;
 
 // Max changes to avoid degenerate cases like mass renames
 const MAX_CHANGES = 100;
@@ -455,13 +458,14 @@ export class RepoInfoTelemetry {
 
 			const diffsJSON = diffs.length > 0 ? JSON.stringify(diffs) : undefined;
 
-			// The total telemetry event payload is limited to 1MB. Cap the diffs JSON at the multiplex
-			// capacity (MAX_DIFFS_JSON_SIZE) so it fits within the available columns; larger diffs are dropped.
+			// The total telemetry event payload is limited to 1MB, and each multiplexed column holds at
+			// most 8192 characters across 50 columns. Drop the diffs JSON if it exceeds either the byte
+			// budget or the multiplex character capacity so nothing is silently truncated.
 			if (diffsJSON) {
 				const diffSizeBytes = Buffer.byteLength(diffsJSON, 'utf8');
 				measurements.diffSizeBytes = diffSizeBytes;
 
-				if (diffSizeBytes > MAX_DIFFS_JSON_SIZE) {
+				if (diffSizeBytes > MAX_DIFFS_JSON_BYTES || diffsJSON.length > MAX_DIFFS_JSON_CHARS) {
 					return {
 						properties: { ...baseProperties, fileRelativePaths, diffsJSON: undefined, result: 'diffTooLarge' },
 						measurements
