@@ -158,6 +158,11 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
 	}
 
+	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		this.onSessionConfigChangedCalls.push({ session, values });
+	}
+
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {

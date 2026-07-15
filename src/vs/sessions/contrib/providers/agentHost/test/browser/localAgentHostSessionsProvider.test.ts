@@ -2030,6 +2030,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('caches resolved isolation/branch schema and seeds it into the next draft', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					[SessionConfigKey.Isolation]: { title: 'Isolation', type: 'string', enum: ['folder', 'worktree'], default: 'worktree' },
+					[SessionConfigKey.Branch]: { title: 'Base Branch', type: 'string', enum: ['main'] },
+				},
+			},
+			values: { [SessionConfigKey.Isolation]: 'worktree' },
+		} as ResolveSessionConfigResult;
+		const provider = createProvider(disposables, agentHost);
+
+		const first = provider.createNewSession(URI.parse('file:///home/user/a'), provider.sessionTypes[0].id);
+		await timeout(0); // let the first draft resolve so the provider caches the chips
+		assert.ok(first);
+
+		// The next draft momentarily reports an empty schema while it re-resolves...
+		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: {} } as ResolveSessionConfigResult;
+		const second = provider.createNewSession(URI.parse('file:///home/user/b'), provider.sessionTypes[0].id);
+
+		// ...but is seeded with the cached chips so they stay visible instead of blanking.
+		const seededKeys = Object.keys(provider.getSessionConfig(second.sessionId)?.schema.properties ?? {}).sort();
+
+		await timeout(0); // let the empty resolve land, replacing the seed and pruning the cache
+		const afterResolveKeys = Object.keys(provider.getSessionConfig(second.sessionId)?.schema.properties ?? {});
+
+		// A subsequent draft is no longer seeded — the empty resolve pruned the cache.
+		const third = provider.createNewSession(URI.parse('file:///home/user/c'), provider.sessionTypes[0].id);
+		const thirdSeededKeys = Object.keys(provider.getSessionConfig(third.sessionId)?.schema.properties ?? {});
+
+		assert.deepStrictEqual({ seededKeys, afterResolveKeys, thirdSeededKeys }, {
+			seededKeys: [SessionConfigKey.Branch, SessionConfigKey.Isolation],
+			afterResolveKeys: [],
+			thirdSeededKeys: [],
+		});
+	});
+
 	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);

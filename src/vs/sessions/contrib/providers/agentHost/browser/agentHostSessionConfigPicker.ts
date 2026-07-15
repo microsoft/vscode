@@ -698,6 +698,12 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 			return super._showPicker(provider, sessionId, property, schema, trigger);
 		}
 
+		// Mirror the base `_showPicker` guard (the repo-sheet path below bypasses
+		// it): bail while resolving so injected disabled chips don't open a sheet.
+		if (provider.isSessionConfigResolving(sessionId).get()) {
+			return;
+		}
+
 		if (property === SessionConfigKey.Isolation || property === SessionConfigKey.Branch) {
 			await this._showUnifiedRepoSheet(provider, sessionId, trigger);
 			return;

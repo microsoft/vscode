@@ -41,6 +41,11 @@ export interface IVoiceAudioResponse {
 	readonly transcript?: string;
 }
 
+export interface IVoiceBargeIn {
+	readonly turnId: string;
+	readonly interruptedTurnId: string;
+}
+
 export interface IVoiceToolCall {
 	readonly callId: string;
 	readonly name: string;
@@ -212,6 +217,7 @@ export interface IVoiceClientService {
 	// --- Inbound events ---
 	readonly onTranscription: Event<IVoiceTranscription>;
 	readonly onAudioResponse: Event<IVoiceAudioResponse>;
+	readonly onBargeIn: Event<IVoiceBargeIn>;
 	readonly onToolCall: Event<IVoiceToolCall>;
 	readonly onSpeechStarted: Event<IVoiceSpeechStarted>;
 	readonly onSessionInit: Event<IVoiceSessionInit>;

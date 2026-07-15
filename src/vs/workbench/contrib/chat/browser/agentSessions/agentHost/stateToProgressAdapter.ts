@@ -1937,7 +1937,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	// tool transitioned through the Streaming state before reaching
 	// Running). Preserves AHP-terminal fields (`terminalToolSessionId`,
 	// `terminalCommandUri`, `terminalCommandId`) that `_reviveTerminalIfNeeded`
-	// in the session handler populates asynchronously when a Terminal
+	// in the session handler populates when a Terminal
 	// content block is present.
 	const existingTerminal = existing.toolSpecificData?.kind === 'terminal'
 		? existing.toolSpecificData

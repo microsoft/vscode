@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
-import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { buildPlanReviewProgressContent, getWorkingProgressRelevantParts, isWaitingForMcpServers, renderChatRequestTimestamp, renderChatResponseDetails, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { IChatMcpServersStartingSlow, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -285,6 +286,21 @@ suite('ChatListRenderer', () => {
 		];
 
 		assert.deepStrictEqual(getWorkingProgressRelevantParts(parts).map(part => part.kind), ['references']);
+	});
+
+	test('working progress is hidden while MCP servers are starting', () => {
+		const servers = observableValue('servers', [{ id: 'a', name: 'alpha' }]);
+		const part: IChatMcpServersStartingSlow = {
+			kind: 'mcpServersStartingSlow',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers,
+		};
+
+		const whileStarting = isWaitingForMcpServers([part]);
+		servers.set([], undefined);
+		const afterStarting = isWaitingForMcpServers([part]);
+
+		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
 });

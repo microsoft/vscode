@@ -163,6 +163,16 @@ export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
 
 	/**
+	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
+	 * detail panel) transitions from *fully hidden* to visible — i.e. the user
+	 * opens the side pane. It fires regardless of how the pane is opened (the
+	 * toggle action, revealing an editor, or revealing the detail). Consumers
+	 * decide what to do from the current editor group state (e.g. populate the
+	 * default managed tabs only when no real editor is open).
+	 */
+	readonly onDidRevealSidePane: Event<void>;
+
+	/**
 	 * Whether the editor's current visible state was produced by an explicit user
 	 * reveal (opening an editor, or toggling the detail panel off) rather than an
 	 * automatic layout/working-set reveal. The single-pane new-session rule (R1)
@@ -224,6 +234,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
+
+	// The classic/mobile layout has no docked side pane, so it never fires this.
+	// {@link SinglePaneWorkbench} overrides it with a real emitter.
+	readonly onDidRevealSidePane: Event<void> = Event.None;
 
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
@@ -1997,6 +2011,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+
 		if (hidden) {
 			this._restoreAttachedEditorMaximizedOnShow = false;
 		}
@@ -2023,6 +2039,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		this._savePartVisibility();
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
 
 	/**
@@ -2047,6 +2067,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+
 		// Track whether this visible state was an explicit user reveal so R1 does
 		// not undo it. Any hide clears it; an automatic reveal leaves it false.
 		this._editorRevealedExplicitly = !hidden && explicit;
@@ -2066,7 +2088,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			this._savePartVisibility();
 		});
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
+
+	/**
+	 * Hook invoked when the side pane (editor part and/or auxiliary bar) transitions
+	 * from *fully hidden* to visible. The base classic/mobile layout has no docked
+	 * side pane, so this is a no-op; {@link SinglePaneWorkbench} overrides it to
+	 * fire {@link onDidRevealSidePane}.
+	 */
+	protected _onSidePaneRevealed(): void { }
 
 	/**
 	 * Sizes the editor part when it is first revealed from a hidden state, so it

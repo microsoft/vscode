@@ -1226,6 +1226,13 @@ export class AgentSideEffects extends Disposable {
 				if (values) {
 					this._persistSessionFlag(channel, 'configValues', JSON.stringify(values));
 				}
+				// This case is reached only for client-dispatched config changes
+				// (a user picker edit); internal server-side writes use
+				// `dispatchServerAction` and never land here. So the provider can
+				// forward a live, session-mutable change (e.g. Claude's
+				// `permissionMode`) to its running SDK without re-entering its own
+				// tool callbacks.
+				this._options.getAgent(channel)?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {

@@ -2131,15 +2131,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.action-widget .action-list-filter-input.chat-model-picker-filter-input,
-.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input,
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input:focus {
 	outline: none;
 	box-shadow: none;
 	border-color: transparent;
 	background-color: transparent;
 }
 
-.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter {
 	margin-bottom: 4px;
 }
 

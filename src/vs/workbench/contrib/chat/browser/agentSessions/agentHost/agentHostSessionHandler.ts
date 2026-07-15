@@ -2902,6 +2902,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// the carousel with the server's authoritative answers.
 		let latestProtocolAnswers: Record<string, ChatInputAnswer> | undefined = inputReq.answers;
 
+		// An `Accept` without structured answers means the input was answered
+		// outside the carousel UI (e.g. via voice), so render "Answered" not "Skipped".
+		let latestResponseKind: ChatInputResponseKind | undefined;
+
 		// Capture protocol answers from `ChatInputCompleted` BEFORE the
 		// reducer drops the request from state — by the time disposal runs,
 		// the action payload is no longer reachable. Also overwrite the
@@ -2914,11 +2918,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (action.type !== ActionType.ChatInputCompleted || action.requestId !== inputReq.id) {
 				return;
 			}
+			latestResponseKind = action.response;
 			latestProtocolAnswers = action.response === ChatInputResponseKind.Accept
 				? (action as ChatInputCompletedAction).answers ?? latestProtocolAnswers
 				: undefined;
 			const carouselAnswers = convertProtocolAnswers(latestProtocolAnswers);
 			carousel.data = carouselAnswers ?? {};
+			carousel.answeredExternally = latestResponseKind === ChatInputResponseKind.Accept && !carouselAnswers;
 			carousel.draftAnswers = undefined;
 			carousel.draftCurrentIndex = undefined;
 			carousel.draftCollapsed = undefined;
@@ -2968,6 +2974,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const carouselAnswers = convertProtocolAnswers(latestProtocolAnswers);
 			carousel.data = carouselAnswers ?? {};
 			carousel.isUsed = true;
+			carousel.answeredExternally = latestResponseKind === ChatInputResponseKind.Accept && !carouselAnswers;
 			carousel.draftAnswers = undefined;
 			carousel.draftCurrentIndex = undefined;
 			carousel.draftCollapsed = undefined;
@@ -3190,32 +3197,53 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		invocation.presentation = undefined;
 		const toolInput = tc.toolInput;
-		this._ensureTerminalInstance(terminalUri, backendSession).then(sessionId => {
-			const existing = invocation.toolSpecificData?.kind === 'terminal'
-				? invocation.toolSpecificData as IChatTerminalToolInvocationData
-				: undefined;
-
-			// Resolve the terminalCommandId from the AHP command source
-			let terminalCommandId = existing?.terminalCommandId;
-			if (!terminalCommandId) {
-				const source = this._terminalChatService.getAhpCommandSource(sessionId);
-				if (source) {
-					// Use the executing command or the most recent completed command
-					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
-					terminalCommandId = cmd?.id;
-				}
-			}
-
+		const sessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
+		const terminalCommandUri = URI.parse(terminalUri);
+		const terminalInstance = this._ensureTerminalInstance(terminalUri, backendSession);
+		const existing = invocation.toolSpecificData?.kind === 'terminal'
+			? invocation.toolSpecificData as IChatTerminalToolInvocationData
+			: undefined;
+		const identityChanged = !!existing && (
+			existing.commandLine.original !== toolInput
+			|| existing.terminalToolSessionId !== sessionId
+			|| existing.terminalCommandUri?.toString() !== terminalCommandUri.toString()
+		);
+		if (!existing || identityChanged) {
 			invocation.toolSpecificData = {
 				...existing,
 				kind: 'terminal',
 				commandLine: { original: toolInput },
 				language: 'shellscript',
 				terminalToolSessionId: sessionId,
-				terminalCommandUri: URI.parse(terminalUri),
-				terminalCommandId,
+				terminalCommandUri,
+				terminalCommandId: identityChanged ? undefined : existing?.terminalCommandId,
+				terminalCommandOutput: identityChanged ? undefined : existing?.terminalCommandOutput,
+				terminalCommandState: identityChanged ? undefined : existing?.terminalCommandState,
+				terminalTheme: identityChanged ? undefined : existing?.terminalTheme,
 			};
-		});
+			invocation.notifyToolSpecificDataChanged();
+		}
+		const current = invocation.toolSpecificData?.kind === 'terminal'
+			? invocation.toolSpecificData
+			: undefined;
+		if (current?.terminalCommandId) {
+			void terminalInstance.catch(error => this._logService.error(`[AgentHost] Failed to revive terminal '${terminalUri}'`, error));
+			return;
+		}
+		void terminalInstance.then(() => {
+			const current = invocation.toolSpecificData?.kind === 'terminal'
+				? invocation.toolSpecificData
+				: undefined;
+			if (!current || current.terminalToolSessionId !== sessionId || current.terminalCommandId) {
+				return;
+			}
+			const source = this._terminalChatService.getAhpCommandSource(sessionId);
+			const command = source?.executingCommandObject ?? source?.commands[source.commands.length - 1];
+			if (command?.id) {
+				invocation.toolSpecificData = { ...current, terminalCommandId: command.id };
+				invocation.notifyToolSpecificDataChanged();
+			}
+		}, error => this._logService.error(`[AgentHost] Failed to revive terminal '${terminalUri}'`, error));
 	}
 
 	// ---- Subagent child session observation ---------------------------------

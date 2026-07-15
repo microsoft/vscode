@@ -23,7 +23,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, isDefaultChatUri, parseChatUri, readSessionGitHubState, readSessionGitState, readSessionWorkspaceless, ROOT_STATE_URI, SessionMeta, StateComponents, withSessionWorkspaceless, type ChatSummary, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -58,6 +58,11 @@ import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFil
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+// Well-known config chips whose last-resolved schemas are cached and seeded into
+// new drafts, so they stay visible (disabled) while a draft re-resolves rather
+// than blanking then reappearing.
+const SEEDED_CONFIG_SCHEMA_KEYS = [SessionConfigKey.Isolation, SessionConfigKey.Branch] as const;
 
 /** Maximum number of cached session summaries persisted per provider. */
 const CACHED_SESSIONS_MAX_PER_HOST = 100;
@@ -1255,6 +1260,13 @@ interface INewSessionConstructionContext {
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
 	/**
+	 * Optional property schemas to seed into the new session's config before its
+	 * first {@link NewSession.resolveConfig} round-trip. Carried over from the
+	 * provider's cache of well-known chips (isolation/branch) so those chips stay
+	 * visible (disabled) while the draft re-resolves, instead of blanking.
+	 */
+	readonly initialConfigSchema?: Record<string, SessionConfigPropertySchema>;
+	/**
 	 * Instantiation service used to construct the session's changeset
 	 * resolvers, so the new-session skeleton surfaces the same changeset
 	 * list as the committed session that replaces it.
@@ -1440,8 +1452,11 @@ class NewSession extends Disposable {
 		};
 		this.sessionId = this.session.sessionId;
 
-		if (ctx.initialConfigValues) {
-			this._config = { schema: { type: 'object', properties: {} }, values: { ...ctx.initialConfigValues } };
+		if (ctx.initialConfigValues || ctx.initialConfigSchema) {
+			this._config = {
+				schema: { type: 'object', properties: { ...ctx.initialConfigSchema } },
+				values: { ...ctx.initialConfigValues },
+			};
 		}
 	}
 
@@ -1867,6 +1882,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _runningSessionConfigResolveSeq = new Map<string, number>();
 
 	/**
+	 * Last authoritatively-resolved schemas for {@link SEEDED_CONFIG_SCHEMA_KEYS},
+	 * seeded into new drafts so their chips survive a workspace/agent switch. Lives
+	 * on the provider (not the picker) so it outlives toolbar item reconstruction.
+	 */
+	private readonly _cachedConfigSchemas = new Map<string, SessionConfigPropertySchema>();
+
+	/**
 	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
 	 * for sessions that already exist on the agent host (e.g. created in a prior
 	 * window). The underlying wire subscription is reference-counted by
@@ -2254,6 +2276,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(workspace),
+			initialConfigSchema: this._seededConfigSchema(),
 			instantiationService: this._instantiationService,
 			onSessionState: (id, state) => state === undefined
 				? this._handleNewSessionStateGone(id)
@@ -2346,8 +2369,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const config = session.getConfig();
+		this._cacheSeededConfigSchemas(config);
 		session.setLoading(config !== undefined && !isSessionConfigComplete(config));
 		this._onDidChangeSessionConfig.fire(session.sessionId);
+	}
+
+	/**
+	 * Snapshot the well-known {@link SEEDED_CONFIG_SCHEMA_KEYS} schemas from an
+	 * authoritative resolve so the next new draft can render those chips
+	 * immediately (disabled) instead of blanking. A `undefined` config (failed
+	 * resolve) leaves the previous cache intact.
+	 */
+	private _cacheSeededConfigSchemas(config: ResolveSessionConfigResult | undefined): void {
+		if (!config) {
+			return;
+		}
+		for (const key of SEEDED_CONFIG_SCHEMA_KEYS) {
+			const schema = config.schema.properties[key];
+			if (schema) {
+				this._cachedConfigSchemas.set(key, schema);
+			} else {
+				this._cachedConfigSchemas.delete(key);
+			}
+		}
+	}
+
+	/** Seed schema for a fresh draft, or `undefined` when nothing is cached yet. */
+	private _seededConfigSchema(): Record<string, SessionConfigPropertySchema> | undefined {
+		if (this._cachedConfigSchemas.size === 0) {
+			return undefined;
+		}
+		const seed: Record<string, SessionConfigPropertySchema> = Object.create(null);
+		for (const [key, schema] of this._cachedConfigSchemas) {
+			seed[key] = schema;
+		}
+		return seed;
 	}
 
 	/** Subclass hook for additional pre-create checks (e.g. remote requires connection). */

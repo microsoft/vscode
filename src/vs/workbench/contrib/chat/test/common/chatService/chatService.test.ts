@@ -2546,9 +2546,9 @@ suite('backfillRestoredPickerState', () => {
 		attachments: [], mode: { id: modeId, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
 	});
 
-	test('backfills a model dropped at cold restore from the per-session stored selection', () => {
+	test('does not backfill selectedModel from stored state when the chosen state has none', () => {
 		const result = backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, model('agent-host-claude:opus')), AGENT);
-		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+		assert.strictEqual(result?.selectedModel, undefined);
 	});
 
 	test('keeps the chosen model when present (never overrides it with the stored one)', () => {

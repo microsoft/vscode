@@ -46,15 +46,18 @@ import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
 
 // #region Record/replay
 
 /**
- * When `AGENT_HOST_REPLAY_RECORD=1`, the shared suite runs against real CAPI (a
- * real GitHub token) and captures the wire to per-test YAML fixtures. Otherwise
- * it replays the committed fixtures deterministically with no token.
+ * `AGENT_HOST_REPLAY_RECORD=1` records only LLM fixtures, while
+ * `AGENT_HOST_UPDATE_SNAPSHOTS=1` records LLM fixtures and updates AHP
+ * snapshots in the same run.
  */
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
+const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
@@ -77,8 +80,8 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1`. Shared by {@link defineAgentHostE2ETests} and
- * provider-specific suites so both go through the same record/replay path.
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
+ * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
 export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
@@ -248,8 +251,23 @@ export async function createRealSession(
 	// action notifications are delivered to this client.
 	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 	c.clearReceived();
+	c.clearAhpSnapshot();
 
 	return sessionUri;
+}
+
+export async function runAhpSnapshotTest(
+	c: TestProtocolClient,
+	config: IAgentHostE2EProviderConfig,
+	test: Mocha.Runnable,
+	trackingList: string[],
+	tempDirs: string[],
+): Promise<void> {
+	const scenario = AhpSnapshotScenario.load(test);
+	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
+	tempDirs.push(workingDirectory);
+	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
+	await scenario.run(c, sessionUri);
 }
 
 /** Dispatch a turn with the given user message text. */
@@ -622,7 +640,7 @@ export class AgentHostE2EServerLease {
 		} else {
 			this._server = await startRealServer({ ...this._startOptions, capiReplay });
 		}
-		this._client = new TestProtocolClient(this._server.port);
+		this._client = new TestProtocolClient(this._server.port, () => this._server?.capiReplay?.takeCacheMissError());
 		await this._client.connect();
 		return { server: this._server, client: this._client };
 	}
@@ -939,7 +957,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// recorded (intentionally truncated) response is served instantly, so
 		// there is no mid-stream window to abort. Run it only while recording
 		// against real CAPI; it is skipped in deterministic replay.
-		(RECORD ? test : test.skip)('can abort a running turn', async function () {
+		(RUN_RECORD_ONLY_TESTS ? test : test.skip)('can abort a running turn', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);

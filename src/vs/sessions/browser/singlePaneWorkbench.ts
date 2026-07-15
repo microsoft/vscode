@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../common/dockedEditorInput.js';
@@ -56,8 +57,15 @@ export class SinglePaneWorkbench extends Workbench {
 	private _syncingEditorVisibility = false;
 	private readonly _memento = new DockedEditorSizeMemento();
 
+	private readonly _onDidRevealSidePane = this._register(new Emitter<void>());
+	override readonly onDidRevealSidePane: Event<void> = this._onDidRevealSidePane.event;
+
 	override get isSinglePaneLayoutEnabled(): boolean {
 		return true;
+	}
+
+	protected override _onSidePaneRevealed(): void {
+		this._onDidRevealSidePane.fire();
 	}
 
 	/**

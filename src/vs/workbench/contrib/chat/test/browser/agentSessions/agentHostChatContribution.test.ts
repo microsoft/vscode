@@ -10,11 +10,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -68,7 +68,7 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -88,6 +88,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IInputModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -612,7 +613,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -785,6 +786,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		profiles: observableValue('test', []),
 		getProfileForConnection: () => undefined,
 		registerEntry: () => ({ dispose() { } }),
+		...agentHostTerminalServiceOverride,
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
@@ -862,8 +864,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -3657,6 +3659,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(carousel.isUsed, true);
 			assert.deepStrictEqual(carousel.data, {});
+			assert.ok(!carousel.answeredExternally, 'cancelled input should not be marked answered');
 			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
 			assert.strictEqual((await carousel.completion.p).answers, undefined);
 			assert.deepStrictEqual(chatWidgetService.clearQuestionCarouselCalls.map(call => ({ responseId: call.responseId, resolveId: call.resolveId })), [
@@ -3665,6 +3668,49 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions.some(dispatched => dispatched.action.type === ActionType.ChatInputCompleted), false);
 
 			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('input request accepted without answers is marked answered, not skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-answered-externally-input-request-test' });
+			chatWidgetService.setWidgetForSession(sessionResource);
+
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					message: 'What is your favorite color?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'question-1',
+						message: 'What is your favorite color?',
+						required: true,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel, 'input request should render a question carousel');
+
+			agentHostService.dispatchedActions.length = 0;
+			// User answered via voice: server accepts the request with no structured answers.
+			fire({
+				type: ActionType.ChatInputCompleted,
+				requestId: 'input-1',
+				response: ChatInputResponseKind.Accept,
+			} as ChatAction);
+			await timeout(10);
+
+			assert.strictEqual(carousel.isUsed, true);
+			assert.deepStrictEqual(carousel.data, {});
+			assert.strictEqual(carousel.answeredExternally, true, 'accepted input without answers should be marked answered');
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
 			await turnPromise;
 		}));
 
@@ -4668,6 +4714,86 @@ suite('AgentHostChatContribution', () => {
 	// ---- Tool invocation rendering -----------------------------------------
 
 	suite('tool invocation rendering', () => {
+
+		test('terminal metadata is observable before terminal revival completes', async () => {
+			const terminalRevival = new DeferredPromise<ITerminalInstance>();
+			let revivalStarted = false;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					reviveTerminal: () => {
+						revivalStarted = true;
+						return terminalRevival.p;
+					},
+				},
+			});
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-live-shell', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-live-shell', invocationMessage: 'Running command', toolInput: 'long-running-command', confirmed: 'not-needed' } as ChatAction);
+			const invocation = collected[0][0] as ChatToolInvocation;
+			invocation.toolSpecificData = {
+				...(invocation.toolSpecificData as IChatTerminalToolInvocationData),
+				kind: 'terminal',
+				terminalToolSessionId: 'stale-session',
+				terminalCommandUri: URI.parse('agenthost-terminal://bang/stale'),
+				terminalCommandId: 'stale-command',
+				terminalCommandOutput: { text: 'stale output' },
+				terminalCommandState: { exitCode: 0 },
+				terminalTheme: { background: '#000000' },
+			};
+			let stateNotifications = 0;
+			disposables.add(autorun(reader => {
+				invocation.state.read(reader);
+				stateNotifications++;
+			}));
+			const notificationsBeforeTerminalContent = stateNotifications;
+
+			fire({
+				type: 'chat/toolCallContentChanged',
+				session,
+				turnId,
+				toolCallId: 'tc-live-shell',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://bang/live-shell', title: 'Terminal' }],
+			} as ChatAction);
+
+			const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
+			assert.deepStrictEqual({
+				kind: terminalData.kind,
+				commandLine: terminalData.commandLine.original,
+				terminalCommandUri: terminalData.terminalCommandUri?.toString(),
+				hasTerminalToolSessionId: !!terminalData.terminalToolSessionId,
+				terminalCommandId: terminalData.terminalCommandId,
+				terminalCommandOutput: terminalData.terminalCommandOutput,
+				terminalCommandState: terminalData.terminalCommandState,
+				terminalTheme: terminalData.terminalTheme,
+				stateNotificationDelta: stateNotifications - notificationsBeforeTerminalContent,
+				revivalStarted,
+				revivalSettled: terminalRevival.isSettled,
+			}, {
+				kind: 'terminal',
+				commandLine: 'long-running-command',
+				terminalCommandUri: 'agenthost-terminal://bang/live-shell',
+				hasTerminalToolSessionId: true,
+				terminalCommandId: undefined,
+				terminalCommandOutput: undefined,
+				terminalCommandState: undefined,
+				terminalTheme: undefined,
+				stateNotificationDelta: 1,
+				revivalStarted: true,
+				revivalSettled: false,
+			});
+
+			await terminalRevival.complete({} as ITerminalInstance);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-live-shell',
+				result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://bang/live-shell', title: 'Terminal' }] },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		});
 
 		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

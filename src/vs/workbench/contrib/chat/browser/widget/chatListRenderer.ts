@@ -1355,6 +1355,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
+		if (isWaitingForMcpServers(partsToRender)) {
+			return undefined;
+		}
+
 		// Never show working progress while an unresolved plan review is in
 		// the response. The plan review widget surfaces its own "Plan review
 		// required" progress row and is blocking on user input, so a second
@@ -2716,7 +2720,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'mcpAuthenticationRequired') {
 				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content);
 			} else if (content.kind === 'mcpServersStartingSlow') {
-				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content);
+				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content, {
+					onDidFinishStarting: () => this.showWorkingProgressAfterMcp(context, templateData),
+				});
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);
 			} else if (content.kind === 'thinking') {
@@ -2740,6 +2746,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				hasSameContent: (other => content.kind === other.kind),
 			};
 		}
+	}
+
+	private showWorkingProgressAfterMcp(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
+		const originalElement = context.element;
+		const originalRenderedParts = templateData.renderedParts;
+		queueMicrotask(() => {
+			if (!isResponseVM(originalElement) || templateData.currentElement !== originalElement || originalElement.isComplete || originalElement.isCanceled) {
+				return;
+			}
+
+			if (!originalRenderedParts || templateData.renderedParts !== originalRenderedParts || originalRenderedParts.some(part => part instanceof ChatWorkingProgressContentPart)) {
+				return;
+			}
+
+			this.renderChatResponseBasic(originalElement, context.elementIndex, templateData);
+			this.fireItemHeightChange(templateData);
+		});
 	}
 
 	override dispose(): void {
@@ -3904,6 +3927,10 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 		}
 		return part.kind !== 'markdownContent' || !extractSubAgentInvocationIdFromText(part.content.value);
 	});
+}
+
+export function isWaitingForMcpServers(parts: readonly IChatRendererContent[]): boolean {
+	return parts.some(part => part.kind === 'mcpServersStartingSlow' && part.servers.get().length > 0);
 }
 
 function findLastMeaningfulPart(parts: readonly IChatRendererContent[]): IChatRendererContent | undefined {

@@ -17,7 +17,8 @@
  *    never silently reach real CAPI.
  *  - **record** mode: forwards every request to the upstream, streams the
  *    response back to the caller, and captures it to the fixture on disk.
- *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1`) since it needs a real token.
+ *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1`, including the first pass of
+ *    `AGENT_HOST_UPDATE_SNAPSHOTS=1`) since it needs a real token.
  *
  * The proxy is intentionally **wire-agnostic**: it captures and replays the raw
  * response body, so it works identically for the Chat Completions
@@ -55,6 +56,8 @@ const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/message
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
+const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
+const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
@@ -128,7 +131,6 @@ const DIALECT_ENDPOINT: Readonly<Record<TurnDialect, { readonly method: string; 
 interface IStoredAnthropicMessage {
 	readonly content: string | AnthropicContentBlock[];
 	readonly stopReason: string | null;
-	readonly usage?: { readonly inputTokens?: number; readonly outputTokens?: number };
 }
 
 /**
@@ -325,9 +327,24 @@ export class CapiReplayProxy {
 	 * the server (and the agent host's cached SDK client) alive for the next test.
 	 */
 	assertNoCacheMisses(): void {
-		if (this._isReplaying && this._strict && this._cacheMisses.length > 0) {
-			throw new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		const error = this._createCacheMissError();
+		if (error) {
+			throw error;
 		}
+	}
+
+	/** Returns and consumes the current replay failure so it can be surfaced at the original test failure. */
+	takeCacheMissError(): Error | undefined {
+		const error = this._createCacheMissError();
+		this._cacheMisses.length = 0;
+		return error;
+	}
+
+	private _createCacheMissError(): Error | undefined {
+		if (!this._isReplaying || !this._strict || this._cacheMisses.length === 0) {
+			return undefined;
+		}
+		return new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
 	}
 
 	/**
@@ -534,7 +551,7 @@ export class CapiReplayProxy {
 					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._fixturePath}`);
 				}
 				key = `${turnEndpoint.method} ${turnEndpoint.path}`;
-				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason, usage: exchange.response.usage } };
+				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason } };
 			} else {
 				key = `${exchange.method} ${exchange.path}`;
 				item = { kind: 'raw', response: exchange.response };
@@ -665,7 +682,7 @@ export class CapiReplayProxy {
 			const message = aggregateAnthropicSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason, usage: message.usage } }, dialect: 'anthropic' };
+				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
 			}
 		}
 		if (exchange.method === 'POST' && exchange.path === RESPONSES_PATH) {
@@ -673,7 +690,7 @@ export class CapiReplayProxy {
 			const message = aggregateResponsesSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason, usage: message.usage } }, dialect: 'responses' };
+				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
 			}
 		}
 		return { exchange: { method: exchange.method, path: exchange.path, response: exchange.response } };
@@ -711,6 +728,7 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
 		}
+		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		return result;
 	}
 }

@@ -123,20 +123,14 @@ const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
 /**
- * Fill in the picker selections (`selectedModel`, `mode`) that `stateToApply` is missing, using
- * the session's previously `savedState`.
+ * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
+ * `savedState` when the applied state fell back to the default Agent.
  *
  * `stateToApply` is the input state about to be applied to the session being restored (an
- * agent-host transferred draft, or the saved draft as a fallback). `savedState` is the session's
- * own previously saved input state. At cold restore `stateToApply` can lose these two picker
- * selections, so take them from `savedState`:
- * - `selectedModel`: `stateToApply` leaves it undefined when the model is not registered yet (the
- *   agent-host model list has not loaded). `savedState` keeps the full model (id + capabilities),
- *   so use it. The input part re-validates it against the live model list and re-resolves it once
- *   the list loads, so a genuinely stale/wrong model is still dropped safely.
- * - `mode`: `stateToApply` falls back to the default Agent when it did not capture the user's
- *   custom agent. Prefer the custom agent from `savedState`, but only promote it OVER the plain
- *   default Agent — never override a different explicit mode.
+ * agent-host transferred draft, or the saved draft as a fallback). Its `selectedModel` is the
+ * authoritative model selection.
+ * `savedState` is only used for `mode`: prefer its custom agent over the plain default Agent, but
+ * never override a different explicit mode already present in `stateToApply`.
  */
 export function backfillRestoredPickerState(
 	stateToApply: ISerializableChatModelInputState | undefined,
@@ -146,14 +140,13 @@ export function backfillRestoredPickerState(
 	if (!stateToApply || !savedState) {
 		return stateToApply;
 	}
-	const selectedModel = stateToApply.selectedModel ?? savedState.selectedModel;
 	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
 		? savedState.mode
 		: stateToApply.mode;
-	if (selectedModel === stateToApply.selectedModel && mode === stateToApply.mode) {
+	if (mode === stateToApply.mode) {
 		return stateToApply;
 	}
-	return { ...stateToApply, selectedModel, mode };
+	return { ...stateToApply, mode };
 }
 
 export class ChatService extends Disposable implements IChatService {

@@ -1390,7 +1390,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.byokUtilityModelDefault.mainAgent.description', "Use the selected BYOK main agent model."),
 				nls.localize('chat.byokUtilityModelDefault.copilot.description', "Use the default GitHub Copilot utility models."),
 			],
-			default: BYOKUtilityModelDefault.None,
+			default: BYOKUtilityModelDefault.Copilot,
 		},
 		[ChatConfiguration.UtilityModel]: {
 			type: 'string',
