@@ -60,9 +60,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/serverToolsChanged
-      - channel: ${session_0}
-        action:
-          type: session/customizationUpdated
       - method: root/sessionAdded
       - channel: ${session_0}
         action:
@@ -70,9 +67,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/changesetsChanged
-      - channel: ${session_0}
-        action:
-          type: session/customizationUpdated
       - channel: ${chat_0}
         action:
           type: chat/usage

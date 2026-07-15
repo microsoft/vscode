@@ -64,6 +64,7 @@ interface IAhpSnapshotFixture {
 interface IAhpSnapshotClient {
 	beginAhpSnapshotRound(): void;
 	dispatch(params: DispatchActionParams): void;
+	receivedNotifications(): AhpNotification[];
 	waitForNotification(predicate: (notification: AhpNotification) => boolean, timeoutMs?: number): Promise<AhpNotification>;
 	serializeAhpSnapshot(): string;
 	takeReplayError(): Error | undefined;
@@ -112,6 +113,9 @@ export class AhpSnapshotRecorder {
 					const params = asRecord(message.params);
 					const action = params?.action as StateAction | undefined;
 					if (action) {
+						if (action.type === ActionType.SessionCustomizationUpdated) {
+							continue;
+						}
 						projected = {
 							channel: normalizeChannel(params?.channel, channels, channelCounts),
 							action: projectAction(action, turns, toolCalls),
@@ -168,10 +172,10 @@ export class AhpSnapshotScenario {
 			['${chat_0}', buildDefaultChatUri(sessionUri)],
 		]);
 		const seenPrerequisites = new Set<object>();
-		const seenRoundEnds = new Set<object>();
 		let clientSeq = 1;
 
 		for (const round of this._fixture.rounds) {
+			const notificationsBeforeRound = new Set<object>(client.receivedNotifications());
 			client.beginAhpSnapshotRound();
 			for (const entry of round.clientToServer) {
 				if (!entry.channel || !entry.action) {
@@ -186,7 +190,7 @@ export class AhpSnapshotScenario {
 					action: parseClientAction(resolvePlaceholders(entry.action, bindings)),
 				});
 			}
-			await waitForFinalServerMessage(client, round.serverToClient, seenRoundEnds);
+			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
 		}
 
 		const actual = client.serializeAhpSnapshot();

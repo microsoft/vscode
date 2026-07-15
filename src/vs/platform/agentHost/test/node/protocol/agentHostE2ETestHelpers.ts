@@ -263,7 +263,7 @@ export async function runAhpSnapshotTest(
 	tempDirs: string[],
 ): Promise<void> {
 	const scenario = AhpSnapshotScenario.load(test);
-	const workingDirectory = mkdtempSync(`${tmpdir()}/ahp-snapshot-`);
+	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
 	tempDirs.push(workingDirectory);
 	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
 	await scenario.run(c, sessionUri);
