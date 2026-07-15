@@ -153,6 +153,12 @@
 	margin-right: var(--vscode-spacing-size40);
 }
 
+/* At the default (non-compact) size, separate the activity bar items with a 4px gap
+ * so they read as distinct floating targets. Compact keeps the tighter default stack. */
+.monaco-workbench.floating-panels .part.activitybar:not(.compact) > .content .monaco-action-bar .action-item + .action-item {
+	margin-top: var(--vscode-spacing-size40);
+}
+
 /* The status bar draws its top border via a pseudo-element — hide it too. */
 .monaco-workbench.floating-panels .part.statusbar::after {
 	display: none !important;
