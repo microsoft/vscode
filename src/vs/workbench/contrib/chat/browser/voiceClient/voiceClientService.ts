@@ -46,6 +46,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _isResuming = false;
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
+	// Set once start_session/resume_session (which carries session_context) has
+	// been sent on the current connection; reset per connection. Gates
+	// requestNarration so the backend has the session before a narration request.
+	private _sessionContextSent = false;
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -213,6 +217,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._reconnectAttempts = 0;
 			this._reconnectStartedAt = undefined;
 			this._isResuming = !!this._lastSessionId;
+			this._sessionContextSent = false;
 			this._setConnected(true);
 			this._startPing();
 
@@ -602,7 +607,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string): string | undefined {
-		if (this._ws?.readyState === WebSocket.OPEN) {
+		// Gate on session_context having been sent: the WS preserves send order,
+		// so the backend processes start_session/resume_session before any
+		// request_narration. Pre-session this returns undefined, so _narrate queues
+		// a retry that onSessionInit replays once the session exists.
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionContextSent) {
 			const narrationId = generateUuid();
 			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: narrationId }));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${narrationId.slice(0, 8)}`);
@@ -644,6 +653,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				payload.prior_timeline = priorTimeline;
 			}
 			this._ws.send(JSON.stringify(payload));
+			this._sessionContextSent = true;
 		}
 	}
 
@@ -653,6 +663,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			// `auto_narrate: false` for the same reason as start_session: this client
 			// drives narration, so the backend must not also auto-narrate.
 			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
+			this._sessionContextSent = true;
 		}
 	}
 
