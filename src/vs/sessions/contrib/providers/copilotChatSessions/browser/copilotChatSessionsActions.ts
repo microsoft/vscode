@@ -5,7 +5,7 @@
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IReader, autorun } from '../../../../../base/common/observable.js';
+import { IReader, autorun, derived } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -17,7 +17,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { SessionHasGitRepositoryContext, SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BranchPicker } from './branchPicker.js';
+import { BranchPicker, IBranchPickerModel } from '../../../chat/browser/branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
@@ -195,7 +195,27 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(BranchPicker, session);
+				const model = derived<IBranchPickerModel | undefined>(reader => {
+					const s = session.read(reader);
+					if (!s) {
+						return undefined;
+					}
+					const provider = sessionsProvidersService.getProvider(s.providerId);
+					const copilotSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(s.sessionId) : undefined;
+					if (!copilotSession) {
+						return undefined;
+					}
+					return {
+						branches: copilotSession.branches,
+						selectedBranch: copilotSession.branch,
+						disabled: derived(reader =>
+							copilotSession.loading.read(reader)
+							|| copilotSession.isolationMode.read(reader) === 'workspace'
+							|| copilotSession.branches.read(reader).length === 0),
+						setBranch: name => copilotSession.setBranch(name),
+					};
+				});
+				const picker = scopedInstantiationService.createInstance(BranchPicker, model);
 				return new PickerActionViewItem(picker);
 			},
 		));
