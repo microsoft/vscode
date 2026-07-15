@@ -12,7 +12,7 @@ import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../common/state/sessionActions.js';
 import type { DispatchActionParams } from '../../../common/state/protocol/commands.js';
 import type { AhpNotification } from '../../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type ResponsePart, type StringOrMarkdown, type ToolCallContributor } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../common/state/sessionState.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -22,7 +22,7 @@ export const AgentHostUpdateAhpSnapshotsEnvVar = 'AGENT_HOST_UPDATE_AHP_SNAPSHOT
 export const AgentHostUpdateSnapshotsEnvVar = 'AGENT_HOST_UPDATE_SNAPSHOTS';
 
 const UPDATE_AHP_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
-const RECORD_LLM_FIXTURES_ONLY = process.env['AGENT_HOST_UPDATE_SNAPSHOTS_PHASE'] === 'record';
+const UPDATE_ALL_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
 
 type AhpSnapshotDirection = 'c2s' | 's2c';
 
@@ -96,6 +96,7 @@ export class AhpSnapshotRecorder {
 		const channelCounts = new Map<string, number>();
 		const turns = new Map<string, string>();
 		const toolCalls = new Map<string, string>();
+		const responseParts = new Map<string, { content: string }>();
 		const roundStarts = this._roundStarts.length > 0 ? this._roundStarts : [0];
 		const rounds = roundStarts.map(() => ({ clientToServer: [] as object[], serverToClient: [] as object[] }));
 		let roundIndex = 0;
@@ -110,6 +111,9 @@ export class AhpSnapshotRecorder {
 				if (message.id !== undefined) {
 					(direction === 'c2s' ? clientRequests : serverRequests).set(message.id, message.method);
 				}
+				if (message.method === 'root/sessionSummaryChanged') {
+					continue;
+				}
 				if (message.method === 'dispatchAction' || message.method === 'action') {
 					const params = asRecord(message.params);
 					const action = params?.action as StateAction | undefined;
@@ -117,9 +121,14 @@ export class AhpSnapshotRecorder {
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
+						const channel = typeof params?.channel === 'string' ? params.channel : '';
+						const projectedAction = projectAction(action, turns, toolCalls, responseParts, channel);
+						if (!projectedAction) {
+							continue;
+						}
 						projected = {
 							channel: normalizeChannel(params?.channel, channels, channelCounts),
-							action: projectAction(action, turns, toolCalls),
+							action: projectedAction,
 						};
 					} else {
 						projected = { method: message.method };
@@ -194,12 +203,8 @@ export class AhpSnapshotScenario {
 			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
 		}
 
-		if (RECORD_LLM_FIXTURES_ONLY) {
-			return;
-		}
-
 		const actual = client.serializeAhpSnapshot();
-		if (UPDATE_AHP_SNAPSHOTS) {
+		if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
 			const actualFixture = parseFixture(yamlModule.load(actual), 'recorded AHP traffic');
 			if (actualFixture.rounds.length !== this._fixture.rounds.length) {
 				throw new Error(`[ahp-snapshot] expected ${this._fixture.rounds.length} recorded rounds, got ${actualFixture.rounds.length}`);
@@ -257,7 +262,13 @@ function normalizeChannel(value: unknown, channels: Map<string, string>, channel
 	return normalized;
 }
 
-function projectAction(action: StateAction, turns: Map<string, string>, toolCalls: Map<string, string>): object {
+function projectAction(
+	action: StateAction,
+	turns: Map<string, string>,
+	toolCalls: Map<string, string>,
+	responseParts: Map<string, { content: string }>,
+	channel: string,
+): object | undefined {
 	switch (action.type) {
 		case ActionType.SessionActiveClientSet:
 			return {
@@ -282,18 +293,34 @@ function projectAction(action: StateAction, turns: Map<string, string>, toolCall
 					...(action.message.model ? { model: { id: action.message.model.id } } : {}),
 				},
 			};
-		case ActionType.ChatResponsePart:
+		case ActionType.ChatResponsePart: {
+			if (action.part.kind === ResponsePartKind.Markdown || action.part.kind === ResponsePartKind.Reasoning) {
+				const part = { kind: action.part.kind, content: action.part.content };
+				responseParts.set(responsePartKey(channel, action.part.id), part);
+				return {
+					type: action.type,
+					turnId: normalizeIdentifier(action.turnId, 'turn', turns),
+					part,
+				};
+			}
 			return {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
-				part: projectResponsePart(action.part),
+				part: { kind: action.part.kind },
 			};
-		case ActionType.ChatDelta:
+		}
+		case ActionType.ChatDelta: {
+			const part = responseParts.get(responsePartKey(channel, action.partId));
+			if (part) {
+				part.content += action.content;
+				return undefined;
+			}
 			return {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				content: action.content,
 			};
+		}
 		case ActionType.ChatToolCallStart:
 			return {
 				type: action.type,
@@ -341,6 +368,10 @@ function projectAction(action: StateAction, turns: Map<string, string>, toolCall
 	}
 }
 
+function responsePartKey(channel: string, partId: string): string {
+	return `${channel}\0${partId}`;
+}
+
 function normalizeIdentifier(value: string, kind: string, identifiers: Map<string, string>): string {
 	let normalized = identifiers.get(value);
 	if (!normalized) {
@@ -348,16 +379,6 @@ function normalizeIdentifier(value: string, kind: string, identifiers: Map<strin
 		identifiers.set(value, normalized);
 	}
 	return normalized;
-}
-
-function projectResponsePart(part: ResponsePart): object {
-	switch (part.kind) {
-		case ResponsePartKind.Markdown:
-		case ResponsePartKind.Reasoning:
-			return { kind: part.kind, content: part.content };
-		default:
-			return { kind: part.kind };
-	}
 }
 
 function projectContributor(contributor: ToolCallContributor | undefined): object | undefined {

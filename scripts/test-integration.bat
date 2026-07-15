@@ -73,29 +73,6 @@ if defined SHOW_HELP (
 	exit /b 0
 )
 
-if "%AGENT_HOST_UPDATE_SNAPSHOTS%"=="1" if not defined AGENT_HOST_UPDATE_SNAPSHOTS_PHASE (
-	if not defined RUN_FILE if not defined RUN_GLOB (
-		echo AGENT_HOST_UPDATE_SNAPSHOTS=1 requires --run or --runGlob to scope the update.
-		exit /b 1
-	)
-
-	echo Updating LLM fixtures from real CAPI...
-	set "AGENT_HOST_UPDATE_SNAPSHOTS="
-	set "AGENT_HOST_UPDATE_SNAPSHOTS_PHASE=record"
-	set "AGENT_HOST_UPDATE_AHP_SNAPSHOTS="
-	set "AGENT_HOST_REPLAY_RECORD=1"
-	call "%~f0" %*
-	if errorlevel 1 exit /b 1
-
-	echo Updating AHP snapshots from deterministic LLM replay...
-	set "AGENT_HOST_UPDATE_SNAPSHOTS_PHASE=replay"
-	set "AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1"
-	set "AGENT_HOST_REPLAY_RECORD="
-	call "%~f0" %*
-	if errorlevel 1 exit /b 1
-	exit /b 0
-)
-
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
 set VSCODECRASHDIR=%SCRIPT_DIR%\..\.build\crashes
 set VSCODELOGSDIR=%SCRIPT_DIR%\..\.build\logs\integration-tests

@@ -51,16 +51,13 @@ import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapsh
 // #region Record/replay
 
 /**
- * `AGENT_HOST_REPLAY_RECORD=1` records LLM fixtures. The integration-test
- * wrapper implements `AGENT_HOST_UPDATE_SNAPSHOTS=1` as separate record and
- * replay passes so AHP snapshots always capture deterministic replay traffic.
+ * `AGENT_HOST_REPLAY_RECORD=1` records only LLM fixtures, while
+ * `AGENT_HOST_UPDATE_SNAPSHOTS=1` records LLM fixtures and updates AHP
+ * snapshots in the same run.
  */
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
-const UPDATE_SNAPSHOTS_PHASE = process.env['AGENT_HOST_UPDATE_SNAPSHOTS_PHASE'];
-const RUN_RECORD_ONLY_TESTS = RECORD && UPDATE_SNAPSHOTS_PHASE !== 'record';
-if (process.env[AgentHostUpdateSnapshotsEnvVar] === '1') {
-	throw new Error('[agent-host-e2e] AGENT_HOST_UPDATE_SNAPSHOTS must be orchestrated by scripts/test-integration.sh or scripts/test-integration.bat');
-}
+const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
+const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
@@ -83,8 +80,7 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1`. `AGENT_HOST_UPDATE_SNAPSHOTS=1` is translated
- * into this mode by the integration-test wrapper's first pass. Shared by
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
  * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
 export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {

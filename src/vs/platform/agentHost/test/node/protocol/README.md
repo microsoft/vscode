@@ -152,7 +152,7 @@ Normal test runs are read-only. An AHP mismatch fails and writes a sibling `.act
 AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
   src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
 
-# Update LLM fixtures, then update AHP snapshots from their replay:
+# Update LLM fixtures and AHP snapshots together:
 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
   src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
 
@@ -163,9 +163,9 @@ AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
 
 The AHP update preserves the executable `clientToServer` input and replaces only `serverToClient` with the observed semantic traffic. Review the resulting Git diff, then rerun without an update flag to verify the committed snapshot.
 
-`AGENT_HOST_UPDATE_SNAPSHOTS=1` requires `--run` or `--runGlob` and runs the selected tests twice: first with real-CAPI LLM recording, then in deterministic replay while updating AHP snapshots. The separation is required because live SSE chunking can differ from replay-generated SSE; recording AHP traffic during the live pass would produce snapshots that immediately fail replay. `AGENT_HOST_REPLAY_RECORD=1` runs only the LLM-recording pass.
+`AGENT_HOST_UPDATE_SNAPSHOTS=1` records both boundaries in one run. The AHP recorder coalesces streamed `chat/responsePart` + `chat/delta` traffic into final semantic content, so live CAPI chunking and replay-generated chunking produce the same snapshot. `AGENT_HOST_REPLAY_RECORD=1` updates only LLM fixtures.
 
-The update scope is the tests selected by the command. Running a whole provider file intentionally re-records every test in that file, so provider-default model changes can produce broad fixture diffs. Add `--grep "<test title>"` when only one scenario needs updating.
+The update scope is the tests selected by the command. Running a whole provider file intentionally re-records every test in that file, so provider-default model changes can produce broad fixture diffs. Add `--grep "<test title>"` when only one scenario needs updating. Record-only scenarios such as abort are excluded from combined updates.
 
 1. The proxy forwards all traffic to real CAPI (`AGENT_HOST_RECORD_CAPI_URL`, default `https://api.githubcopilot.com`) and GitHub (`AGENT_HOST_RECORD_GITHUB_URL`, default `https://api.github.com`).
 2. Auth: `GITHUB_TOKEN` (preferred) or `gh auth token`. The GitHub token is used directly as the CAPI bearer credential (same pattern as the `@github/copilot` CLI). It lives only in request headers and is **never** written to fixtures.
