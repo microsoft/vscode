@@ -85,7 +85,7 @@ width) captures a width to restore later.
 | **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for a created workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
 | **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. |
 | **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. The list is **also** auto-collapsed — **but only on a small window (`≤ 1800px`)** — when the user opens the detail panel via **Toggle Details**, or when they open a real file/diff into the editor area **in an existing (created) session while the editor area is currently closed** (and restored when they close it), unless the user has since reopened it manually. On a wider window there is room to keep the list open, so neither gesture collapses it. An auto-collapsed list is **also restored** once the space constraint is gone — the side pane becomes fully hidden (both editor and detail closed, e.g. switching to a quick chat), **or the window grows past the threshold** — so the list is never left collapsed with nothing to make room for. A list the user closed **manually** stays closed. |
-| **Grid sash** | Between the chat and the third pane | In a **created** session, dragging it wider re-reveals the editor content and re-syncs state (the Hide Editor chevron reappears); dragging it narrow enough that the editor content is squeezed to the detail width **hides** the editor content (mirroring the reveal), which hides all editor-title actions. In the **new-session** view a width reveal is momentary — R1 re-hides the editor, which stays closed until a file is opened. |
+| **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
 | **Changes pill** | Session header meta row | Opens the managed Changes multi-diff editor and explicitly reveals the editor area when the side pane was closed or in detail-only mode. The managed Changes tab still remains excluded from automatic reveal-on-open, so merely activating its tab does not reveal the editor. |
 
 **Editor-title action visibility.** All single-pane editor-title actions (Maximize/Restore, Toggle Details, Hide Editor, Open in Modal) are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor and Toggle Details are additionally shown only when the active editor **has a docked detail panel** (`HasDockedDetailsContext`) — a managed Changes/Files tab or a text file editor; Hide Editor is further hidden only while the editor area is **not maximized** (`EditorMaximizedContext` negated).
@@ -179,7 +179,7 @@ When the new session is submitted:
 - A **Changes tab** is added and the **Changes detail** is shown.
 - The **editor content stays closed** (*Detail only*) — neither the submit nor the auto-opened Changes
   editor reveals it. This also applies when the provider commits the draft by replacing it with a new
-  session resource. The user opens the editor when they want it (open a file/diff, or drag the sash).
+  session resource. The user opens the editor when they want it (open a file/diff).
 
 ### Quick chats / no workspace
 No side pane at all — the detail panel and managed tabs are not shown; the chat is
@@ -199,7 +199,7 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 | *Detail only* (new session) | Open a file from Files | *Editor + Detail* (editor revealed, stays open) |
 | *Detail only* / *Side pane closed* (created session) | Click **Changes** pill | *Editor only* (Changes editor revealed, detail stays closed unless separately restored/opened) |
 | *Detail only* (new session) | Toggle Details (hide detail) | *Editor only* (empty editor revealed — the side pane does not vanish) |
-| *Detail only* (new session) | Drag grid sash wider | *Detail only* (editor stays closed; a momentary width reveal is re-hidden by R1 in the new-session view) |
+| *Detail only* (new session) | Drag grid sash wider | *Detail only* (editor stays closed) |
 | *Detail only* (new session) | Toggle Sessions List closed | *Detail only*; the **detail panel** widens by the sessions-list width (editor stays closed) |
 | *Detail only* | Toggle Details (hide detail) | *Editor only* (editor revealed) |
 | *Editor + Detail* | Hide Editor chevron | *Detail only* (detail keeps width, chat expands) |
@@ -211,7 +211,7 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 | editor/detail side pane visible | Toggle Sessions List closed | same pane state; editor/detail side pane widens by the sessions-list width |
 | sessions list closed after side-pane growth | Toggle Sessions List open | same pane state; editor/detail side pane returns to its pre-collapse width |
 | any | Close the last editor tab | *Side pane closed* (chat-only; opening a tab restores the pane) |
-| *Detail only* (created session) | Drag grid sash wider | *Editor + Detail* (editor content re-revealed) |
+| *Detail only* (created session) | Drag grid sash wider | *Detail only* (editor content stays closed) |
 | any | Activate **Browser** tab | detail hidden (transient) |
 | Browser active (detail hidden) | Activate **Files/Changes** tab | detail restored |
 | new-session *Detail only* | **Submit** the session | *Detail only* + Changes tab + Changes detail |

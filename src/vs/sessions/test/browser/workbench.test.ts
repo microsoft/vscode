@@ -168,7 +168,7 @@ suite('Sessions - Workbench', () => {
 			_memento: new DockedEditorSizeMemento(),
 			// stubs for the heavy base helpers the hooks call
 			_savePartVisibility: () => { counts.save++; },
-			_fireDidChangePartVisibility: (partId: Parts, visible: boolean) => { events.push({ partId, visible }); },
+			_fireDidChangePartVisibility: (partId: Parts, visible: boolean, source?: 'resize') => { events.push({ partId, visible, ...(source ? { source } : {}) }); },
 			_onDidRevealSidePane: { fire: () => { sidePaneReveals.push(true); } },
 			_notifyContainerDidLayout: () => { },
 			_layoutDockedAuxBar: () => { counts.layout++; },
@@ -1020,9 +1020,9 @@ suite('Sessions - Workbench', () => {
 			editorVisible: true,
 			detailVisible: false,
 			detailHiddenForEditorResize: true,
-			events: [{ partId: Parts.AUXILIARYBAR_PART, visible: false }],
+			events: [{ partId: Parts.AUXILIARYBAR_PART, visible: false, source: 'resize' }],
 			layoutCount: 1,
-			saveCount: 1,
+			saveCount: 0,
 		});
 	});
 
@@ -1044,11 +1044,11 @@ suite('Sessions - Workbench', () => {
 			detailVisible: true,
 			detailHiddenForEditorResize: false,
 			events: [
-				{ partId: Parts.AUXILIARYBAR_PART, visible: false },
-				{ partId: Parts.AUXILIARYBAR_PART, visible: true },
+				{ partId: Parts.AUXILIARYBAR_PART, visible: false, source: 'resize' },
+				{ partId: Parts.AUXILIARYBAR_PART, visible: true, source: 'resize' },
 			],
 			layoutCount: 2,
-			saveCount: 2,
+			saveCount: 0,
 		});
 	});
 
@@ -1142,7 +1142,8 @@ suite('Sessions - Workbench', () => {
 		editorVisible = false;
 		controller.layout();
 
-		const sash = Reflect.get(controller, '_sash') as { state: SashState } | undefined;
+		const sash = Reflect.get(controller, '_sash') as { state: SashState };
+		const sashLayoutProvider = Reflect.get(sash, 'layoutProvider') as { getVerticalSashLeft(): number };
 		assert.deepStrictEqual({
 			insets,
 			persistedWidths,
@@ -1154,6 +1155,7 @@ suite('Sessions - Workbench', () => {
 				height: auxiliaryBarContainer.style.height,
 			},
 			sashState: sash?.state,
+			sashLeft: sashLayoutProvider.getVerticalSashLeft(),
 		}, {
 			insets: [260, 260],
 			persistedWidths: [],
@@ -1168,6 +1170,7 @@ suite('Sessions - Workbench', () => {
 				height: '565px',
 			},
 			sashState: SashState.Enabled,
+			sashLeft: 0,
 		});
 
 		controller.dispose();
@@ -1238,8 +1241,8 @@ suite('Sessions - Workbench', () => {
 	test('hides the docked detail panel when its sash collapses to zero width', () => {
 		const editorContainer = document.createElement('div');
 		const auxiliaryBarContainer = document.createElement('div');
-		const persistedWidths: number[] = [];
 		let hideCount = 0;
+		const persistedWidths: number[] = [];
 
 		Object.defineProperty(editorContainer, 'clientWidth', { value: 800 });
 		Object.defineProperty(editorContainer, 'clientHeight', { value: 600 });
@@ -1286,6 +1289,8 @@ suite('Sessions - Workbench', () => {
 	test('hides the detail-only panel when its sash collapses below the minimum width', () => {
 		const editorContainer = document.createElement('div');
 		const auxiliaryBarContainer = document.createElement('div');
+		const persistedWidths: number[] = [];
+		let editorVisible = false;
 		let hideCount = 0;
 
 		Object.defineProperty(editorContainer, 'clientWidth', { value: 260 });
@@ -1308,11 +1313,14 @@ suite('Sessions - Workbench', () => {
 		} as unknown as Part;
 		const host: IDockedAuxiliaryBarHost = {
 			getWidth: () => 260,
-			setWidth: () => { },
+			setWidth: width => persistedWidths.push(width),
 			isEditorAreaVisible: () => true,
-			isEditorVisible: () => false,
+			isEditorVisible: () => editorVisible,
 			isAuxiliaryBarVisible: () => true,
-			hideAuxiliaryBar: () => hideCount++,
+			hideAuxiliaryBar: () => {
+				hideCount++;
+				editorVisible = true;
+			},
 			setEditorContentRightInset: () => { },
 			getHeaderHeight: () => 0,
 		};
@@ -1324,8 +1332,9 @@ suite('Sessions - Workbench', () => {
 		const change = Reflect.get(sash, '_onDidChange') as { fire(e: unknown): void };
 		start.fire({ startX: 0, currentX: 0, startY: 0, currentY: 0, altKey: false });
 		change.fire({ startX: 0, currentX: 41, startY: 0, currentY: 0, altKey: false });
+		change.fire({ startX: 0, currentX: 0, startY: 0, currentY: 0, altKey: false });
 
-		assert.strictEqual(hideCount, 1);
+		assert.deepStrictEqual({ hideCount, persistedWidths }, { hideCount: 1, persistedWidths: [] });
 
 		controller.dispose();
 	});

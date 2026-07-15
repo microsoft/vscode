@@ -152,6 +152,12 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	 * returned handle to release the suppression. Calls nest via a counter.
 	 */
 	suppressEditorPartAutoVisibility(): IDisposable;
+
+	/**
+	 * Changes docked detail visibility in response to a sash resize without
+	 * persisting it as an explicit user visibility preference.
+	 */
+	setAuxiliaryBarHiddenForResize(hidden: boolean): void;
 }
 
 /**
@@ -1212,8 +1218,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	//#region Side-pane layout hooks (classic grid defaults; overridden by SinglePaneWorkbench)
 
-	protected _fireDidChangePartVisibility(partId: Parts, visible: boolean): void {
-		this._onDidChangePartVisibility.fire({ partId, visible });
+	protected _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		this._onDidChangePartVisibility.fire({ partId, visible, source });
 	}
 
 	protected _notifyContainerDidLayout(): void {
@@ -1342,7 +1348,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _onWillHideAuxiliaryBar(_hidden: boolean): void { }
 
-	protected _applyAuxiliaryBarVisibility(hidden: boolean): void {
+	protected _applyAuxiliaryBarVisibility(hidden: boolean, _source?: 'resize'): void {
 		// Skipped before the grid exists: during startup the layout controller (a
 		// BlockRestore contribution) runs before createWorkbenchLayout(), so the
 		// visibility is recorded in partVisibility and applied when the grid is built.
@@ -2007,6 +2013,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	setAuxiliaryBarHidden(hidden: boolean): void {
+		this._setAuxiliaryBarHidden(hidden);
+	}
+
+	setAuxiliaryBarHiddenForResize(hidden: boolean): void {
+		this._setAuxiliaryBarHidden(hidden, 'resize');
+	}
+
+	private _setAuxiliaryBarHidden(hidden: boolean, source?: 'resize'): void {
 		if (this.partVisibility.auxiliaryBar === !hidden) {
 			return;
 		}
@@ -2022,7 +2036,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, hidden);
 
-		this._applyAuxiliaryBarVisibility(hidden);
+		this._applyAuxiliaryBarVisibility(hidden, source);
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
@@ -2038,7 +2052,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 
-		this._savePartVisibility();
+		if (!source) {
+			this._savePartVisibility();
+		}
 
 		if (!hidden && sidePaneWasClosed) {
 			this._onSidePaneRevealed();

@@ -174,6 +174,13 @@ export class SinglePaneWorkbench extends Workbench {
 		this._syncEditorVisibility(nodeWidth);
 	}
 
+	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		if (partId === Parts.AUXILIARYBAR_PART && source !== 'resize') {
+			this._detailHiddenForEditorResize = false;
+		}
+		super._fireDidChangePartVisibility(partId, visible, source);
+	}
+
 	private _syncEditorVisibility(nodeWidth: number): void {
 		if (this._syncingEditorVisibility) {
 			return;
@@ -193,13 +200,13 @@ export class SinglePaneWorkbench extends Workbench {
 			const detailFitsBesideEditor = nodeWidth >= this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH;
 			if (this.partVisibility.editor && this.partVisibility.auxiliaryBar && !detailFitsBesideEditor) {
 				this._detailHiddenForEditorResize = true;
-				this.setAuxiliaryBarHidden(true);
+				this.setAuxiliaryBarHiddenForResize(true);
 				return;
 			}
 
 			const detailShowThreshold = this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH + SinglePaneWorkbench._DETAIL_AUTO_SHOW_MARGIN;
 			if (this.partVisibility.editor && !this.partVisibility.auxiliaryBar && this._detailHiddenForEditorResize && nodeWidth >= detailShowThreshold) {
-				this.setAuxiliaryBarHidden(false);
+				this.setAuxiliaryBarHiddenForResize(false);
 				this._detailHiddenForEditorResize = false;
 				return;
 			}
@@ -320,7 +327,7 @@ export class SinglePaneWorkbench extends Workbench {
 	 */
 	protected override _onEditorPartGridVisibilityChange(_visible: boolean): void { }
 
-	protected override _applyAuxiliaryBarVisibility(hidden: boolean): void {
+	protected override _applyAuxiliaryBarVisibility(hidden: boolean, source?: 'resize'): void {
 		// The auxiliary bar is docked inside the editor part (not a grid view), so
 		// drive its visibility through the docked layout and fire the visibility
 		// event the grid path would otherwise raise (the layout controller listens
@@ -343,7 +350,7 @@ export class SinglePaneWorkbench extends Workbench {
 			}
 		}
 		this._layoutDockedAuxBar();
-		this._fireDidChangePartVisibility(Parts.AUXILIARYBAR_PART, !hidden);
+		this._fireDidChangePartVisibility(Parts.AUXILIARYBAR_PART, !hidden, source);
 		this._notifyContainerDidLayout();
 	}
 
