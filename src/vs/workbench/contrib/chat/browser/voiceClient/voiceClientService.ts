@@ -32,7 +32,10 @@ const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
-const SUPPORTED_LANGUAGE_BASES = new Set([
+const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
+	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
+]);
+const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
 	'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
 	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
 ]);
@@ -151,7 +154,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _getLanguage(): string {
 		const configured = this._configurationService.getValue<string>('agents.voice.language');
 		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
-			const language = this._canonicalizeSupportedLanguage(configured);
+			const language = this._canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
 			if (language) {
 				return language;
 			}
@@ -159,11 +162,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			return DEFAULT_LANGUAGE;
 		}
 
-		return this._canonicalizeSupportedLanguage(this._window?.navigator.language)
+		return this._canonicalizeSupportedLanguage(this._window?.navigator.language, ASR_SUPPORTED_LANGUAGE_BASES)
 			?? DEFAULT_LANGUAGE;
 	}
 
-	private _canonicalizeSupportedLanguage(value: string | undefined): string | undefined {
+	private _canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
 		const candidate = value?.trim();
 		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
 			return undefined;
@@ -171,7 +174,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 		try {
 			const canonical = Intl.getCanonicalLocales(candidate)[0];
-			return SUPPORTED_LANGUAGE_BASES.has(canonical.split('-')[0]) ? canonical : undefined;
+			return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
 		} catch {
 			return undefined;
 		}

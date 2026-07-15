@@ -169,6 +169,30 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('falls back for a configured ASR-only language', async () => {
+		const { service } = createService({ 'agents.voice.language': 'ar' });
+
+		await service.connect(createTestWindow('ar-SA'));
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		assert.deepStrictEqual(socket().sent[0].session_context, {
+			sessions: [],
+			display_locale: 'en-US',
+		});
+	});
+
+	test('preserves an automatic ASR-only browser locale', async () => {
+		const { service } = createService({ 'agents.voice.language': 'auto' });
+
+		await service.connect(createTestWindow('ar-SA'));
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		assert.deepStrictEqual(socket().sent[0].session_context, {
+			sessions: [],
+			display_locale: 'ar-SA',
+		});
+	});
+
 	test('falls back for an unsupported automatic browser locale', async () => {
 		const { service } = createService({ 'agents.voice.language': 'auto' });
 
