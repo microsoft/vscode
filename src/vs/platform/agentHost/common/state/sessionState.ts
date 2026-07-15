@@ -101,6 +101,8 @@ export {
 export interface UsageInfoMeta {
 	/** Per-turn credit cost reported by the backend. */
 	cost?: number;
+	/** The concrete model selected by Copilot Auto and the routing explanation. */
+	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		totalNanoAiu?: number;
@@ -132,6 +134,15 @@ export interface UsageInfoMeta {
 	 */
 	contextAttribution?: IContextAttributionData;
 	[key: string]: unknown;
+}
+
+export interface IAutoModeResolvedInfo {
+	readonly chosenModel: string;
+	readonly reasoningBucket?: 'low' | 'medium' | 'high';
+	readonly categoryScores?: Readonly<Record<string, number | undefined>>;
+	readonly predictedLabel?: string;
+	readonly confidence?: number;
+	readonly candidateModels?: readonly string[];
 }
 
 /**
@@ -186,6 +197,8 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	}
 	const result: Mutable<UsageInfoMeta> = {};
 	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
+	const autoModeResolved = readAutoModeResolvedInfo(meta['autoModeResolved']);
+	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
 	const copilotUsage = meta['copilotUsage'];
 	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
 		const rawUsage = copilotUsage as Record<string, unknown>;
@@ -204,6 +217,37 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const contextAttribution = readContextAttribution(meta['contextAttribution']);
 	if (contextAttribution) {
 		result.contextAttribution = contextAttribution;
+	}
+	return result;
+}
+
+function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['chosenModel'] !== 'string') {
+		return undefined;
+	}
+	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw['chosenModel'] };
+	const reasoningBucket = raw['reasoningBucket'];
+	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
+		result.reasoningBucket = reasoningBucket;
+	}
+	const categoryScores = raw['categoryScores'];
+	if (categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores)) {
+		const scores: Record<string, number> = {};
+		for (const [category, score] of Object.entries(categoryScores as Record<string, unknown>)) {
+			if (typeof score === 'number') {
+				scores[category] = score;
+			}
+		}
+		result.categoryScores = scores;
+	}
+	if (typeof raw['predictedLabel'] === 'string') { result.predictedLabel = raw['predictedLabel']; }
+	if (typeof raw['confidence'] === 'number') { result.confidence = raw['confidence']; }
+	if (Array.isArray(raw['candidateModels']) && raw['candidateModels'].every(candidate => typeof candidate === 'string')) {
+		result.candidateModels = raw['candidateModels'];
 	}
 	return result;
 }
@@ -672,9 +716,10 @@ export function isChatReadOnly(interactivity: ChatInteractivity | undefined, ses
 	return effectiveChatInteractivity(interactivity, sessionArchived) === ChatInteractivity.ReadOnly;
 }
 
-export function createActiveTurn(id: string, message: Message): ActiveTurn {
+export function createActiveTurn(id: string, message: Message, startedAt: string): ActiveTurn {
 	return {
 		id,
+		startedAt,
 		message,
 		responseParts: [],
 		usage: undefined,

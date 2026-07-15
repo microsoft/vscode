@@ -208,6 +208,8 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
+Review-capable changesets expose `setReviewState(resource, reviewed)`. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+
 ---
 
 ## Data Flow
@@ -256,6 +258,14 @@ the sent chat the active chat by reacting to the send events. When
 `onWillSendRequest` notification, so the view's send-follow never navigates the
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
+
+For agent-host sessions, the floating turn-status pills above the chat input read
+the viewed chat's `lastTurnChanges` while the turn streams. The changes count,
+diff, and preview list are scoped to files under the session workspace folder or
+its working directory/worktree; edits outside those roots are treated as external
+files and do not inflate the pill or show as preview candidates. The preview pill
+itself stays a compact resource label (file icon + name); preview wording is kept
+to tooltips and actions, not rendered as visible pill text.
 
 Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
 the mobile titlebar "+" button, and the sessions quick picker's "New Session"

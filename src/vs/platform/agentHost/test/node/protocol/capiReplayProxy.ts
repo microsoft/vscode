@@ -17,7 +17,8 @@
  *    never silently reach real CAPI.
  *  - **record** mode: forwards every request to the upstream, streams the
  *    response back to the caller, and captures it to the fixture on disk.
- *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1`) since it needs a real token.
+ *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1`, including the first pass of
+ *    `AGENT_HOST_UPDATE_SNAPSHOTS=1`) since it needs a real token.
  *
  * The proxy is intentionally **wire-agnostic**: it captures and replays the raw
  * response body, so it works identically for the Chat Completions
@@ -55,6 +56,8 @@ const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/message
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
+const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
+const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
@@ -91,7 +94,7 @@ const SYSTEM_FIELD_RE = /("instructions"\s*:\s*)"(?:[^"\\]|\\.)*"/g;
 const SYSTEM_PROMPT_PLACEHOLDER = '${system}';
 
 /** GitHub-API path prefixes (routed to the GitHub upstream, not CAPI). */
-const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry'];
+const GITHUB_API_PREFIXES = ['/copilot_internal', '/telemetry', '/copilot/mcp_registry'];
 
 export type CapiReplayMode = 'record' | 'replay';
 
@@ -128,7 +131,6 @@ const DIALECT_ENDPOINT: Readonly<Record<TurnDialect, { readonly method: string; 
 interface IStoredAnthropicMessage {
 	readonly content: string | AnthropicContentBlock[];
 	readonly stopReason: string | null;
-	readonly usage?: { readonly inputTokens?: number; readonly outputTokens?: number };
 }
 
 /**
@@ -222,13 +224,22 @@ export class CapiReplayProxy {
 	private readonly _recorded: IRecordedExchange[] = [];
 	private readonly _cacheMisses: string[] = [];
 
+	/**
+	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
+	 * be re-pointed at a new per-test fixture via {@link resetForReplay} without
+	 * restarting (the URL the agent host was pointed at stays fixed). Recording
+	 * always uses the fixture the proxy was constructed with.
+	 */
+	private _fixturePath: string;
+
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
-		const fixtureExists = existsSync(_options.fixturePath);
+		this._fixturePath = _options.fixturePath;
+		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
 
 		if (this._mode === 'replay' && !fixtureExists) {
-			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${_options.fixturePath}`);
+			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${this._fixturePath}`);
 		}
 
 		// Replay is read-only (never contacts the upstream); recording is the
@@ -277,6 +288,79 @@ export class CapiReplayProxy {
 			return;
 		}
 		this._stopped = true;
+		await this._closeSocket();
+
+		if (this._isReplaying) {
+			this.assertNoCacheMisses();
+			return;
+		}
+
+		// Always write a fixture when recording, even with zero model turns:
+		// tests that only touch stubbed ancillary endpoints (e.g. listModels)
+		// need a committed fixture so replay serves stubs instead of trying to
+		// self-heal against real CAPI.
+		this._writeFixture();
+	}
+
+	/**
+	 * Re-point a long-lived replay proxy at a different per-test fixture without
+	 * restarting the HTTP server (so the URL the agent host was pointed at stays
+	 * valid). Clears the previous fixture's replay buckets and cache-miss log.
+	 * Replay-only: recording keeps one fixture per proxy.
+	 */
+	resetForReplay(fixturePath: string): void {
+		if (!this._isReplaying) {
+			throw new Error('[capi-replay] resetForReplay is only valid in replay mode');
+		}
+		if (!existsSync(fixturePath)) {
+			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
+		}
+		this._fixturePath = fixturePath;
+		this._replayBuckets.clear();
+		this._cacheMisses.length = 0;
+		this._loadFixture();
+	}
+
+	/**
+	 * Surface strict replay cache-misses without stopping the proxy. Lets a
+	 * shared replay server verify each test's traffic in `teardown` while keeping
+	 * the server (and the agent host's cached SDK client) alive for the next test.
+	 */
+	assertNoCacheMisses(): void {
+		const error = this._createCacheMissError();
+		if (error) {
+			throw error;
+		}
+	}
+
+	/** Returns and consumes the current replay failure so it can be surfaced at the original test failure. */
+	takeCacheMissError(): Error | undefined {
+		const error = this._createCacheMissError();
+		this._cacheMisses.length = 0;
+		return error;
+	}
+
+	private _createCacheMissError(): Error | undefined {
+		if (!this._isReplaying || !this._strict || this._cacheMisses.length === 0) {
+			return undefined;
+		}
+		return new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+	}
+
+	/**
+	 * Close the HTTP server socket without running the strict cache-miss check or
+	 * writing a fixture. Used to tear down a shared replay proxy after per-test
+	 * verification has already happened via {@link assertNoCacheMisses}.
+	 */
+	async close(): Promise<void> {
+		if (this._stopped) {
+			return;
+		}
+		this._stopped = true;
+		await this._closeSocket();
+	}
+
+	private async _closeSocket(): Promise<void> {
 		const server = this._server;
 		this._server = undefined;
 		if (server) {
@@ -288,19 +372,6 @@ export class CapiReplayProxy {
 				server.closeAllConnections?.();
 			});
 		}
-
-		if (this._isReplaying) {
-			if (this._strict && this._cacheMisses.length > 0) {
-				throw new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
-			}
-			return;
-		}
-
-		// Always write a fixture when recording, even with zero model turns:
-		// tests that only touch stubbed ancillary endpoints (e.g. listModels)
-		// need a committed fixture so replay serves stubs instead of trying to
-		// self-heal against real CAPI.
-		this._writeFixture();
 	}
 
 	// -- request handling -----------------------------------------------------
@@ -470,17 +541,17 @@ export class CapiReplayProxy {
 	// -- fixture I/O ----------------------------------------------------------
 
 	private _loadFixture(): void {
-		const fixture = yamlModule.load(readFileSync(this._options.fixturePath, 'utf8')) as IFixture;
+		const fixture = yamlModule.load(readFileSync(this._fixturePath, 'utf8')) as IFixture;
 		const turnEndpoint = fixture.dialect ? DIALECT_ENDPOINT[fixture.dialect] : undefined;
 		for (const exchange of fixture.exchanges) {
 			let key: string;
 			let item: IReplayItem;
 			if (isTurnExchange(exchange)) {
 				if (!turnEndpoint) {
-					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._options.fixturePath}`);
+					throw new Error(`[capi-replay] fixture has turn exchanges but no top-level dialect: ${this._fixturePath}`);
 				}
 				key = `${turnEndpoint.method} ${turnEndpoint.path}`;
-				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason, usage: exchange.response.usage } };
+				item = { kind: 'turn', dialect: fixture.dialect!, message: { content: deserializeAnthropicContent(exchange.response.content), stopReason: exchange.response.stopReason } };
 			} else {
 				key = `${exchange.method} ${exchange.path}`;
 				item = { kind: 'raw', response: exchange.response };
@@ -504,8 +575,8 @@ export class CapiReplayProxy {
 		// exchange.
 		const dialect = built.find(b => b.dialect !== undefined)?.dialect;
 		const fixture: IFixture = { version: 1, ...(dialect ? { dialect } : {}), exchanges };
-		mkdirSync(dirname(this._options.fixturePath), { recursive: true });
-		writeFileSync(this._options.fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
+		mkdirSync(dirname(this._fixturePath), { recursive: true });
+		writeFileSync(this._fixturePath, yamlModule.dump(fixture, { lineWidth: -1, noRefs: true }));
 	}
 
 	/**
@@ -611,7 +682,7 @@ export class CapiReplayProxy {
 			const message = aggregateAnthropicSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason, usage: message.usage } }, dialect: 'anthropic' };
+				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'anthropic' };
 			}
 		}
 		if (exchange.method === 'POST' && exchange.path === RESPONSES_PATH) {
@@ -619,7 +690,7 @@ export class CapiReplayProxy {
 			const message = aggregateResponsesSse(exchange.response.body);
 			if (request && message) {
 				const content = this._normalizeMessageContent(message.content);
-				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason, usage: message.usage } }, dialect: 'responses' };
+				return { exchange: { request, response: { content: serializeAnthropicContent(content), stopReason: message.stopReason } }, dialect: 'responses' };
 			}
 		}
 		return { exchange: { method: exchange.method, path: exchange.path, response: exchange.response } };
@@ -657,6 +728,7 @@ export class CapiReplayProxy {
 		if (this._options.userName) {
 			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
 		}
+		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
 		return result;
 	}
 }

@@ -136,7 +136,6 @@ export class AutomationSchedulerCore extends Disposable {
 		const leaderWindowId = stringHash(this._leader.instanceId, 0);
 		for (const automation of due) {
 			try {
-				await this.automationService.advanceNextRunAt(automation.id, now);
 				await this.runOneWithTimeout(automation, trigger, leaderWindowId);
 			} catch (err) {
 				this.logService.error('[AutomationScheduler] dispatch failed for automation', automation.id, err);

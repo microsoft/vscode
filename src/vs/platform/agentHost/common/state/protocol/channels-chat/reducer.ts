@@ -100,6 +100,7 @@ function endTurn(
 	state: ChatState,
 	turnId: string,
 	turnState: TurnState,
+	duration: number,
 	terminalStatus?: SessionStatus.Error,
 	error?: { errorType: string; message: string; stack?: string },
 ): ChatState {
@@ -131,6 +132,10 @@ function endTurn(
 
 	const turn: Turn = {
 		id: active.id,
+		startedAt: active.startedAt,
+		// Defensive clamp: the duration is producer-supplied and opaque to this
+		// reducer, but a negative value would be nonsensical to display.
+		duration: Math.max(0, duration),
 		message: active.message,
 		responseParts,
 		usage: active.usage,
@@ -259,6 +264,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				...state,
 				activeTurn: {
 					id: action.turnId,
+					startedAt: action.startedAt,
 					message: action.message,
 					responseParts: [],
 					usage: undefined,
@@ -305,13 +311,13 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			};
 
 		case ActionType.ChatTurnComplete:
-			return endTurn(state, action.turnId, TurnState.Complete);
+			return endTurn(state, action.turnId, TurnState.Complete, action.duration);
 
 		case ActionType.ChatTurnCancelled:
-			return endTurn(state, action.turnId, TurnState.Cancelled);
+			return endTurn(state, action.turnId, TurnState.Cancelled, action.duration);
 
 		case ActionType.ChatError:
-			return endTurn(state, action.turnId, TurnState.Error, SessionStatus.Error, action.error);
+			return endTurn(state, action.turnId, TurnState.Error, action.duration, SessionStatus.Error, action.error);
 
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };

@@ -42,12 +42,15 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 	}
+	sendEnhancedGHTelemetryEventForContext(): void { }
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.internalEvents.push({ eventName, properties });
 	}
+	sendInternalMSFTTelemetryEventForContext(): void { }
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
+	setInternalTelemetryContext(): void { }
 }
 
 suite('AgentHostTelemetryReporter', () => {

@@ -307,15 +307,12 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	// Surface the serving window's BYOK models. The registry tracks every
-	// connected renderer but does not union their model sets — a window's BYOK
-	// models come from its installed extensions, so all serving windows expose
-	// the same set and the registry picks one serving window (see
-	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
-	// connection by the proxy (`getServingConnection`).
+	// Surface the serving window's BYOK models. The registry does not union
+	// windows' model sets — all serving windows expose the same set, so it picks
+	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
 	let byokModels: IByokLmModelInfo[];
 	try {
-		byokModels = await bridgeRegistry.listModels();
+		byokModels = [...bridgeRegistry.getModels()];
 	} catch (err) {
 		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
 		return {};
@@ -537,7 +534,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
-		// renderer reports no BYOK models). Merged into the returned config so both
+		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;

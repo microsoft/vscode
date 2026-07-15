@@ -42,7 +42,6 @@ import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDele
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../workbench/common/contributions.js';
 import { IEditorFactoryRegistry, EditorExtensions, IEditorWillOpenEvent } from '../../workbench/common/editor.js';
-import { EditorInput } from '../../workbench/common/editor/editorInput.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
@@ -164,6 +163,16 @@ export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
 
 	/**
+	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
+	 * detail panel) transitions from *fully hidden* to visible — i.e. the user
+	 * opens the side pane. It fires regardless of how the pane is opened (the
+	 * toggle action, revealing an editor, or revealing the detail). Consumers
+	 * decide what to do from the current editor group state (e.g. populate the
+	 * default managed tabs only when no real editor is open).
+	 */
+	readonly onDidRevealSidePane: Event<void>;
+
+	/**
 	 * Whether the editor's current visible state was produced by an explicit user
 	 * reveal (opening an editor, or toggling the detail panel off) rather than an
 	 * automatic layout/working-set reveal. The single-pane new-session rule (R1)
@@ -186,15 +195,6 @@ export interface IDockedEditorLayout {
 	 */
 	getDockedAuxiliaryBarWidth(): number;
 	setDockedAuxiliaryBarWidth(width: number): void;
-
-	/**
-	 * Sets a predicate deciding which editors, when opened while the editor area is
-	 * hidden, should NOT reveal it (their content lives in the detail panel, e.g. the
-	 * managed Changes and Files tabs). Lets contrib own the policy — including the
-	 * editor types involved — instead of the core workbench hardcoding type ids.
-	 * Returns a disposable that clears the predicate.
-	 */
-	setEditorRevealOnOpenExclusion(predicate: (editor: EditorInput) => boolean): IDisposable;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -234,6 +234,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
+
+	// The classic/mobile layout has no docked side pane, so it never fires this.
+	// {@link SinglePaneWorkbench} overrides it with a real emitter.
+	readonly onDidRevealSidePane: Event<void> = Event.None;
 
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
@@ -370,7 +374,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	protected _editorPartAutoVisibilitySuppressionCount = 0;
 	protected _hasAppliedInitialEditorSplit = false;
-	private _editorRevealOnOpenExclusion: ((editor: EditorInput) => boolean) | undefined;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -1121,10 +1124,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// they actually target one of the main editor groups. Modal
 		// opens stay neutral. Programmatic opens that suppress auto
 		// visibility (e.g. working set application) are ignored.
-		// The managed empty Files tab is a placeholder that activates as a side
-		// effect of closing another tab (e.g. the Changes tab); it must never
-		// reveal a hidden editor. Real content (files, diffs, browser) still does.
-		this._register(this.editorService.onWillOpenEditor(e => this._handleWillOpenEditor(e)));
+		// The base handler reveals a hidden editor for any such open;
+		// `SinglePaneWorkbench` overrides `revealEditorOnOpen` to keep a
+		// docked-detail editor (Changes/Files) from revealing the editor area
+		// while the detail panel is already showing its content.
+		this._register(this.editorService.onWillOpenEditor(e => this.revealEditorOnOpen(e)));
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => this.handleDidCloseEditor()));
@@ -1157,20 +1161,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		return true;
 	}
 
-	private _handleWillOpenEditor(e: IEditorWillOpenEvent): void {
+	protected revealEditorOnOpen(e: IEditorWillOpenEvent): void {
 		if (this._editorPartAutoVisibilitySuppressionCount > 0) {
 			return;
 		}
 
 		const group = this.editorGroupService.mainPart.groups.find(g => g.id === e.groupId);
 		if (!group) {
-			return;
-		}
-
-		// A contrib-provided policy decides which editors surface their content in
-		// the detail panel (e.g. the managed Changes and Files tabs) and so must not
-		// reveal the hidden editor area when opened.
-		if (this._editorRevealOnOpenExclusion?.(e.editor)) {
 			return;
 		}
 
@@ -1197,15 +1194,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 			disposed = true;
 			this._editorPartAutoVisibilitySuppressionCount--;
-		});
-	}
-
-	setEditorRevealOnOpenExclusion(predicate: (editor: EditorInput) => boolean): IDisposable {
-		this._editorRevealOnOpenExclusion = predicate;
-		return toDisposable(() => {
-			if (this._editorRevealOnOpenExclusion === predicate) {
-				this._editorRevealOnOpenExclusion = undefined;
-			}
 		});
 	}
 
@@ -2023,6 +2011,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+
 		if (hidden) {
 			this._restoreAttachedEditorMaximizedOnShow = false;
 		}
@@ -2049,6 +2039,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		this._savePartVisibility();
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
 
 	/**
@@ -2073,6 +2067,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+
 		// Track whether this visible state was an explicit user reveal so R1 does
 		// not undo it. Any hide clears it; an automatic reveal leaves it false.
 		this._editorRevealedExplicitly = !hidden && explicit;
@@ -2092,7 +2088,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			this._savePartVisibility();
 		});
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
+
+	/**
+	 * Hook invoked when the side pane (editor part and/or auxiliary bar) transitions
+	 * from *fully hidden* to visible. The base classic/mobile layout has no docked
+	 * side pane, so this is a no-op; {@link SinglePaneWorkbench} overrides it to
+	 * fire {@link onDidRevealSidePane}.
+	 */
+	protected _onSidePaneRevealed(): void { }
 
 	/**
 	 * Sizes the editor part when it is first revealed from a hidden state, so it

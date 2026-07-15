@@ -82,6 +82,7 @@ export interface ICopilotUtilityChatCompletionRequest {
  * stamps onto requests).
  */
 interface ICopilotUserResponse {
+	readonly login?: string;
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
@@ -94,6 +95,8 @@ interface ICopilotUserResponse {
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	/** GitHub login returned by `/copilot_internal/user`, when present. */
+	readonly login?: string;
 	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
 	readonly telemetryEndpoint?: string;
 	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
@@ -107,6 +110,7 @@ interface ICopilotTokenEnvelope {
 	readonly token?: unknown;
 	readonly expires_at?: unknown;
 	readonly refresh_in?: unknown;
+	readonly organization_list?: unknown;
 }
 
 /**
@@ -118,6 +122,8 @@ interface ICachedCopilotToken {
 	readonly token: string;
 	readonly expiresAt: number;
 	readonly modelIdsByFamily: Map<string, string>;
+	readonly isInternal: boolean;
+	readonly isVscodeTeamMember: boolean;
 }
 
 /**
@@ -217,6 +223,15 @@ const UTILITY_DEFAULT_TOP_P = 1;
  * calls (chat title generation, commit messages, branch names, etc.).
  */
 const UTILITY_INTENT = 'conversation-background';
+
+const INTERNAL_COPILOT_ORGANIZATIONS = new Set([
+	'4535c7beffc844b46bb1ed4aa04d759a',
+	'a5db0bcaae94032fe715fb34a5e4bce2',
+	'7184f66dfcee98cb5f08a1cb936d5225',
+	'1cb18ac6eedd49b43d74a1c5beb0b955',
+	'ea9395b9a9248c05ee6847cbd24355ed',
+]);
+const VSCODE_COPILOT_ORGANIZATIONS = new Set(['551cca60ce19654d894e786220822482']);
 
 // #endregion
 
@@ -398,6 +413,12 @@ export interface IRestrictedTelemetryContext {
 	readonly trackingId: string | undefined;
 	/** The CAPI `endpoints.telemetry` base URL, resolved only when enabled; `undefined` otherwise. */
 	readonly telemetryEndpoint: string | undefined;
+	/** Whether the token belongs to a GitHub or Microsoft internal organization. */
+	readonly isInternal?: boolean;
+	/** GitHub login returned by `/copilot_internal/user`. */
+	readonly userName?: string;
+	/** Whether the token identifies a VS Code team member. */
+	readonly isVscodeTeamMember?: boolean;
 }
 
 export interface ICopilotApiService {
@@ -512,6 +533,9 @@ export interface ICopilotApiService {
 	 * hardcoded default.
 	 */
 	resolveApiEndpoint(githubToken: string): Promise<string | undefined>;
+
+	/** Resolve the GitHub login cached from `/copilot_internal/user`. */
+	resolveUserLogin?(githubToken: string): Promise<string | undefined>;
 }
 
 export class CopilotApiService implements ICopilotApiService {
@@ -852,17 +876,30 @@ export class CopilotApiService implements ICopilotApiService {
 	 * user is opted in, so public users pay no extra discovery call.
 	 */
 	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
-		const fields = parseCopilotTokenFields(await this._getCopilotToken(githubToken));
+		const token = await this._getCopilotTokenEntry(githubToken);
+		const client = await this._getEntryForToken(githubToken);
+		const fields = parseCopilotTokenFields(token.token);
 		const restrictedTelemetryEnabled = fields.get('rt') === '1';
 		const trackingId = fields.get('tid');
 		const telemetryEndpoint = restrictedTelemetryEnabled
-			? (await this._getEntryForToken(githubToken)).telemetryEndpoint
+			? client.telemetryEndpoint
 			: undefined;
-		return { restrictedTelemetryEnabled, trackingId, telemetryEndpoint };
+		return {
+			restrictedTelemetryEnabled,
+			trackingId,
+			telemetryEndpoint,
+			isInternal: token.isInternal,
+			userName: client.login,
+			isVscodeTeamMember: token.isVscodeTeamMember,
+		};
 	}
 
 	async resolveApiEndpoint(githubToken: string): Promise<string | undefined> {
 		return (await this._getEntryForToken(githubToken)).apiEndpoint;
+	}
+
+	async resolveUserLogin(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).login;
 	}
 
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
@@ -963,6 +1000,7 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
 		};
@@ -980,12 +1018,16 @@ export class CopilotApiService implements ICopilotApiService {
 	 * the shared mint for the others.
 	 */
 	private _getCopilotToken(githubToken: string): Promise<string> {
+		return this._getCopilotTokenEntry(githubToken).then(entry => entry.token);
+	}
+
+	private _getCopilotTokenEntry(githubToken: string): Promise<ICachedCopilotToken> {
 		const nowSeconds = Date.now() / 1000;
 		const existing = this._copilotTokensByGithub.get(githubToken);
 		if (existing) {
 			return existing.then(entry => {
 				if (entry.expiresAt - nowSeconds > COPILOT_TOKEN_REFRESH_BUFFER_SECONDS) {
-					return entry.token;
+					return entry;
 				}
 				// Stale — evict only if the map still points at this
 				// promise. A concurrent caller may already have raced ahead
@@ -994,7 +1036,7 @@ export class CopilotApiService implements ICopilotApiService {
 				if (this._copilotTokensByGithub.get(githubToken) === existing) {
 					this._copilotTokensByGithub.delete(githubToken);
 				}
-				return this._getCopilotToken(githubToken);
+				return this._getCopilotTokenEntry(githubToken);
 			}).catch(err => {
 				if (this._copilotTokensByGithub.get(githubToken) === existing) {
 					this._copilotTokensByGithub.delete(githubToken);
@@ -1010,7 +1052,7 @@ export class CopilotApiService implements ICopilotApiService {
 			throw err;
 		});
 		this._copilotTokensByGithub.set(githubToken, pending);
-		return pending.then(entry => entry.token);
+		return pending;
 	}
 
 	private _invalidateCopilotTokenForGithub(githubToken: string): void {
@@ -1051,6 +1093,9 @@ export class CopilotApiService implements ICopilotApiService {
 		// can't trigger a tight re-mint loop.
 		const nowSeconds = Date.now() / 1000;
 		const refreshIn = typeof envelope.refresh_in === 'number' ? envelope.refresh_in : undefined;
+		const organizationList = Array.isArray(envelope.organization_list)
+			? envelope.organization_list.filter((organization): organization is string => typeof organization === 'string')
+			: [];
 		const expiresAt = Math.max(
 			refreshIn !== undefined ? nowSeconds + refreshIn : envelope.expires_at,
 			nowSeconds + 60,
@@ -1060,6 +1105,8 @@ export class CopilotApiService implements ICopilotApiService {
 			token: envelope.token,
 			expiresAt,
 			modelIdsByFamily: new Map(),
+			isInternal: organizationList.some(organization => INTERNAL_COPILOT_ORGANIZATIONS.has(organization)),
+			isVscodeTeamMember: organizationList.some(organization => VSCODE_COPILOT_ORGANIZATIONS.has(organization)),
 		};
 	}
 

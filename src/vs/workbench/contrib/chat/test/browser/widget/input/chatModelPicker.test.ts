@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { NullOpenerService } from '../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelHoverContent, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelHoverContent, getModelPickerAccessibilityProvider, getModelPickerIcon } from '../../../../browser/widget/input/chatModelPicker.js';
 import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -73,6 +73,20 @@ suite('model provider icons', () => {
 			'chat-model-provider-copilot',
 			'chat-model-provider-generic',
 			'chat-model-provider-generic',
+		]);
+	});
+
+	test('status icon wins, warning text keeps provider icon', () => {
+		const model = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
+		const modelWithStatusIcon = { ...model, metadata: { ...model.metadata, statusIcon: Codicon.info } };
+		const modelWithWarningText = { ...model, metadata: { ...model.metadata, warningText: { degradation: 'Degraded' } } };
+
+		assert.deepStrictEqual([
+			getModelPickerIcon(modelWithStatusIcon).id,
+			getModelPickerIcon(modelWithWarningText).id,
+		], [
+			Codicon.info.id,
+			getModelProviderIcon(model).id,
 		]);
 	});
 });

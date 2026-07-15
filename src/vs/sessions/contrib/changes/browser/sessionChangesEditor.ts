@@ -37,8 +37,16 @@ import { Menus } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar } from './changesView.js';
+import { ChangesActionsBar, ChangesActionsBarActionViewItem, CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { CheckboxActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { localize } from '../../../../nls.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -74,6 +82,13 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 				label.dispose();
 			}
 		};
+	}
+
+	createToolbarActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === CHANGESET_REVIEW_ACTION_ID && action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(ChangesetReviewActionViewItem, action, options);
+		}
+		return undefined;
 	}
 }
 
@@ -210,6 +225,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return { instantiationService: this._scopedInstantiationService };
 	}
 
+	/**
+	 * In single-pane, render the Create Pull Request button bar ({@link ChangesActionsBar})
+	 * as the editor tabs title anchor action ({@link CHANGES_HEADER_ACTIONS_ID}).
+	 */
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		if (this._singlePane && action.id === CHANGES_HEADER_ACTIONS_ID) {
+			return this.instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+		}
+		return super.getActionViewItem(action, options);
+	}
+
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const viewModel = await input.getViewModel();
@@ -268,6 +294,27 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.viewModel?.expandAll();
 	}
 
+	public collapse(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.collapse(item);
+	}
+
+	public expand(resource: URI): void {
+		const item = this.viewModel?.items.read(undefined)
+			.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
+		if (!item) {
+			return;
+		}
+
+		this.viewModel?.expand(item);
+	}
+
+
 	override setOptions(options: IMultiDiffEditorOptions | undefined): void {
 		this._applyOptions(options);
 	}
@@ -324,5 +371,40 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// so the diff fills the full dimension; otherwise reserve the internal header.
 		const bodyHeight = this._singlePane ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
 		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+	}
+}
+
+export const CHANGESET_REVIEW_ACTION_ID = 'changeset.review';
+
+/**
+ * Renders the per-file "Mark as Viewed" toggle in the Changes editor file header
+ * as a checkbox with a static "Viewed" label (mirroring the GitHub pull request
+ * "Viewed" checkbox), instead of the default icon-only toolbar button. The
+ * command's toggling title ("Mark as Viewed" / "Mark as Not Viewed") is kept as
+ * the accessible name so the action is announced, while the checkbox state
+ * conveys the reviewed state.
+ */
+class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
+
+	constructor(action: MenuItemAction, options: IActionViewItemOptions) {
+		super(undefined, action, { ...options, label: true, checkboxStyles: { ...defaultCheckboxStyles, size: 14 } });
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('changeset-review-action');
+	}
+
+	override updateChecked(): void {
+		super.updateChecked();
+
+		this.updateAriaLabel();
+		this.updateTooltip();
+	}
+
+	override getTooltip(): string {
+		return this.action.checked
+			? localize('changeset.viewed.tooltip', "Mark as Not Viewed")
+			: localize('changeset.notViewed.tooltip', "Mark as Viewed");
 	}
 }

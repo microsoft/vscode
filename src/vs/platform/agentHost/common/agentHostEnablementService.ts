@@ -68,7 +68,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

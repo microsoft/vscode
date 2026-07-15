@@ -123,6 +123,7 @@ export interface IChatRequestViewModel {
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
+	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
@@ -545,6 +546,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get timestamp() {
 		return this._model.timestamp;
+	}
+
+	get requestTimestamp() {
+		return this._model.requestTimestamp;
 	}
 
 	get pendingKind() {

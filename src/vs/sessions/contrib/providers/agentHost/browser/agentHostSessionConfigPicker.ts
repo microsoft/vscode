@@ -51,10 +51,12 @@ import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearch
 import { AgentHostModePicker } from './agentHostModePicker.js';
 import { MobileAgentHostModePicker } from './mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
-import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownCodexApprovalsSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { AgentHostClaudePermissionModePicker } from './agentHostClaudePermissionModePicker.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
+import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
+import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -326,6 +328,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (property === ClaudeSessionConfigKey.PermissionMode && isWellKnownClaudePermissionModeSchema(schema)) {
 				continue;
 			}
+			// Codex's permissions preset has a dedicated Codex-native picker
+			// (a single "Approvals" chip) so it doesn't render as a generic
+			// enum chip.
+			if (property === CodexSessionConfigKey.PermissionsPreset && isWellKnownCodexApprovalsSchema(schema)) {
+				continue;
+			}
 			const value = resolvedConfig.values[property] ?? schema.default;
 			const isReadOnly = this._isReadOnlyChip(property, schema, isNewSession);
 			const slot = dom.append(this._container, dom.$('.sessions-chat-picker-slot'));
@@ -344,7 +352,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
-			const tooltip = schema.description ?? schema.title;
+			// The read-only Branch chip skips the hover: it just mirrors the
+			// current/default branch name (already visible as the label),
+			// and the schema description reads awkwardly as a hover for a
+			// fixed value. The editable Branch chip (worktree isolation)
+			// keeps its description, which is useful context there.
+			const tooltip = (property === SessionConfigKey.Branch && isReadOnly) ? undefined : (schema.description ?? schema.title);
 			if (tooltip) {
 				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
@@ -441,7 +454,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	private _renderIsolationCheckbox(slot: HTMLElement, provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
 		const disabled = isReadOnly || isLoading;
-		const label = localize('agentHostSessionConfig.isolation.worktree', "Worktree");
+		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
 		slot.classList.add('sessions-chat-isolation-checkbox');
 		slot.classList.toggle('disabled', disabled);
 
@@ -454,7 +467,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 
-		const tooltip = schema.description ?? schema.title;
+		// Reuse the schema's own `worktree` enum description (e.g. "Create a
+		// Git worktree for isolation") since it already explains what
+		// checking the box does. Fall back to the schema's description/title
+		// if the enum shape is unexpected.
+		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
+		const tooltip = (worktreeIndex >= 0 ? schema.enumDescriptions?.[worktreeIndex] : undefined) ?? schema.description ?? schema.title;
 		if (tooltip) {
 			this._renderDisposables.add(this._hoverService.setupDelayedHover(row, { content: tooltip }));
 		}
@@ -890,6 +908,14 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			},
 		));
 		this._register(actionViewItemService.register(
+			Menus.NewSessionControl,
+			NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
+			},
+		));
+		this._register(actionViewItemService.register(
 			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_CONFIG_PICKER_ID,
 			this._createRunningSessionPermissionPickerFactory(),
@@ -900,6 +926,14 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+			},
+		));
+		this._register(actionViewItemService.register(
+			MenuId.ChatInputSecondary,
+			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, session));
 			},
 		));
 	}
@@ -983,6 +1017,32 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { }
 });
 
+// ---- New session Codex approvals picker (NewSessionControl) ----
+// Codex-specific "Approvals" chip. Shares the NewSessionControl navigation
+// group with the Claude permission-mode picker (order 2); the two are
+// mutually exclusive because each hides itself when the active session's
+// schema doesn't expose its backing property.
+
+const NEW_SESSION_CODEX_APPROVALS_PICKER_ID = 'sessions.agentHost.newSessionCodexApprovalsPicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
+			title: localize2('agentHostNewSessionCodexApprovalsPicker', "Approvals"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
 // ---- New session mode picker (NewSessionControl) ----
 
 const NEW_SESSION_MODE_PICKER_ID = 'sessions.agentHost.newSessionModePicker';
@@ -1046,6 +1106,31 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
+
+// ---- Running session Codex approvals picker (ChatInputSecondary) ----
+// Codex-specific "Approvals" chip for a running session. Mutually exclusive
+// with the Claude permission-mode picker (order 11) — each hides when its
+// backing property is absent from the active session's schema.
+
+const RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID = 'sessions.agentHost.runningSessionCodexApprovalsPicker';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
+			title: localize2('agentHostRunningSessionCodexApprovalsPicker', "Approvals"),
+			f1: false,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 12,
 				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});

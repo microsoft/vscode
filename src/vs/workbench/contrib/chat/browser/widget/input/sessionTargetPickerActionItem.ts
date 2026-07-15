@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -21,11 +22,12 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, getAgentSessionProviderSource, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { ChatConfiguration, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -42,6 +44,40 @@ export interface ISessionTypeItem {
 
 const firstPartyCategory = { label: localize('chat.sessionTarget.category.agent', "Agent Types"), order: 1 };
 const otherCategory = { label: localize('chat.sessionTarget.category.other', "Other"), order: 2 };
+
+export function createSessionTypePickerAction(
+	action: IAction,
+	sessionTypeItem: ISessionTypeItem,
+	currentType: AgentSessionTarget,
+	availability: SessionTypeAvailability,
+	enabled: boolean,
+	category: IActionWidgetDropdownAction['category'],
+	sourceDescription: string | undefined,
+	icon: ThemeIcon,
+	run: () => void,
+): IActionWidgetDropdownAction {
+	const unavailable = availability !== SessionTypeAvailability.Available;
+	const description = getSessionTypeUnavailableDescription(availability) ?? sourceDescription;
+	const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
+	const ariaDescription = description ? renderAsPlaintext(description) : undefined;
+	const ariaHoverDescription = hoverDescription ? renderAsPlaintext(hoverDescription) : undefined;
+	return {
+		...action,
+		id: sessionTypeItem.commandId,
+		label: sessionTypeItem.label,
+		checked: currentType === sessionTypeItem.type,
+		icon,
+		enabled: unavailable ? false : enabled,
+		category,
+		description,
+		ariaDescription: ariaDescription && ariaHoverDescription
+			? localize('chat.sessionTarget.ariaDescription', "{0}. {1}", ariaDescription, ariaHoverDescription)
+			: undefined,
+		tooltip: '',
+		hover: { content: hoverDescription },
+		run: async () => run(),
+	};
+}
 
 /**
  * Action view item for selecting a session target in the chat interface.
@@ -67,6 +103,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IStorageService protected readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -76,22 +113,17 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
 					const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
-					const unavailable = availability !== SessionTypeAvailability.Available;
-					actions.push({
-						...action,
-						id: sessionTypeItem.commandId,
-						label: sessionTypeItem.label,
-						checked: currentType === sessionTypeItem.type,
-						icon: this._getSessionIcon(sessionTypeItem),
-						enabled: unavailable ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
-						category: this._getSessionCategory(sessionTypeItem),
-						description: getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem),
-						tooltip: '',
-						hover: { content: getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription },
-						run: async () => {
-							this._run(sessionTypeItem);
-						},
-					});
+					actions.push(createSessionTypePickerAction(
+						action,
+						sessionTypeItem,
+						currentType,
+						availability,
+						this._isSessionTypeEnabled(sessionTypeItem.type),
+						this._getSessionCategory(sessionTypeItem),
+						this._getSessionDescription(sessionTypeItem),
+						this._getSessionIcon(sessionTypeItem),
+						() => this._run(sessionTypeItem),
+					));
 				}
 
 				return actions;
@@ -130,12 +162,14 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			}
 		}));
 
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateAgentSessionItems()));
+
 		this._updateAgentSessionItems();
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, sessionTypeItem.type);
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type);
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -234,19 +268,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * when the selected provider is registered.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace()) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {
-		// Hide the Extension Host Copilot CLI in the editor picker when configured.
-		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
-		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
-			return false;
-		}
-
-		// Defer to the delegate when it has an opinion on visibility. Otherwise
-		// fall back to the shared editor-visibility check.
-		return this.delegate.isSessionTypeVisible?.(type) ?? isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService);
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace());
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
@@ -264,7 +290,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		return undefined;
+		return getAgentSessionProviderSource(sessionTypeItem.type);
 	}
 
 	private _getSessionIcon(sessionTypeItem: ISessionTypeItem): ThemeIcon {

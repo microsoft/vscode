@@ -109,7 +109,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 
 		const item: IChatContextItem = {
 			handle: itemHandle,
-			icon: result.icon,
+			iconPath: result.iconPath,
 			label: result.label,
 			resourceUri: result.resourceUri,
 			modelDescription: result.modelDescription,
@@ -261,7 +261,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 			const itemHandle = this._addTrackedItem(handle, item);
 			result.push({
 				handle: itemHandle,
-				icon: item.icon,
+				iconPath: item.iconPath,
 				label: item.label,
 				resourceUri: item.resourceUri,
 				modelDescription: item.modelDescription,
@@ -283,7 +283,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (extResult) {
 			return {
 				handle: context.handle,
-				icon: extResult.icon,
+				iconPath: extResult.iconPath,
 				label: extResult.label,
 				resourceUri: extResult.resourceUri,
 				modelDescription: extResult.modelDescription,

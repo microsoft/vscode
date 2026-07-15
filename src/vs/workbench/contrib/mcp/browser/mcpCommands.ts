@@ -154,6 +154,8 @@ export class ListMcpServerCommand extends Action2 {
 		store.add(autorun(reader => {
 			const servers = groupBy(mcpService.servers.read(reader).slice().sort((a, b) => a.collection.order - b.collection.order), s => s.collection.id);
 			const firstRun = pick.items.length === 0;
+			const previousActiveId = pick.activeItems[0]?.id;
+
 			pick.items = [
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
 				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
@@ -170,6 +172,15 @@ export class ListMcpServerCommand extends Action2 {
 					}),
 				]),
 			];
+
+			// Preserve the previously selected item if it still exists, otherwise select the first server on first run
+			if (previousActiveId) {
+				const previousItem = pick.items.find((item): item is ItemType => !('type' in item) && item.id === previousActiveId);
+				if (previousItem) {
+					pick.activeItems = [previousItem];
+					return;
+				}
+			}
 
 			if (firstRun && pick.items.length > 3) {
 				pick.activeItems = pick.items.slice(2, 3) as ItemType[]; // select the first server by default
@@ -212,6 +223,7 @@ export class ListMcpServerCommand extends Action2 {
 
 		const refresh = () => {
 			const firstRun = pick.items.length === 0;
+			const previousActiveId = pick.activeItems[0]?.id;
 			const servers = agentHostCustomizations.getMcpServers(agentHostSession);
 
 			pick.items = [
@@ -237,6 +249,15 @@ export class ListMcpServerCommand extends Action2 {
 					alwaysShow: true,
 				} satisfies ItemType,
 			];
+
+			// Preserve the previously selected item if it still exists, otherwise select the first server on first run
+			if (previousActiveId) {
+				const previousItem = pick.items.find((item): item is ItemType => !('type' in item) && item.id === previousActiveId);
+				if (previousItem) {
+					pick.activeItems = [previousItem];
+					return;
+				}
+			}
 
 			if (firstRun && servers.length > 0) {
 				pick.activeItems = [pick.items[0] as ItemType];

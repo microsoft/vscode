@@ -24,10 +24,11 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ChangesetHasOperationsContext } from './changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -142,9 +143,11 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 
 /**
  * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
- * in the single-pane title bar (right side — the session actions area). The custom action
- * view item is registered for {@link Menus.TitleBarSessionMenu} via IActionViewItemService
- * in changesView.ts. The bar hides itself when its underlying menu has no actions.
+ * in the single-pane editor tabs title (the editor-actions area of the docked tab bar).
+ * The custom action view item is provided by the Changes editor pane
+ * ({@link SessionChangesEditor.getActionViewItem}) when the Changes editor is active,
+ * so the anchor is gated on the same. The bar hides itself when its underlying menu has
+ * no actions.
  */
 class ChangesHeaderActionsAction extends Action2 {
 	constructor() {
@@ -153,14 +156,12 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 5,
 				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					SinglePaneLayoutEnabledContext,
-					SessionHasChangesContext
+					singlePaneChangesEditorTitle,
+					ChangesetHasOperationsContext
 				)
 			},
 		});
@@ -296,33 +297,16 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 
 registerAction2(ExpandAllSessionChangesDiffsAction);
 
-class ToggleSessionChangesInlineViewAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.toggleInlineView';
-
-	constructor() {
-		super({
-			id: ToggleSessionChangesInlineViewAction.ID,
-			title: localize2('toggleDiffView', "Toggle Diff View"),
-			category: localize2('changes', "Changes"),
-			f1: true,
-			precondition: singlePaneChangesEditorTitleVisible,
-		});
-	}
-
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const renderSideBySide = configurationService.getValue<boolean>('diffEditor.renderSideBySide') ?? true;
-		return configurationService.updateValue('diffEditor.renderSideBySide', !renderSideBySide, ConfigurationTarget.WORKSPACE);
-	}
-}
-
-registerAction2(ToggleSessionChangesInlineViewAction);
+// The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
+// user's keybinding for it carries over here (issue #324765). The sessions override of
+// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
+// which the Changes editor observes.
 
 // Primary header button with state-specific titles: "Show Side by Side Diff" when
 // currently inline, and (checked) "Show Inline Diff" when currently side by side.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
-		id: ToggleSessionChangesInlineViewAction.ID,
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
 		icon: Codicon.diffSidebyside,
 		toggled: {
@@ -332,6 +316,16 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	},
 	group: '1_diff',
 	order: 20,
+	when: singlePaneChangesEditorTitleVisible
+});
+
+// Discoverable in the command palette while the Changes editor is visible.
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize2('toggleDiffView', "Toggle Diff View"),
+		category: localize2('changes', "Changes"),
+	},
 	when: singlePaneChangesEditorTitleVisible
 });
 

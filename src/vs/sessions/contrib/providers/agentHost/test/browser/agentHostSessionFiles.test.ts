@@ -15,10 +15,12 @@ import {
 	type ResponsePart,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionFileOperation } from '../../../../../services/sessions/common/session.js';
+import { BrowserChatToolReferenceName } from '../../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import {
 	createIncrementalChatFileEditsParser,
 	IFileEditChatState,
 	IParsedFileEdit,
+	parseBrowserUrlFromResponseParts,
 	parseResponseParts,
 	reduceSessionFiles,
 	reduceTurnChanges,
@@ -60,6 +62,21 @@ function pendingConfirmationToolCallPart(items: object[]): ResponsePart {
 		displayName: 'Edit File',
 		invocationMessage: 'Editing',
 		edits: { items },
+	});
+}
+
+/** A completed browser tool call with the given tool name and raw JSON input. */
+function browserToolCallPart(toolName: string, toolInput: string | undefined): ResponsePart {
+	return toolCallPart({
+		status: ToolCallStatus.Completed,
+		toolCallId: `tc-${seq++}`,
+		toolName,
+		displayName: 'Browser',
+		invocationMessage: 'Browsing',
+		confirmed: ToolCallConfirmationReason.NotNeeded,
+		success: true,
+		pastTenseMessage: 'Browsed',
+		toolInput,
 	});
 }
 
@@ -192,6 +209,38 @@ suite('agentHostSessionFiles', () => {
 		);
 	});
 
+	test('parseBrowserUrlFromResponseParts returns the last browser URL and ignores non-browser/malformed calls', () => {
+		const openInput = (url: string) => JSON.stringify({ url });
+		const navigateInput = (fields: object) => JSON.stringify(fields);
+
+		assert.deepStrictEqual(
+			{
+				none: parseBrowserUrlFromResponseParts([markdownPart('hi'), completedToolCallPart([createEdit('file:///a.txt')])]),
+				open: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, openInput('https://a.com/'))]),
+				navigate: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'url', url: 'https://b.com/' }))]),
+				// Later browser calls win so the pill reflects the most recent page.
+				last: parseBrowserUrlFromResponseParts([
+					browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, openInput('https://first.com/')),
+					markdownPart('mid'),
+					browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'url', url: 'https://last.com/' })),
+				]),
+				// A back/forward/reload navigation carries no URL.
+				navigateNoUrl: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.NavigatePage, navigateInput({ pageId: 'p1', type: 'reload' }))]),
+				malformed: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, '{not json')]),
+				missingInput: parseBrowserUrlFromResponseParts([browserToolCallPart(BrowserChatToolReferenceName.OpenBrowserPage, undefined)]),
+			},
+			{
+				none: undefined,
+				open: 'https://a.com/',
+				navigate: 'https://b.com/',
+				last: 'https://last.com/',
+				navigateNoUrl: undefined,
+				malformed: undefined,
+				missingInput: undefined,
+			},
+		);
+	});
+
 	test('reduceSessionFiles classifies operations and filters workspace files', () => {
 		const edits: IParsedFileEdit[] = [
 			// created-then-edited outside workspace → Created
@@ -266,6 +315,27 @@ suite('agentHostSessionFiles', () => {
 			{ uri: '/repo/new.ts', modified: '/repo/new.ts', original: undefined, insertions: 13, deletions: 1 },
 			{ uri: '/repo/existing.ts', modified: '/repo/existing.ts', original: '/repo/existing.ts.before', insertions: 3, deletions: 4 },
 			{ uri: '/repo/gone.ts', modified: undefined, original: '/repo/gone.ts.before', insertions: 0, deletions: 8 },
+		]);
+	});
+
+	test('reduceTurnChanges filters files outside the workspace and worktree roots', () => {
+		const edits: IParsedFileEdit[] = [
+			parsedEdit(FileEditKind.Edit, { after: '/repo/src/app.ts', beforeContent: '/repo/src/app.ts.before' }, { insertions: 2 }),
+			parsedEdit(FileEditKind.Create, { after: '/tmp/session-worktree/README.md' }, { insertions: 5 }),
+			parsedEdit(FileEditKind.Edit, { after: '/home/user/.config/tool.json', beforeContent: '/home/user/.config/tool.json.before' }, { insertions: 10, deletions: 1 }),
+		];
+
+		const changes = reduceTurnChanges(edits, [URI.file('/repo'), URI.file('/tmp/session-worktree')]).map(c => ({
+			uri: c.uri.path,
+			modified: c.modifiedUri?.path,
+			original: c.originalUri?.path,
+			insertions: c.insertions,
+			deletions: c.deletions,
+		}));
+
+		assert.deepStrictEqual(changes, [
+			{ uri: '/repo/src/app.ts', modified: '/repo/src/app.ts', original: '/repo/src/app.ts.before', insertions: 2, deletions: 0 },
+			{ uri: '/tmp/session-worktree/README.md', modified: '/tmp/session-worktree/README.md', original: undefined, insertions: 5, deletions: 0 },
 		]);
 	});
 
