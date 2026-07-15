@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SpyChatResponseStream } from '../../../../util/common/test/mockChatResponseStream';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ExternalEditTracker } from '../externalEditTracker';
 
@@ -116,6 +116,73 @@ describe('ExternalEditTracker', () => {
 
 			// No files should be tracked
 			expect(stream.externalEditUris.length).toBe(0);
+		});
+	});
+
+	describe('acknowledgment handling', () => {
+		// Stream whose externalEdit records the edit but never invokes the proceed callback and
+		// never resolves — reproducing core dropping the externalEdit acknowledgment (#320292).
+		class SilentExternalEditStream extends SpyChatResponseStream {
+			override externalEdit(): Promise<string> {
+				return new Promise<string>(() => { /* never resolves, callback never invoked */ });
+			}
+		}
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it('proceeds after the timeout when core never acknowledges the edit', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+
+			let resolved = false;
+			const tracking = tracker.trackEdit('edit-timeout', [file], stream, CancellationToken.None).then(() => { resolved = true; });
+
+			// Before the timeout elapses the edit is still pending.
+			await vi.advanceTimersByTimeAsync(999);
+			expect(resolved).toBe(false);
+
+			// Once the timeout elapses the permission is allowed to proceed anyway.
+			await vi.advanceTimersByTimeAsync(1);
+			await tracking;
+			expect(resolved).toBe(true);
+		});
+
+		it('proceeds immediately when the request is cancelled while awaiting acknowledgment', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+			const tokenSource = new CancellationTokenSource();
+
+			let resolved = false;
+			const tracking = tracker.trackEdit('edit-cancel', [file], stream, tokenSource.token).then(() => { resolved = true; });
+
+			tokenSource.cancel();
+			await tracking;
+			expect(resolved).toBe(true);
+			tokenSource.dispose();
+		});
+
+		it('completeEdit resolves even when core never acknowledges the edit', async () => {
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new SilentExternalEditStream();
+			const file = URI.file('/workspace/src/test.ts');
+
+			// Start tracking and let the timeout release the permission response.
+			const tracking = tracker.trackEdit('edit-complete', [file], stream, CancellationToken.None);
+			await vi.advanceTimersByTimeAsync(1000);
+			await tracking;
+
+			// Finalizing the request must not hang on the missing acknowledgment.
+			const completion = tracker.completeEdit('edit-complete');
+			await vi.advanceTimersByTimeAsync(1000);
+			await expect(completion).resolves.toBeUndefined();
 		});
 	});
 });

@@ -4,11 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { DeferredPromise } from '../../../util/vs/base/common/async';
+import { DeferredPromise, raceTimeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
+
+/**
+ * Maximum time to wait for VS Code core to acknowledge an external edit before proceeding anyway.
+ *
+ * Granting a write permission is gated on core invoking the `externalEdit` proceed callback so the
+ * edit is attributed correctly in the UI. If core never acknowledges the edit (e.g. the acknowledgment
+ * is dropped), that wait must not block the permission response indefinitely — otherwise the whole
+ * agent turn hangs with no user action (see https://github.com/microsoft/vscode/issues/320292). Edit
+ * attribution is best-effort, so after this timeout we proceed with the already-decided permission.
+ */
+const EXTERNAL_EDIT_ACK_TIMEOUT_MS = 10_000;
 
 /**
  * Tracks ongoing external edit operations for agent tools.
@@ -21,9 +32,11 @@ export class ExternalEditTracker {
 	/**
 	 * Creates a new ExternalEditTracker.
 	 * @param ignoreDirectories Optional list of directory URIs to ignore when tracking edits
+	 * @param acknowledgmentTimeoutMs Maximum time to wait for core to acknowledge an external edit before proceeding anyway
 	 */
 	constructor(
-		private readonly ignoreDirectories: URI[] = []
+		private readonly ignoreDirectories: URI[] = [],
+		private readonly acknowledgmentTimeoutMs: number = EXTERNAL_EDIT_ACK_TIMEOUT_MS,
 	) { }
 
 	/**
@@ -51,22 +64,40 @@ export class ExternalEditTracker {
 			return;
 		}
 
-		return new Promise(proceedWithEdit => {
+		return new Promise<void>(proceedWithEdit => {
 			const deferred = new DeferredPromise<void>();
-			let cancelListen: IDisposable | undefined;
+			const store = new DisposableStore();
+
+			// The permission response is gated on this promise resolving. It must never wait forever
+			// on core acknowledging the external edit, so we proceed on whichever happens first:
+			// core acknowledges, the request is cancelled, or the safety timeout elapses.
+			let settled = false;
+			const settle = () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				store.dispose();
+				proceedWithEdit();
+			};
 
 			// Handle cancellation if token provided
 			if (token) {
-				cancelListen = token.onCancellationRequested(() => {
+				store.add(token.onCancellationRequested(() => {
 					this._ongoingEdits.delete(editKey);
 					deferred.complete();
-				});
+					settle();
+				}));
 			}
 
+			// Safety net: proceed with the already-decided permission if core never acknowledges the
+			// edit within the timeout, so a dropped acknowledgment can't hang the agent turn.
+			const timer = setTimeout(() => settle(), this.acknowledgmentTimeoutMs);
+			store.add(toDisposable(() => clearTimeout(timer)));
+
 			const onDidComplete = stream.externalEdit(filteredUris, async () => {
-				proceedWithEdit();
+				settle();
 				await deferred.p;
-				cancelListen?.dispose();
 			});
 
 			this._ongoingEdits.set(editKey, {
@@ -86,7 +117,8 @@ export class ExternalEditTracker {
 		if (ongoingEdit) {
 			this._ongoingEdits.delete(editKey);
 			ongoingEdit.complete();
-			return await ongoingEdit.onDidComplete;
+			// Bound the wait so a stalled core acknowledgment cannot block request finalization.
+			return await raceTimeout(Promise.resolve(ongoingEdit.onDidComplete), this.acknowledgmentTimeoutMs);
 		}
 	}
 }

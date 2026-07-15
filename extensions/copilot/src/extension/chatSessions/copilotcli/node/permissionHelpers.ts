@@ -151,7 +151,7 @@ export async function handleWritePermission(
 
 		if (autoApprove) {
 			logService.trace(`[CopilotCLISession] Auto Approving request ${editFile.fsPath}`);
-			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
+			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService, token);
 			return { kind: 'approve-once' };
 		}
 	}
@@ -175,13 +175,13 @@ export async function handleWritePermission(
 	if (!toolParams) {
 		// No confirmation needed (e.g. no file to edit) — auto-approve.
 		if (editFile) {
-			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
+			await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService, token);
 		}
 		return { kind: 'approve-once' };
 	}
 	const result = await invokeConfirmationTool(toolParams, toolParentCallId, toolsService, toolInvocationToken, logService, token);
 	if (result.kind === 'approve-once' && editFile) {
-		await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService);
+		await trackEditIfNeeded(editTracker, toolCall, editFile, stream, logService, token);
 	}
 	return result;
 }
@@ -350,10 +350,10 @@ export function isFileFromSessionWorkspace(file: URI, workspaceInfo: IWorkspaceI
  * Starts edit tracking if we have a tool call and a stream.
  * This ensures the UI shows the edit-in-progress indicator and waits for core to acknowledge the edit.
  */
-async function trackEditIfNeeded(editTracker: ExternalEditTracker, toolCall: ToolCall | undefined, editFile: URI, stream: ChatResponseStream | undefined, logService: ILogService): Promise<void> {
+async function trackEditIfNeeded(editTracker: ExternalEditTracker, toolCall: ToolCall | undefined, editFile: URI, stream: ChatResponseStream | undefined, logService: ILogService, token: CancellationToken): Promise<void> {
 	if (toolCall && stream) {
 		try {
-			await editTracker.trackEdit(toolCall.toolCallId, [editFile], stream);
+			await editTracker.trackEdit(toolCall.toolCallId, [editFile], stream, token);
 		} catch (error) {
 			logService.error(error, `[CopilotCLISession] Failed to track edit for toolCallId ${toolCall.toolCallId}`);
 		}
