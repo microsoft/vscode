@@ -157,6 +157,30 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('falls back for an unsupported configured BCP-47 locale', async () => {
+		const { service } = createService({ 'agents.voice.language': 'uk-UA' });
+
+		await service.connect(createTestWindow('fr-FR'));
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		assert.deepStrictEqual(socket().sent[0].session_context, {
+			sessions: [],
+			display_locale: 'en-US',
+		});
+	});
+
+	test('falls back for an unsupported automatic browser locale', async () => {
+		const { service } = createService({ 'agents.voice.language': 'auto' });
+
+		await service.connect(createTestWindow('he-IL'));
+		service.sendStartSession({ sessions: [], display_locale: '' }, 'machine');
+
+		assert.deepStrictEqual(socket().sent[0].session_context, {
+			sessions: [],
+			display_locale: 'en-US',
+		});
+	});
+
 	test('sends one live language update without changing voice', async () => {
 		const { service, configurationService } = createService({
 			'agents.voice.language': 'auto',

@@ -32,6 +32,11 @@ const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const SUPPORTED_LANGUAGE_BASES = new Set([
+	'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
+	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
+]);
+const DEFAULT_LANGUAGE = 'en-US';
 
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
@@ -145,24 +150,27 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _getLanguage(): string {
 		const configured = this._configurationService.getValue<string>('agents.voice.language');
 		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
-			const language = this._canonicalizeLanguage(configured);
+			const language = this._canonicalizeSupportedLanguage(configured);
 			if (language) {
 				return language;
 			}
+			this._logService.warn(`[voice] Unsupported agents.voice.language value '${configured}', falling back to ${DEFAULT_LANGUAGE}`);
+			return DEFAULT_LANGUAGE;
 		}
 
-		return this._canonicalizeLanguage(this._window?.navigator.language)
-			?? 'en-US';
+		return this._canonicalizeSupportedLanguage(this._window?.navigator.language)
+			?? DEFAULT_LANGUAGE;
 	}
 
-	private _canonicalizeLanguage(value: string | undefined): string | undefined {
+	private _canonicalizeSupportedLanguage(value: string | undefined): string | undefined {
 		const candidate = value?.trim();
 		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
 			return undefined;
 		}
 
 		try {
-			return Intl.getCanonicalLocales(candidate)[0];
+			const canonical = Intl.getCanonicalLocales(candidate)[0];
+			return SUPPORTED_LANGUAGE_BASES.has(canonical.split('-')[0]) ? canonical : undefined;
 		} catch {
 			return undefined;
 		}

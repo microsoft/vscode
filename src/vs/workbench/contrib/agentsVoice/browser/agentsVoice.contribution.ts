@@ -496,7 +496,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.language': {
 			type: 'string',
-			markdownDescription: nls.localize('agents.voice.language', "The BCP-47 language used for speech recognition and spoken responses. Use `auto` to follow the system or browser locale. Changing this while voice mode is connected takes effect immediately."),
+			markdownDescription: nls.localize('agents.voice.language', "The BCP-47 language used for speech recognition and spoken responses. Use `auto` to follow the system or browser locale. Supported base language codes are `ar`, `cs`, `da`, `de`, `en`, `es`, `fi`, `fr`, `hi`, `hu`, `id`, `it`, `ja`, `ko`, `nb`, `nl`, `pl`, `pt`, `ro`, `ru`, `sv`, `th`, `tr`, `vi`, and `zh`; unsupported values fall back to `en-US`. Changing this while voice mode is connected takes effect immediately."),
 			default: 'auto',
 			examples: ['auto', 'en-US', 'fr-FR'],
 			scope: ConfigurationScope.APPLICATION,
