@@ -135,6 +135,7 @@ suite('RepoInfoTelemetry', () => {
 		// Properly mock the telemetry methods
 		(telemetryService as any).sendMSFTTelemetryEvent = vi.fn();
 		(telemetryService as any).sendInternalMSFTTelemetryEvent = vi.fn();
+		(telemetryService as any).sendEnhancedGHTelemetryEvent = vi.fn();
 	});
 
 	// ========================================
@@ -1104,7 +1105,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds the effective cap (50 chunks * 8192 bytes ~= 400KB) when serialized to JSON
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
@@ -1136,6 +1137,67 @@ suite('RepoInfoTelemetry', () => {
 		assert.strictEqual(call[1].diffsJSON, undefined);
 		assert.strictEqual(call[1].remoteUrl, 'https://github.com/microsoft/vscode.git');
 		assert.strictEqual(call[1].headCommitHash, 'abc123');
+	});
+
+	test('should chunk large diffs across multiple diffsJSON columns', async () => {
+		setupInternalUser();
+		mockGitServiceWithRepository();
+		mockGitExtensionWithUpstream('abc123');
+
+		vi.spyOn(gitService, 'diffWith').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED
+		}] as any);
+
+		// Create a diff whose serialized JSON spans several 8192-char chunks but stays within the cap.
+		const largeDiff = 'x'.repeat(30 * 1024);
+		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
+			uri: URI.file('/test/repo/file.ts'),
+			originalUri: URI.file('/test/repo/file.ts'),
+			renameUri: undefined,
+			status: Status.MODIFIED,
+			diff: largeDiff
+		}]);
+
+		const repoTelemetry = new RepoInfoTelemetry(
+			'test-message-id',
+			telemetryService,
+			gitService,
+			gitDiffService,
+			gitExtensionService,
+			logService,
+			fileSystemService,
+			workspaceFileIndex,
+			configurationService,
+			copilotTokenStore
+		);
+
+		await repoTelemetry.sendBeginTelemetryIfNeeded();
+
+		// Assert: success, and the diffs JSON is multiplexed (via multiplexProperties) across ordered
+		// columns (`diffsJSON`, `diffsJSON_02`, `diffsJSON_03`, ...) that each stay within the 8192-char
+		// per-property budget and losslessly reassemble to the original JSON.
+		const call = (telemetryService.sendEnhancedGHTelemetryEvent as any).mock.calls[0];
+		assert.strictEqual(call[1].result, 'success');
+
+		const chunkColumns: string[] = [];
+		for (let n = 1; ; n++) {
+			const key = n === 1 ? 'diffsJSON' : `diffsJSON_${n < 10 ? '0' : ''}${n}`;
+			const value = call[1][key];
+			if (value === undefined) {
+				break;
+			}
+			assert.ok(value.length <= 8192, `${key} exceeds 8192 characters`);
+			chunkColumns.push(value);
+		}
+
+		assert.ok(chunkColumns.length > 1, 'expected the diff to be split across multiple columns');
+
+		const diffs = JSON.parse(chunkColumns.join(''));
+		assert.strictEqual(diffs.length, 1);
+		assert.strictEqual(diffs[0].diff, largeDiff);
 	});
 
 	test('should send diff when within size limits', async () => {
@@ -1599,7 +1661,7 @@ suite('RepoInfoTelemetry', () => {
 			status: Status.MODIFIED
 		}] as any);
 
-		// Create a diff that exceeds 900KB when serialized to JSON
+		// Create a diff that exceeds the effective cap (50 chunks * 8192 bytes ~= 400KB) when serialized to JSON
 		const largeDiff = 'x'.repeat(901 * 1024);
 		vi.spyOn(gitDiffService, 'getWorkingTreeDiffsFromRef').mockResolvedValue([{
 			uri: URI.file('/test/repo/file.ts'),
