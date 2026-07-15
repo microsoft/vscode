@@ -323,10 +323,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}
 
 		const periodStart = new Date(resetTime);
-		periodStart.setUTCDate(1);
 		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
-		const daysInPreviousMonth = new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + 1, 0)).getUTCDate();
-		periodStart.setUTCDate(Math.min(reset.getUTCDate(), daysInPreviousMonth));
 		const periodStartTime = periodStart.getTime();
 		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay);
 		if (elapsedDays <= 0) {

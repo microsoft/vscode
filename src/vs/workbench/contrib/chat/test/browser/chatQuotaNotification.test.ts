@@ -805,38 +805,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			});
 		});
 
-		test('clamps month-end period start to the last day of the previous month', async () => {
-			const results = [];
-			for (const [now, resetDate] of [
-				['2026-03-10T00:00:00Z', '2026-03-31T00:00:00Z'],
-				['2028-03-10T00:00:00Z', '2028-03-31T00:00:00Z'],
-			]) {
-				clock.setSystemTime(new Date(now));
-				const telemetryService = new TestTelemetryService();
-				const { assignmentMock, notificationMock } = createContribution({
-					entitlement: ChatEntitlement.Pro,
-					quotas: {
-						resetDate,
-						usageBasedBilling: true,
-						premiumChat: makeQuotaSnapshot(72),
-					},
-				}, { trajectoryTreatment: true, telemetryService });
-
-				await flushPromises();
-
-				results.push({
-					treatments: assignmentMock.getTreatmentCalls,
-					events: telemetryService.events,
-					notification: notificationMock.getNotification(),
-				});
-			}
-
-			assert.deepStrictEqual(results, [
-				{ treatments: [], events: [], notification: undefined },
-				{ treatments: [], events: [], notification: undefined },
-			]);
-		});
-
 		test('shows trajectory nudge only after treatment resolves', async () => {
 			let resolveTreatment: ((value: boolean | undefined) => void) | undefined;
 			const trajectoryTreatment = new Promise<boolean | undefined>(resolve => {
