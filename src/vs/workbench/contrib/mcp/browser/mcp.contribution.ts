@@ -28,6 +28,7 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
+import { IInternalMcpServerRegistry, InternalMcpServerRegistry } from '../common/internalMcpServerRegistry.js';
 import { McpLanguageModelToolContribution } from '../common/mcpLanguageModelToolContribution.js';
 import { McpRegistry } from '../common/mcpRegistry.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
@@ -53,6 +54,7 @@ import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchSe
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpSandboxService, McpSandboxService, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
+registerSingleton(IInternalMcpServerRegistry, InternalMcpServerRegistry, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
 registerSingleton(IMcpSamplingService, McpSamplingService, InstantiationType.Delayed);
