@@ -281,12 +281,29 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 	test('GitHub provider — non-enterprise account without SKU → AccessDenied', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount({ enterprise: false });
+		// Resolved entitlements that do NOT carry a marketplace SKU — a definitive, cacheable
+		// "ineligible" verdict (distinct from `undefined`, which means indeterminate; see below).
+		defaultAccount = createDefaultAccount({ enterprise: false, entitlementsData: { access_type_sku: 'copilot_free' } as any });
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+	});
+
+	test('GitHub provider — indeterminate entitlements (endpoint unreachable) → Unreachable, not cached', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		// `entitlementsData: undefined` means the entitlements endpoint was unreachable or returned
+		// an indeterminate response — we genuinely cannot decide eligibility. This must NOT be turned
+		// into a durable, cached denial (a transient outage would otherwise lock the user out until
+		// the cache is cleared); it surfaces a retryable Unreachable message instead.
+		defaultAccount = createDefaultAccount({ enterprise: false, entitlementsData: undefined });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
 	test('GitHub provider — account with matching SKU → Available', async () => {
@@ -863,7 +880,10 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		const service = createService();
 		await service.getExtensionGalleryManifest();
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		// Read into a local so the assert's assertion signature narrows the local rather than the
+		// (readonly) getter — otherwise the narrowing would poison every later status comparison.
+		const statusBeforeSignIn = service.extensionGalleryManifestStatus;
+		assert.strictEqual(statusBeforeSignIn, ExtensionGalleryManifestStatus.RequiresSignIn);
 
 		// The user signs in: a GitHub session appears and fires onDidChangeSessions('github').
 		// Re-validation negotiates a resource token and the marketplace becomes Available.
@@ -877,6 +897,137 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+	});
+
+	test('GitHub provider — auth-enabled: a session refresh while Available re-mints the negotiated token in place', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let exchanges = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// Each negotiation mints a distinct token so the re-mint is observable.
+				return mockResponse(200, { access_token: `gh-resource-token-${++exchanges}`, token_type: 'Bearer' });
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (auth?.startsWith('Bearer gh-resource-token')) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token-1');
+
+		// A routine GitHub token refresh fires onDidChangeSessions('github') while the marketplace is
+		// already Available. Because the resource token is derived (RFC 8693) from the GitHub session
+		// token, it is re-minted IN PLACE — the marketplace never leaves Available (no view flash).
+		onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+		for (let i = 0; i < 50 && await service.getAccessToken() === 'gh-resource-token-1'; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token-2');
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	test('GitHub provider — auth-enabled: a failed token refresh while Available keeps the working marketplace', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let exchanges = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// The first negotiation succeeds; every later refresh exchange is rejected.
+				exchanges++;
+				return exchanges === 1
+					? mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' })
+					: mockResponse(400, { error: 'invalid_grant' });
+			}
+			const auth = options.headers?.['Authorization'] as string | undefined;
+			if (auth === 'Bearer gh-resource-token') {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+
+		// A GitHub session refresh triggers a background re-mint that fails (the AS rejects the
+		// exchange). A failed refresh must NOT tear down the working marketplace: the existing token
+		// may still be valid, so status and token are preserved.
+		onDidChangeSessions.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+		for (let i = 0; i < 50 && exchanges < 2; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+		assert.ok(exchanges >= 2, 'the refresh attempted a fresh token exchange');
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+	});
+
+	test('GitHub provider — sign-out during PRM discovery cancels the token exchange (stale subject token not sent)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		const challenge = 'Bearer realm="marketplace", resource_metadata="https://marketplace.example.com/.well-known/oauth-protected-resource"';
+		let exchanges = 0;
+		// Hold PRM discovery open so the (epoch 1) negotiation parks after the anonymous 401 but
+		// BEFORE the RFC 8693 token exchange.
+		let releasePrm!: (v: IRequestContext) => void;
+		const prmGate = new Promise<IRequestContext>(resolve => { releasePrm = resolve; });
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return prmGate;
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				exchanges++;
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer' });
+			}
+			return mockResponse(401, { message: 'auth required' }, { 'WWW-Authenticate': challenge });
+		};
+
+		const service = createService();
+		const inflight = service.getExtensionGalleryManifest();
+		// Let the negotiation advance to the point where it awaits PRM discovery.
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		// The user signs out mid-negotiation: the default account disappears and the epoch bumps.
+		defaultAccount = null;
+		onDidChangeDefaultAccount.fire(null);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+
+		// PRM finally resolves. The negotiation must observe the supersession and abort BEFORE the
+		// exchange — the now-revoked GitHub subject token must never be POSTed to the marketplace AS.
+		releasePrm(mockResponse(200, createGitHubProtectedResourceMetadata()));
+		await inflight.catch(() => { });
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(exchanges, 0);
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
 	test('Microsoft provider — eligibility endpoint forbids (403) → AccessDenied (cached ineligible)', async () => {
@@ -1102,7 +1253,10 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		// matching. The current account is NOT eligible, so if the stale eligible cache were
 		// wrongly trusted we'd see Available instead of AccessDenied.
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
-		defaultAccount = createDefaultAccount(); // testuser, not enterprise → ineligible
+		// Resolved entitlements without a marketplace SKU → a definitive "ineligible" verdict, so
+		// fresh validation for the current marketplace denies access (rather than `unknown`, which
+		// `entitlementsData: undefined` would yield and would leave the status indeterminate).
+		defaultAccount = createDefaultAccount({ entitlementsData: { access_type_sku: 'copilot_free' } as any });
 		storageData.set('marketplace.cachedAccess', JSON.stringify({
 			authProvider: 'github',
 			accountId: 'testuser',

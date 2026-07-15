@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -357,16 +358,27 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			validate();
 		}));
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			if (e.providerId === 'github') {
-				// Auth-enabled GitHub scheme: the marketplace resource token is minted (RFC 8693)
-				// from the GitHub session token. When that session changes (refresh, re-consent,
-				// sign-out/in) the previously negotiated token may be stale, so re-validate to
-				// mint a fresh one. As on the Microsoft path, do NOT clear the cache or revoke the
-				// manifest here — `onDidChangeSessions` also fires on routine token refreshes for
-				// the same account, and unconditionally clearing would force a redundant negotiation
-				// (and a brief manifest flash) on every refresh. handleGitHubAccess re-checks access
-				// and only re-negotiates; a genuine account change arrives via onDidChangeDefaultAccount
-				// above, which does clear the cache. (Auth-disabled deployments simply re-confirm the
+			if (e.providerId !== 'github') {
+				return;
+			}
+			// Auth-enabled GitHub scheme: the marketplace resource token is minted (RFC 8693) from
+			// the GitHub session token, so a session change (refresh, re-consent, sign-out/in) can
+			// leave the previously negotiated token stale.
+			if (this.currentStatus === ExtensionGalleryManifestStatus.Available && this.negotiatedAccessToken) {
+				// The marketplace is already live on a gated index. Re-mint the resource token IN
+				// PLACE so a rotated GitHub session token doesn't leave us stuck on a stale token
+				// once it expires. This deliberately bypasses handleGitHubAccess (whose negotiation
+				// is gated on `currentStatus !== Available`) and never re-publishes the manifest (no
+				// view flash) nor tears down access on a failed refresh. Genuine account/entitlement
+				// changes and sign-out arrive via onDidChangeDefaultAccount above, which clears the
+				// cache and revalidates.
+				this.refreshNegotiatedGitHubToken(configuredServiceUrl, ++this.validationEpoch);
+			} else {
+				// Not yet Available (or an open, tokenless index): re-validate. As on the Microsoft
+				// path, do NOT clear the cache or revoke the manifest here — onDidChangeSessions also
+				// fires on routine token refreshes, and unconditionally clearing would force a
+				// redundant negotiation (and a brief manifest flash). handleGitHubAccess re-checks
+				// access and only re-negotiates. (Auth-disabled deployments simply re-confirm the
 				// open index — cheap and harmless.)
 				validate();
 			}
@@ -383,14 +395,24 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// A newer validation superseded this one while we awaited — discard.
 				return;
 			}
+			const eligibility = account ? this.checkAccess(account) : 'ineligible';
 			if (!account) {
 				// Auth service responded: no account → invalidate cache
 				this.clearCachedAccess();
 				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
-			} else if (!this.checkAccess(account)) {
+			} else if (eligibility === 'ineligible') {
 				// Auth service responded: account exists but ineligible → cache the result
 				this.cacheAccess({ authProvider: 'github', accountId: account.accountName, eligible: false, serviceUrl: configuredServiceUrl });
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
+			} else if (eligibility === 'unknown') {
+				// The account is signed in but we could NOT determine SKU eligibility — the
+				// entitlements endpoint was unreachable or returned an indeterminate response
+				// (distinct from a definitive 401/404, which resolves to `ineligible`). Never turn a
+				// transient outage into a cached denial, and never tear down a marketplace that is
+				// already Available; only surface a retryable "unreachable" message otherwise.
+				if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
+					this.update(null, ExtensionGalleryManifestStatus.Unreachable);
+				}
 			} else if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 				// The account is eligible (client-side `checkAccess`). Fetch the service index. If
 				// the marketplace's index is `[Authorize]`-gated (RFC 9728 `401`), negotiate a
@@ -417,6 +439,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 						// (`401`) triggers the token exchange below.
 						undefined,
 						protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken),
+						() => this.validationEpoch === epoch,
 					);
 					manifest = negotiated.manifest;
 					indexToken = negotiated.token;
@@ -482,13 +505,69 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}
 	}
 
-	private checkAccess(account: IDefaultAccount): boolean {
+	/**
+	 * Re-mints the resource-scoped marketplace token for the GitHub scheme WITHOUT disturbing an
+	 * already-`Available` marketplace. Invoked when a GitHub session change fires while access is
+	 * live: the resource token is derived (RFC 8693) from the GitHub session token, so a rotated
+	 * subject token can leave the previously negotiated token stale. Unlike {@link handleGitHubAccess}
+	 * this never re-publishes the manifest (avoiding a view flash) and never tears down access on a
+	 * failed refresh — the existing token may still be valid, and a transient refresh failure must
+	 * not break a working marketplace. Fully epoch-guarded so a concurrent sign-out/account-switch
+	 * (which routes through the account listener) wins. Sign-out and entitlement changes are handled
+	 * by onDidChangeDefaultAccount, so a now-ineligible/absent account simply skips the refresh here.
+	 */
+	private async refreshNegotiatedGitHubToken(configuredServiceUrl: string, epoch: number): Promise<void> {
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			if (this.validationEpoch !== epoch || !account || this.checkAccess(account) !== 'eligible') {
+				return;
+			}
+			const subjectToken = await this.resolveGitHubSubjectToken(account);
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			const negotiated = await this.fetchServiceIndexNegotiated(
+				configuredServiceUrl,
+				undefined,
+				protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken),
+				() => this.validationEpoch === epoch,
+			);
+			if (this.validationEpoch !== epoch) {
+				return;
+			}
+			// Only adopt a freshly negotiated (gated-index) token; on an open index there is nothing
+			// to refresh. A failed refresh throws and is swallowed below, leaving the current token
+			// intact.
+			if (negotiated.negotiated && negotiated.token) {
+				this.negotiatedAccessToken = negotiated.token;
+			}
+		} catch (error) {
+			// A failed background token refresh must NOT break a working marketplace — keep the
+			// current token/status. If the resource token has genuinely expired, a subsequent API
+			// 401 or a later account change / window reload re-runs full validation.
+			this.logService.trace('[Marketplace] Background refresh of the negotiated GitHub marketplace token failed; keeping current access', error);
+		}
+	}
+
+	private checkAccess(account: IDefaultAccount): 'eligible' | 'ineligible' | 'unknown' {
+		// Enterprise accounts are eligible for the private marketplace independent of any SKU.
+		if (account.enterprise) {
+			return 'eligible';
+		}
+		// entitlementsData tri-state (see IDefaultAccount): a resolved object carries the account's
+		// SKUs; `null` is a definitive negative (the entitlements endpoint returned 401/404); and
+		// `undefined` means the endpoint was unreachable or returned an indeterminate response, so we
+		// genuinely cannot decide eligibility. Only the last case is `unknown` — the caller must NOT
+		// turn a transient outage into a durable, cached denial.
+		if (account.entitlementsData === undefined) {
+			return 'unknown';
+		}
 		if (account.entitlementsData?.access_type_sku
 			&& this.productService.extensionsGallery?.accessSKUs?.includes(
 				account.entitlementsData.access_type_sku)) {
-			return true;
+			return 'eligible';
 		}
-		return account.enterprise;
+		return 'ineligible';
 	}
 
 	// --- Microsoft access (new Entra ID / VSS eligibility check) ---
@@ -585,6 +664,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 					);
 					return resourceSession?.accessToken;
 				},
+				() => this.validationEpoch === epoch,
 			);
 			manifest = negotiated.manifest;
 			// `negotiated.token` is only undefined when the initial token was undefined; on the
@@ -748,6 +828,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		configuredServiceUrl: string,
 		initialToken: string | undefined,
 		acquireToken: (protectedResource: IMarketplaceProtectedResource) => Promise<string | undefined>,
+		isCurrent: () => boolean = () => true,
 	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean }> {
 		try {
 			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, initialToken);
@@ -769,12 +850,24 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// re-throw the original 401 so the caller prompts for sign-in.
 				throw error;
 			}
+			if (!isCurrent()) {
+				// A sign-out/account-switch superseded this negotiation while we discovered the
+				// protected resource. Do NOT proceed to the token exchange: it would transmit a
+				// now-stale subject token (e.g. the just-revoked GitHub session) to the marketplace's
+				// authorization server. Bail; the caller's epoch guard discards this cancellation.
+				throw new CancellationError();
+			}
 			const token = await acquireToken(protectedResource);
 			if (!token) {
 				// No resource-scoped token could be obtained silently (e.g. consent not yet
 				// granted, or a token exchange that could not complete) — re-throw the original
 				// 401 so the caller prompts for sign-in rather than mislabeling it.
 				throw error;
+			}
+			if (!isCurrent()) {
+				// Superseded during token acquisition — do not retry the index with a token minted
+				// for an identity that may no longer be current.
+				throw new CancellationError();
 			}
 			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
 			return { manifest, token, negotiated: true };
