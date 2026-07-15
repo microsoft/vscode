@@ -270,6 +270,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		for (const file of state.files) {
 			try {
 				const watcher = fs.watch(file, scheduleCheck);
+				watcher.on('error', e => this._output.trace('Watcher failed for file:', file, e));
 				this._watchers.push(watcher);
 			} catch (e) {
 				this._output.trace('Skipping watcher for file:', file, e);
