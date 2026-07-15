@@ -209,13 +209,16 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onDidOpen(composite: IComposite): void {
-		this.activePaneContextKey.set(composite.getId());
+		const compositeId = composite.getId();
+		this.activePaneContextKey.set(compositeId);
+		this.element.dataset.activeComposite = compositeId;
 	}
 
 	private onDidClose(composite: IComposite): void {
 		const id = composite.getId();
 		if (this.activePaneContextKey.get() === id) {
 			this.activePaneContextKey.reset();
+			delete this.element.dataset.activeComposite;
 		}
 	}
 
