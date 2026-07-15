@@ -23,6 +23,42 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common
 import { Mutable } from '../../../../../base/common/types.js';
 
 
+/**
+ * An icon for a chat context item. Mirrors the `IconPath` type from the extension API:
+ * either a {@link ThemeIcon theme icon}, a single {@link URI} or separate light/dark {@link URI uris}.
+ */
+export type ChatContextIconPath = ThemeIcon | URI | { light: URI; dark: URI };
+
+/**
+ * Type guard for {@link ChatContextIconPath}. Accepts a {@link ThemeIcon theme icon}, a single
+ * {@link URI} or an object with both `light` and `dark` {@link URI uris}. Rejects `null`, `undefined`
+ * and partially-specified light/dark objects.
+ */
+export function isChatContextIconPath(value: unknown): value is ChatContextIconPath {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	if (ThemeIcon.isThemeIcon(value) || URI.isUri(value)) {
+		return true;
+	}
+	const asDualPath = value as { light?: unknown; dark?: unknown };
+	return URI.isUri(asDualPath.light) && URI.isUri(asDualPath.dark);
+}
+
+/**
+ * Resolve a {@link ChatContextIconPath} into a value that can be passed to the `iconPath`
+ * option of an icon label, picking the light or dark uri based on the current theme.
+ *
+ * @param iconPath The icon path to resolve.
+ * @param useDark Whether the current theme is a dark theme.
+ */
+export function resolveChatContextIcon(iconPath: ChatContextIconPath, useDark: boolean): ThemeIcon | URI {
+	if (ThemeIcon.isThemeIcon(iconPath) || URI.isUri(iconPath)) {
+		return iconPath;
+	}
+	return useDark ? iconPath.dark : iconPath.light;
+}
+
 interface IBaseChatRequestVariableEntry {
 	readonly id: string;
 	readonly fullName?: string;
@@ -52,6 +88,11 @@ interface IBaseChatRequestVariableEntry {
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
 	tooltip?: IMarkdownString;
+	/**
+	 * A provider-supplied icon that may be a {@link ThemeIcon theme icon}, a single uri or light/dark uris.
+	 * Takes precedence over the {@link IBaseChatRequestVariableEntry.icon base theme icon} when rendering.
+	 */
+	iconPath?: ChatContextIconPath;
 }
 
 export const ChatPasteAttachmentMetadata = {
@@ -197,7 +238,7 @@ export interface StringChatContextValue {
 	value?: string;
 	name?: string;
 	modelDescription?: string;
-	icon?: ThemeIcon;
+	iconPath?: ChatContextIconPath;
 	uri: URI;
 	resourceUri?: URI;
 	tooltip?: IMarkdownString;
@@ -221,7 +262,7 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly kind: 'string';
 	readonly value: string | undefined;
 	readonly modelDescription?: string;
-	readonly icon?: ThemeIcon;
+	readonly iconPath?: ChatContextIconPath;
 	readonly uri: URI;
 	readonly resourceUri?: URI;
 	readonly tooltip?: IMarkdownString;
@@ -688,7 +729,7 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
 		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
 		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
-		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
+		(asStringImplicitContextValue.iconPath === undefined || isChatContextIconPath(asStringImplicitContextValue.iconPath)) &&
 		URI.isUri(asStringImplicitContextValue.uri) &&
 		typeof asStringImplicitContextValue.handle === 'number'
 	);

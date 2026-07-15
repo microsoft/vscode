@@ -7,6 +7,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -69,10 +71,10 @@ export enum ChatConfiguration {
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
+	Verbose = 'chat.verbose',
 	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
-	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -267,30 +269,32 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  */
 export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
 ): string {
 	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
 	const defaultType = getConfiguredEditorDefaultSessionType(defaultProvider);
-	if (defaultType === SessionType.AgentHostCopilot && !isEditorLocalAgentEnabled(configurationService)) {
+	if (defaultType === SessionType.AgentHostCopilot && !isEditorLocalAgentEnabled(configurationService, workspace)) {
 		return defaultType;
 	}
 
-	if (defaultType && isVisibleEditorChatSessionType(defaultType, configurationService, chatSessionsService)) {
+	if (defaultType && isVisibleEditorChatSessionType(defaultType, configurationService, chatSessionsService, workspace)) {
 		return defaultType;
 	}
 
-	if (isEditorLocalAgentEnabled(configurationService)) {
+	if (isEditorLocalAgentEnabled(configurationService, workspace)) {
 		return localChatSessionType;
 	}
 
-	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService)[0] ?? localChatSessionType;
+	return getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace)[0] ?? localChatSessionType;
 }
 
 export function getComputedDefaultSessionResource(
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
 ): URI {
-	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService);
+	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService, workspace);
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
@@ -299,10 +303,11 @@ export function getComputedDefaultSessionResource(
 export function isRememberedSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
 ): boolean {
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService);
+		return isEditorLocalAgentEnabled(configurationService, workspace);
 	}
 	if (isAgentHostTarget(sessionType)) {
 		return true;
@@ -319,6 +324,7 @@ export function getDefaultNewChatSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	storageService: IStorageService,
+	workspace: IWorkspace,
 	options?: IDefaultNewChatSessionTypeOptions
 ): string {
 	if (options?.explicitOverride) {
@@ -326,7 +332,7 @@ export function getDefaultNewChatSessionType(
 	}
 
 	const remembered = getRememberedSessionType(storageService);
-	if (remembered && isRememberedSessionTypeUsable(remembered, configurationService, chatSessionsService)) {
+	if (remembered && isRememberedSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace)) {
 		return remembered;
 	}
 
@@ -334,16 +340,17 @@ export function getDefaultNewChatSessionType(
 		return options.currentSessionType;
 	}
 
-	return getComputedDefaultSessionType(configurationService, chatSessionsService);
+	return getComputedDefaultSessionType(configurationService, chatSessionsService, workspace);
 }
 
 export function getDefaultNewChatSessionResource(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	storageService: IStorageService,
+	workspace: IWorkspace,
 	options?: IDefaultNewChatSessionTypeOptions
 ): URI {
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, options);
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, options);
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
@@ -353,29 +360,31 @@ export function recordUserSelectedSessionType(
 	storageService: IStorageService,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace,
 	sessionType: string
 ): void {
-	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService)) {
+	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace)) {
 		clearUserSelectedSessionType(storageService);
 	} else {
 		storeUserSelectedSessionType(storageService, sessionType);
 	}
 }
 
-export function isEditorLocalAgentEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
+export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace): boolean {
+	return isVirtualWorkspace(workspace) || (configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true);
 }
 
 export function isVisibleEditorChatSessionType(
 	sessionType: string,
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
 ): boolean {
 	if (sessionType === localChatSessionType) {
-		if (!isEditorLocalAgentEnabled(configurationService) && configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh') {
+		if (!isEditorLocalAgentEnabled(configurationService, workspace) && configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh') {
 			return false;
 		}
-		return isEditorLocalAgentEnabled(configurationService) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService).length === 0;
+		return isEditorLocalAgentEnabled(configurationService, workspace) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
 	}
 
 	if (sessionType === SessionType.CopilotCLI && configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
@@ -400,11 +409,12 @@ function getConfiguredEditorDefaultSessionType(defaultProvider: string | undefin
 
 function getVisibleNonLocalEditorChatSessionTypes(
 	configurationService: IConfigurationService,
-	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
 ): string[] {
 	const sessionTypes = new Set<string>();
 	for (const contribution of chatSessionsService.getAllChatSessionContributions()) {
-		if (contribution.type !== localChatSessionType && isVisibleEditorChatSessionType(contribution.type, configurationService, chatSessionsService)) {
+		if (contribution.type !== localChatSessionType && isVisibleEditorChatSessionType(contribution.type, configurationService, chatSessionsService, workspace)) {
 			sessionTypes.add(contribution.type);
 		}
 	}
@@ -428,9 +438,3 @@ export const ChatEditorTitleMaxLength = 30;
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
-
-/**
- * The built-in general-purpose agent name. When the model uses this name,
- * the subagent inherits the parent's system prompt, model, and tools.
- */
-export const GeneralPurposeAgentName = 'General Purpose';

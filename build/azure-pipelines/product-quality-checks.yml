@@ -46,13 +46,13 @@ jobs:
           set -e
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
       - script: |
@@ -346,7 +346,7 @@ jobs:
 
       - script: |
           set -e
-          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          npx tsc6 --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
           node .oss-build-out/scan-licenses.js \
             --repo "$(Build.SourcesDirectory)" \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \

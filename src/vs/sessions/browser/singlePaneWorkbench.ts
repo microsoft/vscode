@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ISerializableView, ISerializedNode, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { IEditorWillOpenEvent } from '../../workbench/common/editor.js';
 import { Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { DockedEditorInput } from '../common/dockedEditorInput.js';
@@ -48,16 +49,22 @@ export class SinglePaneWorkbench extends Workbench {
 
 	/** Node width past the detail width at which editor content counts as visible. */
 	private static readonly _EDITOR_CONTENT_VISIBLE_THRESHOLD = 4;
-
-	/** Extra node width beyond the detail width at which a widen reveals the editor. */
-	private static readonly _EDITOR_REVEAL_MARGIN = 200;
+	private static readonly _DETAIL_AUTO_SHOW_MARGIN = 100;
 
 	private _dockedAuxiliaryBarWidth = DockedAuxiliaryBarController.DEFAULT_WIDTH;
 	private _syncingEditorVisibility = false;
+	private _detailHiddenForEditorResize = false;
 	private readonly _memento = new DockedEditorSizeMemento();
+
+	private readonly _onDidRevealSidePane = this._register(new Emitter<void>());
+	override readonly onDidRevealSidePane: Event<void> = this._onDidRevealSidePane.event;
 
 	override get isSinglePaneLayoutEnabled(): boolean {
 		return true;
+	}
+
+	protected override _onSidePaneRevealed(): void {
+		this._onDidRevealSidePane.fire();
 	}
 
 	/**
@@ -167,6 +174,13 @@ export class SinglePaneWorkbench extends Workbench {
 		this._syncEditorVisibility(nodeWidth);
 	}
 
+	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		if (partId === Parts.AUXILIARYBAR_PART && source !== 'resize') {
+			this._detailHiddenForEditorResize = false;
+		}
+		super._fireDidChangePartVisibility(partId, visible, source);
+	}
+
 	private _syncEditorVisibility(nodeWidth: number): void {
 		if (this._syncingEditorVisibility) {
 			return;
@@ -183,6 +197,20 @@ export class SinglePaneWorkbench extends Workbench {
 
 		this._syncingEditorVisibility = true;
 		try {
+			const detailFitsBesideEditor = nodeWidth >= this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH;
+			if (this.partVisibility.editor && this.partVisibility.auxiliaryBar && !detailFitsBesideEditor) {
+				this._detailHiddenForEditorResize = true;
+				this.setAuxiliaryBarHiddenForResize(true);
+				return;
+			}
+
+			const detailShowThreshold = this._dockedAuxiliaryBarWidth + EDITOR_PART_MINIMUM_WIDTH + SinglePaneWorkbench._DETAIL_AUTO_SHOW_MARGIN;
+			if (this.partVisibility.editor && !this.partVisibility.auxiliaryBar && this._detailHiddenForEditorResize && nodeWidth >= detailShowThreshold) {
+				this.setAuxiliaryBarHiddenForResize(false);
+				this._detailHiddenForEditorResize = false;
+				return;
+			}
+
 			const editorContentVisible = nodeWidth > this._dockedAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
 
 			// Hide: editor content is visible and the node is squeezed down to the detail
@@ -199,21 +227,6 @@ export class SinglePaneWorkbench extends Workbench {
 				return;
 			}
 
-			// Reveal (symmetric): the detail is visible while the editor is hidden and the
-			// user drags the node wide enough to fit the editor beside the detail. Mirrors
-			// the hide branch above; the wide gap between this threshold and the hide
-			// threshold provides hysteresis so a small drag can't oscillate. The detail
-			// keeps its width and the editor takes the remainder (the docked layout
-			// recomputes the split), so there is no even-split jump.
-			const revealThreshold = this._dockedAuxiliaryBarWidth + SinglePaneWorkbench._EDITOR_REVEAL_MARGIN;
-			if (!this.partVisibility.editor && this.partVisibility.auxiliaryBar && nodeWidth >= revealThreshold) {
-				this.partVisibility.editor = true;
-				this._setMainEditorAreaHidden(false);
-				this._editorRevealedExplicitly = false;
-				this._layoutDockedAuxBar();
-				this._fireDidChangePartVisibility(Parts.EDITOR_PART, true);
-				this._savePartVisibility();
-			}
 		} finally {
 			this._syncingEditorVisibility = false;
 		}
@@ -314,7 +327,7 @@ export class SinglePaneWorkbench extends Workbench {
 	 */
 	protected override _onEditorPartGridVisibilityChange(_visible: boolean): void { }
 
-	protected override _applyAuxiliaryBarVisibility(hidden: boolean): void {
+	protected override _applyAuxiliaryBarVisibility(hidden: boolean, source?: 'resize'): void {
 		// The auxiliary bar is docked inside the editor part (not a grid view), so
 		// drive its visibility through the docked layout and fire the visibility
 		// event the grid path would otherwise raise (the layout controller listens
@@ -337,7 +350,7 @@ export class SinglePaneWorkbench extends Workbench {
 			}
 		}
 		this._layoutDockedAuxBar();
-		this._fireDidChangePartVisibility(Parts.AUXILIARYBAR_PART, !hidden);
+		this._fireDidChangePartVisibility(Parts.AUXILIARYBAR_PART, !hidden, source);
 		this._notifyContainerDidLayout();
 	}
 

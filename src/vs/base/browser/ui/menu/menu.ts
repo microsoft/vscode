@@ -26,6 +26,7 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
+import { CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
@@ -1018,6 +1019,7 @@ export function formatRule(c: ThemeIcon) {
 
 export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
+	const menuShadow = `var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''})`;
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
@@ -1237,11 +1239,12 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Context Menu */
 
 .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: ${menuShadow};
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
-	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
@@ -1256,6 +1259,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: none;
 	box-shadow: none;
 }
 

@@ -228,6 +228,41 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ resolved }, { resolved: true });
 	});
 
+	test('marks the active session as read via its provider even when its provider state was unread', async () => {
+		const isRead = observableValue('isRead', false);
+		const session = stubSession({ sessionId: 'unread', providerId: 'test', isRead });
+		const provider = new class extends TestSessionsProvider {
+			override async setSessionReadState(_sessionId: string, read: boolean): Promise<void> {
+				isRead.set(read, undefined);
+			}
+		}(session);
+		const { view } = createSessionsManagementService(session, disposables, provider);
+
+		// While not active, the provider-owned unread state is untouched.
+		const readBeforeActive = session.isRead.get();
+
+		// Opening the session makes it active; it must then be marked read.
+		await view.openSession(session.resource);
+		const readWhileActive = session.isRead.get();
+
+		assert.deepStrictEqual(
+			{ readBeforeActive, readWhileActive, activeId: view.activeSession.get()?.sessionId },
+			{ readBeforeActive: false, readWhileActive: true, activeId: 'unread' },
+		);
+	});
+
+	test('leaves a non-active session in its provider read state', () => {
+		const active = stubSession({ sessionId: 'active', providerId: 'test' });
+		const other = stubSession({ sessionId: 'other', providerId: 'test', isRead: constObservable(false) });
+		const { view } = createSessionsManagementService(active, disposables);
+
+		// Nothing is opened, so `other` stays non-active and keeps its unread state.
+		assert.deepStrictEqual(
+			{ activeId: view.activeSession.get()?.sessionId, otherRead: other.isRead.get() },
+			{ activeId: undefined, otherRead: false },
+		);
+	});
+
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());

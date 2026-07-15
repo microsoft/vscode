@@ -48,6 +48,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
+/** Whether a session still has active work, including work blocked on user input. */
+export function isActiveSessionStatus(status: SessionStatus): boolean {
+	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that
@@ -418,6 +423,14 @@ export interface IChat {
 	 * this omit the observable.
 	 */
 	readonly lastTurnChanges?: IObservable<readonly ISessionFileChange[]>;
+	/**
+	 * The URL of the last browser tool call in the chat's **last turn**, derived
+	 * from the chat's live output stream so consumers — e.g. the chat input
+	 * "Live Browser" pill — can offer opening the page the agent is working with.
+	 * `undefined` when the last turn used no URL-carrying browser tool; providers
+	 * that cannot determine this omit the observable.
+	 */
+	readonly lastTurnBrowserUrl?: IObservable<string | undefined>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */

@@ -10,6 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -19,7 +20,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
 import './media/sessionChatInputToolbar.css';
@@ -78,10 +79,10 @@ function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
 /**
  * A floating toolbar shown above the chat input that surfaces the current turn's
  * chat status as clickable pills (see {@link ChatTurnPillsWidget}). Only shown
- * for agent host sessions while the viewed chat's turn is actively in progress;
- * once the turn completes the pills disappear here and reappear inside the
- * completed response. The pills are scoped to the viewed chat's last-turn changes
- * so they reflect only what that chat's most recent request produced.
+ * for agent host sessions while the viewed chat's turn is running or waiting for
+ * input; once the turn completes the pills disappear here and reappear inside
+ * the completed response. The pills are scoped to the viewed chat's last-turn
+ * changes so they reflect only what that chat's most recent request produced.
  */
 export class SessionChatInputToolbar extends Disposable {
 
@@ -114,11 +115,20 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
 	private readonly _previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
 
-	/** Whether pills may show at all: an agent host session while the viewed chat's turn is streaming. */
+	/** The URL of the last browser tool call in the viewed chat's last turn, if any. */
+	private readonly _browserUrl = derived<string | undefined>(this, reader => {
+		const chat = this._chat.read(reader);
+		return chat?.lastTurnBrowserUrl?.read(reader);
+	});
+
+	/** Whether pills may show at all: an agent host session with an active turn. */
 	private readonly _active = derived(reader => {
 		const session = this._session.read(reader);
 		const chat = this._chat.read(reader);
-		return !!session && !!chat && isAgentHostProviderId(session.providerId) && chat.status.read(reader) === SessionStatus.InProgress;
+		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
+			return false;
+		}
+		return isActiveSessionStatus(chat.status.read(reader));
 	});
 
 	constructor(
@@ -139,10 +149,13 @@ export class SessionChatInputToolbar extends Disposable {
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			previewFiles: this._previewFiles,
+			browserUrl: this._browserUrl,
 			changesEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).changes),
 			previewEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).preview),
+			browserEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).browser),
 			openChanges: () => this._openChanges(),
 			openPreviewFile: file => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			openBrowser: url => this._openBrowser(url),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
@@ -197,5 +210,18 @@ export class SessionChatInputToolbar extends Disposable {
 			multiDiffSource,
 			label: localize('sessions.lastTurnChanges.title', "Last Turn Changes"),
 		});
+	}
+
+	/**
+	 * Open the integrated browser at the given URL, falling back to the default
+	 * opener when the browser command is unavailable (e.g. web).
+	 */
+	private async _openBrowser(url: string): Promise<void> {
+		try {
+			await this._commandService.executeCommand(BrowserViewCommandId.Open, url);
+		} catch (err) {
+			this._logService.trace('[SessionChatInputToolbar] Falling back to default opener for browser URL', err);
+			await this._openerService.open(url);
+		}
 	}
 }

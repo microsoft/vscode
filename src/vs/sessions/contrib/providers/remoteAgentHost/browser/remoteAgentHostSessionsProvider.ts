@@ -41,7 +41,9 @@ import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgent
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
-const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.';
+const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
+// TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
+const CACHED_SESSIONS_STORAGE_PREFIX_LEGACY = 'remoteAgentHost.cachedSessions.';
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
@@ -175,7 +177,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
 
-		this._enableSessionCachePersistence(this._storageKey);
+		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------

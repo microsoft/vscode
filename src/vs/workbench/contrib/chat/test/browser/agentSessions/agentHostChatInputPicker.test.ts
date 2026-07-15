@@ -5,9 +5,45 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getConfigPickerItemHover, getConfigPickerTriggerHover, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+
+suite('AgentHostChatInputPicker - action mapping', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps dedicated actions to their session config properties', () => {
+		assert.deepStrictEqual([
+			getAgentHostPickerProperty(OpenAgentHostModePickerAction.ID),
+			getAgentHostPickerProperty(OpenAgentHostAutoApprovePickerAction.ID),
+			getAgentHostPickerProperty(OpenAgentHostPermissionModePickerAction.ID),
+			getAgentHostPickerProperty(OpenAgentHostCodexApprovalsPickerAction.ID),
+		], [
+			SessionConfigKey.Mode,
+			SessionConfigKey.AutoApprove,
+			ClaudeSessionConfigKey.PermissionMode,
+			CodexSessionConfigKey.PermissionsPreset,
+		]);
+	});
+});
+
+suite('AgentHostChatInputPicker - list options', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the compact wrapped layout for Codex approvals', () => {
+		assert.deepStrictEqual(getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset), {
+			className: 'codex-approvals-picker',
+			minWidth: 340,
+			maxWidth: 340,
+			detailItemHeight: 76,
+		});
+	});
+});
 
 suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 
@@ -51,6 +87,22 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			assert.strictEqual(
 				getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'autoApprove', label: 'Bypass Approvals', description: 'All tool calls are auto-approved' }, false),
 				'Copilot runs all tools without asking for approval.'
+			);
+		});
+
+		test('explains the selected Codex permissions preset on the trigger hover', () => {
+			const codexApprovalsSchema = {
+				type: 'string',
+				title: 'Approvals',
+				description: 'How much Codex can do on its own before asking for approval.',
+				enum: ['default', 'auto-review', 'full-access'],
+				enumLabels: ['Default Permissions', 'Auto-Review', 'Full Access'],
+				enumDescriptions: ['Default access', 'Auto-review access', 'Full machine access'],
+			} as SessionConfigPropertySchema;
+
+			assert.strictEqual(
+				getConfigPickerTriggerHover(CodexSessionConfigKey.PermissionsPreset, codexApprovalsSchema, 'full-access', false),
+				'Full machine access'
 			);
 		});
 	});

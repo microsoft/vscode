@@ -51,6 +51,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: true,
 	supportsWorktreeIsolation: true,
+	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.

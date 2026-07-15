@@ -14,7 +14,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -123,6 +123,8 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected readonly _onDidChangeSelectedPick = this._register(new Emitter<IPreferredSessionType | undefined>());
 	readonly onDidChangeSelectedPick = this._onDidChangeSelectedPick.event;
+	private readonly _modelTargetChatSessionType = observableValue<string | undefined>(this, undefined);
+	readonly modelTargetChatSessionType: IObservable<string | undefined> = this._modelTargetChatSessionType;
 
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
@@ -181,6 +183,7 @@ export class SessionTypePicker extends Disposable {
 		this._folderSessionTypes = this._resolveFolderSessionTypes();
 		const previous = this._picked;
 		this._picked = this._computeCurrentPick();
+		this._updateModelTargetChatSessionType();
 		this._updateTriggerLabel();
 		if (!pickEquals(previous, this._picked)) {
 			this._onDidChangeSelectedPick.fire(this._picked);
@@ -331,6 +334,7 @@ export class SessionTypePicker extends Disposable {
 		// land before the user clicks.
 		const folderTypes = this._resolveFolderSessionTypes();
 		this._folderSessionTypes = folderTypes;
+		this._updateModelTargetChatSessionType();
 
 		if (folderTypes.length <= 1) {
 			return;
@@ -468,6 +472,7 @@ export class SessionTypePicker extends Disposable {
 		// profile-wide preference is gated so non-persisting callers (e.g. the
 		// automations dialog) can pick a type without changing the New Session default
 		this._picked = pick;
+		this._updateModelTargetChatSessionType();
 		if (this._options?.persistSelection !== false) {
 			if (isDefault) {
 				this._clearStoredPick();
@@ -483,6 +488,15 @@ export class SessionTypePicker extends Disposable {
 			this._onDidSelectSessionType.fire(pick);
 			this._onDidChangeSelectedPick.fire(this._picked);
 		}
+	}
+
+	private _updateModelTargetChatSessionType(): void {
+		const pick = this._picked;
+		const selected = pick ? this._folderSessionTypes.find(type =>
+			type.sessionType.id === pick.sessionTypeId
+			&& (pick.providerId === undefined || type.providerId === pick.providerId)
+		) : undefined;
+		this._modelTargetChatSessionType.set(selected ? selected.sessionType.chatSessionType ?? selected.sessionType.id : undefined, undefined);
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {

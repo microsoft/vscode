@@ -1463,6 +1463,7 @@ export class ModelPickerWidget extends Disposable {
 		const unavailable = this.isRestrictedMode() || this.isSetupRequired();
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const listOptions = withChatInputPickerMotion({
+			className: 'chat-model-picker-dropdown',
 			headerText: showCacheBreakHint ? localize('chat.modelPicker.cacheBreakHint', "Switching models mid-session resets the prompt cache and may increase cost.") : undefined,
 			headerIcon: showCacheBreakHint ? Codicon.info : undefined,
 			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
@@ -1515,11 +1516,6 @@ export class ModelPickerWidget extends Disposable {
 			getModelPickerAccessibilityProvider(),
 			listOptions
 		);
-
-		const activeElement = dom.getActiveElement();
-		if (dom.isHTMLInputElement(activeElement) && activeElement.classList.contains('action-list-filter-input')) {
-			activeElement.classList.add('chat-model-picker-filter-input');
-		}
 	}
 
 	private _updateBadge(): void {

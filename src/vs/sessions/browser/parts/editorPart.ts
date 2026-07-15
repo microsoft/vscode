@@ -13,8 +13,8 @@ import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_BOTTOM = 5;
-	static readonly MARGIN_LEFT = 5;
-	static readonly MARGIN_RIGHT = 5;
+	static readonly MARGIN_LEFT = 10;
+	static readonly MARGIN_RIGHT = 10;
 
 	override get minimumWidth() {
 		return Math.max(EDITOR_PART_MINIMUM_WIDTH, super.minimumWidth);

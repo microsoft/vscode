@@ -347,6 +347,7 @@ export function mapTurnStarted(
 		{
 			type: ActionType.ChatTurnStarted,
 			turnId: params.turn.id,
+			startedAt: typeof params.turn.startedAt === 'number' ? new Date(params.turn.startedAt * 1000).toISOString() : new Date().toISOString(),
 			message: { text: userText, origin: { kind: MessageKind.User } },
 		},
 	];
@@ -983,6 +984,7 @@ export function mapItemCompleted(
 export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
+	fallbackDuration?: number,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -995,6 +997,13 @@ export function mapTurnCompleted(
 	state.itemToToolCall.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
+	const duration = typeof params.turn.durationMs === 'number' && Number.isFinite(params.turn.durationMs) && params.turn.durationMs >= 0
+		? params.turn.durationMs
+		: typeof params.turn.startedAt === 'number' && typeof params.turn.completedAt === 'number'
+			? Math.max(0, (params.turn.completedAt - params.turn.startedAt) * 1000)
+			: typeof fallbackDuration === 'number' && Number.isFinite(fallbackDuration)
+				? Math.max(0, fallbackDuration)
+				: 0;
 	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
 		type: ActionType.ChatToolCallComplete,
 		turnId: entry.turnId,
@@ -1014,6 +1023,7 @@ export function mapTurnCompleted(
 			{
 				type: ActionType.ChatError,
 				turnId,
+				duration,
 				error: {
 					errorType: 'CodexError',
 					...extractForwardedErrorInfo(errMessage),
@@ -1022,13 +1032,14 @@ export function mapTurnCompleted(
 			{
 				type: ActionType.ChatTurnComplete,
 				turnId,
+				duration,
 			},
 		];
 	}
 	if (status === 'interrupted') {
-		return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId }];
+		return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId, duration }];
 	}
-	return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId }];
+	return [...preflightFlush, ...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId, duration }];
 }
 
 /**

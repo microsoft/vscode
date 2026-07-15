@@ -175,17 +175,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return false;
 		}
 		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
-		const resource = {
-			...server.state.resource,
-			scopes_supported: server.state.requiredScopes ?? server.state.resource.scopes_supported,
-		};
 		try {
-			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
+			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
 				mcpServerId: scopedServerId,
 				mcpServerName: server.name,
 				mcpServerUrl: server.state.resource.resource,
+				scopes: server.state.requiredScopes ?? [],
 				agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
 				authenticate: request => target.authenticate(request),
 			});

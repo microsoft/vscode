@@ -8,8 +8,9 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { getCodexApprovalsPickerListOptions } from '../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -73,6 +74,10 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 
 	protected _getWidgetAriaLabel(): string {
 		return localize('agentHostCodexApprovalsPicker.ariaLabel', "Approvals Picker");
+	}
+
+	protected override _getListOptions(): IActionListOptions {
+		return getCodexApprovalsPickerListOptions();
 	}
 
 	protected override _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem>[] {

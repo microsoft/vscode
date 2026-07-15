@@ -296,6 +296,15 @@ export interface ISessionsProvider {
 	unarchiveSession(sessionId: string): Promise<void>;
 
 	/**
+	 * Set the read/unread state of a session. The provider owns and persists
+	 * this state (e.g. via its backend protocol or chat model) and is expected
+	 * to reflect it through the session's {@link ISession.isRead} observable.
+	 * @param sessionId The ID of the session.
+	 * @param isRead `true` to mark the session read, `false` to mark it unread.
+	 */
+	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
+
+	/**
 	 * Delete a session.
 	 * @param sessionId The ID of the session to delete.
 	 */

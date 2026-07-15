@@ -38,8 +38,11 @@ function editedFile(name: string, insertions: number, deletions: number): ISessi
 
 interface ISessionSpec {
 	readonly providerId?: string;
+	readonly status?: SessionStatus;
 	/** File changes in the last turn; omit for a chat with no last-turn changes. */
 	readonly turnChanges?: readonly ISessionFileChange[];
+	/** URL of the last browser tool call in the turn; omit for a chat with none. */
+	readonly browserUrl?: string;
 }
 
 /** A mock session + its viewed chat, as the toolbar consumes them. */
@@ -51,10 +54,12 @@ interface IMockSessionAndChat {
 function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	const chat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('chat:1');
-		// Pills above the input only show while the chat's turn is in progress.
-		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.InProgress);
+		// Pills above the input show while the chat has an active turn.
+		override readonly status: IObservable<SessionStatus> = constObservable(spec.status ?? SessionStatus.InProgress);
 		override readonly lastTurnChanges: IObservable<readonly ISessionFileChange[]> | undefined =
 			spec.turnChanges !== undefined ? constObservable(spec.turnChanges) : undefined;
+		override readonly lastTurnBrowserUrl: IObservable<string | undefined> | undefined =
+			spec.browserUrl !== undefined ? constObservable(spec.browserUrl) : undefined;
 	}();
 	const session = new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
@@ -81,8 +86,8 @@ function renderPills(ctx: ComponentFixtureContext, mock: IMockSessionAndChat): v
 		},
 	});
 
-	// Both pills are off by default; enable them so the fixture renders.
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, { changes: true, preview: true });
+	// All pills are off by default; enable them so the fixture renders.
+	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, { changes: true, preview: true, browser: true });
 
 	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
 	pills.setSession(mock.session, mock.chat);
@@ -96,9 +101,9 @@ async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMock
 	await renderChatWidget(ctx, {
 		messages,
 		decorateInputPart: (inputPart, instantiationService) => {
-			// Both pills are off by default; enable them so the fixture renders.
+			// All pills are off by default; enable them so the fixture renders.
 			instantiationService.invokeFunction(accessor => {
-				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, { changes: true, preview: true });
+				(accessor.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, { changes: true, preview: true, browser: true });
 			});
 			const pills = ctx.disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar));
 			pills.setSession(mock.session, mock.chat);
@@ -153,6 +158,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionChatPills_PreviewMarkdown: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
 			turnChanges: [createdFile('README.md', 20, 0), editedFile('app.ts', 8, 3)],
 		})),
 	}),
@@ -177,6 +183,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionChatPills_PreviewMultiple_PrimaryEdited: defineComponentFixture({
 		render: (ctx) => renderPills(ctx, createMockSession({
 			turnChanges: [editedFile('docs.md', 10, 2), editedFile('page.html', 4, 1)],
+		})),
+	}),
+
+	// --- Live Browser pill --------------------------------------------------
+
+	SessionChatPills_LiveBrowser: defineComponentFixture({
+		render: (ctx) => renderPills(ctx, createMockSession({ browserUrl: 'https://localhost:3000/' })),
+	}),
+
+	SessionChatPills_LiveBrowserWithChanges: defineComponentFixture({
+		render: (ctx) => renderPills(ctx, createMockSession({
+			status: SessionStatus.NeedsInput,
+			turnChanges: [createdFile('index.html', 30, 4), editedFile('app.ts', 8, 3)],
+			browserUrl: 'https://example.com/preview',
 		})),
 	}),
 

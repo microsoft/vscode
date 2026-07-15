@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -16,7 +17,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
-import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
+import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -58,7 +59,16 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
 export interface IMaterializeContext {
 	readonly transport: ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
+	readonly onElicitation: OnElicitation;
 	readonly isResume: boolean;
+	/**
+	 * Working directory the host resolved for this session's first send (e.g. an
+	 * isolated worktree). When present it becomes the session's
+	 * {@link ClaudeAgentSession.workingDirectory}, overriding the
+	 * {@link ClaudeAgentSession.workspace} the session was based on. Omitted when
+	 * the session works directly in its `workspace` (folder / workspace-less).
+	 */
+	readonly workingDirectory?: URI;
 	/**
 	 * Agent host's server-tool host. When present, the session exposes the
 	 * agent host's server tools (feedback "comments" today, more in the future)
@@ -78,7 +88,8 @@ function resolveCurrentPermissionMode(
 
 /**
  * Per-session coordinator. Owns:
- *   • Per-session identity (sessionId / sessionUri / workingDirectory).
+ *   • Per-session identity (sessionId / sessionUri / workspace /
+ *     workingDirectory).
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
  *     mapped per-message signals plus `ChatTurnComplete` and
@@ -122,6 +133,18 @@ export class ClaudeAgentSession extends Disposable {
 	/** Always-present abort controller; wired into `Options.abortController` at materialize time. */
 	readonly abortController: AbortController;
 
+	/**
+	 * The actual directory work is done in. Defaults to {@link workspace} until
+	 * the host hands the session a resolved working directory (e.g. an isolated
+	 * worktree) at {@link materialize} time. `undefined` only when the session is
+	 * workspace-less and has no resolved directory yet.
+	 */
+	get workingDirectory(): URI | undefined {
+		return this._workingDirectory ?? this.workspace;
+	}
+	private _workingDirectory: URI | undefined;
+	private readonly _customizationWatcher = this._register(new DisposableStore());
+
 	/** Exposed for the materializer's MCP-server build closure. */
 	get pendingClientToolCalls(): PendingRequestRegistry<CallToolResult> { return this._pendingClientToolCalls; }
 	/** Snapshot of permission-mode fallback used when live read is undefined. */
@@ -131,7 +154,7 @@ export class ClaudeAgentSession extends Disposable {
 		sessionId: string,
 		sessionUri: URI,
 		chatChannelUri: URI,
-		workingDirectory: URI | undefined,
+		workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
 		agent: AgentSelection | undefined,
@@ -146,7 +169,7 @@ export class ClaudeAgentSession extends Disposable {
 			sessionId,
 			sessionUri,
 			chatChannelUri,
-			workingDirectory,
+			workspace,
 			project,
 			model,
 			agent,
@@ -295,7 +318,7 @@ export class ClaudeAgentSession extends Disposable {
 		readonly sessionId: string,
 		readonly sessionUri: URI,
 		readonly chatChannelUri: URI,
-		readonly workingDirectory: URI | undefined,
+		readonly workspace: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
 		agent: AgentSelection | undefined,
@@ -323,17 +346,18 @@ export class ClaudeAgentSession extends Disposable {
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
-		// Watch the on-disk Claude customization sources so edits made outside
-		// the session (a new `~/.claude/agents/*.md`, an edited skill, a changed
-		// `.mcp.json`) drive a workbench re-fetch. Active from construction so
-		// it covers the provisional (pre-materialize) window too.
-		const customizationWatcher = this._register(new ClaudeCustomizationWatcher(
-			this.workingDirectory,
+		this._watchCustomizations(this.workspace);
+	}
+
+	private _watchCustomizations(directory: URI | undefined): void {
+		this._customizationWatcher.clear();
+		const watcher = this._customizationWatcher.add(new ClaudeCustomizationWatcher(
+			directory,
 			this._environmentService.userHome,
 			this._fileService,
 			this._logService,
 		));
-		this._register(customizationWatcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
+		this._customizationWatcher.add(watcher.onDidChange(() => this._onDidCustomizationsChange.fire()));
 	}
 
 	/**
@@ -400,6 +424,13 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
+		// Adopt the host-resolved working directory (e.g. an isolated worktree)
+		// before it's read below; falls back to the session's `workspace` when the
+		// host didn't resolve a dedicated directory.
+		if (ctx.workingDirectory && !isEqual(ctx.workingDirectory, this.workingDirectory)) {
+			this._workingDirectory = ctx.workingDirectory;
+			this._watchCustomizations(ctx.workingDirectory);
+		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}
@@ -417,6 +448,7 @@ export class ClaudeAgentSession extends Disposable {
 				abortController: this.abortController,
 				permissionMode,
 				canUseTool: ctx.canUseTool,
+				onElicitation: ctx.onElicitation,
 				isResume: ctx.isResume,
 				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
@@ -426,7 +458,6 @@ export class ClaudeAgentSession extends Disposable {
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
-			msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 		);
 
 		this._logService.info(`[Claude] session ${this.sessionId}: enableFileCheckpointing=${options.enableFileCheckpointing} isResume=${ctx.isResume}`);
@@ -469,7 +500,7 @@ export class ClaudeAgentSession extends Disposable {
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
 			toSdkModelId(this._provisionalModel?.id),
-			clampEffortForRuntime(resolveClaudeEffort(this._provisionalModel)),
+			toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
 
@@ -514,6 +545,7 @@ export class ClaudeAgentSession extends Disposable {
 						abortController: rebuildAbort,
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
+						onElicitation: ctx.onElicitation,
 						isResume: true,
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
@@ -523,7 +555,6 @@ export class ClaudeAgentSession extends Disposable {
 					},
 					ctx.transport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
-					msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
@@ -710,9 +741,8 @@ export class ClaudeAgentSession extends Disposable {
 	 *   startup picks it up via `Options.model` / `Options.effort`.
 	 * - Post-materialize: queue the change on the pipeline; the SDK
 	 *   applies it on the NEXT user request via
-	 *   `Query.setModel` / `Query.applyFlagSettings`. `'max'` effort is
-	 *   clamped to `'xhigh'` on the runtime path (CAPI lacks a `'max'`
-	 *   tier today).
+	 *   `Query.setModel` / `Query.applyFlagSettings`. `'max'` flows through
+	 *   unchanged — see {@link toRuntimeEffortLevel}.
 	 *
 	 * In both cases the new model is persisted to the per-session
 	 * metadata overlay so a later resume sees the user's choice.
@@ -720,11 +750,6 @@ export class ClaudeAgentSession extends Disposable {
 	async setModel(model: ModelSelection): Promise<void> {
 		this._provisionalModel = model;
 		if (this._pipeline) {
-			const requestedEffort = resolveClaudeEffort(model);
-			const runtimeEffort = clampEffortForRuntime(requestedEffort);
-			if (requestedEffort === 'max') {
-				this._logService.warn(`[Claude:${this.sessionId}] setModel: 'max' effort clamped to 'xhigh' (Copilot CAPI has no 'max' model yet)`);
-			}
 			await this._pipeline.setModel(toSdkModelId(model.id));
 			// Always push the resolved effort, including `undefined`. Switching
 			// to a model that does not support reasoning effort (e.g. Haiku)
@@ -732,7 +757,7 @@ export class ClaudeAgentSession extends Disposable {
 			// SDK is still applying from a prior effort-capable model — otherwise
 			// the next turn replays e.g. `'high'` onto Haiku and the API 400s
 			// (`output_config.effort ... does not support reasoning effort`).
-			await this._pipeline.setEffort(runtimeEffort);
+			await this._pipeline.setEffort(toRuntimeEffortLevel(resolveClaudeEffort(model)));
 		}
 		await this._metadataStore.write(this._storageUri, { model });
 	}

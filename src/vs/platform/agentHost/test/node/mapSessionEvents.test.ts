@@ -38,6 +38,39 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('restores Auto model resolution as usage metadata', async () => {
+		const autoModeResolved = {
+			chosenModel: 'claude-opus-4.8',
+			reasoningBucket: 'high',
+			categoryScores: { reasoning: 0.91, code_gen: 0.72 },
+			predictedLabel: 'needs_reasoning',
+			confidence: 0.93,
+			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+		};
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'turn-before-auto', data: { interactionId: 'm0', content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
+			// The runtime resolves Auto while building settings, before it persists
+			// the user message for the turn that will use the chosen model.
+			{ type: 'session.auto_mode_resolved', data: autoModeResolved },
+			{ type: 'user.message', id: 'turn-auto', data: { interactionId: 'm1', content: 'Solve this problem' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Done.' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, usage: turn.usage })), [
+			{ id: 'turn-before-auto', usage: undefined },
+			{
+				id: 'turn-auto',
+				usage: {
+					model: 'claude-opus-4.8',
+					_meta: { autoModeResolved },
+				},
+			},
+		]);
+	});
+
 	test('task_complete without a summary renders nothing', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

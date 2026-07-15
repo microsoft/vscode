@@ -12,7 +12,7 @@ import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/r
 import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
-import { IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
@@ -92,6 +92,13 @@ function convertLineEditToEdit(nextLineEdit: LineEdit, document: StringText): St
 	return suggestedEdit;
 }
 
+function getModelTelemetry(telemetry: IStatelessNextEditTelemetry): IStatelessNextEditModelTelemetry {
+	return {
+		modelName: telemetry.modelName,
+		modelConfig: telemetry.modelConfig,
+	};
+}
+
 interface DocState {
 	readonly baseDocState: StringText;
 	docContents: StringText;
@@ -115,6 +122,7 @@ interface RebaseAndCacheStreamedEditArgs {
 	};
 	/** User edits to track the first cached entry against for rebasing; `undefined` for speculative. */
 	readonly userEditSince: StringEdit | undefined;
+	readonly modelTelemetry: IStatelessNextEditModelTelemetry;
 	readonly source: NextEditFetchRequest;
 	readonly logger: ILogger;
 }
@@ -427,6 +435,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			}
 			telemetryBuilder.setHeaderRequestId(req.headerRequestId);
 			telemetryBuilder.setIsFromCache();
+			telemetryBuilder.setCachedModelTelemetry(cachedEdit.modelTelemetry);
 			telemetryBuilder.setSubsequentEditOrder(cachedEdit.rebasedEditIndex ?? cachedEdit.subsequentN);
 			// Attribute the served edit to its originating model patch.
 			telemetryBuilder.setSourcePatchIndex(getSourcePatchIndex(cachedEdit));
@@ -562,6 +571,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		nextEdit: StringReplacement,
 		streamedEdit: { readonly isFromCursorJump: boolean; readonly originalWindow?: OffsetRange; readonly patchIndex?: number },
 		source: NextEditFetchRequest,
+		modelTelemetry: IStatelessNextEditModelTelemetry,
 	): boolean {
 		if (ithEdit !== 0 || targetDocId === activeDocId) {
 			return false; // only the first streamed edit, and only when it targets a different document
@@ -575,7 +585,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			undefined, // no bundled edits: served by exact content match only
 			undefined, // no userEditSince: never tracked/rebased (edit is in target-doc coords)
 			source,
-			{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
+			{ isFromCursorJump: streamedEdit.isFromCursorJump, modelTelemetry, originalEditWindow: streamedEdit.originalWindow, patchIndex: streamedEdit.patchIndex, targetDocId, targetDocumentBeforeEdit: targetDocContents }
 		);
 		return true;
 	}
@@ -761,7 +771,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	 * `firstEdit`, stream-end handling) stays with the callers.
 	 */
 	private _rebaseAndCacheStreamedEdit(args: RebaseAndCacheStreamedEditArgs): { lineEdit: LineEdit; rebasedEdit: StringEdit; docContentsBeforeEdit: StringText; cachedEdit: CachedOrRebasedEdit | undefined; crossFileCached: boolean } | undefined {
-		const { statePerDoc, streamedEdit, ithEdit, activeDoc, userEditSince, source, logger } = args;
+		const { statePerDoc, streamedEdit, ithEdit, activeDoc, userEditSince, modelTelemetry, source, logger } = args;
 
 		const targetDocState = statePerDoc.get(streamedEdit.targetDocument);
 
@@ -796,9 +806,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				ithEdit === 0 ? targetDocState.nextEdits : undefined,
 				ithEdit === 0 ? userEditSince : undefined,
 				source,
-				{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === activeDoc.id ? activeDoc.cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
+				{ isFromCursorJump: streamedEdit.isFromCursorJump, modelTelemetry, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === activeDoc.id ? activeDoc.cursorOffset : undefined, patchIndex: streamedEdit.patchIndex, patchIndices: ithEdit === 0 ? targetDocState.patchIndices : undefined }
 			);
-			crossFileCached = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, activeDoc.id, activeDoc.contents, streamedEdit.window, targetDocState.docId, docContentsBeforeEdit, nextEditReplacement, streamedEdit, source);
+			crossFileCached = this._maybeCacheCrossFileEditUnderActiveDoc(ithEdit, activeDoc.id, activeDoc.contents, streamedEdit.window, targetDocState.docId, docContentsBeforeEdit, nextEditReplacement, streamedEdit, source, modelTelemetry);
 			logger.trace(`populated cache for ${ithEdit}`);
 		}
 
@@ -938,6 +948,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				ithEdit,
 				activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset: activeDocSelection?.start },
 				userEditSince: nextEditRequest.intermediateUserEdit,
+				modelTelemetry: getModelTelemetry(telemetry),
 				source: req,
 				logger: myLogger,
 			});
@@ -981,7 +992,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				if (completionReason instanceof NoNextEditReason.NoSuggestions && !didCacheCrossFileActiveDocEntry) {
 					const { documentBeforeEdits, window } = completionReason;
 					const reducedWindow = window ? computeReducedWindow(window, activeDocSelection, documentBeforeEdits) : undefined;
-					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req);
+					this._nextEditCache.setNoNextEdit(curDocId, documentBeforeEdits, reducedWindow, req, getModelTelemetry(lastTelemetry));
 				}
 			}
 
@@ -1476,6 +1487,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 							ithEdit,
 							activeDoc: { id: curDocId, contents: nextEditRequest.documentBeforeEdits, cursorOffset },
 							userEditSince: undefined,
+							modelTelemetry: getModelTelemetry(res.value.telemetryBuilder),
 							source: req,
 							logger,
 						});

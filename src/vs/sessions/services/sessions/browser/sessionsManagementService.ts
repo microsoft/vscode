@@ -87,9 +87,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -724,6 +724,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async unarchiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 		this._onDidUnarchiveSession.fire(session);
+	}
+
+	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
+		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
+	}
+
+	markRead(session: ISession): Promise<void> {
+		return this.setSessionReadState(session, true);
+	}
+
+	markUnread(session: ISession): Promise<void> {
+		return this.setSessionReadState(session, false);
+	}
+
+	async markAllRead(sessions: readonly ISession[]): Promise<void> {
+		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

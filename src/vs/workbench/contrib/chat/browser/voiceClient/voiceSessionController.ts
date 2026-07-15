@@ -1136,6 +1136,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}));
 
+		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => {
+			this._interruptAssistantPlayback();
+		}));
+
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
@@ -1317,6 +1321,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return;
 			}
 			if (allowedTools.includes(e.name)) {
+				// Answer read-only backend queries without touching PTT/state, so the backend's connect-time probe can't end a just-started auto-listen.
+				const passiveTools = ['get_session_info', 'get_session_changes', 'get_session_thread'];
+				if (passiveTools.includes(e.name)) {
+					this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
+						this.voiceClientService.sendToolResult(e.callId, result);
+					}, err => {
+						// Always answer, even on failure, so the backend isn't left waiting on this callId.
+						this.logService.error(`[voice] passive tool ${e.name} dispatch failed`, err);
+						this.voiceClientService.sendToolResult(e.callId, 'error');
+					});
+					return;
+				}
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -1345,6 +1361,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					} else {
 						this.voiceClientService.sendToolResult(e.callId, result);
 					}
+					this._voiceState.set('idle', undefined);
+					this._statusText.set('Hold to speak...', undefined);
+					this._sendContext();
+				}, err => {
+					// Always answer, even on failure, so the backend isn't left waiting on this callId.
+					this.logService.error(`[voice] tool ${e.name} dispatch failed`, err);
+					this.voiceClientService.sendToolResult(e.callId, 'error');
 					this._voiceState.set('idle', undefined);
 					this._statusText.set('Hold to speak...', undefined);
 					this._sendContext();
@@ -1623,9 +1646,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * is sent for the turn.
 	 */
 	private _finishPtt(reason: 'local' | 'auto' = 'local'): void {
+		// End toggle (hands-free) mode on every turn-ending path — even when not held — so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
+		this._pttToggleMode = false;
 		if (!this._pttHeld) { return; }
 		this._clearAutoListenTimer();
 		this._pttHeld = false;
+		// End toggle (hands-free) mode on every turn-ending path, so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
+		this._pttToggleMode = false;
 		this._telemetryPttUpMs = Date.now();
 		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
 		this.telemetryService.publicLog2<VoicePttEvent, VoicePttClassification>('voicePtt', { holdDurationMs: holdMs });
@@ -2785,6 +2812,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	// --- Audio FIFO queue ---
 
+	private _interruptAssistantPlayback(): void {
+		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
+		this._audioQueue.length = 0;
+		this._currentPlaybackSessionId = null;
+		this._isProcessingQueue = false;
+		this._suppressIncomingAudio = true;
+		this.ttsPlaybackService.stopPlayback();
+		this.voicePlaybackService.notifyPlaybackEnd(undefined);
+	}
+
 	private _enqueueAudio(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined): void {
 		// An incoming response frame means the assistant is actively replying, so
 		// cancel any pending auto-listen. Otherwise a debounced listen scheduled
@@ -2795,7 +2832,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// audio chunks arrive as non-first chunks and would be dropped.
 		this._clearAutoListenTimer();
 
-		// User interrupted (pttDown / onSpeechStarted): drop late chunks from the
+		// User interrupted (pttDown / onSpeechStarted / barge_in): drop late chunks from the
 		// previous turn. The backend marks the first audio chunk of a new
 		// response with `is_first_chunk: true` — that's our signal that a fresh
 		// response is starting and suppression should clear. (We can't key on

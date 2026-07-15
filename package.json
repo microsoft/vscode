@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.129.0",
-  "distro": "a78eb8284ce7699e371b36071b579f557406f153",
+  "version": "1.130.0",
+  "distro": "ac355fb4d039edb8cc28e1f8e45c6d5d8c437fe2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -24,7 +24,7 @@
     "compile-copilot": "npm --prefix extensions/copilot run compile",
     "build-fast": "npm-run-all2 -lp transpile-client build-fast-extensions compile-copilot",
     "build-fast-extensions": "npm run gulp copy-codicons compile-extensions compile-extension-media",
-    "typecheck-client": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
+    "typecheck-client": "tsc --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "codex:check-protocol": "node build/codex/check-protocol-sync.ts",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
@@ -59,11 +59,11 @@
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.ts",
-    "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
-    "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
-    "vscode-dts-compile-check": "tsgo --project src/tsconfig.vscode-dts.json && tsgo --project src/tsconfig.vscode-proposed-dts.json",
-    "valid-layers-check": "node build/checker/layersChecker.ts && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
-    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsgo --project src/tsconfig.defineClassFields.json",
+    "monaco-compile-check": "tsc --project src/tsconfig.monaco.json --noEmit",
+    "tsec-compile-check": "node --max-old-space-size=8192 node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
+    "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
+    "valid-layers-check": "node build/checker/layersChecker.ts && tsc --project build/checker/tsconfig.browser.json && tsc --project build/checker/tsconfig.worker.json && tsc --project build/checker/tsconfig.node.json && tsc --project build/checker/tsconfig.electron-browser.json && tsc --project build/checker/tsconfig.electron-main.json && tsc --project build/checker/tsconfig.electron-utility.json",
+    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
@@ -89,7 +89,7 @@
     "perf:chat-leak": "node scripts/chat-simulation/test-chat-mem-leaks.js",
     "copilot:setup": "npm --prefix extensions/copilot run setup",
     "copilot:get_token": "npm --prefix extensions/copilot run get_token",
-    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
+    "update-build-ts-version": "npm install -D typescript@npm:@typescript/typescript6@^6.0.2 && npm install -D @typescript/native@npm:typescript@next && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
     "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
@@ -116,7 +116,7 @@
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/policy-watcher": "^1.4.0",
-    "@vscode/proxy-agent": "^0.43.0",
+    "@vscode/proxy-agent": "^0.44.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
     "@vscode/spdlog": "^0.15.8",
@@ -125,7 +125,7 @@
     "@vscode/tree-sitter-wasm": "^0.3.1",
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-mutex": "^0.5.0",
-    "@vscode/windows-process-tree": "^0.7.0",
+    "@vscode/windows-process-tree": "^0.8.0",
     "@vscode/windows-registry": "^1.2.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.288",
     "@xterm/addon-image": "^0.10.0-beta.288",
@@ -192,7 +192,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260609",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@vscode/component-explorer": "^0.2.1-58",
     "@vscode/component-explorer-cli": "^0.2.1-59",
     "@vscode/gulp-electron": "^1.42.0",
@@ -210,7 +210,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.5.0",
+    "electron": "42.6.0",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -262,7 +262,7 @@
     "tar": "^7.5.16",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20260416",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.45.0",
     "util": "^0.12.4",
     "xml2js": "^0.5.0",
@@ -274,9 +274,6 @@
       "node-addon-api": "7.1.0"
     },
     "serialize-javascript": "^7.0.3",
-    "ssh2": {
-      "cpu-features": "0.0.0"
-    },
     "yauzl": "^3.3.1"
   },
   "repository": {
@@ -288,5 +285,33 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
+  },
+  "allowScripts": {
+    "bufferutil@4.1.0": true,
+    "cpu-features": false,
+    "kerberos@2.1.1": true,
+    "native-keymap@3.3.9": true,
+    "native-is-elevated@0.9.0": true,
+    "node-pty@1.2.0-beta.13": true,
+    "utf-8-validate@5.0.10": true,
+    "windows-foreground-love@0.6.1": true,
+    "@parcel/watcher@2.5.6": true,
+    "@playwright/browser-chromium@1.61.1": true,
+    "@vscode/fs-copyfile@2.0.0": true,
+    "@vscode/native-watchdog@1.4.6": true,
+    "@vscode/ripgrep@1.17.1": true,
+    "@vscode/deviceid@0.1.5": true,
+    "@vscode/policy-watcher@1.4.0": true,
+    "@vscode/spdlog@0.15.8": true,
+    "@vscode/sqlite3@5.1.12-vscode": true,
+    "@vscode/windows-registry@1.2.0": true,
+    "@vscode/windows-mutex@0.5.3": true,
+    "ssh2": false,
+    "fsevents@2.3.2": true,
+    "fsevents@1.2.13": true,
+    "es5-ext": false,
+    "husky": false,
+    "@vscode/windows-ca-certs@0.3.4": true,
+    "@vscode/windows-process-tree@0.8.0": true
   }
 }

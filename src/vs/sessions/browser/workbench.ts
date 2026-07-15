@@ -152,6 +152,12 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	 * returned handle to release the suppression. Calls nest via a counter.
 	 */
 	suppressEditorPartAutoVisibility(): IDisposable;
+
+	/**
+	 * Changes docked detail visibility in response to a sash resize without
+	 * persisting it as an explicit user visibility preference.
+	 */
+	setAuxiliaryBarHiddenForResize(hidden: boolean): void;
 }
 
 /**
@@ -161,6 +167,16 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
  */
 export interface IDockedEditorLayout {
 	handleDockedEditorPartLayout(nodeWidth: number): void;
+
+	/**
+	 * Fired when the side pane (the docked editor part and/or the auxiliary-bar
+	 * detail panel) transitions from *fully hidden* to visible — i.e. the user
+	 * opens the side pane. It fires regardless of how the pane is opened (the
+	 * toggle action, revealing an editor, or revealing the detail). Consumers
+	 * decide what to do from the current editor group state (e.g. populate the
+	 * default managed tabs only when no real editor is open).
+	 */
+	readonly onDidRevealSidePane: Event<void>;
 
 	/**
 	 * Whether the editor's current visible state was produced by an explicit user
@@ -224,6 +240,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
+
+	// The classic/mobile layout has no docked side pane, so it never fires this.
+	// {@link SinglePaneWorkbench} overrides it with a real emitter.
+	readonly onDidRevealSidePane: Event<void> = Event.None;
 
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
@@ -1198,8 +1218,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	//#region Side-pane layout hooks (classic grid defaults; overridden by SinglePaneWorkbench)
 
-	protected _fireDidChangePartVisibility(partId: Parts, visible: boolean): void {
-		this._onDidChangePartVisibility.fire({ partId, visible });
+	protected _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		this._onDidChangePartVisibility.fire({ partId, visible, source });
 	}
 
 	protected _notifyContainerDidLayout(): void {
@@ -1328,7 +1348,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	protected _onWillHideAuxiliaryBar(_hidden: boolean): void { }
 
-	protected _applyAuxiliaryBarVisibility(hidden: boolean): void {
+	protected _applyAuxiliaryBarVisibility(hidden: boolean, _source?: 'resize'): void {
 		// Skipped before the grid exists: during startup the layout controller (a
 		// BlockRestore contribution) runs before createWorkbenchLayout(), so the
 		// visibility is recorded in partVisibility and applied when the grid is built.
@@ -1993,9 +2013,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	setAuxiliaryBarHidden(hidden: boolean): void {
+		this._setAuxiliaryBarHidden(hidden);
+	}
+
+	setAuxiliaryBarHiddenForResize(hidden: boolean): void {
+		this._setAuxiliaryBarHidden(hidden, 'resize');
+	}
+
+	private _setAuxiliaryBarHidden(hidden: boolean, source?: 'resize'): void {
 		if (this.partVisibility.auxiliaryBar === !hidden) {
 			return;
 		}
+
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
 
 		if (hidden) {
 			this._restoreAttachedEditorMaximizedOnShow = false;
@@ -2006,7 +2036,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, hidden);
 
-		this._applyAuxiliaryBarVisibility(hidden);
+		this._applyAuxiliaryBarVisibility(hidden, source);
 
 		// If auxiliary bar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
@@ -2022,7 +2052,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 
-		this._savePartVisibility();
+		if (!source) {
+			this._savePartVisibility();
+		}
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
 
 	/**
@@ -2047,6 +2083,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+
 		// Track whether this visible state was an explicit user reveal so R1 does
 		// not undo it. Any hide clears it; an automatic reveal leaves it false.
 		this._editorRevealedExplicitly = !hidden && explicit;
@@ -2066,7 +2104,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			this._savePartVisibility();
 		});
+
+		if (!hidden && sidePaneWasClosed) {
+			this._onSidePaneRevealed();
+		}
 	}
+
+	/**
+	 * Hook invoked when the side pane (editor part and/or auxiliary bar) transitions
+	 * from *fully hidden* to visible. The base classic/mobile layout has no docked
+	 * side pane, so this is a no-op; {@link SinglePaneWorkbench} overrides it to
+	 * fire {@link onDidRevealSidePane}.
+	 */
+	protected _onSidePaneRevealed(): void { }
 
 	/**
 	 * Sizes the editor part when it is first revealed from a hidden state, so it

@@ -280,7 +280,7 @@ export interface ITerminalChatService {
 	 * @param source The AHP command source
 	 * @returns A disposable that unregisters the source when disposed
 	 */
-	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable;
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable;
 
 	/**
 	 * Retrieve the AHP command source for a given tool session.

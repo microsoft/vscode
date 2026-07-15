@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -95,6 +95,8 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
+	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
 interface IPendingRequest {
@@ -858,7 +860,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params });
+		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
 		return { authenticated: true };
 	}
 
@@ -867,6 +869,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async shutdown(): Promise<void> {
 		await this._sendExtensionRequest('shutdown');
+	}
+
+	/**
+	 * List the endpoints the remote agent host suggests probing for connectivity.
+	 */
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._sendExtensionRequest('getNetworkDiagnosticsInfo');
+	}
+
+	/**
+	 * Probe connectivity from the remote agent host to a single `url`.
+	 */
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._sendExtensionRequest('diagnosticsFetch', { url });
 	}
 
 	/**

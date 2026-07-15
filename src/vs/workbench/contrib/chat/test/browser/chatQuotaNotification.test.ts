@@ -20,7 +20,7 @@ import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../serv
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 const CREDIT_EFFICIENCY_LEARN_MORE_COMMAND_ID = 'workbench.action.chat.learnMoreAboutCreditUsage';
 const TRAJECTORY_NUDGE_TREATMENT_NAME = 'config.chatQuotaTrajectoryNudge';
@@ -149,6 +149,14 @@ function createMockNotificationService() {
 		},
 		reset() { lastNotification = undefined; deleted = false; dismissed = false; setCount = 0; },
 	};
+}
+
+function getCommandAction(notification: IChatInputNotification): IChatInputNotificationCommandAction {
+	const action = notification.actions[0];
+	if (action.kind !== ChatInputNotificationActionKind.Command) {
+		assert.fail(`Expected command action, got ${action.kind}`);
+	}
+	return action;
 }
 
 function createMockAssignmentService(trajectoryTreatment?: boolean | Promise<boolean | undefined>) {
@@ -446,7 +454,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.description, 'Sign in to keep going.');
 			assert.strictEqual(notificationMock.getNotification()!.actions.length, 1);
-			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.triggerSetup');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.triggerSetup');
 		});
 
 		test('free user gets upgrade action', () => {
@@ -457,7 +465,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.description, 'Upgrade to keep going.');
-			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.upgradePlan');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.upgradePlan');
 		});
 
 		test('managed plan user gets admin message', () => {
@@ -503,7 +511,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.description, 'Increase your budget to keep building.');
-			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 
 		test('paid user without overage gets manage budget action', () => {
@@ -1046,7 +1054,7 @@ suite('ChatQuotaNotificationContribution', () => {
 
 			assert.ok(notificationMock.getNotification());
 			assert.strictEqual(notificationMock.getNotification()!.description, 'Set additional budget to cover extra usage.');
-			assert.strictEqual(notificationMock.getNotification()!.actions[0].commandId, 'workbench.action.chat.manageAdditionalSpend');
+			assert.strictEqual(getCommandAction(notificationMock.getNotification()!).commandId, 'workbench.action.chat.manageAdditionalSpend');
 		});
 	});
 
