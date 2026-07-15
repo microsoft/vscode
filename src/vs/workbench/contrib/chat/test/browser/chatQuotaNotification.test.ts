@@ -780,29 +780,47 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('uses previous calendar month as period start for 31-day cycle', async () => {
-			clock.setSystemTime(new Date('2026-07-08T00:00:00Z'));
-			const telemetryService = new TestTelemetryService();
-			const { assignmentMock, notificationMock } = createContribution({
-				entitlement: ChatEntitlement.Pro,
-				quotas: {
-					resetDate: '2026-08-01T00:00:00Z',
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
+		test('counts the first billing day for 31-day and 28-day cycles', async () => {
+			const results = [];
+			for (const [now, resetDate] of [
+				['2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'],
+				['2026-02-01T00:00:00Z', '2026-03-01T00:00:00Z'],
+			]) {
+				clock.setSystemTime(new Date(now));
+				const telemetryService = new TestTelemetryService();
+				const { notificationMock } = createContribution({
+					entitlement: ChatEntitlement.Pro,
+					quotas: {
+						resetDate,
+						usageBasedBilling: true,
+						premiumChat: makeQuotaSnapshot(88),
+					},
+				}, { trajectoryTreatment: true, telemetryService });
+
+				await flushPromises();
+
+				results.push({
+					events: telemetryService.events,
+					notificationShown: notificationMock.getNotification() !== undefined,
+				});
+			}
+
+			assert.deepStrictEqual(results, [
+				{
+					events: [{
+						name: 'chatQuotaTrajectoryNudgeEnrolled',
+						data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 12, percentUsed: 12 },
+					}],
+					notificationShown: true,
 				},
-			}, { trajectoryTreatment: true, telemetryService });
-
-			await flushPromises();
-
-			assert.deepStrictEqual({
-				treatments: assignmentMock.getTreatmentCalls,
-				events: telemetryService.events,
-				notification: notificationMock.getNotification(),
-			}, {
-				treatments: [],
-				events: [],
-				notification: undefined,
-			});
+				{
+					events: [{
+						name: 'chatQuotaTrajectoryNudgeEnrolled',
+						data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 12, percentUsed: 12 },
+					}],
+					notificationShown: true,
+				},
+			]);
 		});
 
 		test('shows trajectory nudge only after treatment resolves', async () => {

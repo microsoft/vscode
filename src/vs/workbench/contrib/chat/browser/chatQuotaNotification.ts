@@ -325,8 +325,8 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		const periodStart = new Date(resetTime);
 		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
 		const periodStartTime = periodStart.getTime();
-		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay);
-		if (elapsedDays <= 0) {
+		const elapsedDays = (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay;
+		if (elapsedDays < 0) {
 			return undefined;
 		}
 
@@ -335,7 +335,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const averageDailyUsage = percentUsed / elapsedDays;
+		const averageDailyUsage = percentUsed / Math.max(1, elapsedDays);
 		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
 			return undefined;
 		}
