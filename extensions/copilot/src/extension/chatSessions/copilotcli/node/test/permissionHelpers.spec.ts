@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CancellationToken, ChatParticipantToolToken } from 'vscode';
+import type { CancellationToken, ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
@@ -17,6 +17,7 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
+import { ToolCall } from '../../common/copilotCLITools';
 import { ICopilotCLIImageSupport } from '../copilotCLIImageSupport';
 import { buildMcpConfirmationParams, buildShellConfirmationParams, handleReadPermission, handleWritePermission, isFileFromSessionWorkspace, PermissionRequest, requiresFileEditconfirmation, showInteractivePermissionPrompt } from '../permissionHelpers';
 
@@ -519,6 +520,57 @@ describe('CopilotCLI permissionHelpers', () => {
 			);
 			// No file => getFileEditConfirmationToolParams returns undefined => auto-approve
 			expect(result.kind).toBe('approve-once');
+		});
+
+		it('forwards the request cancellation token to trackEdit on the auto-approval path', async () => {
+			const worktree = URI.file('/worktree');
+			const filePath = URI.file('/worktree/src/foo.ts').fsPath;
+			const stream = {} as ChatResponseStream;
+			const toolCall: ToolCall = { toolName: 'edit', toolCallId: 'tc-auto', arguments: { path: filePath } };
+			const req = { kind: 'write', fileName: filePath, diff: '', intention: '' } as any;
+
+			const result = await handleWritePermission(
+				'session-1', req, toolCall, undefined, stream, editTracker,
+				makeWorkspaceInfo({
+					folder: URI.file('/workspace'),
+					worktree,
+					worktreeProperties: { autoCommit: true, baseCommit: 'abc', branchName: 'test', repositoryPath: '/repo', worktreePath: '/worktree', version: 1 },
+				}),
+				makeWorkspaceService([]),
+				instaService, makeToolsService('no'),
+				undefined as unknown as ChatParticipantToolToken, logService, token,
+			);
+
+			expect(result.kind).toBe('approve-once');
+			expect(editTracker.trackEdit).toHaveBeenCalledTimes(1);
+			const [callToolCallId, callUris, callStream, callToken] = vi.mocked(editTracker.trackEdit).mock.calls[0];
+			expect(callToolCallId).toBe('tc-auto');
+			expect(callUris.map(u => u.fsPath)).toEqual([filePath]);
+			expect(callStream).toBe(stream);
+			expect(callToken).toBe(token);
+		});
+
+		it('forwards the request cancellation token to trackEdit on the confirmed path', async () => {
+			const filePath = URI.file('/external/foo.ts').fsPath;
+			const stream = {} as ChatResponseStream;
+			const toolCall: ToolCall = { toolName: 'edit', toolCallId: 'tc-confirm', arguments: { path: filePath } };
+			const req = { kind: 'write', fileName: filePath, diff: '', intention: '' } as any;
+
+			const result = await handleWritePermission(
+				'session-1', req, toolCall, undefined, stream, editTracker,
+				makeWorkspaceInfo({ folder: URI.file('/workspace') }),
+				makeWorkspaceService([URI.file('/workspace')]),
+				instaService, makeToolsService('yes'),
+				undefined as unknown as ChatParticipantToolToken, logService, token,
+			);
+
+			expect(result.kind).toBe('approve-once');
+			expect(editTracker.trackEdit).toHaveBeenCalledTimes(1);
+			const [callToolCallId, callUris, callStream, callToken] = vi.mocked(editTracker.trackEdit).mock.calls[0];
+			expect(callToolCallId).toBe('tc-confirm');
+			expect(callUris.map(u => u.fsPath)).toEqual([filePath]);
+			expect(callStream).toBe(stream);
+			expect(callToken).toBe(token);
 		});
 	});
 
