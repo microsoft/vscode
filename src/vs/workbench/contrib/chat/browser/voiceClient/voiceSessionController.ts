@@ -1336,8 +1336,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationAck(e => {
 			this._handleNarrationAck(e);
 		}));
-		// The guard cleared for a narration we deferred — revalidate and retry.
-		// This nudge is the mode-agnostic trigger (PTT and hands-free alike).
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationUnblocked(e => {
 			this._retryDeferredNarration(this._sessionKey(e.codingSessionId));
 		}));

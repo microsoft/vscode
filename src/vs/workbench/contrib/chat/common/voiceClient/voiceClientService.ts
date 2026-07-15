@@ -263,22 +263,11 @@ export interface IVoiceClientService {
 	readonly onTranscription: Event<IVoiceTranscription>;
 	readonly onAudioResponse: Event<IVoiceAudioResponse>;
 	readonly onBargeIn: Event<IVoiceBargeIn>;
-	/**
-	 * Fired when the backend acknowledges a `request_narration` with a
-	 * disposition (`accepted` / `busy` / `invalid`). Absent from older backends;
-	 * consumers must tolerate a narration that is never acked.
-	 */
+	/** Fired on `narration_ack`. Absent from older backends, so consumers must tolerate a narration that is never acked. */
 	readonly onNarrationAck: Event<IVoiceNarrationAck>;
-	/**
-	 * Fired when the backend's playback guard clears for a narration it earlier
-	 * bounced with `busy`. A content-free nudge (works in push-to-talk and
-	 * hands-free) telling the client it may revalidate and retry that narration.
-	 */
+	/** Fired when the guard clears for a narration earlier bounced `busy`; see {@link IVoiceNarrationSignal}. */
 	readonly onNarrationUnblocked: Event<IVoiceNarrationSignal>;
-	/**
-	 * Fired when an accepted, in-flight narration was cancelled by barge-in. The
-	 * backend evicts the id so a revalidated retry can re-narrate.
-	 */
+	/** Fired when an accepted narration is cancelled by barge-in; see {@link IVoiceNarrationSignal}. */
 	readonly onNarrationInterrupted: Event<IVoiceNarrationSignal>;
 	readonly onToolCall: Event<IVoiceToolCall>;
 	readonly onSpeechStarted: Event<IVoiceSpeechStarted>;

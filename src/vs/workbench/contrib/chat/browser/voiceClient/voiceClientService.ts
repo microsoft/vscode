@@ -644,8 +644,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		// request_narration. Pre-session this returns undefined, so _narrate queues
 		// a retry that onSessionInit replays once the session exists.
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionContextSent) {
-			// Reuse a caller-supplied id (a `busy` retry) so the backend can dedup
-			// a lost ack and not double-speak; otherwise mint a fresh one.
+			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
 			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
 			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
