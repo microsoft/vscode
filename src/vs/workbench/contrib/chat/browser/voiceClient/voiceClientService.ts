@@ -121,6 +121,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (e.affectsConfiguration('agents.voice.voice')) {
 				this._sendSetVoice();
 			}
+			if (e.affectsConfiguration('agents.voice.language')) {
+				this._sendSetLanguage();
+			}
 		}));
 	}
 
@@ -136,6 +139,38 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sendSetVoice(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'set_voice', voice: this._getVoice() }));
+		}
+	}
+
+	private _getLanguage(): string {
+		const configured = this._configurationService.getValue<string>('agents.voice.language');
+		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
+			const language = this._canonicalizeLanguage(configured);
+			if (language) {
+				return language;
+			}
+		}
+
+		return this._canonicalizeLanguage(this._window?.navigator.language)
+			?? 'en-US';
+	}
+
+	private _canonicalizeLanguage(value: string | undefined): string | undefined {
+		const candidate = value?.trim();
+		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
+			return undefined;
+		}
+
+		try {
+			return Intl.getCanonicalLocales(candidate)[0];
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _sendSetLanguage(): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
 	}
 
@@ -614,8 +649,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._seedTracking(context);
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
@@ -625,8 +661,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
-			this._seedTracking(context);
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
 		}
 	}
 

@@ -494,6 +494,13 @@ configurationRegistry.registerConfiguration({
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
+		'agents.voice.language': {
+			type: 'string',
+			markdownDescription: nls.localize('agents.voice.language', "The BCP-47 language used for speech recognition and spoken responses. Use `auto` to follow the system or browser locale. Changing this while voice mode is connected takes effect immediately."),
+			default: 'auto',
+			examples: ['auto', 'en-US', 'fr-FR'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.showTranscript': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active. Enable this to read responses as text when `#agents.voice.speakResponses#` is disabled."),

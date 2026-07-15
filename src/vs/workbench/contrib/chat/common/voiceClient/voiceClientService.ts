@@ -21,7 +21,7 @@ export interface IVoiceSessionContext {
 		id: string;
 		last_message: string | null;
 	};
-	display_locale?: string;
+	display_locale: string;
 }
 
 /**
