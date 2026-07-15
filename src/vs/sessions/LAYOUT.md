@@ -284,7 +284,7 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 4. `createWorkbenchManagement()` — eagerly creates the welcome/setup service. Wiring of the Sessions Part lives in `SessionsService` (an eager singleton): it owns the single reconcile autorun that reads `ISessionsService.visibleSessions` and calls `SessionsPartService.updateVisibleSessions(...)`, and it observes its own `activeSession` (the active visible slot) to move keyboard focus into that session's view via `SessionsPartService.focusSession` (guarded so it does not steal focus from a session the user is already interacting with). The part itself is a passive renderer; focus is a pure view concern — the management service never reaches into the part.
 5. `layout()` → `restore()` — opens default view containers for visible parts
 
-**Initial part visibility:** Sidebar ✅, Sessions Part ✅, Auxiliary Bar ✅, Editor ❌, Panel ❌
+**Initial part visibility:** Sidebar ✅, Sessions Part ✅, Auxiliary Bar ✅, Editor ❌, Panel ❌. The editor pane comprises the editor and auxiliary-bar parts; the workbench adds `noeditorpane` only when both are hidden. In the single-pane layout, it instead reads the docked editor grid node's visibility, which is also visible for a detail-only pane.
 
 ---
 

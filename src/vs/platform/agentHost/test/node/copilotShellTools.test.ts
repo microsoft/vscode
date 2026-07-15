@@ -119,6 +119,7 @@ suite('CopilotShellTools', () => {
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
+			onDidSessionConfigChange: Event.None,
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectory: () => undefined,
 			isWorkingDirectoryPending: () => false,

@@ -657,6 +657,15 @@ suite('ChatQuotaNotificationContribution', () => {
 	// --- Quota trajectory warning --------------------------------------------
 
 	suite('quota trajectory warning', () => {
+		let clock: sinon.SinonFakeTimers;
+
+		setup(() => {
+			clock = sinon.useFakeTimers({
+				now: new Date('2026-06-25T00:00:00Z'),
+				toFake: ['Date'],
+			});
+		});
+
 		test('does not show when experiment treatment is disabled', async () => {
 			const { notificationMock } = createContribution({
 				quotas: {
@@ -777,6 +786,49 @@ suite('ChatQuotaNotificationContribution', () => {
 			await flushPromises();
 
 			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
+		test('counts the first billing day for 31-day and 28-day cycles', async () => {
+			const results = [];
+			for (const [now, resetDate] of [
+				['2026-01-01T00:00:00Z', '2026-02-01T00:00:00Z'],
+				['2026-02-01T00:00:00Z', '2026-03-01T00:00:00Z'],
+			]) {
+				clock.setSystemTime(new Date(now));
+				const telemetryService = new TestTelemetryService();
+				const { notificationMock } = createContribution({
+					entitlement: ChatEntitlement.Pro,
+					quotas: {
+						resetDate,
+						usageBasedBilling: true,
+						premiumChat: makeQuotaSnapshot(88),
+					},
+				}, { trajectoryTreatment: true, telemetryService });
+
+				await flushPromises();
+
+				results.push({
+					events: telemetryService.events,
+					notificationShown: notificationMock.getNotification() !== undefined,
+				});
+			}
+
+			assert.deepStrictEqual(results, [
+				{
+					events: [{
+						name: 'chatQuotaTrajectoryNudgeEnrolled',
+						data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 12, percentUsed: 12 },
+					}],
+					notificationShown: true,
+				},
+				{
+					events: [{
+						name: 'chatQuotaTrajectoryNudgeEnrolled',
+						data: { treatment: true, entitlement: 'Pro', averageDailyUsage: 12, percentUsed: 12 },
+					}],
+					notificationShown: true,
+				},
+			]);
 		});
 
 		test('shows trajectory nudge only after treatment resolves', async () => {

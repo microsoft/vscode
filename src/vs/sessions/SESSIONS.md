@@ -488,6 +488,24 @@ channel that received `ChatToolCallStart`/`ChatToolCallReady`; confirmations sen
 to the parent session URI are invalid and will not resolve the SDK permission
 request.
 
+Agent-host approval levels map to the Copilot SDK allow-all modes before each
+turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
+uses `auto`. Assisted permissions only skips a prompt when the SDK's
+model recommendation is `approve`; every other recommendation follows the normal
+confirmation flow. Judge rationale can arrive asynchronously: the confirmation
+reason is `loading` until the completed result supplies its explanation and a
+normalized safety score (`0` unsafe, `1` safe). Clients render that result in the
+existing risk-badge position with safety-appropriate visuals. A live
+approval-level change is pushed to every in-memory SDK
+chat immediately, including during an active turn, so leaving Allow all
+cannot leave the SDK in allow-all mode for later tool calls in that turn.
+`chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
+offered in approval pickers and defaults on outside Stable builds. Enterprise
+policy still leaves Approve When Safe and Allow All visible, but disables both with an
+administrator-directed explanation and normalizes either value back to Ask When Needed.
+The agent mode axis is independent: Autopilot with Ask When Needed still uses
+SDK permission mode `off` and preserves the configured sandbox policy.
+
 Subagents are modelled as additional chats on the parent session, not as separate
 sessions. When a `subagent_started` signal arrives, the host adds a subagent chat
 to the parent session and dispatches the subagent turn on that chat URI; restoring
@@ -579,6 +597,29 @@ Scheduler cancellation also stops the observation and fails the run. On timeout,
 the scheduler records the timeout failure before cancelling the observation, so
 neither path leaves a live observable subscription even though the session may
 remain active.
+
+The automation dialog keeps a Worktree branch selection as explicit intent,
+separate from the repository's live `HEAD`. Folder isolation displays live
+`HEAD` but persists no branch. Worktree isolation persists the selected local
+branch, falling back to the current named `HEAD` until the user makes a choice.
+Repository refresh failures and deleted local refs do not silently replace an
+edited branch. The automation and new-session surfaces share the provider-agnostic
+`contrib/chat/browser/branchPicker` trigger, ActionWidget, filtering, focus, and
+accessibility behavior; their adapters supply branch state and selection side
+effects. The Automations dialog keeps its form focus cycle, popup command
+allowlist, and popup-first Escape handling in its own adapter instead of changing
+the shared Dialog widget. An edited automation's saved provider/session type
+remains pending while providers are discovered, so a provisional fallback cannot erase Worktree intent;
+the user can still explicitly choose an available alternative. `ISessionType`
+advertises Worktree configuration support; unsupported targets keep the branch
+control read-only. The headless session path awaits the existing provider
+`setIsolationMode` and `setBranch` setters before sending. Agent-host Copilot CLI
+maps the generic `workspace` isolation value to its `folder` config value and
+verifies each resolved value. Automation values are one-shot and do not replace
+the user's remembered interactive session defaults. The headless management
+operation accepts the automation run's cancellation token so repository
+configuration and commit detection are cancelled together; cancellation rejects
+the run and disposes the provisional draft.
 
 ---
 

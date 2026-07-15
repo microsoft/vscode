@@ -19,6 +19,8 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
+	/** Whether new sessions of this type support Worktree isolation and base-branch selection. */
+	readonly supportsWorktreeConfiguration?: boolean;
 	/**
 	 * The workbench chat session type (contribution id) this session type maps
 	 * to, when it differs from {@link id}. Agent-host providers use a bare agent

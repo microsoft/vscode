@@ -40,7 +40,7 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import '../../../../contrib/styleOverrides/browser/media/tabs.css';
 
 // ============================================================================
@@ -482,10 +482,10 @@ function render(modernUI: boolean, options: Omit<IRenderOptions, 'modernUI'>): (
 	return (ctx: ComponentFixtureContext) => renderTabBar(ctx, { ...options, modernUI });
 }
 
-function createFixtures(modernUI: boolean) {
+function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentFixtureAdditionalTheme[] = []) {
 	return {
 		// Baseline: multiple tabs with mixed sticky / pinned / preview / dirty state.
-		Default: defineComponentFixture({ render: render(modernUI, {}) }),
+		Default: defineComponentFixture({ render: render(modernUI, {}), additionalThemes }),
 
 		// showTabs
 		ShowTabsSingle: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, breadcrumbs: {} }) }),
@@ -494,7 +494,7 @@ function createFixtures(modernUI: boolean) {
 		// pinnedTabsOnSeparateRow
 		PinnedTabsOnSeparateRowAllPinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allStickyEditorSpecs() }) }),
 		PinnedTabsOnSeparateRowAllUnpinned: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: allUnstickyEditorSpecs() }) }),
-		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }) }),
+		PinnedTabsOnSeparateRowMixed: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true }, editors: stickyEditorSpecs() }), additionalThemes }),
 
 		// breadcrumbs
 		BreadcrumbsFilePathLast: defineComponentFixture({ render: render(modernUI, { breadcrumbs: { filePath: 'last' }, editors: nestedActiveEditorSpecs() }) }),
@@ -559,10 +559,10 @@ function createFixtures(modernUI: boolean) {
 
 		// Active and inactive group styling.
 		ActiveGroup: defineComponentFixture({ render: render(modernUI, { active: true }) }),
-		InactiveGroup: defineComponentFixture({ render: render(modernUI, { active: false }) }),
+		InactiveGroup: defineComponentFixture({ render: render(modernUI, { active: false }), additionalThemes }),
 
 		// Multi-selection: several tabs in the selected state at once.
-		MultiSelect: defineComponentFixture({ render: render(modernUI, { editors: multiSelectEditorSpecs() }) }),
+		MultiSelect: defineComponentFixture({ render: render(modernUI, { editors: multiSelectEditorSpecs() }), additionalThemes }),
 
 		// Inactive group with dirty editors: exercises the unfocused modified-border color path.
 		InactiveGroupDirty: defineComponentFixture({ render: render(modernUI, { editors: dirtyEditorSpecs(), active: false }) }),
@@ -585,6 +585,6 @@ function createFixtures(modernUI: boolean) {
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/editorTabBar/' }, {
-	ModernUIOff: defineThemedFixtureGroup(createFixtures(false)),
-	ModernUIOn: defineThemedFixtureGroup(createFixtures(true)),
+	ModernUIOff: defineThemedFixtureGroup(createFixtures(false, ['darkHighContrast'])),
+	ModernUIOn: defineThemedFixtureGroup(createFixtures(true, ['darkHighContrast'])),
 });

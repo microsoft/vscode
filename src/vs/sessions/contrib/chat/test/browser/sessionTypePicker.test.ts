@@ -102,6 +102,10 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
+
+	showPicker(): void {
+		this._showPicker();
+	}
 }
 
 function createPicker(
@@ -110,9 +114,10 @@ function createPicker(
 	managementService: MockSessionsManagementService,
 	storage: IStorageService,
 	options?: ISessionTypePickerOptions,
+	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
-	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 	instantiationService.stub(IStorageService, storage);
@@ -372,6 +377,49 @@ suite('SessionTypePicker', () => {
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('folder-driven mode preserves an unavailable initial pick until its provider appears', () => {
+		const folderA = URI.file('/a');
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
+			initialPick: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
+			preserveUnavailableInitialPick: true,
+		});
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('folder-driven mode can replace a pending pick when only one alternative is available', () => {
+		const folderA = URI.file('/a');
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		let pickerShown = false;
+		const picker = createPicker(disposables, session, management, storage, undefined, {
+			isVisible: false,
+			hide: () => { },
+			show: () => { pickerShown = true; },
+		});
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
+			initialPick: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
+			preserveUnavailableInitialPick: true,
+		});
+		picker.render(document.createElement('div'));
+
+		picker.showPicker();
+
+		assert.strictEqual(pickerShown, true);
 	});
 
 	test('folder-driven mode re-defaults when a folder change no longer serves the pick', () => {

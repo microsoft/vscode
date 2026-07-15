@@ -3564,6 +3564,64 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('boolean input request renders as a true or false choice', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'boolean-input',
+					questions: [{
+						kind: ChatInputQuestionKind.Boolean,
+						id: 'enabled',
+						message: 'Enable the feature?',
+						defaultValue: false,
+					}],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData, 'input request should render runtime question carousel data');
+			assert.deepStrictEqual(carousel.questions.map(question => ({
+				id: question.id,
+				type: question.type,
+				allowFreeformInput: question.allowFreeformInput,
+				defaultValue: question.defaultValue,
+				options: question.options,
+			})), [{
+				id: 'enabled',
+				type: 'singleSelect',
+				allowFreeformInput: false,
+				defaultValue: 'false',
+				options: [
+					{ id: 'true', label: 'True', value: 'true' },
+					{ id: 'false', label: 'False', value: 'false' },
+				],
+			}]);
+
+			agentHostService.dispatchedActions.length = 0;
+			carousel.completion.complete({ answers: { enabled: { selectedValue: 'false' } } });
+			await timeout(10);
+
+			const completion = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatInputCompleted)?.action;
+			assert.deepStrictEqual(completion, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'boolean-input',
+				response: ChatInputResponseKind.Accept,
+				answers: {
+					enabled: {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Boolean, value: false },
+					},
+				},
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('input request completion echo applies authoritative answers after local submit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-local-input-request-test' });

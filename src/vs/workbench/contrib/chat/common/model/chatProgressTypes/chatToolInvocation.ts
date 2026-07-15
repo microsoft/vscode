@@ -187,6 +187,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this._state.set({ ...current }, undefined);
 	}
 
+	public updateConfirmationMessages(confirmationMessages: IToolConfirmationMessages): void {
+		const current = this._state.get();
+		if (current.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return;
+		}
+		this.confirmationMessages = confirmationMessages;
+		this._state.set({ ...current, confirmationMessages }, undefined);
+	}
+
 	/**
 	 * Cancel a streaming invocation directly (e.g., when preToolUse hook denies).
 	 * Only works when in Streaming state.

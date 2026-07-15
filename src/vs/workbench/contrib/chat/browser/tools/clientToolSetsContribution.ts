@@ -77,7 +77,6 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				'newWorkspace',
 				'runCommand',
 				'toolSearch',
-				'vscodeAPI',
 			],
 		}));
 

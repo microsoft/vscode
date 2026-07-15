@@ -18,6 +18,7 @@ import { autorun, IObservable, observableValue } from '../../../../base/common/o
 import { ISession } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -132,6 +133,7 @@ export class SessionTypePicker extends Disposable {
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
 	private readonly _folderSourceWatch = this._register(new MutableDisposable());
+	private _pendingInitialPick: IPreferredSessionType | undefined;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
@@ -214,6 +216,14 @@ export class SessionTypePicker extends Disposable {
 			// No active session: keep the stored pick to seed the next new session.
 			return this._readStoredPick();
 		}
+		if (this._pendingInitialPick) {
+			if (this._pickServedByFolder(this._pendingInitialPick)) {
+				const pick = this._pendingInitialPick;
+				this._pendingInitialPick = undefined;
+				return pick;
+			}
+			return this._pendingInitialPick;
+		}
 		const candidate = this._picked ?? this._readStoredPick();
 		if (this._pickServedByFolder(candidate)) {
 			return candidate;
@@ -226,18 +236,23 @@ export class SessionTypePicker extends Disposable {
 		return preferred ? { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id } : undefined;
 	}
 
-	private _pickServedByFolder(pick: IPreferredSessionType | undefined): boolean {
+	protected _pickServedByFolder(pick: IPreferredSessionType | undefined): boolean {
 		return !!pick && this._folderSessionTypes.some(t =>
 			t.sessionType.id === pick.sessionTypeId &&
 			(pick.providerId === undefined || t.providerId === pick.providerId));
 	}
 
 	/** Drive the picker from a folder instead of the active session, optionally seeding the initial pick. */
-	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType }): void {
+	setFolderSource(source: IObservable<URI | undefined>, options?: { readonly initialPick?: IPreferredSessionType; readonly preserveUnavailableInitialPick?: boolean }): void {
 		this._folderSource = source;
 		this._picked = options?.initialPick ?? this._readStoredPick();
+		this._pendingInitialPick = options?.preserveUnavailableInitialPick ? options.initialPick : undefined;
+		const initialFolder = source.get();
 		this._folderSourceWatch.value = autorun(reader => {
-			source.read(reader);
+			const folder = source.read(reader);
+			if (!isEqual(folder, initialFolder)) {
+				this._pendingInitialPick = undefined;
+			}
 			this._recompute();
 		});
 	}
@@ -336,7 +351,7 @@ export class SessionTypePicker extends Disposable {
 		this._folderSessionTypes = folderTypes;
 		this._updateModelTargetChatSessionType();
 
-		if (folderTypes.length <= 1) {
+		if (folderTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
 			return;
 		}
 
@@ -444,6 +459,7 @@ export class SessionTypePicker extends Disposable {
 	 * sheet) presentations so both surfaces report identical telemetry.
 	 */
 	protected _handleSelectedSessionType(pick: IPickedSessionType): void {
+		this._pendingInitialPick = undefined;
 		const stored = this._readStoredPick();
 		const beforeId = stored?.sessionTypeId ?? this._picked?.sessionTypeId;
 		const beforeLabel = this._folderSessionTypes.find(t => t.sessionType.id === beforeId)?.sessionType.label;
@@ -549,7 +565,7 @@ export class SessionTypePicker extends Disposable {
 		// Note: the existing CSS rule on `.session-workspace-picker-with-label`
 		// uses `:has(+ .sessions-chat-session-type-picker .action-label.hidden)`
 		// to also hide the "with" connector when the trigger is hidden.
-		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1;
+		const hideForSingleHarness = isWeb && this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked);
 		if (this._folderSessionTypes.length === 0 || hideForSingleHarness) {
 			this._triggerElement.classList.add('hidden');
 			this._visibleKey.set(false);

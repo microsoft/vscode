@@ -283,7 +283,7 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     settings:
-      networkIsolationPolicy: Permissive,CFSClean,CFSClean2
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
 
       - stage: Quality

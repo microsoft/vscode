@@ -63,7 +63,7 @@ export interface IPermissionPickerDelegate {
 	readonly getPermissionLevelHover?: (level: ChatPermissionLevel, meta: IPermissionLevelMeta) => string | undefined;
 	/**
 	 * Whether the experimental "Sandboxing for terminal" toggle may be shown on
-	 * the Default Approvals option. The toggle is specific to the local harness
+	 * the Default approvals option. The toggle is specific to the local harness
 	 * (which runs the built-in terminal tool); agent-host harnesses such as
 	 * Copilot CLI and Claude Code do not implement this and never show it.
 	 * Evaluated each time the picker opens so a harness switch is reflected.
@@ -91,11 +91,21 @@ interface IPermissionLevelMeta {
 
 function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMeta {
 	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			return {
+				id: 'chat.permissions.assisted',
+				label: localize('permissions.assisted', "Assisted permissions"),
+				shortLabel: localize('permissions.assisted.label', "Assisted permissions"),
+				detail: localize('permissions.assisted.subtext', "Evaluates risk before running tools"),
+				icon: ThemeIcon.fromId(Codicon.sparkle.id),
+				description: localize('permissions.assisted.description', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval."),
+				elevated: true,
+			};
 		case ChatPermissionLevel.AutoApprove:
 			return {
 				id: 'chat.permissions.autoApprove',
-				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				shortLabel: localize('permissions.autoApprove.label', "Bypass Approvals"),
+				label: localize('permissions.autoApprove', "Allow all"),
+				shortLabel: localize('permissions.autoApprove.label', "Allow all"),
 				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				icon: ThemeIcon.fromId(Codicon.warning.id),
 				description: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
@@ -115,8 +125,8 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 		default:
 			return {
 				id: 'chat.permissions.default',
-				label: localize('permissions.default', "Default Approvals"),
-				shortLabel: localize('permissions.default.label', "Default Approvals"),
+				label: localize('permissions.default', "Default approvals"),
+				shortLabel: localize('permissions.default.label', "Default approvals"),
 				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 				icon: ThemeIcon.fromId(Codicon.shield.id),
 				description: localize('permissions.default.description', "Use configured approval settings"),
@@ -228,7 +238,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 						run: async () => {
 							// Elevated levels show a one-time confirmation warning.
-							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, { defaultSettingKey: delegate.defaultSettingKey })) {
+							if (meta.elevated && !await maybeConfirmElevatedPermissionLevel(level, this.dialogService, storageService, {
+								defaultSettingKey: delegate.defaultSettingKey,
+								levelLabel: meta.label,
+							})) {
 								return;
 							}
 							delegate.setPermissionLevel(level);
@@ -308,7 +321,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			label = meta.shortLabel;
 			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
 			if (level === ChatPermissionLevel.Default && this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
-				label = localize('permissions.defaultSandboxed.label', "Default Approvals (Sandboxed)");
+				label = localize('permissions.defaultSandboxed.label', "Default approvals (sandboxed)");
 			}
 		}
 
@@ -317,7 +330,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);
-		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);
+		element.classList.toggle('warning', !ext && (level === ChatPermissionLevel.Autopilot || level === ChatPermissionLevel.Assisted));
 		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
 
 		this._currentTooltip = tooltip;

@@ -63,6 +63,12 @@ export class SinglePaneWorkbench extends Workbench {
 		return true;
 	}
 
+	override isEditorPaneVisible(): boolean {
+		return this.workbenchGrid
+			? this.workbenchGrid.isViewVisible(this.editorPartView)
+			: super.isEditorPaneVisible();
+	}
+
 	protected override _onSidePaneRevealed(): void {
 		this._onDidRevealSidePane.fire();
 	}

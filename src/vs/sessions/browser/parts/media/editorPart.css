@@ -21,10 +21,6 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nosidebar.nosessionspart .monaco-grid-view .part.editor:not(.modal-editor-part) {
-	margin-left: 10px;
-}
-
 /* Editor Layout Actions Toolbar */
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions {

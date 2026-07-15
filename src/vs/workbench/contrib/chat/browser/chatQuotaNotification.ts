@@ -30,7 +30,6 @@ const TRAJECTORY_NUDGE_SPEC = {
 	averageDailyUsageThreshold: 4.5,
 	minimumPercentUsed: 10,
 	maximumPercentUsed: 35,
-	billingPeriodDays: 30,
 	msPerDay: 24 * 60 * 60 * 1000,
 	learnMoreUrl: 'https://aka.ms/token-usage-tips',
 	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
@@ -317,14 +316,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const resetTime = new Date(resetDate).getTime();
+		const reset = new Date(resetDate);
+		const resetTime = reset.getTime();
 		if (!Number.isFinite(resetTime)) {
 			return undefined;
 		}
 
-		const periodStartTime = resetTime - (TRAJECTORY_NUDGE_SPEC.billingPeriodDays * TRAJECTORY_NUDGE_SPEC.msPerDay);
-		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay);
-		if (elapsedDays <= 0) {
+		const periodStart = new Date(resetTime);
+		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
+		const periodStartTime = periodStart.getTime();
+		const elapsedDays = (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay;
+		if (elapsedDays < 0) {
 			return undefined;
 		}
 
@@ -333,7 +335,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const averageDailyUsage = percentUsed / elapsedDays;
+		const averageDailyUsage = percentUsed / Math.max(1, elapsedDays);
 		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
 			return undefined;
 		}

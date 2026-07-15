@@ -2919,6 +2919,7 @@ suite('AgentSideEffects', () => {
 				{ requestId: 'tc-mid-1', approved: true },
 			]);
 		});
+
 	});
 
 	// ---- Edit auto-approve ----------------------------------------------

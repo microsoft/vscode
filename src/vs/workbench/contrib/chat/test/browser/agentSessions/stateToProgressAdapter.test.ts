@@ -11,7 +11,7 @@ import type { IMarkdownString } from '../../../../../../base/common/htmlContent.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -1543,15 +1543,81 @@ suite('stateToProgressAdapter', () => {
 						invocationMessage: 'Run command',
 						status: ToolCallStatus.PendingConfirmation,
 						confirmationTitle: 'Run command',
+						riskAssessment: {
+							kind: ToolCallRiskAssessmentKind.Judge,
+							status: ToolCallRiskAssessmentStatus.Complete,
+							reason: 'The command removes a project file.',
+							safety: 0.15,
+						},
 						toolInput: 'echo hello',
 					},
 				},
 			]), undefined);
 			assert.strictEqual(result.length, 1);
 			// PendingConfirmation tools have input-style specific data (no terminal content yet)
-			const invocation = result[0] as { toolSpecificData?: { kind: string } };
+			const invocation = result[0] as IChatToolInvocation;
 			assert.ok(invocation.toolSpecificData);
 			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
+			const state = invocation.state.get();
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'complete',
+				explanation: 'The command removes a project file.',
+				safety: 0.15,
+			});
+		});
+
+		test('creates loading confirmation invocations while judgement is pending', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-judging',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Run command',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Run command',
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Loading,
+				},
+				toolInput: 'echo hello',
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'loading',
+			});
+		});
+
+		test('updates a rendered confirmation when asynchronous judgement completes', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-judging',
+				toolName: 'bash',
+				displayName: 'Bash',
+				invocationMessage: 'Run command',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Run command',
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Loading,
+				},
+				toolInput: 'echo hello',
+			});
+
+			invocation.updateConfirmationMessages({
+				title: 'Run command',
+				message: 'Run command',
+				approvalReason: {
+					status: 'complete',
+					explanation: 'This command modifies protected files.',
+					safety: 0.1,
+				},
+			});
+			const state = invocation.state.get();
+
+			assert.deepStrictEqual(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages?.approvalReason : undefined, {
+				status: 'complete',
+				explanation: 'This command modifies protected files.',
+				safety: 0.1,
+			});
 		});
 
 		test('preserves create metadata and proposed content for pending file confirmations', () => {

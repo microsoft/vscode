@@ -86,6 +86,10 @@
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
 }
 
+.style-override .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
  * control it belongs to the controls tier). */
 .style-override .monaco-action-bar .update-indicator {

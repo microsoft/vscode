@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -74,6 +74,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
+	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -175,6 +176,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
 		this.resolveSessionConfigRequests.push(request);
+		await this.resolveSessionConfigBarrier?.p;
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
@@ -2053,6 +2055,91 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
+	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
+
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		await provider.setIsolationMode(session.sessionId, 'workspace');
+
+		assert.deepStrictEqual({
+			supportsWorktreeConfiguration: provider.sessionTypes[0].supportsWorktreeConfiguration,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstAutomationRequest).map(request => request.config),
+			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
+		}, {
+			supportsWorktreeConfiguration: true,
+			requests: [
+				{ isolation: 'folder' },
+			],
+			remembered: {},
+		});
+	});
+
+	test('rejects branch configuration when agent-host resolution fails', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		agentHost.failResolveSessionConfig = true;
+
+		await assert.rejects(() => provider.setBranch(session.sessionId, 'feature/automation'), /resolveSessionConfig unavailable/);
+		assert.strictEqual(provider.getCreateSessionConfig(session.sessionId), undefined);
+	});
+
+	test('rejects isolation configuration when the final resolve changes the requested value', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'folder', branch: 'feature/automation' },
+		};
+
+		await assert.rejects(() => provider.setIsolationMode(session.sessionId, 'worktree'), /did not apply session config 'isolation'/);
+	});
+
+	test('cancels repository configuration when the draft is disposed during initial resolve', async () => {
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const setting = provider.setIsolationMode(session.sessionId, 'worktree');
+		await Promise.resolve();
+		provider.deleteNewSession(session.sessionId);
+
+		try {
+			await assert.rejects(raceTimeout(setting, 100), /Canceled/);
+		} finally {
+			await barrier.complete();
+		}
+	});
+
+	test('waits for authentication and startup config resolution before repository configuration', async () => {
+		agentHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { isolation: 'worktree', branch: 'feature/automation' },
+		};
+
+		const setting = provider.setBranch(session.sessionId, 'feature/automation');
+		await Promise.resolve();
+		assert.strictEqual(agentHost.resolveSessionConfigRequests.length, 0);
+
+		agentHost.setAuthenticationPending(false);
+		await setting;
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [
+			{},
+			{ isolation: 'worktree', branch: 'feature/automation' },
+		]);
+	});
+
 	test('setSessionConfigValue clamps autoApprove to default when policy disables global auto-approve', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const config = createPolicyRestrictedConfigurationService();
@@ -3313,7 +3400,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.resource.scheme, 'agent-host-codex', `expected the committed session to be the codex session, got ${committed.resource.toString()}`);
 	});
 
-	test('sendRequest rejects when the backend session never commits', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('sendRequest waits beyond 30 seconds for the backend session to commit', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		await timeout(30_001);
+		agentHost.addSession(createSession(session.sessionId, { summary: 'Committed Late' }));
+		agentHost.fireAction({
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', session.sessionId).toString()),
+			action: { type: ActionType.ChatTurnComplete },
+			serverSeq: 1,
+			origin: undefined,
+		} as ActionEnvelope);
+		await timeout(0);
+
+		const committed = await request;
+		assert.strictEqual(committed.title.get(), 'Committed Late');
+	}));
+
+	test('sendRequest rejects when the provisional session is abandoned before commit', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
@@ -3328,7 +3439,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 
 		await timeout(0);
-		await timeout(30_000);
+		provider.deleteNewSession(session.sessionId);
 		await rejection;
 		assert.deepStrictEqual(changes.map(change => ({
 			added: change.added.map(session => session.resource.toString()),
@@ -3337,7 +3448,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ added: [session.resource.toString()], removed: [] },
 			{ added: [], removed: [session.resource.toString()] },
 		]);
-	}));
+	});
 
 	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {
 		// Regression: when the first send of a session type triggers a lengthy
