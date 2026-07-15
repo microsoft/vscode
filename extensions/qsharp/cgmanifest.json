@@ -6,7 +6,7 @@
 				"git": {
 					"name": "qsharp-community/qsharp-tmLanguage",
 					"repositoryUrl": "https://github.com/qsharp-community/qsharp-tmLanguage",
-					"commitHash": "36ea1c83b09f57a11f0cdd58368ba909a3ffcdc1"
+					"commitHash": "5b57dc8feb85ab2659e0b14c8e01f6b49cbfac94"
 				}
 			},
 			"license": "MIT",

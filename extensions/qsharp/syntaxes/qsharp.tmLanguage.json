@@ -1,15 +1,12 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/qsharp-community/qsharp-tmLanguage/blob/main/grammars/qsharp.tmLanguage.json",
+		"This file has been converted from https://github.com/qsharp-community/qsharp-tmLanguage/blob/master/grammars/qsharp.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/qsharp-community/qsharp-tmLanguage/commit/36ea1c83b09f57a11f0cdd58368ba909a3ffcdc1",
+	"version": "https://github.com/qsharp-community/qsharp-tmLanguage/commit/5b57dc8feb85ab2659e0b14c8e01f6b49cbfac94",
 	"name": "qsharp",
 	"scopeName": "source.qsharp",
-	"fileTypes": [
-		"qs"
-	],
 	"patterns": [
 		{
 			"include": "#comments"
