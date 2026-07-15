@@ -586,11 +586,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (createOptions?.permissionLevel) {
 				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 			}
-			if (createOptions?.isolationMode) {
-				provider.setIsolationMode?.(session.sessionId, createOptions.isolationMode);
+			if (createOptions?.isolationMode && provider.setIsolationMode) {
+				await provider.setIsolationMode(session.sessionId, createOptions.isolationMode);
 			}
-			if (createOptions?.branch) {
-				provider.setBranch?.(session.sessionId, createOptions.branch);
+			if (createOptions?.branch && provider.setBranch) {
+				await provider.setBranch(session.sessionId, createOptions.branch);
 			}
 
 			return await this._sendNewChatRequestInBackground(provider, session, options);

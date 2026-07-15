@@ -1865,7 +1865,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	setIsolationMode(sessionId: string, mode: string): void {
+	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
 		if (mode !== 'worktree' && mode !== 'workspace') {
 			return;
 		}
@@ -1879,7 +1879,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._findChatSession(sessionId)?.setIsolationMode(mode);
 	}
 
-	setBranch(sessionId: string, branch: string): void {
+	async setBranch(sessionId: string, branch: string): Promise<void> {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setBranch(branch);

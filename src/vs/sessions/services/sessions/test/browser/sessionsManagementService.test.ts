@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -843,8 +844,8 @@ suite('SessionsManagementService', () => {
 			override setModel(_sessionId: string, _modelId: string): void { calls.push(`setModel:${_modelId}`); }
 			override setMode(_sessionId: string, _modeId: string): void { calls.push(`setMode:${_modeId}`); }
 			override setPermissionLevel(_sessionId: string, _level: string): void { calls.push(`setPermissionLevel:${_level}`); }
-			override setIsolationMode(_sessionId: string, _mode: string): void { calls.push(`setIsolationMode:${_mode}`); }
-			override setBranch(_sessionId: string, _branch: string): void { calls.push(`setBranch:${_branch}`); }
+			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
+			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return session; }
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -866,6 +867,54 @@ suite('SessionsManagementService', () => {
 			'setIsolationMode:worktree',
 			'setBranch:main',
 		]);
+	});
+
+	test('createAndSendNewChatRequest awaits repository configuration setters before sending', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const isolationDone = new DeferredPromise<void>();
+		const branchStarted = new DeferredPromise<void>();
+		const branchDone = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override async setIsolationMode(): Promise<void> {
+				calls.push('isolation:start');
+				await isolationDone.p;
+				calls.push('isolation:end');
+			}
+			override async setBranch(): Promise<void> {
+				calls.push('branch:start');
+				await branchStarted.complete();
+				await branchDone.p;
+				calls.push('branch:end');
+			}
+			override async sendRequest(): Promise<ISession> {
+				calls.push('send');
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const request = service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			isolationMode: 'worktree',
+			branch: 'main',
+		});
+		await Promise.resolve();
+		assert.deepStrictEqual(calls, ['isolation:start']);
+
+		await isolationDone.complete();
+		await branchStarted.p;
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start']);
+
+		await branchDone.complete();
+		await request;
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start', 'branch:end', 'send']);
 	});
 
 	test('createAndSendNewChatRequest disposes stranded draft when a setter throws', async () => {
