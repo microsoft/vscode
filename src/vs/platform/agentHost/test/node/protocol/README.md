@@ -16,12 +16,17 @@ They do this by recording the model traffic once (against real CAPI) into commit
 # Replay (default): deterministic, tokenless. This is what CI runs.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
 
-# Re-record a provider's fixtures against real CAPI (needs a GitHub token).
-AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/claudeAgentHostE2E.integrationTest.ts
+# Update AHP snapshots only, replaying the existing LLM fixtures (tokenless).
+AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
+
+# Update both AHP snapshots and LLM fixtures (real CAPI; needs a GitHub token).
+AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
 ```
 
 - **Replay** (no env var) — serves committed fixtures, no upstream contact, no credential. Strict: an unrecorded request fails the run.
-- **Record** (`AGENT_HOST_REPLAY_RECORD=1`) — forwards to real CAPI, captures normalized responses to fixtures. Needs `GITHUB_TOKEN` or `gh auth token`.
+- **Update AHP** (`AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1`) — replays committed LLM fixtures and rewrites AHP `serverToClient` snapshots in place. No token or network.
+- **Update all** (`AGENT_HOST_UPDATE_SNAPSHOTS=1`) — rewrites AHP snapshots and forwards to real CAPI to re-record LLM fixtures. Needs `GITHUB_TOKEN` or `gh auth token`.
+- **Record LLM only** (`AGENT_HOST_REPLAY_RECORD=1`) — the legacy focused mode for re-recording only normalized LLM fixtures against real CAPI.
 
 ---
 
@@ -61,6 +66,7 @@ Key properties:
 | `capiWireCodec.ts` | SSE codecs. Aggregates recorded SSE → a normalized turn, and regenerates SSE from a turn on replay, for both `anthropic` and `responses` dialects. |
 | `capiStubs.ts` | Hardcoded responses for ancillary bootstrap endpoints (`/models`, token, user, `/models/session`, telemetry, agents). |
 | `testHelpers.ts` | `startRealServer(...)` (wires the proxy + env), the mock LLM server, `TestProtocolClient`. |
+| `ahpSnapshot.ts` | Records and projects bidirectional AHP traffic into stable semantic YAML snapshots. |
 | `agentHostE2ETestHelpers.ts` | `defineAgentHostE2ETests(config)` — the cross-provider suite, record/replay plumbing, per-provider config, and `AgentHostE2EServerLease` (the per-test vs shared server lifecycle — see [Server lifecycle](#server-lifecycle)). |
 | `{claude,copilot,codex}AgentHostE2E.integrationTest.ts` | Per-provider entry points: resolve the SDK, define the config, add provider-specific tests. |
 | `captures/agentHostE2E/*.yaml` | The committed fixtures, one per `(provider, test)`. |
@@ -136,23 +142,33 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 
 ---
 
-## Recording / updating fixtures
+## Updating snapshots and fixtures
 
-Re-record when a provider's bundled SDK/CLI is bumped and its wire behavior changes (new endpoint, different turn count, changed tool schema).
+Normal test runs are read-only. An AHP mismatch fails and writes a sibling `.actual` file for diagnosis. Use an explicit update mode to accept changes in place:
 
 ```bash
-# One provider:
+# Update only AHP snapshots using deterministic, tokenless LLM replay:
+AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
+
+# Update AHP snapshots and re-record LLM fixtures together:
+AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
+
+# Re-record only LLM fixtures (legacy focused mode):
 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-  src/vs/platform/agentHost/test/node/protocol/claudeAgentHostE2E.integrationTest.ts
+  src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
 ```
 
-What happens in record mode:
+The AHP update preserves the executable `clientToServer` input and replaces only `serverToClient` with the observed semantic traffic. Review the resulting Git diff, then rerun without an update flag to verify the committed snapshot.
+
+`AGENT_HOST_UPDATE_SNAPSHOTS=1` and `AGENT_HOST_REPLAY_RECORD=1` both enter LLM record mode:
 
 1. The proxy forwards all traffic to real CAPI (`AGENT_HOST_RECORD_CAPI_URL`, default `https://api.githubcopilot.com`) and GitHub (`AGENT_HOST_RECORD_GITHUB_URL`, default `https://api.github.com`).
 2. Auth: `GITHUB_TOKEN` (preferred) or `gh auth token`. The GitHub token is used directly as the CAPI bearer credential (same pattern as the `@github/copilot` CLI). It lives only in request headers and is **never** written to fixtures.
 3. Model responses are captured, normalized (placeholders + redaction), and written to the per-test fixture. Ancillary endpoints are forwarded but **not** stored.
 
-After recording, **review the diff** (paths normalized? no usernames, tokens, or unreleased model ids?) and commit the updated fixtures.
+After recording, **review the diff** (paths normalized? no usernames, tokens, or unreleased model ids?) and commit the updated snapshots and fixtures.
 
 > Recording creates real agent sessions. Keep prompts read-only / trivial (`echo`, `pwd`, list files) and scoped to isolated temp dirs.
 
@@ -175,10 +191,18 @@ Guidelines:
 
 1. **The fixture name is derived from the test title** (`${provider}-${slug}.yaml`). Renaming a test orphans its fixture — re-record after renaming.
 2. **Drive with `client.waitForNotification(...)`** and assert on protocol actions. Don't wait on wall-clock timing.
-3. **Add the test, then record**: write the test, run once with `AGENT_HOST_REPLAY_RECORD=1` to capture fixtures for every enabled provider, review, commit.
+3. **Add the test, then record**: write the test, run once with `AGENT_HOST_UPDATE_SNAPSHOTS=1` to capture AHP snapshots and LLM fixtures for every enabled provider, review, commit.
 4. **Keep prompts deterministic and minimal** — fewer model turns = smaller, more robust fixtures.
 5. **Provider-specific** assertions go in that provider's `*.integrationTest.ts` after the `defineAgentHostE2ETests(config)` call.
 6. If the behavior can't replay deterministically (real-time streaming, mid-turn aborts, concurrency), gate it — see below.
+
+### AHP traffic snapshots
+
+An AHP snapshot is executable and contains one or more `rounds`. In each round, `clientToServer` is the test input and `serverToClient` is the expected output. `runAhpSnapshotTest(...)` creates the session, dispatches one round's client actions, waits for that round's final expected server message, and then advances to the next round. A complete snapshot-driven test can therefore be one helper call; focused assertions may still be added before or after it when a relationship is clearer in code than in the transcript.
+
+Each round stores separate `clientToServer` and `serverToClient` streams. Ordering is exact within each direction, without asserting accidental scheduling between a client dispatch and concurrently emitted server notifications. The final `serverToClient` entry must be a stable synchronization boundary such as `chat/toolCallReady` or `chat/turnComplete`. The snapshot is a semantic projection rather than raw JSON-RPC: request ids, sequence numbers, resource ids, and other volatile details are omitted or normalized. Each action keeps only fields that define its tested behavior, so adding an unrelated optional protocol property does not rewrite every snapshot. Newly emitted action types remain exact.
+
+To accept an AHP output change, run the affected test with `AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1`; the snapshot is rewritten in place and Git shows the diff. If the behavior also changes the LLM request/response sequence, use `AGENT_HOST_UPDATE_SNAPSHOTS=1` instead so both boundaries update in one run. Editing `clientToServer` remains deliberate because it changes the test input.
 
 ---
 
@@ -194,7 +218,7 @@ Guidelines:
 | `supportsPlanMode` | Gates the plan-mode test. |
 | `shellPermissionReplayUnstableOnWindows` | Skips the shell-permission test on **Windows** for that provider (e.g. Codex's `exec_command` tool call isn't emitted by the Codex CLI on Windows). |
 | `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
-| `RECORD` (env) | The `can abort a running turn` test is record-only — replay serves the truncated response instantly, so there's no window to abort. |
+| `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`; the `can abort a running turn` test is record-only because replay serves the truncated response instantly. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
 
 **Rule of thumb:** if a test relies on real-time behavior, concurrency, or POSIX-specific local execution, gate it rather than fighting the fixture. Prefer a *targeted* gate (per-provider flag or `!isWindows`) so you don't disable coverage where it works.

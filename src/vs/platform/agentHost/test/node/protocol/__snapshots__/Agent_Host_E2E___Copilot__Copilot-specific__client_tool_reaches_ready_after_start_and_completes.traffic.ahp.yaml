@@ -1,0 +1,189 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: copilot-client-tool
+            displayName: Test Client
+            tools:
+              - name: get_magic_word
+                description: Returns the secret magic word. Call this when asked for the magic word.
+                inputSchema:
+                  type: object
+                  properties: {}
+                  required: []
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call the get_magic_word tool and then tell me the exact magic word it returned.
+            origin:
+              kind: user
+            model:
+              id: claude-opus-4.6
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: copilot-client-tool
+            displayName: Test Client
+            tools:
+              - name: get_magic_word
+                description: Returns the secret magic word. Call this when asked for the magic word.
+                inputSchema:
+                  type: object
+                  properties: {}
+                  required: []
+      - channel: ${session_0}
+        action:
+          type: session/customizationsChanged
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call the get_magic_word tool and then tell me the exact magic word it returned.
+            origin:
+              kind: user
+            model:
+              id: claude-opus-4.6
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${session_0}
+        action:
+          type: session/serverToolsChanged
+      - channel: ${session_0}
+        action:
+          type: session/customizationUpdated
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${session_0}
+        action:
+          type: session/changesetsChanged
+      - channel: ${session_0}
+        action:
+          type: session/customizationUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: get_magic_word
+          displayName: get_magic_word
+          contributor:
+            kind: client
+            clientId: copilot-client-tool
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: Allow the model to call `get_magic_word`?
+          toolInput: '{}'
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededSet
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: Got the magic word
+            content:
+              - type: text
+                text: XYLOPHONE
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededRemoved
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededSet
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: Got the magic word
+            content:
+              - type: text
+                text: XYLOPHONE
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededRemoved
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: get_magic_word
+            content:
+              - type: text
+                text: XYLOPHONE
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: 'The magic word is: **XYLOPHONE**'
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

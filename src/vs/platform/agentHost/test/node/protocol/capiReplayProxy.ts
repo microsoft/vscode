@@ -17,7 +17,8 @@
  *    never silently reach real CAPI.
  *  - **record** mode: forwards every request to the upstream, streams the
  *    response back to the caller, and captures it to the fixture on disk.
- *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1`) since it needs a real token.
+ *    Opt-in (`AGENT_HOST_REPLAY_RECORD=1` or
+ *    `AGENT_HOST_UPDATE_SNAPSHOTS=1`) since it needs a real token.
  *
  * The proxy is intentionally **wire-agnostic**: it captures and replays the raw
  * response body, so it works identically for the Chat Completions
@@ -325,9 +326,24 @@ export class CapiReplayProxy {
 	 * the server (and the agent host's cached SDK client) alive for the next test.
 	 */
 	assertNoCacheMisses(): void {
-		if (this._isReplaying && this._strict && this._cacheMisses.length > 0) {
-			throw new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
+		const error = this._createCacheMissError();
+		if (error) {
+			throw error;
 		}
+	}
+
+	/** Returns and consumes the current replay failure so it can be surfaced at the original test failure. */
+	takeCacheMissError(): Error | undefined {
+		const error = this._createCacheMissError();
+		this._cacheMisses.length = 0;
+		return error;
+	}
+
+	private _createCacheMissError(): Error | undefined {
+		if (!this._isReplaying || !this._strict || this._cacheMisses.length === 0) {
+			return undefined;
+		}
+		return new Error(`[capi-replay] ${this._cacheMisses.length} cache miss(es):\n${this._cacheMisses.join('\n')}`);
 	}
 
 	/**
