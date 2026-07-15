@@ -5,8 +5,9 @@
 
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { matchesScheme, Schemas } from '../../../base/common/network.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IOpenerService, NoExternalUriResolverError } from '../../../platform/opener/common/opener.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
 import { IHostService } from '../../services/host/browser/host.js';
@@ -73,7 +74,17 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	}
 
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
-		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
-		return result.resolved;
+		const uri = URI.revive(uriComponents);
+
+		try {
+			const result = await this.openerService.resolveExternalUri(uri, options);
+			return result.resolved;
+		} catch (error) {
+			if (error instanceof NoExternalUriResolverError && (matchesScheme(uri, Schemas.http) || matchesScheme(uri, Schemas.https))) {
+				return uri;
+			}
+
+			throw error;
+		}
 	}
 }
