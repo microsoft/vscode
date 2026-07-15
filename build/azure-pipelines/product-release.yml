@@ -27,6 +27,12 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY build
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - template: ./common/setup-npm.yml@self
+
   - script: npm ci
     workingDirectory: build
     displayName: Install build dependencies

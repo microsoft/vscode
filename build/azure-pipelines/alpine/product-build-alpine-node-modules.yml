@@ -45,21 +45,7 @@ jobs:
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
 
-      - script: |
-          set -e
-          # Set the private NPM registry to the global npmrc file
-          # so that authentication works for subfolders like build/, remote/, extensions/ etc
-          # which does not have their own .npmrc file
-          npm config set registry "$NPM_REGISTRY"
-          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-        displayName: Setup NPM
-
-      - task: npmAuthenticate@0
-        inputs:
-          workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-        displayName: Setup NPM Authentication
+      - template: ../common/setup-npm.yml@self
 
       - task: Docker@1
         inputs:
@@ -90,7 +76,12 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          az extension add --name azure-devops --upgrade --only-show-errors
+          # The azure-devops extension is preinstalled on the 1ES image. Under network
+          # isolation the --upgrade attempt cannot reach PyPI, so tolerate that failure —
+          # but verify the extension is actually available and fail fast otherwise, so a
+          # genuinely missing extension does not surface later as a confusing az artifacts error.
+          az extension add --name azure-devops --upgrade --only-show-errors || echo "azure-devops extension upgrade skipped (network isolation); using preinstalled version"
+          az extension show --name azure-devops --only-show-errors > /dev/null 2>&1 || { echo "azure-devops CLI extension is not available" >&2; exit 1; }
           az artifacts universal download \
             --organization "https://dev.azure.com/monacotools" \
             --project "Monaco" \

@@ -3,9 +3,13 @@ steps:
   # checkout (e.g. the distro repository in download-distro.yml) does not relocate
   # self into a repo-named subfolder, which would break every script that assumes
   # self lives at $(Build.SourcesDirectory).
+  # persistCredentials keeps the repo auth header in .git/config after checkout so
+  # that the later standalone `git lfs pull` (see distro/download-distro.yml) can
+  # authenticate to the Git LFS endpoint; the checkout otherwise clears it.
   - checkout: self
     path: s
     fetchDepth: 1
     fetchTags: false
+    persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode

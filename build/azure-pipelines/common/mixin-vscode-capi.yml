@@ -1,3 +1,17 @@
+parameters:
+  # The npm script to run inside the vscode-capi checkout to apply the mixin.
+  # Product builds mix capi into the vscode product ('mixin_vscode'); the Copilot
+  # build mixes it into the copilot extension ('mixin').
+  - name: mixinScript
+    type: string
+    default: mixin_vscode
+  # The directory the mixin script targets, exported as BUILD_SOURCESDIRECTORY.
+  # Defaults to the vscode product root; the Copilot build overrides this to the
+  # copilot extension folder.
+  - name: buildSourcesDirectory
+    type: string
+    default: $(Build.SourcesDirectory)
+
 steps:
   # Check out the private microsoft/vscode-capi repository using the agent's
   # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
@@ -7,6 +21,31 @@ steps:
     fetchDepth: 1
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-capi
+
+  # Redirect vscode-capi's package-lock.json to the internal npm feed so the
+  # `npm ci` below works under network isolation. The capi checkout's lockfile
+  # otherwise resolves to the public registry (registry.npmjs.org), which is
+  # blocked on the isolated ADO build agents. Uses pwsh so it runs on every
+  # platform this shared template targets (Linux, macOS, Windows, Alpine).
+  - pwsh: node build/setup-npm-registry.ts $env:NPM_REGISTRY (Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi')
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry (vscode-capi)
+
+  # Authenticate the capi checkout against the internal feed. The calling stage's
+  # global npm authentication is conditional on a node_modules cache miss, so on a
+  # cache hit there is no token for the capi `npm ci` (which now targets the
+  # authenticated internal feed rather than the public registry). Write a project
+  # .npmrc in the capi checkout and authenticate it directly so the mixin is
+  # self-sufficient regardless of the caller's cache state.
+  - pwsh: Set-Content -Path (Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi/.npmrc') -Value "registry=$env:NPM_REGISTRY"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Write vscode-capi .npmrc
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(Build.SourcesDirectory)/.build/vscode-capi/.npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Authenticate vscode-capi NPM feed
 
   - pwsh: |
       $ErrorActionPreference = 'Stop'
@@ -24,8 +63,8 @@ steps:
 
       try {
         Invoke-CheckedCommand { npm ci }
-        $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
-        Invoke-CheckedCommand { npm run mixin_vscode }
+        $env:BUILD_SOURCESDIRECTORY = '${{ parameters.buildSourcesDirectory }}'
+        Invoke-CheckedCommand { npm run ${{ parameters.mixinScript }} }
       } finally {
         Pop-Location
       }

@@ -1,19 +1,11 @@
 steps:
-  # Check out the private microsoft/vscode-capi repository using the agent's
-  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
-  # repository resource is declared in the top-level pipeline (resources.repositories).
-  - checkout: capi
-    path: s/.build/vscode-capi
-    fetchDepth: 1
-    retryCountOnTaskFailure: 3
-    displayName: Checkout microsoft/vscode-capi
-
-  - script: |
-      set -e
-      cd $(Build.SourcesDirectory)/.build/vscode-capi
-      npm ci
-      BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
-    displayName: Mixin vscode-capi
+  # Mix the private vscode-capi repo into the copilot extension. Uses the shared
+  # capi-mixin template with copilot-specific parameters (the 'mixin' script and
+  # the copilot extension as the target directory).
+  - template: ../common/mixin-vscode-capi.yml@self
+    parameters:
+      mixinScript: mixin
+      buildSourcesDirectory: $(Build.SourcesDirectory)/extensions/copilot
 
   - script: npm run build
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
