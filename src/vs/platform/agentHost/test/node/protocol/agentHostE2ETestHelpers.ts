@@ -51,11 +51,16 @@ import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapsh
 // #region Record/replay
 
 /**
- * `AGENT_HOST_REPLAY_RECORD=1` records LLM fixtures, while
- * `AGENT_HOST_UPDATE_SNAPSHOTS=1` records LLM fixtures and updates AHP
- * snapshots. Both use real CAPI and require a real GitHub token.
+ * `AGENT_HOST_REPLAY_RECORD=1` records LLM fixtures. The integration-test
+ * wrapper implements `AGENT_HOST_UPDATE_SNAPSHOTS=1` as separate record and
+ * replay passes so AHP snapshots always capture deterministic replay traffic.
  */
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const UPDATE_SNAPSHOTS_PHASE = process.env['AGENT_HOST_UPDATE_SNAPSHOTS_PHASE'];
+const RUN_RECORD_ONLY_TESTS = RECORD && UPDATE_SNAPSHOTS_PHASE !== 'record';
+if (process.env[AgentHostUpdateSnapshotsEnvVar] === '1') {
+	throw new Error('[agent-host-e2e] AGENT_HOST_UPDATE_SNAPSHOTS must be orchestrated by scripts/test-integration.sh or scripts/test-integration.bat');
+}
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
@@ -78,9 +83,9 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
- * {@link defineAgentHostE2ETests} and provider-specific suites so both go
- * through the same record/replay path.
+ * `AGENT_HOST_REPLAY_RECORD=1`. `AGENT_HOST_UPDATE_SNAPSHOTS=1` is translated
+ * into this mode by the integration-test wrapper's first pass. Shared by
+ * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
 export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
@@ -956,7 +961,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// recorded (intentionally truncated) response is served instantly, so
 		// there is no mid-stream window to abort. Run it only while recording
 		// against real CAPI; it is skipped in deterministic replay.
-		(RECORD ? test : test.skip)('can abort a running turn', async function () {
+		(RUN_RECORD_ONLY_TESTS ? test : test.skip)('can abort a running turn', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);

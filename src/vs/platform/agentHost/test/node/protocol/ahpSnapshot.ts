@@ -21,7 +21,8 @@ const PLACEHOLDER_RE = /^\$\{(?<kind>[a-zA-Z]+)_(?<index>\d+)\}$/;
 export const AgentHostUpdateAhpSnapshotsEnvVar = 'AGENT_HOST_UPDATE_AHP_SNAPSHOTS';
 export const AgentHostUpdateSnapshotsEnvVar = 'AGENT_HOST_UPDATE_SNAPSHOTS';
 
-const UPDATE_AHP_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1' || process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const UPDATE_AHP_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
+const RECORD_LLM_FIXTURES_ONLY = process.env['AGENT_HOST_UPDATE_SNAPSHOTS_PHASE'] === 'record';
 
 type AhpSnapshotDirection = 'c2s' | 's2c';
 
@@ -191,6 +192,10 @@ export class AhpSnapshotScenario {
 				});
 			}
 			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
+		}
+
+		if (RECORD_LLM_FIXTURES_ONLY) {
+			return;
 		}
 
 		const actual = client.serializeAhpSnapshot();

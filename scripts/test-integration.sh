@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+ORIGINAL_ARGS=("$@")
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
@@ -91,6 +93,28 @@ if $HELP; then
 	echo "  $0 --suite 'api*'                          # run API folder + workspace tests"
 	echo "  $0 --suite 'git,emmet,typescript'          # run multiple suites"
 	echo "  $0 --suite api-folder --grep 'some test'     # grep within a suite"
+	exit 0
+fi
+
+if [[ "$AGENT_HOST_UPDATE_SNAPSHOTS" == "1" && -z "$AGENT_HOST_UPDATE_SNAPSHOTS_PHASE" ]]; then
+	if [[ -z "$RUN_FILE" && -z "$RUN_GLOB" ]]; then
+		echo "AGENT_HOST_UPDATE_SNAPSHOTS=1 requires --run or --runGlob to scope the update."
+		exit 1
+	fi
+
+	echo "Updating LLM fixtures from real CAPI..."
+	AGENT_HOST_UPDATE_SNAPSHOTS= \
+		AGENT_HOST_UPDATE_SNAPSHOTS_PHASE=record \
+		AGENT_HOST_UPDATE_AHP_SNAPSHOTS= \
+		AGENT_HOST_REPLAY_RECORD=1 \
+		"$0" "${ORIGINAL_ARGS[@]}"
+
+	echo "Updating AHP snapshots from deterministic LLM replay..."
+	AGENT_HOST_UPDATE_SNAPSHOTS= \
+		AGENT_HOST_UPDATE_SNAPSHOTS_PHASE=replay \
+		AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 \
+		AGENT_HOST_REPLAY_RECORD= \
+		"$0" "${ORIGINAL_ARGS[@]}"
 	exit 0
 fi
 
