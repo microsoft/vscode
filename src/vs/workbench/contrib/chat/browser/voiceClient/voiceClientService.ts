@@ -25,6 +25,8 @@ import {
 	IVoiceTurnAutoEndReason,
 	IVoiceFatalDisconnect,
 	IVoiceBargeIn,
+	IVoiceNarrationAck,
+	IVoiceNarrationSignal,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -73,6 +75,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onBargeIn = this._register(new Emitter<IVoiceBargeIn>());
 	readonly onBargeIn: Event<IVoiceBargeIn> = this._onBargeIn.event;
+
+	private readonly _onNarrationAck = this._register(new Emitter<IVoiceNarrationAck>());
+	readonly onNarrationAck: Event<IVoiceNarrationAck> = this._onNarrationAck.event;
+
+	private readonly _onNarrationUnblocked = this._register(new Emitter<IVoiceNarrationSignal>());
+	readonly onNarrationUnblocked: Event<IVoiceNarrationSignal> = this._onNarrationUnblocked.event;
+
+	private readonly _onNarrationInterrupted = this._register(new Emitter<IVoiceNarrationSignal>());
+	readonly onNarrationInterrupted: Event<IVoiceNarrationSignal> = this._onNarrationInterrupted.event;
 
 	private readonly _onToolCall = this._register(new Emitter<IVoiceToolCall>());
 	readonly onToolCall: Event<IVoiceToolCall> = this._onToolCall.event;
@@ -246,6 +257,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				turn_id?: string;
 				narration_id?: string;
 				interrupted_turn_id?: string;
+				disposition?: string;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -274,6 +286,26 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._onBargeIn.fire({
 						turnId: msg.turn_id ?? '',
 						interruptedTurnId: msg.interrupted_turn_id ?? '',
+					});
+					break;
+				case 'narration_ack':
+					this._onNarrationAck.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
+						disposition: (msg.disposition as 'accepted' | 'busy' | 'invalid') ?? 'accepted',
+						reason: msg.reason,
+					});
+					break;
+				case 'narration_unblocked':
+					this._onNarrationUnblocked.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
+					});
+					break;
+				case 'narration_interrupted':
+					this._onNarrationInterrupted.fire({
+						narrationId: msg.narration_id ?? '',
+						codingSessionId: msg.coding_session_id ?? '',
 					});
 					break;
 				case 'transcription':
@@ -606,16 +638,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string): string | undefined {
+	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
 		// a retry that onSessionInit replays once the session exists.
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionContextSent) {
-			const narrationId = generateUuid();
-			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: narrationId }));
-			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${narrationId.slice(0, 8)}`);
-			return narrationId;
+			// Reuse a caller-supplied id (a `busy` retry) so the backend can dedup
+			// a lost ack and not double-speak; otherwise mint a fresh one.
+			const id = narrationId ?? generateUuid();
+			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
+			this._logService.trace(`[voice] request_narration kind=${kind} id=${codingSessionId.slice(-32)} narration_id=${id.slice(0, 8)}${narrationId ? ' (retry)' : ''}`);
+			return id;
 		}
 		return undefined;
 	}

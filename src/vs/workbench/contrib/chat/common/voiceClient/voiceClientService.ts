@@ -55,6 +55,29 @@ export interface IVoiceBargeIn {
 	readonly interruptedTurnId: string;
 }
 
+/** Disposition of a client `request_narration`, reported by `narration_ack`. */
+export type IVoiceNarrationDisposition = 'accepted' | 'busy' | 'invalid';
+
+/** The backend's acknowledgement of a `request_narration`. */
+export interface IVoiceNarrationAck {
+	readonly narrationId: string;
+	readonly codingSessionId: string;
+	readonly disposition: IVoiceNarrationDisposition;
+	/** Present on `busy`/`invalid`: why the narration could not play. */
+	readonly reason?: string;
+}
+
+/**
+ * A correlation-only server signal about a previously requested narration:
+ * `narration_unblocked` (the guard cleared, you may retry) or
+ * `narration_interrupted` (an accepted narration was cancelled by barge-in).
+ * Carries no text — the client revalidates against current session state.
+ */
+export interface IVoiceNarrationSignal {
+	readonly narrationId: string;
+	readonly codingSessionId: string;
+}
+
 export interface IVoiceToolCall {
 	readonly callId: string;
 	readonly name: string;
@@ -216,8 +239,8 @@ export interface IVoiceClientService {
 	 */
 	invalidateSessionCache(sessionId: string): void;
 	sendToolResult(callId: string, result: string): void;
-	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. */
-	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string): string | undefined;
+	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
+	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
 	/**
 	 * Notify the backend of a session state transition.
 	 *
@@ -240,6 +263,23 @@ export interface IVoiceClientService {
 	readonly onTranscription: Event<IVoiceTranscription>;
 	readonly onAudioResponse: Event<IVoiceAudioResponse>;
 	readonly onBargeIn: Event<IVoiceBargeIn>;
+	/**
+	 * Fired when the backend acknowledges a `request_narration` with a
+	 * disposition (`accepted` / `busy` / `invalid`). Absent from older backends;
+	 * consumers must tolerate a narration that is never acked.
+	 */
+	readonly onNarrationAck: Event<IVoiceNarrationAck>;
+	/**
+	 * Fired when the backend's playback guard clears for a narration it earlier
+	 * bounced with `busy`. A content-free nudge (works in push-to-talk and
+	 * hands-free) telling the client it may revalidate and retry that narration.
+	 */
+	readonly onNarrationUnblocked: Event<IVoiceNarrationSignal>;
+	/**
+	 * Fired when an accepted, in-flight narration was cancelled by barge-in. The
+	 * backend evicts the id so a revalidated retry can re-narrate.
+	 */
+	readonly onNarrationInterrupted: Event<IVoiceNarrationSignal>;
 	readonly onToolCall: Event<IVoiceToolCall>;
 	readonly onSpeechStarted: Event<IVoiceSpeechStarted>;
 	readonly onSessionInit: Event<IVoiceSessionInit>;

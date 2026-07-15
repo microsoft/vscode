@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceNarrationAck, IVoiceNarrationSignal } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -495,6 +495,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _pendingSolicitedNarrations = new Map<string, { sessionId: string; kind: 'response' | 'confirmation'; text: string; timer: ReturnType<typeof setTimeout> }>();
 	private static readonly _SOLICITED_NARRATION_TIMEOUT_MS = 30_000;
+
+	/**
+	 * Narrations the backend bounced with `narration_ack` `busy` (or cancelled
+	 * with `narration_interrupted`), awaiting a retry. Keyed by canonical session
+	 * key, latest-wins (a session has at most one pending narration). The retry is
+	 * driven by `narration_unblocked` — a server-side nudge sent only once the
+	 * playback guard has cleared, so it is safe in both push-to-talk and
+	 * hands-free and never interrupts a live press. On the nudge the client
+	 * REVALIDATES against current session state and only re-requests if the
+	 * narration is still warranted, reusing the same `narrationId` when the text
+	 * is unchanged so the backend can dedup. Cleared when the session starts a new
+	 * turn (`thinking`) or on teardown.
+	 */
+	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
 
 
 	// --- Telemetry tracking ---
@@ -1322,6 +1336,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._interruptAssistantPlayback();
 		}));
 
+		// NACK + client-revalidation protocol for client-driven narration.
+		this._voiceEventDisposables.add(this.voiceClientService.onNarrationAck(e => {
+			this._handleNarrationAck(e);
+		}));
+		// The guard cleared for a narration we deferred — revalidate and retry.
+		// This nudge is the mode-agnostic trigger (PTT and hands-free alike).
+		this._voiceEventDisposables.add(this.voiceClientService.onNarrationUnblocked(e => {
+			this._retryDeferredNarration(this._sessionKey(e.codingSessionId));
+		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onNarrationInterrupted(e => {
+			this._handleNarrationInterrupted(e);
+		}));
+
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
@@ -1667,6 +1694,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pendingNarrationRetries.clear();
 		for (const s of this._pendingSolicitedNarrations.values()) { clearTimeout(s.timer); }
 		this._pendingSolicitedNarrations.clear();
+		this._deferredNarrations.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
 		this._pendingPriorTimeline = [];
@@ -2568,6 +2596,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		rekeyMap(this._recentlyReadResponse);
 		rekeyMap(this._lastResponseSummaryById);
 		rekeyMap(this._pendingNarrationRetries);
+		rekeyMap(this._deferredNarrations);
 		rekeySet(this._confirmationPendingSessions);
 		rekeySet(this._liveReplyKeys);
 		rekeySet(this._sessionsAwaitingResponseSummary);
@@ -2765,7 +2794,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/** Ask the backend to narrate a session's pending item, de-duped by the exact text last spoken for it ({@link _lastNarratedText}) and by any in-flight request for the same text ({@link _pendingSolicitedNarrations}); the single narration trigger for both live and on-focus paths. Returns `true` when a request was actually SENT - NOT that the reply was heard (the audio may still be dropped/deferred/never arrive). The reply is marked narrated and its pending indicator cleared only once its audio finalizes (see {@link _markNarrationHeard}). */
-	private _narrate(sessionId: string, kind: 'response' | 'confirmation', text: string): boolean {
+	private _narrate(sessionId: string, kind: 'response' | 'confirmation', text: string, reuseId?: string): boolean {
 		if (!text) {
 			return false;
 		}
@@ -2787,7 +2816,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 		this.logService.trace(`[voice] narrate kind=${kind} id=${sessionId.slice(-32)}`);
-		const narrationId = this.voiceClientService.requestNarration(sessionId, kind, text);
+		const narrationId = this.voiceClientService.requestNarration(sessionId, kind, text, reuseId);
 		if (!narrationId) {
 			// Socket was closed, so nothing was sent: don't touch playback/listening
 			// state (that would tear down a freshly-entered listen on connect).
@@ -2849,6 +2878,102 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._lastNarratedText.set(sessionKey, solicited.text);
 			this._clearPendingResponse(sessionKey);
 		}
+	}
+
+	/**
+	 * Handle a `narration_ack` for a `request_narration` we sent.
+	 *
+	 * `accepted` needs nothing: the request is already tracked in
+	 * {@link _pendingSolicitedNarrations} and its audio will finalize normally.
+	 * `busy` means the backend could not play right now (user speaking / reply in
+	 * flight); it will nudge us with `narration_unblocked` when the guard clears,
+	 * so we stop tracking the id as in-flight and remember it for a revalidated
+	 * retry. `invalid` is terminal, so we drop it entirely.
+	 */
+	private _handleNarrationAck(e: IVoiceNarrationAck): void {
+		if (e.disposition === 'accepted') {
+			return;
+		}
+		const key = this._sessionKey(e.codingSessionId);
+		const solicited = this._pendingSolicitedNarrations.get(e.narrationId);
+		if (solicited) {
+			clearTimeout(solicited.timer);
+			this._pendingSolicitedNarrations.delete(e.narrationId);
+		}
+		this._solicitedNarrationIds.delete(e.narrationId);
+		if (e.disposition === 'invalid') {
+			this.logService.trace(`[voice] narration_ack invalid id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
+			this._clearDeferred(key);
+			return;
+		}
+		// busy: defer for a revalidated retry once the guard clears.
+		const kind = solicited?.kind;
+		const text = solicited?.text;
+		if (kind && text) {
+			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
+			this._deferNarration(key, e.narrationId, kind, text);
+		}
+	}
+
+	/**
+	 * Handle a `narration_interrupted`: an accepted, in-flight narration was
+	 * cancelled by barge-in. The backend evicted the id, so stop tracking it and
+	 * defer a revalidated retry (driven by the `narration_unblocked` that follows
+	 * once the barge-in turn ends).
+	 */
+	private _handleNarrationInterrupted(e: IVoiceNarrationSignal): void {
+		const key = this._sessionKey(e.codingSessionId);
+		const solicited = this._pendingSolicitedNarrations.get(e.narrationId);
+		if (solicited) {
+			clearTimeout(solicited.timer);
+			this._pendingSolicitedNarrations.delete(e.narrationId);
+		}
+		this._solicitedNarrationIds.delete(e.narrationId);
+		if (solicited) {
+			this.logService.trace(`[voice] narration_interrupted id=${e.narrationId.slice(0, 8)}; deferring for revalidation`);
+			this._deferNarration(key, e.narrationId, solicited.kind, solicited.text);
+		}
+	}
+
+	/** Remember a bounced narration for a later revalidated retry (latest-wins per session), driven by the `narration_unblocked` nudge. */
+	private _deferNarration(sessionKey: string, narrationId: string, kind: 'response' | 'confirmation', text: string): void {
+		this._deferredNarrations.set(sessionKey, { narrationId, kind, text });
+	}
+
+	/**
+	 * The `narration_unblocked` nudge fired for a deferred narration. Revalidate
+	 * against the CURRENT session state and only re-request if it is still
+	 * warranted, reusing the same id when the text is unchanged (so the backend
+	 * dedups a lost ack) and minting a fresh one when the text changed. If it is
+	 * no longer warranted (resolved, or a different kind), drop it without
+	 * speaking.
+	 */
+	private _retryDeferredNarration(sessionKey: string): void {
+		const deferred = this._deferredNarrations.get(sessionKey);
+		if (!deferred) {
+			return;
+		}
+		let resource: URI | undefined;
+		try {
+			resource = URI.parse(sessionKey);
+		} catch {
+			resource = undefined;
+		}
+		const narratable = resource ? this._currentNarratable(resource) : undefined;
+		if (!narratable || narratable.kind !== deferred.kind) {
+			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer warranted; dropping`);
+			this._clearDeferred(sessionKey);
+			return;
+		}
+		const reuseId = narratable.text === deferred.text ? deferred.narrationId : undefined;
+		this.logService.trace(`[voice] retrying deferred narration for ${sessionKey.slice(-32)} reuse=${!!reuseId}`);
+		this._clearDeferred(sessionKey);
+		this._narrate(sessionKey, narratable.kind, narratable.text, reuseId);
+	}
+
+	/** Drop a deferred narration. */
+	private _clearDeferred(sessionKey: string): void {
+		this._deferredNarrations.delete(sessionKey);
 	}
 
 	/** The pending item a session would narrate now (waiting confirmation prompt or completed reply summary), from the resident model or cached summary/status; returns undefined (kicking off a load) if a confirmation's detail isn't ready. */
@@ -3682,6 +3807,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// A new turn supersedes any completed reply that was waiting to be
 			// read on focus - drop the stale pending-response indicator.
 			this._clearPendingResponse(sessionKey);
+			// A deferred narration from the previous turn is now stale.
+			this._clearDeferred(sessionKey);
 		}
 		if (!this._isSameSession(sessionId, shownNow)) {
 			// Background session. A completed reply must not play now: show the
