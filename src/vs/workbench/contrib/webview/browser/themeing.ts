@@ -7,7 +7,7 @@ import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
+import { applyFontFamilyFallback, EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 import { getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
@@ -54,7 +54,7 @@ export class WebviewThemeDataProvider extends Disposable {
 	public getWebviewThemeData(): WebviewThemeData {
 		if (!this._cachedWebViewThemeData) {
 			const configuration = this._configurationService.getValue<IEditorOptions>('editor');
-			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+			const editorFontFamily = applyFontFamilyFallback(configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily);
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 			const editorFontLigatures = new EditorFontLigatures().validate(configuration.fontLigatures);

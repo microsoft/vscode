@@ -114,25 +114,36 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	public getMassagedFontFamily(): string {
-		const fallbackFontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
-		const fontFamily = BareFontInfo._wrapInQuotes(this.fontFamily);
-		if (fallbackFontFamily && this.fontFamily !== fallbackFontFamily) {
-			return `${fontFamily}, ${fallbackFontFamily}`;
-		}
-		return fontFamily;
+		return applyFontFamilyFallback(this.fontFamily);
 	}
+}
 
-	private static _wrapInQuotes(fontFamily: string): string {
-		if (/[,"']/.test(fontFamily)) {
-			// Looks like the font family might be already escaped
-			return fontFamily;
-		}
-		if (/[+ ]/.test(fontFamily)) {
-			// Wrap a font family using + or <space> with quotes
-			return `"${fontFamily}"`;
-		}
+/**
+ * Wraps a font family (if needed) and appends the platform's default
+ * monospace font family as a fallback, so that a custom or unavailable
+ * font family still degrades to a monospace font instead of the browser's
+ * default (often serif) font.
+ * @internal
+ */
+export function applyFontFamilyFallback(fontFamily: string): string {
+	const fallbackFontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
+	const wrappedFontFamily = wrapFontFamilyInQuotes(fontFamily);
+	if (fallbackFontFamily && fontFamily !== fallbackFontFamily) {
+		return `${wrappedFontFamily}, ${fallbackFontFamily}`;
+	}
+	return wrappedFontFamily;
+}
+
+function wrapFontFamilyInQuotes(fontFamily: string): string {
+	if (/[,"']/.test(fontFamily)) {
+		// Looks like the font family might be already escaped
 		return fontFamily;
 	}
+	if (/[+ ]/.test(fontFamily)) {
+		// Wrap a font family using + or <space> with quotes
+		return `"${fontFamily}"`;
+	}
+	return fontFamily;
 }
 
 // change this whenever `FontInfo` members are changed
