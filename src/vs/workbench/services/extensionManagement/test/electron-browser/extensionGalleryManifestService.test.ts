@@ -1163,6 +1163,45 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [30_000]);
 	});
 
+	test('GitHub provider — auth-enabled: an indeterminate entitlement blip re-arms the proactive refresh instead of dropping it', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer', expires_in: 1800 });
+			}
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [1_350_000]);
+
+		// A transient blip re-resolves the account with indeterminate entitlements (checkAccess ->
+		// 'unknown') WITHOUT a sign-out event, so the epoch is unchanged and the marketplace stays
+		// Available. The fired one-shot timer must be re-armed on the retry backoff, not dropped —
+		// dropping it would let the token silently expire and wedge the marketplace until a reload.
+		defaultAccount = createDefaultAccount({ enterprise: false, entitlementsData: null });
+		service.pendingRefreshes[0].fire();
+		for (let i = 0; i < 100 && service.pendingRefreshes[0]?.delayMs !== 30_000; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [30_000]);
+	});
+
 	test('GitHub provider — sign-out during PRM discovery cancels the token exchange (stale subject token not sent)', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });

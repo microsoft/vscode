@@ -592,7 +592,18 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private async refreshNegotiatedGitHubToken(configuredServiceUrl: string, epoch: number): Promise<void> {
 		try {
 			const account = await this.defaultAccountService.getDefaultAccount();
-			if (this.validationEpoch !== epoch || !account || this.checkAccess(account) !== 'eligible') {
+			if (this.validationEpoch !== epoch) {
+				// Superseded by a concurrent validation (session/account/config change); it now owns
+				// the refresh schedule, so leave the timer to that owner.
+				return;
+			}
+			if (!account || this.checkAccess(account) !== 'eligible') {
+				// Still our epoch, but the account is transiently absent or its entitlements are
+				// indeterminate (`checkAccess` -> 'unknown'). Sign-out and durable ineligibility are
+				// driven by onDidChangeDefaultAccount; treat this as a soft blip and re-arm on the
+				// backoff (while access is still live) rather than dropping the fired one-shot timer
+				// and letting the token silently expire.
+				this.rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl, epoch);
 				return;
 			}
 			const subjectToken = await this.resolveGitHubSubjectToken(account);
@@ -616,20 +627,19 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// Success: reset the failure backoff and schedule the next proactive re-mint from
 				// the freshly advertised lifetime.
 				this.scheduleGitHubTokenRefresh(configuredServiceUrl, negotiated.expiresInSeconds);
+			} else {
+				// The index no longer negotiates a token (e.g. an admin reopened a previously gated
+				// index): drop the now-stale resource token — clearing it also propagates the removal
+				// to the shared process — and stop the proactive schedule, since an open index needs
+				// no bearer.
+				this.updateNegotiatedAccessToken(undefined);
 			}
 		} catch (error) {
 			// A failed background token refresh must NOT break a working marketplace — keep the
-			// current token/status. Rather than giving up (which would let the resource token
-			// silently expire and wedge the marketplace until a window reload), re-arm on a capped
-			// backoff so the re-mint self-heals once connectivity/identity is restored. Only re-arm
-			// while access is still live for this validation — a concurrent sign-out/account switch
-			// bumps the epoch and clears the timer via `update(null)`, and must win.
+			// current token/status and re-arm on the capped backoff so the re-mint self-heals once
+			// connectivity/identity is restored (guarded to the still-live case).
 			this.logService.trace('[Marketplace] Background refresh of the negotiated GitHub marketplace token failed; will retry', error);
-			if (this.validationEpoch === epoch
-				&& this.currentStatus === ExtensionGalleryManifestStatus.Available
-				&& this.negotiatedAccessToken) {
-				this.rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl);
-			}
+			this.rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl, epoch);
 		}
 	}
 
@@ -667,6 +677,22 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			: Math.min(this.gitHubTokenRefreshBackoffMs * 2, WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_RETRY_MAX_MS);
 		this.gitHubTokenRefreshBackoffMs = next;
 		this.armGitHubTokenRefresh(configuredServiceUrl, next);
+	}
+
+	/**
+	 * Re-arms the proactive refresh backoff after a SOFT failure (a transient identity/entitlement
+	 * blip or a failed re-mint) but ONLY while this validation still owns a live, token-backed
+	 * marketplace: the epoch is unchanged (a concurrent sign-out/account switch bumps it and disposes
+	 * the timer via `update(null)`, and must win), the marketplace is still `Available`, and a
+	 * negotiated token is still present (an open index / torn-down state needs no refresh). This is
+	 * what keeps a fired one-shot timer from being silently dropped while access is still live.
+	 */
+	private rearmGitHubTokenRefreshAfterFailureIfLive(configuredServiceUrl: string, epoch: number): void {
+		if (this.validationEpoch === epoch
+			&& this.currentStatus === ExtensionGalleryManifestStatus.Available
+			&& this.negotiatedAccessToken) {
+			this.rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl);
+		}
 	}
 
 	/**
