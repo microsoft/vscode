@@ -60,6 +60,8 @@ const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
+	// Packaged Linux replay completes recorded exec_command turns without tool events.
+	shellToolReplayUnstableOnLinux: true,
 };
 
 defineAgentHostE2ETests(CODEX_CONFIG);
