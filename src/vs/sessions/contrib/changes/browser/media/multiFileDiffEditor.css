@@ -34,6 +34,7 @@
 	border: none;
 	background: var(--vscode-sideBarSectionHeader-background);
 	margin: 0;
+	padding-left: var(--vscode-spacing-sizeNone);
 	align-items: center;
 }
 
@@ -78,7 +79,7 @@
  * line-number gutter width (which pushes it to the right). */
 .agent-sessions-workbench .part.editor .diff-hidden-lines .center > div:first-child {
 	justify-content: flex-start !important;
-	padding-left: 10px;
+	padding-left: 5px;
 	box-sizing: border-box;
 }
 
@@ -86,7 +87,6 @@
  * the collapse (fold) and expand (unfold) controls share the header twistie's
  * horizontal position. */
 .agent-sessions-workbench .part.editor .fold-unchanged {
-	margin-left: 10px;
 	box-sizing: border-box;
 }
 

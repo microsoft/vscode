@@ -148,7 +148,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
-			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false,
+			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') === true,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.

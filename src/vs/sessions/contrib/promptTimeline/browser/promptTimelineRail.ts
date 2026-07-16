@@ -24,6 +24,8 @@ export interface IPromptTimelineRail extends IDisposable {
 
 	/** Fired when a mark is chosen (click / keyboard), with its request id. */
 	readonly onDidSelect: Event<string>;
+	/** Fired while dragging the rail lane to scrub, with the requested transcript scroll offset (px). */
+	readonly onDidScrub: Event<number>;
 	/** Fired to review all of a prompt's changes. */
 	readonly onDidReview: Event<PromptTick>;
 	/** Fired to review a single changed file of a prompt. */
@@ -31,6 +33,9 @@ export interface IPromptTimelineRail extends IDisposable {
 
 	setFilesProvider(provider: (tick: PromptTick) => readonly PromptFileDiff[]): void;
 	setTicks(ticks: readonly PromptTick[]): void;
+
+	/** Records a hard/fast wheel flick; the fan blooms only if a real transcript scroll follows shortly after. */
+	notifyHardWheel(): void;
 	setActive(requestId: string | undefined): void;
 	focusTick(requestId: string): void;
 	setHostWidth(width: number): void;

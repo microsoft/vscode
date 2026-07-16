@@ -69,35 +69,6 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-/* Live Browser pill: <browser-icon> Live Browser, rendered as a compact
-	secondary button that mirrors the changes pill's sizing/colors (from the
-	standard `.monaco-text-button.small.secondary` styles); only inline layout is
-	set here. */
-.chat-turn-pill-browser {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.chat-turn-pill-browser .monaco-button.chat-turn-pill-browser-button {
-	display: inline-flex;
-	width: auto;
-	gap: 4px;
-	white-space: nowrap;
-	touch-action: manipulation;
-}
-
-.chat-turn-pill-browser-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Hug the border with the focus ring instead of the base `outline-offset: 2px`,
-	matching the changes pill. */
-.chat-turn-pill-browser .monaco-button.chat-turn-pill-browser-button:focus {
-	outline-offset: 0 !important;
-}
-
 /* Preview pill: a single unified control - a resource label (file icon + name),
 	an in-pill separator, and a dropdown chevron. The pill
 	background/border live on the container so the inner (transparent) buttons read

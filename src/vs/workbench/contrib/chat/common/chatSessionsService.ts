@@ -587,6 +587,11 @@ export interface IChatSessionItemController {
 	 * as a result of the deletion.
 	 */
 	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
+
+	/**
+	 * Set the authoritative archived state for the session identified by `resource`.
+	 */
+	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -727,6 +732,16 @@ export interface IChatSessionsService {
 	 * Returns the resolved item, or undefined if no resolve handler is available.
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Whether the registered item controller owns archived state for the session.
+	 */
+	canSetChatSessionItemArchived(sessionResource: URI): boolean;
+
+	/**
+	 * Sets archived state by delegating to the registered item controller.
+	 */
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
 
 	// #endregion
 

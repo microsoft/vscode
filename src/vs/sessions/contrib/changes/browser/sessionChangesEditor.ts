@@ -51,13 +51,13 @@ import { localize } from '../../../../nls.js';
 const HEADER_HEIGHT = 35;
 
 /**
- * Optimizes the embedded diffs for the narrow Agents window panel: in inline
- * view this hides the original file's line-number column, removing the wide
- * empty gutter that otherwise sits left of the modified line numbers. Unlike
- * `compactMode` it keeps the full expandable hidden-region widgets.
+ * Optimizes the embedded diffs for the narrow Agents window panel while
+ * preserving the multi-diff editor's expandable unchanged-region widgets.
  */
 const CHANGES_DIFF_EDITOR_OPTIONS: IDiffEditorOptions = {
 	hideOriginalLineNumbers: true,
+	folding: false,
+	lineNumbersMinChars: 3,
 };
 
 class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {

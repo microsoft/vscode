@@ -16,7 +16,7 @@ import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } 
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
@@ -54,6 +54,7 @@ interface IStoredLocalSession {
 	readonly lastMessageDate: number;
 	readonly workingDirectory: UriComponents;
 	readonly archived?: boolean;
+	readonly isRead?: boolean;
 	/**
 	 * Resource of the primary (parent) chat when this entry is a subsequent
 	 * chat in a multi-chat session. `undefined`/absent for primary chats.
@@ -141,7 +142,8 @@ class LocalSession extends Disposable {
 
 	private readonly _isArchived = observableValue(this, false);
 	readonly isArchived: IObservable<boolean> = this._isArchived;
-	readonly isRead: IObservable<boolean> = constObservable(true);
+	private readonly _isRead = observableValue(this, true);
+	readonly isRead: IObservable<boolean> = this._isRead;
 	readonly description: IObservable<IMarkdownString | undefined> = constObservable(undefined);
 
 	private readonly _lastTurnEnd = observableValue<Date | undefined>(this, undefined);
@@ -351,7 +353,13 @@ class LocalSession extends Disposable {
 		this._isArchived.set(archived, undefined);
 	}
 
+	setRead(isRead: boolean): void {
+		this._isRead.set(isRead, undefined);
+	}
+
 	private readonly _modelTracker = this._register(new MutableDisposable());
+
+	private _wasRequestInProgress = false;
 
 	/**
 	 * Subscribe to live updates from the given chat model. Subsequent calls
@@ -361,6 +369,11 @@ class LocalSession extends Disposable {
 		this._modelTracker.value = autorun(reader => {
 			const inProgress = model.requestInProgress.read(reader);
 			this._status.set(inProgress ? SessionStatus.InProgress : SessionStatus.Completed, undefined);
+			// A completed turn (in-progress → idle) marks the session unread.
+			if (this._wasRequestInProgress && !inProgress) {
+				this._isRead.set(false, undefined);
+			}
+			this._wasRequestInProgress = inProgress;
 			onChange();
 		});
 	}
@@ -579,6 +592,9 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			if (stored.archived) {
 				session.setArchived(true);
 			}
+			// Entries persisted before `isRead` existed default to unread, so the
+			// additive migration can promote genuinely-read legacy sessions.
+			session.setRead(stored.isRead ?? false);
 			// Only honour the parent link when the primary is also present in
 			// storage; otherwise promote this orphan child to a primary.
 			if (stored.parentUri) {
@@ -652,6 +668,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				title: session.title.get(),
 				lastMessageDate: session.updatedAt.get().getTime(),
 				archived: session.isArchived.get(),
+				isRead: session.isRead.get(),
 			};
 			this._writeStoredSessions(sessions);
 		}
@@ -734,17 +751,20 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		return Event.signal(this.languageModelsService.onDidChangeLanguageModels);
 	}
 
-	getModels(_sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+	getModelsSnapshot(_sessionId: string, restoredModelId?: string): ISessionModelsSnapshot {
 		// Local (in-process VS Code chat) sessions use general-purpose models
 		// (those without a `targetChatSessionType`) that are user-selectable —
 		// no extension registers models specifically targeting the 'local'
 		// session type.
-		return this.languageModelsService.getLanguageModelIds()
+		const models = this.languageModelsService.getLanguageModelIds()
 			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable ? { identifier: id, metadata } : undefined;
 			})
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+		const separator = restoredModelId?.search(/[/:]/) ?? -1;
+		const isResolved = separator === -1 || this.languageModelsService.hasResolvedVendor(restoredModelId!.substring(0, separator));
+		return { models, isResolved };
 	}
 
 	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
@@ -782,6 +802,26 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			session.setArchived(false);
 			this._updateStoredSession(session);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(session)] });
+		}
+	}
+
+	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+		const session = this._findSession(sessionId);
+		if (!session) {
+			return;
+		}
+		// A group's read state aggregates across every chat, so update them all.
+		const primary = this._resolvePrimary(session);
+		let changed = false;
+		for (const chat of this._getGroupChats(primary)) {
+			if (chat.isRead.get() !== isRead) {
+				chat.setRead(isRead);
+				this._updateStoredSession(chat);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._toISession(primary)] });
 		}
 	}
 
@@ -973,13 +1013,14 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		this._addStoredSession(newSession);
 		this._newSessions.deleteAndLeak(newSession.sessionId);
 
-		// Track response completion to update session status and persist title
+		// Track the live model now, while the first turn is still in progress,
+		// so a background completion/error marks the session unread even if the
+		// user navigates away before it settles.
 		if (result.kind === 'sent') {
+			this._syncSessionFromModel(newSession);
 			result.data.responseCompletePromise.then(() => {
 				newSession.setStatus(SessionStatus.Completed);
-				this._syncSessionFromModel(newSession);
 			}, error => {
-				// Response failed — still mark session completed so it doesn't appear stuck.
 				this.logService.error(`[LocalChatSessionsProvider] Response failed for session ${newSession.sessionId}:`, error);
 				newSession.setStatus(SessionStatus.Completed);
 				this._updateStoredSession(newSession);

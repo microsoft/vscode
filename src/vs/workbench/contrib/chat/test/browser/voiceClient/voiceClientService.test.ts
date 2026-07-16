@@ -120,6 +120,21 @@ suite('VoiceClientService', () => {
 		}]);
 	});
 
+	test('sends microphone audio using the PTT protocol', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendPttStart('turn-1');
+		service.sendPttAudioChunk('cGNt');
+		service.sendPttEnd();
+
+		assert.deepStrictEqual(socket().sent, [
+			{ type: 'ptt_start', turn_id: 'turn-1' },
+			{ type: 'ptt_audio_chunk', audio: 'cGNt' },
+			{ type: 'ptt_end' },
+		]);
+	});
+
 	test('serializes configured language in start_session context', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',

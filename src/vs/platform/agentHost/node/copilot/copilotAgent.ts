@@ -54,7 +54,8 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -171,6 +172,11 @@ interface IProvisionalSession {
 	readonly workspaceless?: boolean;
 }
 
+interface ICopilotAgentSessionIdentity {
+	readonly sessionUri: URI;
+	readonly chatChannelUri: URI;
+}
+
 function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
 	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
 }
@@ -231,21 +237,6 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 		return undefined;
 	}
 	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
-}
-
-/**
- * Returns a copy of `enablement` with keys that live under `fromDir` rebased
- * onto `toDir`. Keys that aren't rebased are preserved **verbatim** (no
- * `URI.parse(...).toString()` round-trip) so a non-URI-shaped or already-relocated
- * key can't be mutated and lose its toggle.
- */
-export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
-	const migrated = new Map<string, boolean>();
-	for (const [uri, enabled] of enablement) {
-		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-		migrated.set(rebased ? rebased.toString() : uri, enabled);
-	}
-	return migrated;
 }
 
 /**
@@ -385,7 +376,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
-	private readonly _githubTokensBySdkSession = new Map<string, string>();
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -397,6 +387,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
@@ -435,7 +426,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
-				this._logService.error('[Copilot] Failed to restart client after config change', err)
+				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
 		}));
 
@@ -534,7 +525,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
 			this._mcpNotificationSubs.clearAndDisposeAll();
-			this._githubTokensBySdkSession.clear();
 			await this._stopClient();
 		}
 	}
@@ -593,10 +583,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const entry = this._findAnySession(sessionId);
 		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
-		if (topLevelMcp.length === 0) {
-			return fromPlugins;
-		}
-		return [...fromPlugins, ...topLevelMcp];
+		const customizations = [...fromPlugins, ...topLevelMcp];
+		const desired = this._stateManager.getSessionState(session.toString())?.customizations ?? [];
+		return applyMcpServerEnablement(customizations, desired);
 	}
 
 	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -717,15 +706,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const sessionId = notification.sessionId;
-		const githubToken = sessionId ? this._githubTokensBySdkSession.get(sessionId) : undefined;
-		if (!sessionId || !githubToken) {
+		const githubToken = this._githubToken;
+		if (!githubToken) {
 			router.route(notification);
 			return;
 		}
 
 		try {
 			const context = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
-			if (this._githubTokensBySdkSession.get(sessionId) !== githubToken) {
+			if (this._githubToken !== githubToken) {
 				return;
 			}
 			router.route(notification, {
@@ -739,25 +728,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} catch (error) {
 			this._logService.debug(`[Copilot:${sessionId}] Restricted telemetry context resolution failed; dropping ${notification.event.kind}: ${error instanceof Error ? error.message : String(error)}`);
 		}
-	}
-
-	private _registerGitHubTelemetrySession(launchPlan: CopilotSessionLaunchPlan): () => void {
-		const previousToken = this._githubTokensBySdkSession.get(launchPlan.sessionId);
-		if (launchPlan.githubToken) {
-			this._githubTokensBySdkSession.set(launchPlan.sessionId, launchPlan.githubToken);
-		} else {
-			this._githubTokensBySdkSession.delete(launchPlan.sessionId);
-		}
-		return () => {
-			if (this._githubTokensBySdkSession.get(launchPlan.sessionId) !== launchPlan.githubToken) {
-				return;
-			}
-			if (previousToken) {
-				this._githubTokensBySdkSession.set(launchPlan.sessionId, previousToken);
-			} else {
-				this._githubTokensBySdkSession.delete(launchPlan.sessionId);
-			}
-		};
 	}
 
 	private async _refreshModels(attempt = 0): Promise<void> {
@@ -948,6 +918,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
+			// Required by the currently bundled SDK to enable its experimental auto-approval judge.
+			env['AUTO_APPROVAL'] = 'true';
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -1773,7 +1745,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		let agentSession: CopilotAgentSession | undefined;
 		let agent: AgentSelection | undefined;
-		let rollbackGitHubTelemetrySession = () => { };
 		try {
 			const resolvedAgent = await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
 			agent = resolvedAgent?.agent;
@@ -1792,12 +1763,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
-			rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 			await agentSession.initializeSession();
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (error) {
-			rollbackGitHubTelemetrySession();
 			agentSession?.dispose();
 			throw error;
 		}
@@ -1925,15 +1894,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
 			entry.handleClientToolCallComplete(toolCallId, result);
-		}
-	}
-
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		// Enablement is per-session: fan out to every existing session
-		// controller (provisional + materialized). New sessions start with
-		// the default value baked into their customizations.
-		for (const activeClient of this._activeClients.values()) {
-			activeClient.pluginController.setEnabled(uri, enabled);
 		}
 	}
 
@@ -2289,9 +2249,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 			}
 			let agentSession: CopilotAgentSession | undefined;
-			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat });
 				await agentSession.initializeSession();
 				if (options?.fork?.turnIdMapping) {
 					await agentSession.remapTurnIds(options.fork.turnIdMapping);
@@ -2305,7 +2264,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				result = { providerData: encodeProviderData(backing), backingSession: AgentSession.uri(this.id, sdkSessionId) };
 				this._logService.info(`[Copilot] Created additional chat ${chatKey} in session ${session.toString()}${options?.fork ? ' (forked)' : ''}`);
 			} catch (error) {
-				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				throw error;
 			}
@@ -2387,7 +2345,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.delete(chatKey);
 		this._sessions.get(AgentSession.id(session))?.disposePeerChat(chatKey);
 		if (sdkSessionId) {
-			this._githubTokensBySdkSession.delete(sdkSessionId);
 			try {
 				const client = await this._ensureClient();
 				await client.deleteSession(sdkSessionId);
@@ -2526,15 +2483,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
 			let agentSession: CopilotAgentSession | undefined;
-			const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat });
 				await agentSession.initializeSession();
 				this._ensureEntry(sessionId).registerPeerChat(chatKey, new CopilotSessionEntry(agentSession));
 				this._logService.info(`[Copilot] Resumed additional chat ${chatKey} in session ${session.toString()}`);
 				return agentSession;
 			} catch (error) {
-				rollbackGitHubTelemetrySession();
 				agentSession?.dispose();
 				this._logService.warn(`[Copilot] Failed to resume additional chat ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;
@@ -2641,24 +2596,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async shutdown(): Promise<void> {
 		this._shutdownPromise ??= (async () => {
-			this._githubTokensBySdkSession.clear();
-			try {
-				// Cancel any pending model-refresh retry so its timer cannot fire
-				// after teardown and resurrect the client.
-				this._modelRefreshRetry.clear();
-				this._logService.info('[Copilot] Shutting down...');
-				const sessionIds = new Set([...this._sessions.keys()]);
-				for (const sessionId of sessionIds) {
-					await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
-				}
-				await this._client?.stop();
-				this._client = undefined;
-				// Release the BYOK proxy handle only after the runtime subprocess is
-				// gone, mirroring `_stopClient` and the proxy ownership invariant.
-				await this._sessionLauncher.disposeByokProxyHandle();
-			} finally {
-				this._githubTokensBySdkSession.clear();
+			// Cancel any pending model-refresh retry so its timer cannot fire
+			// after teardown and resurrect the client.
+			this._modelRefreshRetry.clear();
+			this._logService.info('[Copilot] Shutting down...');
+			const sessionIds = new Set([...this._sessions.keys()]);
+			for (const sessionId of sessionIds) {
+				await this._sessionSequencer.queue(sessionId, () => this._destroyAndDisposeSession(sessionId));
 			}
+			await this._client?.stop();
+			this._client = undefined;
+			// Release the BYOK proxy handle only after the runtime subprocess is
+			// gone, mirroring `_stopClient` and the proxy ownership invariant.
+			await this._sessionLauncher.disposeByokProxyHandle();
 		})();
 		return this._shutdownPromise;
 	}
@@ -2762,7 +2712,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
 		this._sessions.clearAndDisposeAll();
 		this._mcpNotificationSubs.clearAndDisposeAll();
-		this._githubTokensBySdkSession.clear();
 		await this._stopClient();
 	}
 
@@ -2789,7 +2738,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
-			const pluginController = this._plugins.createSessionController(directory);
+			const pluginController = this._plugins.createSessionController(session, directory);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
@@ -2806,9 +2755,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link _resumeSession} for the same id cannot dispose this entry mid-init
 	 * via {@link DisposableMap.set}.
 	 */
-	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, channelUri?: URI): CopilotAgentSession {
-		const sessionUri = channelUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
-		const chatChannelUri = channelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
+	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
+		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
+		const chatChannelUri = identity?.chatChannelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
@@ -2881,9 +2830,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * latter reaps the worktree afterwards).
 	 */
 	private async _releaseSessionResources(sessionId: string): Promise<void> {
-		for (const chat of this._sessions.get(sessionId)?.allChatSessions() ?? []) {
-			this._githubTokensBySdkSession.delete(chat.sessionId);
-		}
 		// Tear down any peer chats owned by this session first so their SDK
 		// chats don't leak when the parent is deleted/disposed
 		// without each chat being individually disposed via `disposeChat`.
@@ -2992,12 +2938,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
-		const rollbackGitHubTelemetrySession = this._registerGitHubTelemetrySession(launchPlan);
 		try {
 			await agentSession.initializeSession();
 			this._registerInitializedSession(sessionId, agentSession);
 		} catch (err) {
-			rollbackGitHubTelemetrySession();
 			agentSession.dispose();
 			throw err;
 		}
@@ -3509,9 +3453,8 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
  *  - parsing + resolution helpers used by both host- and client-side
  *    customizations
  *
- * Per-session state (client-published customizations, on-disk
- * customization discovery for the session's working directory,
- * enablement overrides) lives on {@link SessionPluginController},
+ * Per-session state (client-published customizations and on-disk
+ * customization discovery for the session's working directory) lives on {@link SessionPluginController},
  * one per {@link CopilotAgentSession}. Each session controller holds
  * a reference back to this shared controller for the resolve/sync
  * helpers it needs.
@@ -3570,8 +3513,8 @@ class PluginController extends Disposable {
 	 * the caller; disposing it releases the session's disk-discovery
 	 * watchers and detaches from this controller's change event.
 	 */
-	public createSessionController(directory: URI | undefined): SessionPluginController {
-		return new SessionPluginController(this, directory);
+	public createSessionController(session: URI, directory: URI | undefined): SessionPluginController {
+		return this.instantiationService.createInstance(SessionPluginController, this, session, directory);
 	}
 
 	/**
@@ -3688,9 +3631,8 @@ interface IClientCustomizationState {
  * Per-session view over {@link PluginController}.
  *
  * Owns the session-scoped slice of plugin state — published client
- * customizations, on-disk-discovered customizations under the session's
- * customization directory, and the user's per-session enablement
- * overrides — and exposes a {@link onDidPublish} stream of
+ * customizations and on-disk-discovered customizations under the session's
+ * customization directory — and exposes a {@link onDidPublish} stream of
  * {@link SessionAction}s targeted at *this* session (no cross-session
  * routing).
  *
@@ -3703,7 +3645,9 @@ class SessionPluginController extends Disposable {
 	/** Per-session action stream (reset + per-item updates). */
 	readonly onDidPublish = this._onDidPublish.event;
 
-	private readonly _enablement = new Map<string, boolean>();
+	private readonly _previousDirectories: URI[] = [];
+	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
+	private readonly _desiredCustomizationById = new Map<string, Customization | ChildCustomization>();
 	/**
 	 * Live runtime state (`state`/`channel`) per MCP server customization id,
 	 * kept up to date by the owning session from its MCP controller. Overlaid
@@ -3727,7 +3671,9 @@ class SessionPluginController extends Disposable {
 
 	constructor(
 		private readonly _parent: PluginController,
+		private readonly _session: URI,
 		private _directory: URI | undefined,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
@@ -3752,9 +3698,7 @@ class SessionPluginController extends Disposable {
 	/**
 	 * Move the session's customization anchor to a new directory (e.g. from the
 	 * user-picked folder to the worktree at materialization). Recreates the
-	 * discovered entry so discovery/watchers re-scan the new directory, and
-	 * rebases per-session enablement overrides whose URI lived under the old
-	 * directory so the user's toggles survive the move.
+	 * discovered entry so discovery/watchers re-scan the new directory.
 	 */
 	public reanchor(directory: URI): void {
 		if (this._directory && isEqual(this._directory, directory)) {
@@ -3763,16 +3707,8 @@ class SessionPluginController extends Disposable {
 		const previous = this._directory;
 		this._directory = directory;
 		this._sessionDiscovered.clear();
-		if (previous) {
-			this._migrateEnablement(previous, directory);
-		}
-	}
-
-	private _migrateEnablement(fromDir: URI, toDir: URI): void {
-		const migrated = migrateEnablementKeys(this._enablement, fromDir, toDir);
-		this._enablement.clear();
-		for (const [uri, enabled] of migrated) {
-			this._enablement.set(uri, enabled);
+		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
+			this._previousDirectories.push(previous);
 		}
 	}
 
@@ -3854,17 +3790,6 @@ class SessionPluginController extends Disposable {
 				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...sessionPlugins,
 		];
-	}
-
-	/**
-	 * Set per-session enablement for a customization (by protocol URI).
-	 */
-	public setEnabled(pluginProtocolUri: string, enabled: boolean): void {
-		const prev = this._enablement.get(pluginProtocolUri);
-		if (prev === enabled) {
-			return;
-		}
-		this._enablement.set(pluginProtocolUri, enabled);
 	}
 
 	/**
@@ -4034,17 +3959,68 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _isEnabled(customization: Customization): boolean {
-		return this._enablement.get(customization.uri) ?? customization.enabled !== false;
+		return this._desiredEnabled(customization) ?? customization.enabled !== false;
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
-		return customization.enabled === enabled ? customization : { ...customization, enabled };
+		if (customization.type === CustomizationType.McpServer) {
+			return customization.enabled === enabled ? customization : { ...customization, enabled };
+		}
+		let changed = customization.enabled !== enabled;
+		const children = customization.children?.map(child => {
+			const desiredEnabled = this._desiredEnabled(child);
+			if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
+				return child;
+			}
+			changed = true;
+			return { ...child, enabled: desiredEnabled };
+		});
+		return changed ? { ...customization, enabled, children } : customization;
+	}
+
+	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
+		const exact = this._getDesiredCustomization(customization.id);
+		if (exact) {
+			return exact.enabled;
+		}
+		if (!this._directory) {
+			return undefined;
+		}
+		for (const previousDirectory of this._previousDirectories) {
+			const previousUri = rebaseUnder(URI.parse(customization.uri), this._directory, previousDirectory);
+			if (!previousUri) {
+				continue;
+			}
+			const previousId = customizationId(previousUri.toString(), customization.range);
+			const previous = this._getDesiredCustomization(previousId);
+			if (previous) {
+				return previous.enabled;
+			}
+		}
+		return undefined;
+	}
+
+	private _getDesiredCustomization(id: string): Customization | ChildCustomization | undefined {
+		const customizations = this._stateManager.getSessionState(this._session.toString())?.customizations;
+		if (customizations !== this._indexedDesiredCustomizations) {
+			this._indexedDesiredCustomizations = customizations;
+			this._desiredCustomizationById.clear();
+			for (const customization of customizations ?? []) {
+				this._desiredCustomizationById.set(customization.id, customization);
+				if (customization.type !== CustomizationType.McpServer) {
+					for (const child of customization.children ?? []) {
+						this._desiredCustomizationById.set(child.id, child);
+					}
+				}
+			}
+		}
+		return this._desiredCustomizationById.get(id);
 	}
 
 	/**
-	 * Projects a raw customization into its published form: applies the
-	 * user's per-session enablement override, then overlays the latest
+	 * Projects a raw customization into its published form: applies reducer-backed
+	 * per-session enablement, then overlays the latest
 	 * known MCP runtime `state`/`channel` (see {@link mcpServerStates}).
 	 * Every publish path runs customizations through this so enablement and
 	 * live MCP state stay consistent. Object identity is preserved when

@@ -1,0 +1,36 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then report whether it succeeded.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_magic_word
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-haiku-4.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the get_magic_word tool and then report whether it succeeded.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: get_magic_word
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Client copilot-client-tool-disconnect disconnected before completing get_magic_word
+    response:
+      content: The tool call **failed**. The client disconnected before the `get_magic_word` tool could complete. This appears to be a connectivity issue between the client and the runtime service.
+      stopReason: end_turn

@@ -860,7 +860,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params });
+		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
 		return { authenticated: true };
 	}
 

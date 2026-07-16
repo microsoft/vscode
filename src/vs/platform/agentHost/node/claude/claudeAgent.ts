@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { ModelInfo, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelInfo, OnElicitation, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -45,6 +45,7 @@ import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplay
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
+import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
@@ -975,6 +976,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Builds the SDK `onElicitation` bridge for a session/chat. Mirrors
+	 * {@link _makeCanUseTool}: resolves the session by SDK id (default and peer
+	 * chats) and delegates to the elicitation bridge, which parks on the
+	 * session's user-input channel. Phase 10.6.
+	 */
+	private _makeOnElicitation(sdkSessionId: string): OnElicitation {
+		return (request, options) =>
+			handleElicitation(
+				{ getSession: id => this._findSessionBySdkId(id) },
+				sdkSessionId, request, options,
+			);
+	}
+
+	/**
 	 * Promote a provisional {@link ClaudeAgentSession} into a live one.
 	 * Called from {@link sendMessage} inside the {@link _sessionSequencer.queue}
 	 * block, so concurrent first sends serialize naturally — exactly
@@ -1000,9 +1015,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const transport = this._ensureAuthenticated();
 
 		const canUseTool = this._makeCanUseTool(sessionId);
-
+		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1075,9 +1090,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._seedSessionEntry(sessionId, sessionUri, session);
 
 		const canUseTool = this._makeCanUseTool(sessionId);
-
+		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1428,8 +1443,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);
 		const transport = this._ensureAuthenticated();
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId);
+		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
 		try {
-			await chatSession.materialize({ transport, canUseTool, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
+			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			entry.disposePeerChat(chatKey);
 			throw err;
@@ -2131,12 +2147,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				customization: item.customization,
 			},
 		});
-	}
-
-	setCustomizationEnabled(id: string, enabled: boolean): void {
-		for (const entry of this._sessions.values()) {
-			entry.defaultChat.setClientCustomizationEnabled(id, enabled);
-		}
 	}
 
 	getCustomizations(): readonly Customization[] {

@@ -446,14 +446,25 @@ suite('CopilotApiService', () => {
 
 		suite('CAPI URL override (VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE)', () => {
 			const ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+			const SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
 			let saved: string | undefined;
+			let savedSmokeTestEnv: string | undefined;
 
-			setup(() => { saved = process.env[ENV]; });
+			setup(() => {
+				saved = process.env[ENV];
+				savedSmokeTestEnv = process.env[SMOKE_TEST_ENV];
+				delete process.env[SMOKE_TEST_ENV];
+			});
 			teardown(() => {
 				if (saved === undefined) {
 					delete process.env[ENV];
 				} else {
 					process.env[ENV] = saved;
+				}
+				if (savedSmokeTestEnv === undefined) {
+					delete process.env[SMOKE_TEST_ENV];
+				} else {
+					process.env[SMOKE_TEST_ENV] = savedSmokeTestEnv;
 				}
 			});
 
@@ -474,8 +485,27 @@ suite('CopilotApiService', () => {
 				assert.strictEqual(discoveryHit, false, 'discovery must be skipped for a loopback override');
 			});
 
+			test('the reserved smoke-test host skips discovery only with the proxy marker', async () => {
+				process.env[ENV] = 'http://vscode-smoke.test:12345';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
+				let discoveryHit = false;
+				const service = createService(async (input) => {
+					const url = getUrl(input);
+					if (url.includes('/copilot_internal')) {
+						discoveryHit = true;
+						return tokenResponse();
+					}
+					return anthropicResponse([{ type: 'text', text: 'ok' }]);
+				});
+
+				await service.messages('gh-secret', baseRequest);
+
+				assert.strictEqual(discoveryHit, false, 'the smoke-test override must skip endpoint discovery');
+			});
+
 			test('a non-loopback override is ignored and normal discovery runs (no token leak)', async () => {
 				process.env[ENV] = 'https://evil.example.com';
+				process.env[SMOKE_TEST_ENV] = 'test-marker';
 				let discoveryHit = false;
 				const service = createService(async (input) => {
 					const url = getUrl(input);

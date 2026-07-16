@@ -118,7 +118,7 @@ export interface IAgentHostToolCallStalledEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -139,7 +139,7 @@ export type IAgentHostToolCallStalledClassification = {
 export interface IAgentHostToolCallStalledReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -149,7 +149,7 @@ export interface IAgentHostStalledToolCallCompletedEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
@@ -174,7 +174,7 @@ export type IAgentHostStalledToolCallCompletedClassification = {
 export interface IAgentHostStalledToolCallCompletedReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;

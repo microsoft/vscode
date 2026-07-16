@@ -581,7 +581,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
+				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 				if (!showTranscript && voiceState === 'listening') {
 					// Transcript is disabled: surface a minimal "Listening..." overlay
 					// while listening so the user has feedback. Cleared in any other state.
@@ -1588,4 +1588,5 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
+
 }

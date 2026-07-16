@@ -14,7 +14,7 @@ import { EMPTY_TREE_OBJECT, IAgentHostGitService, META_DIFF_BASE_BRANCH, resolve
 import { buildReviewedRefName, IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * Resolved git context shared by the review operations: the repository root,
@@ -42,7 +42,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 	private readonly _sequencer = new SequencerByKey<string>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,

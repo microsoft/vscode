@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, type AuthRequiredParams, type ProgressParams } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -154,7 +155,10 @@ class SessionSummaryNotifier extends Disposable {
  * through pure reducers, assigns monotonic sequence numbers, and emits
  * {@link ActionEnvelope}s for subscribed clients.
  */
+export const IAgentHostStateManager = createDecorator<AgentHostStateManager>('agentHostStateManager');
+
 export class AgentHostStateManager extends Disposable {
+	declare readonly _serviceBrand: undefined;
 
 	private _serverSeq = 0;
 

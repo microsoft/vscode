@@ -16,7 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
-import { toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -306,7 +306,7 @@ export class AgentSideEffects extends Disposable {
 	// ---- Session input-needed aggregation ----------------------------------
 	//
 	// Mirrors per-chat blockers (user-input elicitations, tool confirmations,
-	// and running client-tool executions) into the owning session's
+	// client-tool executions, and MCP authentication) into the owning session's
 	// `inputNeeded` list so clients subscribed only to the session channel can
 	// discover and answer them without subscribing to each chat. This handler
 	// only produces the state; it does not consume it.
@@ -329,6 +329,8 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.ChatToolCallConfirmed:
 			case ActionType.ChatToolCallComplete:
 			case ActionType.ChatToolCallResultConfirmed:
+			case ActionType.ChatToolCallAuthRequired:
+			case ActionType.ChatToolCallAuthResolved:
 				this._syncToolInputNeeded(chatUri, action.turnId, action.toolCallId);
 				break;
 			case ActionType.ChatTurnComplete:
@@ -343,6 +345,7 @@ export class AgentSideEffects extends Disposable {
 	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
 		const confirmationId = this._toolConfirmationNeededId(chatUri, turnId, toolCallId);
 		const clientExecutionId = this._toolClientExecutionNeededId(chatUri, turnId, toolCallId);
+		const authenticationId = this._toolAuthenticationNeededId(chatUri, turnId, toolCallId);
 		const toolCall = this._findToolCall(chatUri, turnId, toolCallId);
 
 		const needsConfirmation = toolCall?.status === ToolCallStatus.PendingConfirmation || toolCall?.status === ToolCallStatus.PendingResultConfirmation;
@@ -370,6 +373,18 @@ export class AgentSideEffects extends Disposable {
 			});
 		} else {
 			this._removeSessionInputNeeded(chatUri, clientExecutionId);
+		}
+
+		if (toolCall?.status === ToolCallStatus.AuthRequired) {
+			this._setSessionInputNeeded(chatUri, {
+				id: authenticationId,
+				kind: SessionInputRequestKind.ToolAuthentication,
+				chat: chatUri,
+				turnId,
+				toolCall,
+			});
+		} else {
+			this._removeSessionInputNeeded(chatUri, authenticationId);
 		}
 	}
 
@@ -423,6 +438,10 @@ export class AgentSideEffects extends Disposable {
 
 	private _toolClientExecutionNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
 		return `toolClientExecution:${chatUri}:${turnId}:${toolCallId}`;
+	}
+
+	private _toolAuthenticationNeededId(chatUri: ProtocolURI, turnId: string, toolCallId: string): string {
+		return `toolAuthentication:${chatUri}:${turnId}:${toolCallId}`;
 	}
 
 	// ---- Initialization ----------------------------------------------------
@@ -608,6 +627,16 @@ export class AgentSideEffects extends Disposable {
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
 
+		// Stamp the subagent chat URI onto the tool call as soon as toolKind
+		// is known, so clients get it from the wire instead of deriving it.
+		if (
+			(action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallDelta || action.type === ActionType.ChatToolCallReady)
+			&& readToolCallMeta(action).toolKind === 'subagent'
+			&& readToolCallMeta(action).subagentChatUri === undefined
+		) {
+			action = { ...action, _meta: { ...action._meta, subagentChatUri: buildSubagentChatUri(sessionUri, action.toolCallId) } };
+		}
+
 		// When a parent tool call has an associated subagent session,
 		// preserve the subagent content metadata in the completion result.
 		// The SDK's tool_complete provides its own content which would
@@ -665,11 +694,13 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatTurnCancelled) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
 			this._toolCallTracker.clearSession(sessionKey);
+			this._markSessionUnread(sessionUri);
 		}
 
 		if (action.type === ActionType.ChatError) {
 			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
 			this._toolCallTracker.clearSession(sessionKey);
+			this._markSessionUnread(sessionUri);
 		}
 	}
 
@@ -716,6 +747,21 @@ export class AgentSideEffects extends Disposable {
 		// targets that chat's title, mirroring `seedTitleFromFirstMessage`.
 		const titleChatChannel = isAhpChatChannel(sessionKey) && !isDefaultChatUri(sessionKey) ? sessionKey : undefined;
 		this._titleController.refineTitleFromFirstTurn(sessionUri, titleChatChannel);
+
+		// A completed turn produces new output the user may not have seen. Route
+		// subagent turns to their owning session too (a background subagent can
+		// complete after the parent turn). Each client keeps its active session
+		// read; `_markSessionUnread` is idempotent.
+		this._markSessionUnread(sessionUri);
+	}
+
+	private _markSessionUnread(session: ProtocolURI): void {
+		const status = this._stateManager.getSessionSummary(session)?.status ?? 0;
+		if (!(status & SessionStatus.IsRead)) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(session, { type: ActionType.SessionIsReadChanged, isRead: false });
+		this._persistSessionFlag(session, 'isRead', '');
 	}
 
 	private _describeSignal(signal: AgentSignal): string {
@@ -974,6 +1020,14 @@ export class AgentSideEffects extends Disposable {
 		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		if (toolCall
+			&& toolCall.status !== ToolCallStatus.Streaming
+			&& toolCall.status !== ToolCallStatus.Running
+			&& toolCall.status !== ToolCallStatus.PendingConfirmation) {
+			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			this._logService.trace(`[AgentSideEffects] Dropping stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
+			return;
+		}
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
 		const clientShouldAutoApprove = autoApproval !== undefined
@@ -1173,11 +1227,6 @@ export class AgentSideEffects extends Disposable {
 				// (e.g. permissions) and session customizations as a catchall.
 				this._publishAgentInfos(this._options.agents.get());
 				this._publishAllSessionCustomizations();
-				break;
-			}
-			case ActionType.SessionCustomizationToggled: {
-				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionMcpServerStartRequested: {

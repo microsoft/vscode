@@ -237,6 +237,41 @@ suite('resolveMcpServerAuthentication', () => {
 			requestedScopes: [['notifications']],
 		});
 	});
+
+	test('does not attempt dynamic provider creation without user interaction', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+		instantiationService.stub(IAuthenticationMcpAccessService, {});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(ILogService, logService);
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.example.com',
+			authorization_servers: ['not-a-valid-authorization-server'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'server-id',
+			mcpServerName: 'Example',
+			mcpServerUrl: 'https://mcp.example.com',
+			scopes: [],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ result, warnings }, {
+			result: false,
+			warnings: [],
+		});
+	});
 });
 
 suite('authenticateProtectedResources', () => {

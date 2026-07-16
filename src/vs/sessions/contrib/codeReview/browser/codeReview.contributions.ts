@@ -11,7 +11,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -43,15 +43,6 @@ const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
 // (SessionsEditorHeaderPrimary), in its own group right after the diff-stats
 // action (separated by a divider), whether the editor area is visible or
 // collapsed.
-const codeReviewEditorHeaderWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-	singlePaneDetailPanel,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext,
-	SessionWorkspaceIsVirtualContext.toNegated(),
-);
-
 class RunSessionCodeReviewAction extends Action2 {
 
 	static readonly ID = 'sessions.codeReview.run';
@@ -77,7 +68,15 @@ class RunSessionCodeReviewAction extends Action2 {
 					id: Menus.SessionsEditorHeaderPrimary,
 					group: '1_codeReview',
 					order: 1,
-					when: codeReviewEditorHeaderWhen,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+						singlePaneDetailPanel,
+						IsAuxiliaryWindowContext.toNegated(),
+						IsTopRightEditorGroupContext,
+						SessionWorkspaceIsVirtualContext.toNegated(),
+						SessionHasChangesContext,
+					),
 				},
 			],
 		});
