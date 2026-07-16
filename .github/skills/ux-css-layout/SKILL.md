@@ -76,6 +76,12 @@ Existing `!important` declarations may be preserved and must not be removed
 mechanically during unrelated edits. Do not copy them, add new ones, or use
 them to avoid understanding selector ownership.
 
+The narrow exception is shared focus/active-outline suppression, where
+`outline: 0 !important` is intentionally used to override native or global focus
+indicators and prevent flashing outlines during pointer activation. Keep this
+exception scoped to focus-indicator behavior; feature styling must still resolve
+cascade conflicts through selector specificity.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
