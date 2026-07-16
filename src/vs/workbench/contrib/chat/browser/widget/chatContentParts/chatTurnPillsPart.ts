@@ -30,7 +30,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -110,9 +110,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return [...created, ...edited];
 		});
 
-		const pillsConfig = observeTurnStatusPillsConfig(configurationService);
-		const changesEnabled = derived(this, reader => pillsConfig.read(reader).changes);
-		const previewEnabled = derived(this, reader => pillsConfig.read(reader).preview);
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(configurationService);
+		const changesEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
+		const previewEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
 		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
 		const showPreview = derived(this, reader => previewEnabled.read(reader) && previewFiles.read(reader).length > 0);
 

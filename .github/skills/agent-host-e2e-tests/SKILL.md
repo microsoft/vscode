@@ -51,7 +51,8 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 
 - **Record-only** (no deterministic replay at all): `(RECORD ? test : test.skip)('…')` — see `can abort a running turn`.
 - **Subagent fixtures stale after an SDK bump**: re-record them (`AGENT_HOST_REPLAY_RECORD=1 …`). Subagent flows are the most SDK-version-sensitive (parent + child share one `/v1/messages` sequence), but replay reliably once re-recorded, so no gating is needed.
-- **POSIX-only** (fails on Windows): gate with `!isWindows`, or a per-provider flag like `shellPermissionReplayUnstableOnWindows` when only one provider diverges. See the worktree and shell-permission tests.
+- **POSIX-only** (fails on Windows): gate with `!isWindows`, or a targeted per-provider flag when only one provider diverges. See the worktree and subagent-reopen tests.
+- **Provider/OS-specific replay**: add a targeted config gate that still permits recording and unaffected platforms. See the Codex shell-tool Linux gate.
 
 Always add a comment explaining *why* the gate exists.
 

@@ -27,7 +27,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -208,7 +208,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('resolveSessionConfig echoes host-owned worktree include files across isolation modes', async () => {
+	test('resolveSessionConfig echoes host-owned worktree values across isolation modes', async () => {
 		const workingDirectory = URI.file('/workspace/repo');
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async () => workingDirectory;
@@ -231,7 +231,7 @@ suite('AgentService (node dispatcher)', () => {
 		const worktree = await localService.resolveSessionConfig({
 			provider: 'copilot',
 			workingDirectory,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature', [SessionConfigKey.WorktreeIncludeFiles]: includeFiles },
 		});
 		const folder = await localService.resolveSessionConfig({
 			provider: 'copilot',
@@ -240,11 +240,13 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		assert.deepStrictEqual({
+			worktreeBranch: worktree.values[SessionConfigKey.Branch],
 			worktreeReadOnly: worktree.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			worktreeValue: worktree.values[SessionConfigKey.WorktreeIncludeFiles],
 			folderReadOnly: folder.schema.properties[SessionConfigKey.WorktreeIncludeFiles]?.readOnly,
 			folderValue: folder.values[SessionConfigKey.WorktreeIncludeFiles],
 		}, {
+			worktreeBranch: 'feature',
 			worktreeReadOnly: true,
 			worktreeValue: includeFiles,
 			folderReadOnly: true,
@@ -3476,6 +3478,120 @@ suite('AgentService (node dispatcher)', () => {
 				hasChatState: true,
 				stillInCatalog: true,
 				hasActiveTurn: false,
+			});
+		});
+
+		test('a subagent tool call awaiting user confirmation does not time out before the user responds', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				// No `confirmed` — the tool sits in PendingConfirmation, e.g. waiting on the user.
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined },
+				});
+
+				// The user takes far longer than the pending-registration bound to respond.
+				await new Promise(resolve => setTimeout(resolve, 60_000));
+
+				// Only now does the user approve — this must still arm a fresh wait, not one already timed out.
+				service.dispatchAction(parentChat, { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-sub', approved: true, confirmed: ToolCallConfirmationReason.UserAction }, 'client-1', 1);
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+				const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+				let settled = false;
+				void subscribePromise.then(() => { settled = true; });
+				await timeout(0);
+				assert.strictEqual(settled, false, 'subscribe should still be pending right after approval');
+
+				copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+				const snapshot = await subscribePromise;
+				assert.strictEqual(snapshot.resource, subagentUri);
+			});
+		});
+
+		test('denying a subagent tool call before confirmation does not leave a dangling wait', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined },
+			});
+
+			service.dispatchAction(parentChat, { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'tc-sub', approved: false, reason: ToolCallCancellationReason.Denied }, 'client-1', 1);
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			await assert.rejects(service.subscribe(URI.parse(subagentUri), 'client-race'), /Cannot subscribe to unknown resource/);
+		});
+
+		test('subscribe to a subagent chat announced via _meta.subagentChatUri waits for the resource instead of failing immediately', async () => {
+			service.registerProvider(copilotAgent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(session.toString());
+			startParentTurn(session, 'turn-1');
+
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+			});
+			copilotAgent.fireProgress({
+				kind: 'action', resource: URI.parse(parentChat),
+				action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+			});
+
+			const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+			assert.strictEqual(service.stateManager.getSnapshot(subagentUri), undefined, 'precondition: resource not registered yet');
+
+			// Subscribe before the resource exists — this must not reject.
+			const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+			let settled = false;
+			void subscribePromise.then(() => { settled = true; });
+			await timeout(0);
+			assert.strictEqual(settled, false, 'subscribe should still be pending while the resource is unregistered');
+
+			copilotAgent.fireProgress({ kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+
+			const snapshot = await subscribePromise;
+			assert.strictEqual(snapshot.resource, subagentUri);
+		});
+
+		test('subscribe to an announced subagent chat that never spawns eventually rejects instead of hanging', () => {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				service.registerProvider(copilotAgent);
+				const session = await service.createSession({ provider: 'copilot' });
+				const parentChat = buildDefaultChatUri(session.toString());
+				startParentTurn(session, 'turn-1');
+
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } },
+				});
+				copilotAgent.fireProgress({
+					kind: 'action', resource: URI.parse(parentChat),
+					action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-sub', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded },
+				});
+
+				const subagentUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+
+				// The tool call is denied/cancelled before the SDK ever
+				// confirms subagent_started — the resource never registers.
+				const subscribePromise = service.subscribe(URI.parse(subagentUri), 'client-race');
+				await assert.rejects(subscribePromise, /Cannot subscribe to unknown resource/);
 			});
 		});
 	});

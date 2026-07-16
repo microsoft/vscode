@@ -615,6 +615,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
+		// Mirror the panel's outer-edge state onto the workbench container so the
+		// horizontal grid sash highlight can match the panel card's doubled outer
+		// gutter by selecting a direct class, rather than a `:has()` query on the
+		// workbench root (which would force selector invalidation across the whole
+		// workbench on every DOM change). Updated here in lockstep with the part-level
+		// classes above, so the timing is identical.
+		if (this.partId === Parts.PANEL_PART) {
+			const workbenchContainer = this.layoutService.getContainer(getWindow(this.element));
+			workbenchContainer.classList.toggle('floating-panel-outer-left', outerGutter.left);
+			workbenchContainer.classList.toggle('floating-panel-outer-right', outerGutter.right);
+		}
+
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 

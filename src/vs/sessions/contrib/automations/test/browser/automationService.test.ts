@@ -260,6 +260,36 @@ suite('AutomationService', () => {
 		assert.strictEqual(secondService.runs.get().length, 1);
 	});
 
+	test('round-trips and clears Worktree branch configuration', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const created = await firstService.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			folderUri: FOLDER,
+			isolationMode: 'worktree',
+			branch: 'feature/saved',
+		});
+		firstService.dispose();
+
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const restored = secondService.getAutomation(created.id);
+		const updated = await secondService.updateAutomation(created.id, { isolationMode: 'workspace', branch: null });
+
+		assert.deepStrictEqual({
+			restoredIsolationMode: restored?.isolationMode,
+			restoredBranch: restored?.branch,
+			updatedIsolationMode: updated.isolationMode,
+			updatedBranch: updated.branch,
+		}, {
+			restoredIsolationMode: 'worktree',
+			restoredBranch: 'feature/saved',
+			updatedIsolationMode: 'workspace',
+			updatedBranch: undefined,
+		});
+	});
+
 	test('two services on the same storage stay in sync via onDidChangeValue', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
 		const windowA = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));

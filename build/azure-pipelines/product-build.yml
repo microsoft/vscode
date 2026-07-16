@@ -282,6 +282,8 @@ extends:
     containers:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    settings:
+      networkIsolationPolicy: Permissive
     stages:
 
       - stage: Quality

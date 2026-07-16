@@ -353,6 +353,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 							toolContent += `\n${message}`;
 						}
 						contentParts.push(toolContent);
+					} else if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+						contentParts.push(localize('toolAuthenticationA11yView', "MCP authentication required for {0} to continue {1}.", state.server.name, part.toolId));
 					} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 						const postApprovalDetails = isToolResultInputOutputDetails(state.resultDetails)
 							? state.resultDetails.input

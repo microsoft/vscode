@@ -51,7 +51,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isEditorLocalAgentEnabled } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -581,7 +581,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
+				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 				if (!showTranscript && voiceState === 'listening') {
 					// Transcript is disabled: surface a minimal "Listening..." overlay
 					// while listening so the user has feedback. Cleared in any other state.
@@ -1063,10 +1063,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/**
-	 * When the experimental `chat.editor.defaultProvider` setting selects a
-	 * provider other than local and that contribution is registered, return a
-	 * new session reference for it instead of the built-in local provider.
-	 * Returns `undefined` to fall back to `startNewLocalSession`.
+	 * When the computed default session type is a provider other than local,
+	 * acquire a new session for it instead of the built-in local provider.
+	 * Returns `undefined` to fall back to `startNewLocalSession` (including when
+	 * acquisition of the non-local provider fails).
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
@@ -1105,9 +1105,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const defaultType = getComputedDefaultSessionType(this.configurationService, this.chatSessionsService, workspace);
-		const prefersAgentHostCopilot = !isEditorLocalAgentEnabled(this.configurationService, workspace)
-			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
-		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
+		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
 	}
@@ -1588,4 +1586,5 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
+
 }

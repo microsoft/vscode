@@ -24,6 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -911,6 +912,7 @@ class SendToNewChatAction extends Action2 {
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const storageService = accessor.get(IStorageService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -932,7 +934,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace());
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnabled);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

@@ -25,7 +25,6 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
-	type ChatInputRequest,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -59,7 +58,7 @@ export {
 	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
@@ -80,6 +79,9 @@ export {
 	type ToolCallPendingResultConfirmationState,
 	type ToolCallResponsePart,
 	type ToolCallResult,
+	type ToolCallRiskAssessment,
+	type ToolCallRiskAssessmentCompleteState,
+	type ToolCallRiskAssessmentLoadingState,
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
@@ -316,6 +318,7 @@ export {
 	type ChatInputOption,
 	type ChatInputQuestion,
 	type ChatInputRequest,
+	type InputRequestResponsePart,
 } from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
@@ -877,7 +880,7 @@ export function isAhpChatChannel(uri: string): boolean {
  * (working directory, active clients, config, customizations/MCP scope, …)
  * resolved for one chat and merged with that chat's conversation contents.
  *
- * The protocol moved turns and pending/input state off the session and onto a
+ * The protocol moved turns and pending state off the session and onto a
  * per-chat channel, and lets a chat override session defaults (e.g.
  * {@link ChatState.workingDirectory}). This composite recombines the session
  * with one of its chats — default or peer — so consumers read the chat's
@@ -895,8 +898,6 @@ export interface ISessionWithDefaultChat extends SessionState {
 	steeringMessage?: PendingMessage;
 	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on this chat. */
-	inputRequests?: ChatInputRequest[];
 	/** Draft input of this chat. */
 	draft?: Message;
 }
@@ -917,7 +918,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
-		inputRequests: chat?.inputRequests,
 		draft: chat?.draft,
 	};
 }

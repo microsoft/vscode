@@ -494,6 +494,25 @@ configurationRegistry.registerConfiguration({
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
+		'agents.voice.language': {
+			type: 'string',
+			enum: ['auto', 'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh'],
+			enumItemLabels: [
+				nls.localize('agents.voice.language.auto', "Automatic"),
+				nls.localize('agents.voice.language.en', "English"),
+				nls.localize('agents.voice.language.de', "German"),
+				nls.localize('agents.voice.language.es', "Spanish"),
+				nls.localize('agents.voice.language.fr', "French"),
+				nls.localize('agents.voice.language.it', "Italian"),
+				nls.localize('agents.voice.language.pt', "Portuguese"),
+				nls.localize('agents.voice.language.ja', "Japanese"),
+				nls.localize('agents.voice.language.ko', "Korean"),
+				nls.localize('agents.voice.language.zh', "Chinese"),
+			],
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			default: 'auto',
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.showTranscript': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active. Enable this to read responses as text when `#agents.voice.speakResponses#` is disabled."),
@@ -503,7 +522,7 @@ configurationRegistry.registerConfiguration({
 		'agents.voice.handsFree': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.handsFree', "When enabled, voice mode automatically re-enters listening after the assistant finishes speaking, so you can hold a hands-free back-and-forth conversation. When disabled, you start each turn manually. This controls only the auto-listen loop; how a turn ends is controlled by {0} and {1}.", '`#agents.voice.turn.silenceMs#`', '`#agents.voice.turn.stopPhrases#`'),
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 		},
 		'agents.voice.turn.silenceMs': {

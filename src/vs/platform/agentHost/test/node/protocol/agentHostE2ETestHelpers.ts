@@ -17,8 +17,9 @@
 import assert from 'assert';
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir, homedir } from 'os';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,21 +47,69 @@ import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
 
 // #region Record/replay
 
 /**
- * When `AGENT_HOST_REPLAY_RECORD=1`, the shared suite runs against real CAPI (a
- * real GitHub token) and captures the wire to per-test YAML fixtures. Otherwise
- * it replays the committed fixtures deterministically with no token.
+ * `AGENT_HOST_REPLAY_RECORD=1` records only LLM fixtures, while
+ * `AGENT_HOST_UPDATE_SNAPSHOTS=1` records LLM fixtures and updates AHP
+ * snapshots in the same run.
  */
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
+const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateSnapshotsEnvVar] === '1';
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || UPDATE_SNAPSHOTS;
+const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
+const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
+const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
+const isLinux = process.platform === 'linux';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
 const isWindows = process.platform === 'win32';
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
+
+async function stopServer(server: IServerHandle | undefined): Promise<void> {
+	const serverProcess = server?.process;
+	if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+		return;
+	}
+
+	const serverExit = new Promise<void>(resolve => serverProcess.once('exit', () => resolve()));
+	serverProcess.stdin?.end();
+	if (!await raceTimeout(serverExit.then(() => true), SERVER_SHUTDOWN_TIMEOUT_MS)) {
+		serverProcess.kill();
+		await serverExit;
+	}
+}
+
+async function removeTempDirs(tempDirs: string[]): Promise<void> {
+	const pendingDirs = tempDirs.splice(0);
+	const errors = new Map<string, Error>();
+	const deadline = Date.now() + TEMP_DIR_CLEANUP_TIMEOUT_MS;
+	while (pendingDirs.length > 0) {
+		for (let index = pendingDirs.length - 1; index >= 0; index--) {
+			const dir = pendingDirs[index];
+			try {
+				rmSync(dir, { recursive: true, force: true });
+				pendingDirs.splice(index, 1);
+				errors.delete(dir);
+			} catch (error) {
+				errors.set(dir, error instanceof Error ? error : new Error(String(error)));
+			}
+		}
+		if (pendingDirs.length === 0) {
+			return;
+		}
+		if (Date.now() >= deadline) {
+			throw new AggregateError(
+				Array.from(errors.values()),
+				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+			);
+		}
+		await timeout(500);
+	}
+}
 
 /**
  * Fixtures live in the source tree (committed) though the compiled test runs
@@ -77,8 +126,8 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1`. Shared by {@link defineAgentHostE2ETests} and
- * provider-specific suites so both go through the same record/replay path.
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
+ * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
 export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
@@ -179,12 +228,11 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly supportsSubagents: boolean;
 	/**
-	 * When set, this provider's shell tool call is not reproduced by its bundled
-	 * SDK on Windows during replay (e.g. Codex's `exec_command` yields no
-	 * tool-call notification there), so the shell-permission test runs only on
-	 * POSIX. macOS/Linux keep full coverage.
+	 * When set, shell-dependent replay tests are skipped on Linux because this
+	 * provider completes recorded shell-tool turns without emitting tool-call
+	 * notifications there. Recording and other platforms keep full coverage.
 	 */
-	readonly shellPermissionReplayUnstableOnWindows?: boolean;
+	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -248,8 +296,23 @@ export async function createRealSession(
 	// action notifications are delivered to this client.
 	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 	c.clearReceived();
+	c.clearAhpSnapshot();
 
 	return sessionUri;
+}
+
+export async function runAhpSnapshotTest(
+	c: TestProtocolClient,
+	config: IAgentHostE2EProviderConfig,
+	test: Mocha.Runnable,
+	trackingList: string[],
+	tempDirs: string[],
+): Promise<void> {
+	const scenario = AhpSnapshotScenario.load(test);
+	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
+	tempDirs.push(workingDirectory);
+	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
+	await scenario.run(c, sessionUri);
 }
 
 /** Dispatch a turn with the given user message text. */
@@ -601,7 +664,7 @@ export class AgentHostE2EServerLease {
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string },
+		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string; readonly userDataDir?: string },
 	) {
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -622,7 +685,7 @@ export class AgentHostE2EServerLease {
 		} else {
 			this._server = await startRealServer({ ...this._startOptions, capiReplay });
 		}
-		this._client = new TestProtocolClient(this._server.port);
+		this._client = new TestProtocolClient(this._server.port, () => this._server?.capiReplay?.takeCacheMissError());
 		await this._client.connect();
 		return { server: this._server, client: this._client };
 	}
@@ -630,7 +693,7 @@ export class AgentHostE2EServerLease {
 	/**
 	 * Release a test: dispose its sessions, disconnect the client, and verify the
 	 * replay traffic. A shared server is kept alive (with its cached SDK client)
-	 * for the next test; a per-test server is stopped and killed.
+	 * for the next test; a per-test server is stopped.
 	 */
 	async release(createdSessions: string[]): Promise<void> {
 		const client = this._client;
@@ -663,7 +726,7 @@ export class AgentHostE2EServerLease {
 			try {
 				await this._server?.capiReplay?.stop();
 			} finally {
-				this._server?.process.kill();
+				await stopServer(this._server);
 				this._server = undefined;
 			}
 		}
@@ -675,7 +738,7 @@ export class AgentHostE2EServerLease {
 			try {
 				await this._server.capiReplay?.close();
 			} finally {
-				this._server.process.kill();
+				await stopServer(this._server);
 				this._server = undefined;
 			}
 		}
@@ -694,32 +757,46 @@ export class AgentHostE2EServerLease {
 export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): void {
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
+		const shellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
+		let lease: AgentHostE2EServerLease | undefined;
+		let suiteDataDir: string | undefined;
 		const createdSessions: string[] = [];
 		const tempDirs: string[] = [];
-		const lease = new AgentHostE2EServerLease(config, {
-			claudeSdkRoot: config.claudeSdkRoot,
-			codexSdkRoot: config.codexSdkRoot,
-			// Normalize the real home + temp roots out of recorded request
-			// bodies so committed fixtures carry no local absolute paths.
-			homeDir: homedir(),
-		});
 
 		suiteSetup(async function () {
 			this.timeout(60_000);
+			suiteDataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+			lease = new AgentHostE2EServerLease(config, {
+				claudeSdkRoot: config.claudeSdkRoot,
+				codexSdkRoot: config.codexSdkRoot,
+				homeDir: suiteDataDir,
+				userDataDir: join(suiteDataDir, 'user-data'),
+			});
 		});
 
 		suiteTeardown(async function () {
 			// In replay the lease reuses one server across the suite (swapping the
 			// replay fixture per test); tear it down here. While recording the
-			// lease already killed the per-test server in each teardown and this is
+			// lease already stopped the per-test server in each teardown and this is
 			// a no-op.
-			this.timeout(60_000);
-			await lease.dispose();
+			this.timeout(90_000);
+			try {
+				await lease?.dispose();
+			} finally {
+				if (suiteDataDir) {
+					tempDirs.push(suiteDataDir);
+					suiteDataDir = undefined;
+				}
+				await removeTempDirs(tempDirs);
+			}
 		});
 
 		setup(async function () {
 			this.timeout(60_000);
+			if (!lease) {
+				throw new Error('Agent Host E2E server lease was not initialized.');
+			}
 			({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 		});
 
@@ -728,15 +805,11 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			// test for Claude, where the model hasn't yielded `turnComplete`)
 			// has to abort an in-flight SDK query before disposeSession
 			// resolves, which can take longer than the default 5s.
-			this.timeout(60_000);
-			await lease.release(createdSessions);
-
-			for (const dir of tempDirs) {
-				try {
-					rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-				} catch { /* best-effort */ }
+			this.timeout(90_000);
+			if (!lease) {
+				throw new Error('Agent Host E2E server lease was not initialized.');
 			}
-			tempDirs.length = 0;
+			await lease.release(createdSessions);
 		});
 
 		test('sends a simple message and receives a response', async function () {
@@ -814,11 +887,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			}
 		});
 
-		// Codex's `exec_command` shell tool call is not emitted by the bundled
-		// Codex CLI on Windows during replay (the turn streams text and completes
-		// with no tool call), so this shell-permission test is POSIX-only for such
-		// providers; Claude/Copilot still run it everywhere.
-		((isWindows && config.shellPermissionReplayUnstableOnWindows) ? test.skip : test)('tool call triggers permission request and can be approved', async function () {
+		(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
@@ -939,7 +1008,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// recorded (intentionally truncated) response is served instantly, so
 		// there is no mid-stream window to abort. Run it only while recording
 		// against real CAPI; it is skipped in deterministic replay.
-		(RECORD ? test : test.skip)('can abort a running turn', async function () {
+		(RUN_RECORD_ONLY_TESTS ? test : test.skip)('can abort a running turn', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-abort-`);
@@ -987,7 +1056,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// Worktree isolation asserts on resolved `.worktrees/...` paths and a
 		// host-terminal `pwd`, which are POSIX-shaped (the fixtures were recorded on
 		// macOS); skip on Windows where the worktree paths and shell differ.
-		(config.supportsWorktreeIsolation && !isWindows ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+		(config.supportsWorktreeIsolation && !isWindows && shellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);

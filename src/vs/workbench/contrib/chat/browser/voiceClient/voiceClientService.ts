@@ -36,6 +36,14 @@ const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
+	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
+]);
+const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
+	'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
+	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
+]);
+const DEFAULT_LANGUAGE = 'en-US';
 
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
@@ -46,12 +54,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private _isConnected = false;
 	private _isResuming = false;
-	private _window: (Window & typeof globalThis) | undefined;
-	private _lastSessionId: string | undefined;
 	// Set once start_session/resume_session (which carries session_context) has
 	// been sent on the current connection; reset per connection. Gates
-	// requestNarration so the backend has the session before a narration request.
-	private _sessionContextSent = false;
+	// `_sendSetLanguage` and `requestNarration` so the backend has the session
+	// before those follow-up messages are sent.
+	private _sessionStartedOnSocket = false;
+	private _window: (Window & typeof globalThis) | undefined;
+	private _lastSessionId: string | undefined;
 
 	// --- Keep-alive ping/pong ---
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -141,6 +150,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (e.affectsConfiguration('agents.voice.voice')) {
 				this._sendSetVoice();
 			}
+			if (e.affectsConfiguration('agents.voice.language')) {
+				this._sendSetLanguage();
+			}
 		}));
 	}
 
@@ -156,6 +168,41 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sendSetVoice(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'set_voice', voice: this._getVoice() }));
+		}
+	}
+
+	private _getLanguage(): string {
+		const configured = this._configurationService.getValue<string>('agents.voice.language');
+		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
+			const language = this._canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
+			if (language) {
+				return language;
+			}
+			this._logService.warn(`[voice] Unsupported agents.voice.language value '${configured}', falling back to ${DEFAULT_LANGUAGE}`);
+			return DEFAULT_LANGUAGE;
+		}
+
+		return this._canonicalizeSupportedLanguage(this._window?.navigator.language, ASR_SUPPORTED_LANGUAGE_BASES)
+			?? DEFAULT_LANGUAGE;
+	}
+
+	private _canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
+		const candidate = value?.trim();
+		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
+			return undefined;
+		}
+
+		try {
+			const canonical = Intl.getCanonicalLocales(candidate)[0];
+			return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _sendSetLanguage(): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
 	}
 
@@ -223,12 +270,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			: baseUrl;
 		const ws = new win.WebSocket(url);
 		this._ws = ws;
+		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
 			this._reconnectAttempts = 0;
 			this._reconnectStartedAt = undefined;
 			this._isResuming = !!this._lastSessionId;
-			this._sessionContextSent = false;
+			this._sessionStartedOnSocket = false;
 			this._setConnected(true);
 			this._startPing();
 
@@ -417,6 +465,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._lastSentById.clear();
@@ -475,24 +524,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
-		}
-	}
-
-	sendBargeInStart(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
-		}
-	}
-
-	sendBargeInAudioChunk(audio: string): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
-		}
-	}
-
-	sendBargeInStop(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
 		}
 	}
 
@@ -643,7 +674,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		// so the backend processes start_session/resume_session before any
 		// request_narration. Pre-session this returns undefined, so _narrate queues
 		// a retry that onSessionInit replays once the session exists.
-		if (this._ws?.readyState === WebSocket.OPEN && this._sessionContextSent) {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			// Reuse a caller-supplied id (a `busy` retry) so the backend dedups; else mint one.
 			const id = narrationId ?? generateUuid();
 			this._ws.send(JSON.stringify({ type: 'request_narration', coding_session_id: codingSessionId, kind, text, narration_id: id }));
@@ -678,25 +709,27 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._seedTracking(context);
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
 			// This client drives narration itself via `requestNarration`, so opt out
 			// of the backend's default context-delta auto-narration to avoid double narration.
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
 			this._ws.send(JSON.stringify(payload));
-			this._sessionContextSent = true;
+			this._sessionStartedOnSocket = true;
 		}
 	}
 
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
-			this._seedTracking(context);
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
 			// `auto_narrate: false` for the same reason as start_session: this client
 			// drives narration, so the backend must not also auto-narrate.
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
-			this._sessionContextSent = true;
+			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice(), auto_narrate: false }));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 

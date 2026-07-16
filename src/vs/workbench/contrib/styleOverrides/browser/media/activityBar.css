@@ -17,24 +17,24 @@
  * Turn the active item indicator into an inset, rounded background box. It is
  * pushed behind the icon (which lives on the action-label at z-index 1) so the
  * icon stays legible on top of the fill. The size is derived from the activity
- * bar's own CSS variables so it works for both the normal (44px) and compact
- * (32px wide / 32px tall) layouts. Bar width equals action height in both sizes,
+ * bar's own CSS variables so it works for both the normal (36px) and compact
+ * (28px wide / 28px tall) layouts. Bar width equals action height in both sizes,
  * so the box is a centered square and `left` keeps it horizontally centered.
  */
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	z-index: 0;
 	top: 0;
-	left: calc((var(--activity-bar-width, 44px) - var(--activity-bar-action-height, 44px) + 4px) / 2);
-	width: calc(var(--activity-bar-action-height, 44px) - 4px);
-	height: calc(var(--activity-bar-action-height, 44px) - 4px);
+	left: calc((var(--activity-bar-width, 36px) - var(--activity-bar-action-height, 36px) + 4px) / 2);
+	width: calc(var(--activity-bar-action-height, 36px) - 4px);
+	height: calc(var(--activity-bar-action-height, 36px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-activityBar-activeBackground, var(--vscode-list-inactiveSelectionBackground));
 }
 
-/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+/* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
 .style-override .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	width: calc(var(--activity-bar-action-height, 32px) - 4px);
-	height: calc(var(--activity-bar-action-height, 32px) - 4px);
+	width: calc(var(--activity-bar-action-height, 28px) - 4px);
+	height: calc(var(--activity-bar-action-height, 28px) - 4px);
 }
 
 /*
@@ -85,18 +85,18 @@
 	top: 0;
 	bottom: 0;
 	margin: auto;
-	left: calc((var(--activity-bar-width, 44px) - var(--activity-bar-action-height, 44px) + 4px) / 2);
-	width: calc(var(--activity-bar-action-height, 44px) - 4px);
-	height: calc(var(--activity-bar-action-height, 44px) - 4px);
+	left: calc((var(--activity-bar-width, 36px) - var(--activity-bar-action-height, 36px) + 4px) / 2);
+	width: calc(var(--activity-bar-action-height, 36px) - 4px);
+	height: calc(var(--activity-bar-action-height, 36px) - 4px);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* Compact: minimal horizontal inset — 28×28px box centered in the 32px item. */
+/* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
 .style-override .activitybar.compact > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover::before {
 	left: 2px;
-	width: calc(var(--activity-bar-action-height, 32px) - 4px);
-	height: calc(var(--activity-bar-action-height, 32px) - 4px);
+	width: calc(var(--activity-bar-action-height, 28px) - 4px);
+	height: calc(var(--activity-bar-action-height, 28px) - 4px);
 }
 
 /*
@@ -215,6 +215,7 @@
 .style-override .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon {
 	font-size: 16px;
 	line-height: 12px;
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /*
@@ -324,11 +325,40 @@
 }
 
 .style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 26px;
+	top: 18px;
 	right: 2px;
 }
 
 .style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
-	top: 17px;
+	top: 13px;
 	right: 2px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator {
+	overflow: visible;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	bottom: 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+	bottom: 0;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-radius: var(--vscode-cornerRadius-small);
+	top: 3px;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+	top: 0;
+}
+.style-override.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
+	top: 16px;
+}
+
+.style-override.monaco-workbench .activitybar.compact > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
+	top: 10px;
 }

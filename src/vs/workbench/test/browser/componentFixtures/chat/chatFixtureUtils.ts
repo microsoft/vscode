@@ -34,6 +34,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ISCMService } from '../../../../contrib/scm/common/scm.js';
+import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -126,6 +127,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IListService, ListService);
 
 	reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
+	reg.defineInstance(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+		override readonly onDidChangeBrowserViews = Event.None;
+		override getKnownBrowserViews() { return new Map(); }
+	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());

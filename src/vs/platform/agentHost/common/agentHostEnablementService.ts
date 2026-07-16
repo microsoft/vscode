@@ -53,16 +53,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
-		'chat.editor.defaultProvider': {
-			type: 'string',
-			enum: ['local', 'copilotEh', 'copilotAh'],
-			enumDescriptions: [
-				nls.localize('chat.editor.defaultProvider.local', "Use the built-in VS Code local chat harness"),
-				nls.localize('chat.editor.defaultProvider.copilotEh', "Use the Extension Host Copilot CLI"),
-				nls.localize('chat.editor.defaultProvider.copilotAh', "Use the Agent Host Copilot CLI"),
-			],
-			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
-			default: 'local',
+		'chat.editor.preferCopilotHarness': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, prefers the Agent Host Copilot CLI for new editor chat sessions. If the local harness is selected, it is replaced with Copilot once."),
+			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},

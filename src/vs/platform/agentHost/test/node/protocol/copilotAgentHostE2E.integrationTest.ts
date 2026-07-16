@@ -29,12 +29,11 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { homedir, tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MessageAttachmentKind, MessageKind, buildDefaultChatUri, ToolCallConfirmationReason, ToolResultContentType, type MessageAttachment } from '../../../common/state/sessionState.js';
-import { ActionType, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../common/state/sessionActions.js';
+import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	AgentHostE2EServerLease, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
-	type IAgentHostE2EProviderConfig,
+	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
 } from './agentHostE2ETestHelpers.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from './testHelpers.js';
 
@@ -88,17 +87,23 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-'));
-		tempDirs.push(workingDirectory);
+		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
+	});
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-client-tool', createdSessions, URI.file(workingDirectory));
+	test('client tool disconnect before permission still completes the turn', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-disconnect-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-client-tool-disconnect';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
 			action: {
 				type: ActionType.SessionActiveClientSet,
 				activeClient: {
-					clientId: 'copilot-client-tool',
+					clientId,
 					displayName: 'Test Client',
 					tools: [{
 						name: 'get_magic_word',
@@ -108,78 +113,39 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				},
 			},
 		});
+		dispatchTurn(client, sessionUri, 'turn-client-tool-disconnect', 'Call the get_magic_word tool and then report whether it succeeded.', 2);
 
-		client.clearReceived();
-		const turnId = generateUuid();
-		client.dispatch({
-			channel: buildDefaultChatUri(sessionUri),
-			clientSeq: 2,
-			action: {
-				type: ActionType.ChatTurnStarted,
-				turnId,
-				startedAt: new Date().toISOString(),
-				message: {
-					text: 'Call the get_magic_word tool and then tell me the exact magic word it returned.',
-					origin: { kind: MessageKind.User },
-					model: { id: 'claude-opus-4.6' },
-				},
-			},
+		const toolStart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallStart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolName: string };
+			return action.toolName === 'get_magic_word';
+		}, 90_000);
+		const toolCallId = (getActionEnvelope(toolStart).action as { toolCallId: string }).toolCallId;
+
+		client.notify('unsubscribe', { channel: sessionUri });
+
+		const failedCompletion = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallComplete')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolCallId: string; result: { success: boolean } };
+			return action.toolCallId === toolCallId && !action.result.success;
+		}, 30_000);
+		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+
+		const staleReady = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as { toolCallId: string };
+			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
 		});
-
-		const [toolStartNotification, toolReadyNotification] = await Promise.all([
-			client.waitForNotification(n => {
-				if (!isActionNotification(n, 'chat/toolCallStart')) {
-					return false;
-				}
-				return (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'get_magic_word';
-			}, 90_000),
-			client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'), 90_000),
-		]);
-		const toolStartEnvelope = getActionEnvelope(toolStartNotification);
-		const toolStartAction = toolStartEnvelope.action as ChatToolCallStartAction;
-		const toolReadyEnvelope = getActionEnvelope(toolReadyNotification);
-		const toolReadyAction = toolReadyEnvelope.action as ChatToolCallReadyAction;
-
-		assert.deepStrictEqual({
-			toolCallIdMatches: toolReadyAction.toolCallId === toolStartAction.toolCallId,
-			startPrecedesReady: toolStartEnvelope.serverSeq < toolReadyEnvelope.serverSeq,
-			requiresConfirmation: toolReadyAction.confirmed === undefined,
-		}, {
-			toolCallIdMatches: true,
-			startPrecedesReady: true,
-			requiresConfirmation: true,
-		});
-
-		client.dispatch({
-			channel: toolReadyEnvelope.channel,
-			clientSeq: 3,
-			action: {
-				type: ActionType.ChatToolCallConfirmed,
-				turnId,
-				toolCallId: toolReadyAction.toolCallId,
-				approved: true,
-				confirmed: ToolCallConfirmationReason.UserAction,
-			},
-		});
-		client.dispatch({
-			channel: toolReadyEnvelope.channel,
-			clientSeq: 4,
-			action: {
-				type: ActionType.ChatToolCallComplete,
-				turnId,
-				toolCallId: toolReadyAction.toolCallId,
-				result: {
-					success: true,
-					pastTenseMessage: 'Got the magic word',
-					content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
-				},
-			},
-		});
-
-		const completion = await client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-			90_000);
-		assert.ok(isActionNotification(completion, 'chat/turnComplete'), 'client tool turn should complete without an error');
+		assert.deepStrictEqual(staleReady, []);
 	});
 
 	suiteTeardown(async function () {
