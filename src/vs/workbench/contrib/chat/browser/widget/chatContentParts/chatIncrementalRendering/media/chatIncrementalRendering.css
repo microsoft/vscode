@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Smooth streaming block-level animations ---- */
+
+/*
+ * Applied to newly inserted top-level children (paragraphs, code blocks,
+ * list items, etc.) as a post-processing decoration after they have been
+ * correctly rendered through the standard markdown pipeline.
+ *
+ * Each new child receives a staggered animation-delay so the batch
+ * reveals sequentially from top to bottom. Animating individual
+ * children (rather than wrapping them in a container div) avoids
+ * margin-collapsing changes that cause layout shifts during scrolling.
+ *
+ * The animation class and custom properties are removed after completion
+ * via an `animationend` listener in the renderer.
+ */
+
+/* ---- fade (default) ---- */
+.chat-smooth-animate-fade {
+	opacity: 0;
+	animation: chatSmoothFade var(--chat-smooth-duration, 600ms) ease-out var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothFade {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+
+/* ---- rise ---- */
+.chat-smooth-animate-rise {
+	opacity: 0;
+	transform: translateY(4px);
+	animation: chatSmoothRise var(--chat-smooth-duration, 600ms) cubic-bezier(0.0, 0.0, 0.2, 1) var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothRise {
+	from { opacity: 0; transform: translateY(4px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- blur ---- */
+.chat-smooth-animate-blur {
+	opacity: 0;
+	filter: blur(2px);
+	animation: chatSmoothBlur var(--chat-smooth-duration, 600ms) cubic-bezier(0.0, 0.0, 0.2, 1) var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothBlur {
+	from { opacity: 0; filter: blur(2px); }
+	to   { opacity: 1; filter: blur(0); }
+}
+
+/* ---- scale ---- */
+.chat-smooth-animate-scale {
+	opacity: 0;
+	transform: scale(0.95);
+	animation: chatSmoothScale var(--chat-smooth-duration, 600ms) cubic-bezier(0.0, 0.0, 0.2, 1) var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothScale {
+	from { opacity: 0; transform: scale(0.95); }
+	to   { opacity: 1; transform: scale(1); }
+}
+
+/* ---- slide ---- */
+.chat-smooth-animate-slide {
+	opacity: 0;
+	transform: translateX(-4px);
+	animation: chatSmoothSlide var(--chat-smooth-duration, 600ms) cubic-bezier(0.0, 0.0, 0.2, 1) var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothSlide {
+	from { opacity: 0; transform: translateX(-4px); }
+	to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- reveal ---- */
+.chat-smooth-animate-reveal {
+	-webkit-mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent);
+	mask-image: linear-gradient(to bottom, black calc(100% - 48px), transparent);
+	-webkit-mask-size: 100% 0%;
+	mask-size: 100% 0%;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	animation: chatSmoothReveal var(--chat-smooth-duration, 600ms) cubic-bezier(0.0, 0.0, 0.2, 1) var(--chat-smooth-delay, 0ms) forwards;
+}
+@keyframes chatSmoothReveal {
+	from {
+		-webkit-mask-size: 100% 0%;
+		mask-size: 100% 0%;
+	}
+	to {
+		-webkit-mask-size: 100% calc(100% + 48px);
+		mask-size: 100% calc(100% + 48px);
+	}
+}
+
+/* ---- Respect prefers-reduced-motion ---- */
+@media (prefers-reduced-motion: reduce) {
+	.chat-smooth-animate-fade,
+	.chat-smooth-animate-rise,
+	.chat-smooth-animate-blur,
+	.chat-smooth-animate-scale,
+	.chat-smooth-animate-slide,
+	.chat-smooth-animate-reveal {
+		animation: none !important;
+		opacity: 1 !important;
+		transform: none !important;
+		filter: none !important;
+		-webkit-mask-image: none !important;
+		mask-image: none !important;
+	}
+}

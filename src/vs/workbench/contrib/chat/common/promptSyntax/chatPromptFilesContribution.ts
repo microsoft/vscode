@@ -25,6 +25,7 @@ interface IRawChatFileContribution {
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 enum ChatContributionPoint {
@@ -71,6 +72,11 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 					when: {
 						description: localize('chatContribution.property.when', '(Optional) A condition which must be true to enable this entry.'),
 						type: 'string'
+					},
+					sessionTypes: {
+						description: localize('chatContribution.property.sessionTypes', '(Optional) The chat session types where this entry should be offered.'),
+						type: 'array',
+						items: { type: 'string' }
 					}
 				}
 			}
@@ -133,7 +139,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						continue;
 					}
 					try {
-						const d = this.promptsService.registerContributedFile(type, fileUri, ext.description, raw.name, raw.description, raw.when);
+						const d = this.promptsService.registerContributedFile(type, fileUri, ext.description, raw.name, raw.description, raw.when, raw.sessionTypes);
 						this.registrations.set(key(ext.description.identifier, type, raw.path), d);
 					} catch (e) {
 						const msg = e instanceof Error ? e.message : String(e);
@@ -175,11 +181,16 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 		promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None),
 	]);
 
-	// Combine all files and collect extension-contributed ones
+	// Combine all files and collect extension- and plugin-contributed ones.
+	// Plugin files are included so the copilot extension can trust them and
+	// serve them to the LLM without a confirmation dialog when connected to a
+	// remote (where they are emitted as vscode-local:/... URIs).
 	const result: IExtensionPromptFileResult[] = [];
 	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type, extensionId: file.extension.identifier.value });
+		} else if (file.storage === PromptsStorage.plugin) {
+			result.push({ uri: file.uri.toJSON(), type: file.type, extensionId: file.pluginUri.toString() });
 		}
 	}
 

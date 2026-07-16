@@ -1,0 +1,98 @@
+[
+	{
+		"name": "Rename suggestions [external] - non-tree-sitter language",
+		"requests": [
+			"8f18ebc705b2612c5caa2dedd7caf32cddbc1ad1e8ae5a0532fd57b386037528"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename a function at its definition",
+		"requests": [
+			"5c23417b7bce7e26a075c3c01ccc6381373d5b969e3f785a25c506c6b668b522"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename a function call - definition in different file",
+		"requests": [
+			"4e8b8a844c42ecf01a4aeb1f0e089c19776f99b245f918b4b75d5e7335ca8e44"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename a function call - definition in same file",
+		"requests": [
+			"c9c11108d0188d103664bc56e1e355dd1935fc27fce3aaceecaa58667c2cb955"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename a SCREAMING_SNAKE_CASE enum member",
+		"requests": [
+			"d0d334c7905d4d6f6d14f6a696b55f1e4f174fca32f20f7c269b0125d1243aba"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename a variable reference within a function",
+		"requests": [
+			"ff7be2a8f747693f9d4009b3b7aaaa5d2852de04827cc307819013601ae3e195"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename class - same file",
+		"requests": [
+			"75c258d84f062716c68a9207794bec150c6c6766f7384b1d0e9ca03dd6cf572f"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename class name - CSS",
+		"requests": [
+			"f77dca878f8c4ff24c6e557df84b7d88784b1ac1869afeaddaa6bfa5e4eba513"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename class reference - same file",
+		"requests": [
+			"162979ac1f796004fd524d6f422d2e1ab1062714fc3b2568795be487c54fd2ea"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename follows naming convention _ - rename a function (with underscore) at its definition",
+		"requests": [
+			"ab1e3a08cab971984b24258b1c7a112f090d1c9bac653d5587f14a00c7ef84e3"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename method with field-awareness",
+		"requests": [
+			"4502aa91eaaaa1853711b42548fd60850a50801f6686093d789f3bf8eccfdd95"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename type definition",
+		"requests": [
+			"18429843a269a11f60f1217e5a96b4cb767e775d726b1f1d9ea4b8e3dc01e9b7"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename type definition when it is used in the same file",
+		"requests": [
+			"18429843a269a11f60f1217e5a96b4cb767e775d726b1f1d9ea4b8e3dc01e9b7"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename type reference - same file",
+		"requests": [
+			"35c433bab8cb83bf51572f6e38b0222c854f4fcb7b4fee88d4498b97a556f704"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - rename type reference - same file with 2 possible defs",
+		"requests": [
+			"df057be941ea9d05064da36c76a87eb83c46119c83eb8bd98637b928cee2abd9"
+		]
+	},
+	{
+		"name": "Rename suggestions [external] - respect context: infer name based on existing code - enum member",
+		"requests": [
+			"5e87432fd9310ce2baaf46ea151c3091aaf476c250bf55b55d25786e88166f47"
+		]
+	}
+]

@@ -11,7 +11,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { Point } from '../../../common/core/2d/point.js';
-import { AnimationFrameScheduler } from '../../inlineCompletions/browser/model/animation.js';
+import { AnimationFrameScheduler } from '../../../../base/browser/animatedValue.js';
 import { appendRemoveOnDispose } from '../../../browser/widget/diffEditor/utils.js';
 import './middleScroll.css';
 

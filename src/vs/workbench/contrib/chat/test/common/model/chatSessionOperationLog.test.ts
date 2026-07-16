@@ -51,6 +51,7 @@ suite('ChatSessionOperationLog', () => {
 			} else {
 				fileContent = VSBuffer.concat([fileContent, result.data]);
 			}
+			adapter.confirmWrite();
 		}
 
 		// Create new adapter and read back
@@ -210,6 +211,7 @@ suite('ChatSessionOperationLog', () => {
 
 
 			const result1 = adapter.write({ items: [{ id: 'a', value: [1, 2, 3] }] });
+			adapter.confirmWrite();
 			assert.deepStrictEqual(
 				JSON.parse(result1.data.toString().trim()),
 				{ kind: 2, k: ['items', 0, 'value'], v: [3] },
@@ -309,9 +311,12 @@ suite('ChatSessionOperationLog', () => {
 			adapter.createInitial(obj); // Entry 1
 
 			adapter.write({ ...obj, count: 1 }); // Entry 2
+			adapter.confirmWrite();
 			adapter.write({ ...obj, count: 2 }); // Entry 3
+			adapter.confirmWrite();
 
 			const before = adapter.write({ ...obj, count: 3 });
+			adapter.confirmWrite();
 			assert.strictEqual(before.op, 'append');
 
 			// This should trigger compaction
@@ -364,6 +369,7 @@ suite('ChatSessionOperationLog', () => {
 
 			// Change type from 'foo' to 'bar' - should detect change (different prefix)
 			const result1 = adapter.write({ data: { type: 'bar', version: 2 } });
+			adapter.confirmWrite();
 			assert.notStrictEqual(result1.data.toString(), '', 'different type should trigger change');
 			const entry1 = JSON.parse(result1.data.toString().trim());
 			assert.strictEqual(entry1.kind, 1); // EntryKind.Set
@@ -574,6 +580,235 @@ suite('ChatSessionOperationLog', () => {
 			const result = adapter.read(VSBuffer.fromString(logContent));
 
 			assert.deepStrictEqual(result.metadata, { tags: ['b', 'c'] });
+		});
+
+		test('write without confirmWrite resets to initial on next write', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+
+			// First write (no createInitial) — produces Initial replace
+			const result1 = adapter.write(obj);
+			assert.strictEqual(result1.op, 'replace');
+			// Do NOT confirm — simulates a failed persist
+
+			// Next write should produce a full replace again since state was not committed
+			const result2 = adapter.write({ ...obj, count: 2 });
+			assert.deepStrictEqual(
+				{ op: result2.op, entry: JSON.parse(result2.data.toString().trim()) },
+				{ op: 'replace', entry: { kind: 0, v: { name: 'test', count: 2, items: [] } } },
+			);
+		});
+
+		test('confirmWrite commits state so next write is incremental', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			adapter.createInitial(obj);
+
+			adapter.write({ ...obj, count: 1 });
+			adapter.confirmWrite();
+
+			// Next write should be an incremental append
+			const result = adapter.write({ ...obj, count: 2 });
+			assert.deepStrictEqual(
+				{ op: result.op, entry: JSON.parse(result.data.toString().trim()) },
+				{ op: 'append', entry: { kind: 1, k: ['count'], v: 2 } },
+			);
+		});
+
+		test('read throws on log file missing initial entry', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const logContent = JSON.stringify({ kind: 1, k: ['count'], v: 5 }) + '\n';
+			assert.throws(() => adapter.read(VSBuffer.fromString(logContent)), /missing an initial entry/);
+		});
+
+		test('failed first write followed by successful write produces valid roundtrip', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const initial: TestObject = { name: 'test', count: 0, items: [] };
+
+			// First write "fails" — data not persisted, no confirmWrite
+			const r1 = adapter.write(initial);
+			assert.strictEqual(r1.op, 'replace');
+			// skip confirmWrite — simulates failed persist
+
+			// Second write recovers — produces a full replace again
+			const r2 = adapter.write({ ...initial, count: 3 });
+			assert.strictEqual(r2.op, 'replace');
+			adapter.confirmWrite();
+			const fileContent = r2.data;
+
+			// Read back should give the last committed state
+			const reader = new Adapt.ObjectMutationLog(createTestSchema());
+			const result = reader.read(fileContent);
+			assert.strictEqual(result.count, 3);
+		});
+
+		test('unconfirmed append after createInitial still diffs against initial', () => {
+			const schema = createTestSchema();
+			const adapter = new Adapt.ObjectMutationLog(schema);
+
+			const obj: TestObject = { name: 'test', count: 0, items: [] };
+			let fileContent = adapter.createInitial(obj);
+
+			// Write but do NOT confirm
+			const r1 = adapter.write({ ...obj, count: 1 });
+			assert.strictEqual(r1.op, 'append');
+			// skip confirmWrite — simulates failed persist, data not appended to file
+
+			// Next write diffs against the createInitial state (count: 0)
+			const r2 = adapter.write({ ...obj, count: 2 });
+			assert.strictEqual(r2.op, 'append');
+			adapter.confirmWrite();
+			fileContent = VSBuffer.concat([fileContent, r2.data]);
+
+			const reader = new Adapt.ObjectMutationLog(createTestSchema());
+			const result = reader.read(fileContent);
+			assert.strictEqual(result.count, 2);
+		});
+	});
+
+	suite('persistence size safety net', () => {
+		test('makeTruncatingReplacer truncates an oversized string', () => {
+			const big = 'x'.repeat(2 * 1024 * 1024);
+			const obj = { content: big, label: 'ok' };
+			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(1024 * 1024, 10 * 1024 * 1024));
+			const parsed = JSON.parse(json);
+			assert.notStrictEqual(parsed.content, big);
+			assert.ok(parsed.content.startsWith('[VS Code:'));
+			assert.strictEqual(parsed.label, 'ok');
+		});
+
+		test('makeTruncatingReplacer respects total budget without overshooting', () => {
+			const STRING_CAP = 1024 * 1024;
+			const TOTAL_CAP = 1024 * 1024;
+			const medium = 'y'.repeat(200 * 1024); // under per-string cap
+			const obj: any = {};
+			for (let i = 0; i < 20; i++) {
+				obj[`k${i}`] = medium;
+			}
+			const json = JSON.stringify(obj, Adapt.makeTruncatingReplacer(STRING_CAP, TOTAL_CAP));
+			const parsed = JSON.parse(json);
+			// Sum of preserved strings must not exceed the total budget.
+			const preservedChars = Object.values(parsed)
+				.filter((v): v is string => typeof v === 'string' && v === medium)
+				.reduce((sum, v) => sum + v.length, 0);
+			assert.ok(preservedChars <= TOTAL_CAP, `preserved ${preservedChars} chars exceeded budget ${TOTAL_CAP}`);
+			// Leading keys intact, later replaced with total-budget marker
+			assert.strictEqual(parsed.k0, medium);
+			assert.ok(Object.values(parsed).some(v => typeof v === 'string' && (v as string).includes('entry exceeded size budget')));
+		});
+
+		test('stringifyEntryWithFallback succeeds with no overhead on small entries', () => {
+			const entry = { kind: 0, v: { foo: 'bar', n: 42 } };
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			assert.strictEqual(out, JSON.stringify(entry));
+		});
+
+		test('stringifyEntryWithFallback rethrows non-RangeError', () => {
+			const circular: any = {};
+			circular.self = circular; // JSON.stringify throws TypeError on circulars
+			assert.throws(() => Adapt.stringifyEntryWithFallback(circular), TypeError);
+		});
+
+		test('stringifyEntryWithFallback recovers when JSON.stringify throws RangeError', () => {
+			// Use toJSON to force a RangeError on the first stringify pass,
+			// then succeed on the retry. Avoids needing 500+ MiB of allocations.
+			let calls = 0;
+			const entry = {
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { content: 'recovered' };
+				},
+			};
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			assert.strictEqual(calls, 2, 'should have been called twice (initial + retry)');
+			assert.deepStrictEqual(JSON.parse(out), { content: 'recovered' });
+		});
+
+		test('stringifyEntryWithFallback applies truncating replacer on RangeError retry', () => {
+			// Same trick, but the recovered payload contains an oversized
+			// string that must be truncated by the replacer on the retry.
+			const big = 'x'.repeat(2 * 1024 * 1024); // 2 MiB, over the 1 MiB per-string cap
+			let calls = 0;
+			const entry = {
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { content: big, label: 'ok' };
+				},
+			};
+			const out = Adapt.stringifyEntryWithFallback(entry);
+			const parsed = JSON.parse(out);
+			assert.notStrictEqual(parsed.content, big);
+			assert.ok(parsed.content.startsWith('[VS Code:'), `unexpected: ${parsed.content.slice(0, 80)}`);
+			assert.strictEqual(parsed.label, 'ok');
+		});
+
+		test('deepCloneWithFallback returns a structural clone on the common path', () => {
+			const original = { a: 1, nested: { b: 'two', list: [1, 2, 3] } };
+			const clone = Adapt.deepCloneWithFallback(original);
+			assert.deepStrictEqual(clone, original);
+			assert.notStrictEqual(clone, original);
+			assert.notStrictEqual(clone.nested, original.nested);
+		});
+
+		test('deepCloneWithFallback recovers from RangeError during the clone', () => {
+			// The value() transform deep-clones extracted objects on every write,
+			// *before* any entry is serialized. A single oversized field used to
+			// throw RangeError here and lose the whole session (#322364). The clone
+			// must instead truncate and succeed.
+			const big = 'x'.repeat(2 * 1024 * 1024); // 2 MiB, over the 1 MiB per-string cap
+			let calls = 0;
+			const value: { huge: string; label: string; toJSON(): { huge: string; label: string } } = {
+				huge: big,
+				label: 'ok',
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { huge: big, label: 'ok' };
+				},
+			};
+			const clone = Adapt.deepCloneWithFallback(value);
+			assert.strictEqual(calls, 2, 'should have been called twice (initial + retry)');
+			assert.strictEqual(clone.label, 'ok');
+			assert.notStrictEqual(clone.huge, big);
+			assert.ok(clone.huge.startsWith('[VS Code:'), `unexpected: ${clone.huge.slice(0, 80)}`);
+		});
+
+		test('value().extract recovers when the deep-clone throws RangeError', () => {
+			// End-to-end: an oversized object flowing through a value() transform
+			// (as IChatAgentResult.metadata.toolCallResults does) must not throw.
+			const big = 'x'.repeat(2 * 1024 * 1024);
+			let calls = 0;
+			const huge = {
+				kept: 'meta',
+				toJSON() {
+					calls++;
+					if (calls === 1) {
+						throw new RangeError('Invalid string length');
+					}
+					return { dump: big, kept: 'meta' };
+				},
+			};
+			const transform = Adapt.value<typeof huge, { dump: string; kept: string }>((a, b) => a.dump === b.dump && a.kept === b.kept);
+			const extracted = transform.extract(huge);
+			assert.strictEqual(calls, 2);
+			assert.strictEqual(extracted.kept, 'meta');
+			assert.ok(extracted.dump.startsWith('[VS Code:'));
 		});
 	});
 });

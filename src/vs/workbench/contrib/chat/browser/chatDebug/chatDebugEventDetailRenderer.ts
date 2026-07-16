@@ -27,6 +27,7 @@ export function formatEventDetail(event: IChatDebugEvent): string {
 			const parts = [event.model ?? localize('chatDebug.detail.modelTurn', "Model Turn")];
 			if (event.inputTokens !== undefined) { parts.push(localize('chatDebug.detail.inputTokens', "Input tokens: {0}", numberFormatter.value.format(event.inputTokens))); }
 			if (event.outputTokens !== undefined) { parts.push(localize('chatDebug.detail.outputTokens', "Output tokens: {0}", numberFormatter.value.format(event.outputTokens))); }
+			if (event.cachedTokens !== undefined) { parts.push(localize('chatDebug.detail.cachedTokens', "Cached tokens: {0}", numberFormatter.value.format(event.cachedTokens))); }
 			if (event.totalTokens !== undefined) { parts.push(localize('chatDebug.detail.totalTokens', "Total tokens: {0}", numberFormatter.value.format(event.totalTokens))); }
 			if (event.durationInMillis !== undefined) { parts.push(localize('chatDebug.detail.durationMs', "Duration: {0}ms", numberFormatter.value.format(event.durationInMillis))); }
 			return parts.join('\n');

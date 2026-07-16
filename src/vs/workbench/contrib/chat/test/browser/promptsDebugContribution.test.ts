@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
@@ -46,7 +47,7 @@ suite('PromptsDebugContribution', () => {
 	setup(() => {
 		instaService = disposables.add(new TestInstantiationService());
 
-		chatDebugService = disposables.add(new ChatDebugServiceImpl());
+		chatDebugService = disposables.add(new ChatDebugServiceImpl(new TestConfigurationService()));
 		instaService.stub(IChatDebugService, chatDebugService);
 
 		willInvokeAgentEmitter = disposables.add(new Emitter<IChatAgentInvocationEvent>());
@@ -77,11 +78,11 @@ suite('PromptsDebugContribution', () => {
 		await flushAsyncLogging();
 
 		assert.strictEqual(firedEvents.length, 5);
-		const event = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions');
+		const event = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
 		assert.ok(event);
 		assert.strictEqual(event.kind, 'generic');
 		assert.ok(event.sessionResource);
-		assert.strictEqual(event.name, 'Load Instructions');
+		assert.strictEqual(event.name, 'Instructions Discovery');
 		assert.ok(event.details?.includes('Resolved 1 instruction'));
 		assert.strictEqual(event.category, 'discovery');
 	});
@@ -109,7 +110,7 @@ suite('PromptsDebugContribution', () => {
 		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
 		await flushAsyncLogging();
 
-		const instructionsEvent = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions');
+		const instructionsEvent = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
 		assert.ok(instructionsEvent);
 		const eventId = instructionsEvent.id;
 		assert.ok(eventId, 'Event should have an ID for resolution');
@@ -174,7 +175,7 @@ suite('PromptsDebugContribution', () => {
 		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
 		await flushAsyncLogging();
 
-		const eventId = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Load Instructions')!.id!;
+		const eventId = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery')!.id!;
 		const resolved = await chatDebugService.resolveEvent(eventId);
 		assert.ok(resolved);
 		if (resolved.kind === 'fileList') {

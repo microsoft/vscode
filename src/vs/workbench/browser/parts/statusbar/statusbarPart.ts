@@ -19,7 +19,8 @@ import { contrastBorder, activeContrastBorder } from '../../../../platform/theme
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -120,12 +121,23 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 	static readonly HEIGHT = 22;
 
+	/**
+	 * Vertical padding reserved around the main status bar under the floating panels
+	 * experiment so its items remain centered. The part grows by this amount and
+	 * the matching padding is applied in `floatingPanels.css`.
+	 */
+	static readonly FLOATING_BOTTOM_PADDING = 10;
+
 	//#region IView
+
+	private get floatingBottomPadding(): number {
+		return this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() ? StatusbarPart.FLOATING_BOTTOM_PADDING : 0;
+	}
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = StatusbarPart.HEIGHT;
-	readonly maximumHeight: number = StatusbarPart.HEIGHT;
+	get minimumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
+	get maximumHeight(): number { return StatusbarPart.HEIGHT + this.floatingBottomPadding; }
 
 	//#endregion
 
@@ -160,6 +172,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -205,6 +218,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+
+		// Floating panels changes the reserved bottom padding (and therefore the
+		// part height) for the main status bar only: signal the grid that the size
+		// constraint changed.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	overrideEntry(id: string, override: Partial<IStatusbarEntry>): IDisposable {
@@ -724,8 +746,9 @@ export class MainStatusbarPart extends StatusbarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 
@@ -749,9 +772,10 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, configurationService);
 	}
 }
 

@@ -1,0 +1,211 @@
+# Twice-daily smoke-test flaky-detection pipeline.
+#
+# Builds VS Code from source on Linux, Windows and macOS and runs ONLY the
+# Electron smoke tests, repeated 20 times per platform. Each repetition is its
+# own step (continueOnError) so a single flaky failure does not abort the run and
+# every iteration produces its own timeline record. The pass/fail tally is read
+# back from the build timeline by the vscode-probot `SmokeFlaky` Azure Function
+# (wired up via an ADO service hook on build completion), which posts a summary
+# to the Slack #build channel.
+#
+# We build from source rather than testing a published build on purpose: product
+# builds are not always released, so depending on a published artifact would make
+# us miss the daily schedule. Building here keeps the run self-contained.
+
+pr: none
+trigger: none
+
+schedules:
+  # Twice per day at 04:00 and 16:00 UTC. `always: true` forces the runs even when
+  # there are no new commits, since flaky behavior is environmental and worth
+  # sampling every 12 hours regardless of source changes.
+  - cron: "0 4,16 * * *"
+    displayName: Twice daily at 04:00 and 16:00 UTC (smoke flaky detection)
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
+  # The smoke test is run once per entry in this list. 20 entries => 20 runs per
+  # platform (the flaky-detection sample size). Exposed as an object so it can be
+  # shortened for manual debugging runs from the ADO UI.
+  - name: iterations
+    displayName: "Smoke test iterations (one run per entry)"
+    type: object
+    default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+
+variables:
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  # Compile templates skip publish/codesign/artifact-staging when VSCODE_CIBUILD
+  # is true; it's passed directly as a job parameter. VSCODE_STEP_ON_IT must be
+  # 'false' to keep the build steps enabled.
+  - name: VSCODE_STEP_ON_IT
+    value: false
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: VSCODE_OVERWRITE_TPN
+    value: "true"
+  # The Copilot extension build patches its package.json version for pre-release
+  # (non-stable) quality and requires a per-build counter (0-99, reset daily) to
+  # keep versions unique. Mirrors product-build.yml. The counter resets each day
+  # per quality+branch, so this twice-daily pipeline stays at a low value.
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} smoke flaky)"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: Smoke test repetition only, not a shipping build
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      binskim:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      # The per-OS compile template unconditionally waits (up to 30 min) for a
+      # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
+      # the build. This stage produces it — mirroring product-build.yml. The
+      # platform stages depend on its artifact-published output so they are
+      # skipped when the artifact cannot be produced, but still run if later
+      # Copilot validation fails.
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: false
+              VSCODE_RELEASE: false
+              # This is a test-only run; don't push the Copilot extension's source
+              # maps to the CDN.
+              VSCODE_UPLOAD_SOURCEMAPS: false
+
+      - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+        - stage: Linux
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - template: build/azure-pipelines/linux/product-smoke-flaky-linux.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                iterations: ${{ parameters.iterations }}
+
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+        - stage: Windows
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - template: build/azure-pipelines/win32/product-smoke-flaky-win32.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                iterations: ${{ parameters.iterations }}
+
+      - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+        - stage: macOS
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          pool:
+            name: AcesShared
+            os: macOS
+          jobs:
+            - template: build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml@self
+              parameters:
+                iterations: ${{ parameters.iterations }}

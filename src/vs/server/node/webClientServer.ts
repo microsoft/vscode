@@ -364,12 +364,6 @@ export class WebClientServer {
 			} : undefined
 		};
 
-		const proposedApi = this._environmentService.args['enable-proposed-api'];
-		if (proposedApi?.length) {
-			productConfiguration.extensionsEnabledWithApiProposalVersion ??= [];
-			productConfiguration.extensionsEnabledWithApiProposalVersion.push(...proposedApi);
-		}
-
 		if (!this._environmentService.isBuilt) {
 			try {
 				const productOverrides = JSON.parse((await promises.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
@@ -437,7 +431,7 @@ export class WebClientServer {
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-2Q+j4hfT09+1+imS46J2YlkCtHWQt0/BE79PXjJ0ZJ8=';
+		const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
 
 		const cspDirectives = [
 			'default-src \'self\';',

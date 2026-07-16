@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -64,7 +64,11 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	readonly mainPart: MainEditorPart;
 
-	private mostRecentActiveParts: MainEditorPart[];
+	// Most recently active parts across all windows. Multiple parts can
+	// share the same window (e.g. main part and modal part both live in
+	// the main window) so this list also acts as a per-window MRU when
+	// filtered by document. See `getMostRecentlyActivePartByDocument`.
+	private mostRecentActiveParts: EditorPart[];
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -281,7 +285,19 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
-		disposables.add(part.onDidActivateGroup(e => this._onDidActivateGroup.fire(e)));
+		disposables.add(part.onDidActivateGroup(e => {
+			// A part-close activation means a modal or auxiliary editor part is
+			// closing and another part is being made the active one. Update our
+			// MRU eagerly here so that downstream queries during the close flow
+			// (e.g. `getPartByDocument` triggered by `onDidRemoveGroup` from the
+			// closing part) see the new active part instead of the closing one
+			// which has not yet been unregistered.
+			if (e.reason === GroupActivationReason.PART_CLOSE) {
+				this.doUpdateMostRecentActive(part, true);
+			}
+
+			this._onDidActivateGroup.fire(e);
+		}));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
@@ -311,21 +327,23 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Helpers
 
 	protected override getPartByDocument(document: Document): EditorPart {
-		if (this._parts.size > 1) {
+		// Multiple editor parts can share the same document because
+		// the main part and a modal part both live in the main window.
+
+		const mruParts = this.mostRecentActiveParts;
+		const mruDocumentParts = mruParts.filter(part => part.element?.ownerDocument === document);
+		if (mruDocumentParts.length > 1) {
+			// First try to find the part that has the currently focused element, which is the most likely candidate to be the active part for that document.
 			const activeElement = getActiveElement();
-
-			// Find parts that match the document and check if any
-			// non-main part contains the active element. This handles
-			// modal parts that share the same document as the main part.
-
-			for (const part of this._parts) {
-				if (part !== this.mainPart && part.element?.ownerDocument === document) {
-					const container = part.getContainer();
-					if (container && isAncestor(activeElement, container)) {
-						return part;
-					}
+			for (const part of mruDocumentParts) {
+				const container = part.getContainer();
+				if (container && isAncestor(activeElement, container)) {
+					return part;
 				}
 			}
+
+			// Pick the part that was set active last for that document
+			return mruDocumentParts[0];
 		}
 
 		return super.getPartByDocument(document);
