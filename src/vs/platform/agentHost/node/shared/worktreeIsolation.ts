@@ -575,10 +575,10 @@ export class WorktreeIsolation extends Disposable {
 	}
 
 	/**
-	 * On archive, removes the worktree directory when its branch is preserved
-	 * and the working tree is clean, so the worktree can be recreated on
-	 * unarchive without losing work. Skips the removal when the branch is
-	 * missing or the tree is dirty.
+	 * On archive, removes the worktree directory when its branch is preserved,
+	 * so the worktree can be recreated on unarchive. Skips the removal when
+	 * the branch is missing. Forces cleanup even if the worktree has
+	 * uncommitted changes.
 	 */
 	async cleanupWorktreeOnArchive(sessionUri: URI, sessionId: string): Promise<void> {
 		return this._sequencer.queue(sessionId, () => this._cleanupWorktreeOnArchive(sessionUri, sessionId));
@@ -608,6 +608,7 @@ export class WorktreeIsolation extends Disposable {
 		}
 
 
+		// Forcefully remove the worktree regardless of uncommitted changes to avoid leaks.
 		try {
 			await this._gitService.removeWorktree(repositoryRoot, worktreePath);
 			this._logService.info(`[${this._logLabel}:${sessionId}] Removed worktree '${worktreePath.fsPath}' on archive`);
