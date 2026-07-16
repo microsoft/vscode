@@ -125,19 +125,23 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('shouldPinToolInvocationToThinking', () => {
-		test('keeps tool invocations requiring user input outside Thinking', () => {
+		test('keeps tool invocations requiring user input or MCP apps outside Thinking', () => {
 			assert.deepStrictEqual({
-				executionConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForConfirmation, false),
-				resultApproval: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForPostApproval, false),
-				authentication: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForAuthentication, false),
-				executingWithConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, true),
-				executingWithoutConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, false),
+				executionConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForConfirmation, false, false),
+				resultApproval: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForPostApproval, false, false),
+				authentication: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.WaitingForAuthentication, false, false),
+				executingWithConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, true, false),
+				executingWithoutConfirmation: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, false, false),
+				executingWithMcpApp: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Executing, false, true),
+				streamingWithMcpApp: shouldPinToolInvocationToThinking(IChatToolInvocation.StateKind.Streaming, false, true),
 			}, {
 				executionConfirmation: false,
 				resultApproval: false,
 				authentication: false,
 				executingWithConfirmation: false,
 				executingWithoutConfirmation: true,
+				executingWithMcpApp: false,
+				streamingWithMcpApp: false,
 			});
 		});
 	});

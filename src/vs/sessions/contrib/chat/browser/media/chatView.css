@@ -92,11 +92,11 @@
 }
 
 .agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
-	background-color: transparent !important;
+	background-color: transparent;
 }
 
 .agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-agentsChatInput-background) !important;
+	background-color: var(--vscode-agentsChatInput-background);
 }
 
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,

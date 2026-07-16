@@ -161,6 +161,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
 				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
 			});
+		} else {
+			const data = this.getMcpAppRenderData();
+			if (data) {
+				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, undefined);
+				appData = constObservable(!!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined);
+			}
 		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.

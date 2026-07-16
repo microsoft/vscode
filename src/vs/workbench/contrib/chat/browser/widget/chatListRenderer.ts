@@ -254,11 +254,16 @@ export function shouldShowPillsSummaryForSettings(isComplete: boolean, isAgentHo
 	return isComplete && isAgentHostSession && isChatTurnStatusPillsEnabled(turnStatusPills);
 }
 
-export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.StateKind, hasConfirmationMessages: boolean): boolean {
-	return state !== IChatToolInvocation.StateKind.WaitingForConfirmation
+export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.StateKind, hasConfirmationMessages: boolean, hasMcpAppData: boolean): boolean {
+	return !hasMcpAppData
+		&& state !== IChatToolInvocation.StateKind.WaitingForConfirmation
 		&& state !== IChatToolInvocation.StateKind.WaitingForPostApproval
 		&& state !== IChatToolInvocation.StateKind.WaitingForAuthentication
 		&& !hasConfirmationMessages;
+}
+
+function toolInvocationHasMcpAppData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.mcpAppData;
 }
 
 const forceVerboseLayoutTracing = false
@@ -2265,16 +2270,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (part.kind === 'toolInvocation') {
-			// pin when streaming since we don't know if we have confirmation yet or not
-			if (IChatToolInvocation.isStreaming(part)) {
-				return true;
-			}
 			const state = part.state.get();
-			return shouldPinToolInvocationToThinking(state.type, !!IChatToolInvocation.getConfirmationMessages(part));
+			return shouldPinToolInvocationToThinking(state.type, !!IChatToolInvocation.getConfirmationMessages(part), toolInvocationHasMcpAppData(part));
 		}
 
 		if (part.kind === 'toolInvocationSerialized') {
-			return true;
+			return !toolInvocationHasMcpAppData(part);
 		}
 
 		return false;
@@ -2991,6 +2992,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 
 		const currentState = toolInvocation.state.get();
+		if (toolInvocationHasMcpAppData(toolInvocation)) {
+			moveConfirmationWidgetOutOfThinking();
+			return;
+		}
+
 		if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 			if (!tryRouteConfirmationToCarousel()) {
 				moveConfirmationWidgetOutOfThinking();
@@ -3006,14 +3012,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		let didRemoveConfirmationWidget = false;
+		let didMoveToolOut = false;
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				if (didRemoveConfirmationWidget) {
+			toolInvocation.toolSpecificDataKind.read(reader);
+			if (toolInvocationHasMcpAppData(toolInvocation)) {
+				if (didMoveToolOut) {
 					return;
 				}
-				didRemoveConfirmationWidget = true;
+				didMoveToolOut = true;
+				disposable.dispose();
+				moveConfirmationWidgetOutOfThinking();
+				return;
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				if (didMoveToolOut) {
+					return;
+				}
+				didMoveToolOut = true;
 				disposable.dispose();
 				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !tryRouteConfirmationToCarousel()) {
 					moveConfirmationWidgetOutOfThinking();
