@@ -916,7 +916,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const model = this._editor?.getModel();
 		if (model) {
-			model.setValue(text);
+			const existing = model.getValue();
+			const combined = existing && !/\s$/.test(existing) ? `${existing} ${text}` : `${existing}${text}`;
+			model.setValue(combined);
 			this._send();
 		}
 	}
