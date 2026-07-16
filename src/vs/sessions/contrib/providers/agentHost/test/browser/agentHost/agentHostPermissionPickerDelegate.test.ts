@@ -170,7 +170,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('offers Default approvals, Assisted permissions, and Allow all in order', () => {
+	test('offers Default approvals, Assisted permissions (Preview), and Allow all in order', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'assisted');
 
 		assert.deepStrictEqual({
@@ -185,7 +185,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			current: ChatPermissionLevel.Assisted,
 			metadata: [
 				{ label: 'Default approvals', detail: 'Asks when approval settings don\'t apply', hover: undefined },
-				{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
+				{ label: 'Assisted permissions (Preview)', detail: 'Evaluates risk before running tools', hover: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.' },
 				{ label: 'Allow all', detail: 'Runs tool calls without asking', hover: undefined },
 			],
 			available: [
@@ -207,7 +207,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		]);
 	});
 
-	test('hides and rejects Approve When Safe when the experimental setting is disabled', () => {
+	test('hides and rejects Assisted permissions (Preview) when the experimental setting is disabled', () => {
 		const { delegate, provider, setAutoApprovalsEnabled } = setup(store, makeActiveSession(), 'default');
 		setAutoApprovalsEnabled(false);
 
@@ -252,7 +252,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		);
 	});
 
-	test('provides agent-host-specific hover copy for Approve When Safe', () => {
+	test('provides agent-host-specific hover copy for Assisted permissions (Preview)', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'assisted');
 
 		assert.strictEqual(

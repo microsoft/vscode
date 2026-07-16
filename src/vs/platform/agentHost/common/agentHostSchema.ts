@@ -313,7 +313,7 @@ export const platformSessionSchema = createSchema({
 		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
 			localize('agentHost.sessionConfig.autoApprove.default', "Default approvals"),
-			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
+			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions (Preview)"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
 		enumDescriptions: [

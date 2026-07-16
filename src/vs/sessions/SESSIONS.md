@@ -496,18 +496,18 @@ request.
 
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
 turn: Default approvals uses `off`, Allow all uses `on`, and Assisted permissions
-uses `auto`. Assisted permissions only skips a prompt when the SDK's
-model recommendation is `approve`; every other recommendation follows the normal
-confirmation flow. Judge rationale can arrive asynchronously: the confirmation
+(Preview) uses `auto`. Assisted permissions (Preview) only skips a prompt when
+the SDK's model recommendation is `approve`; every other recommendation follows
+the normal confirmation flow. Judge rationale can arrive asynchronously: the confirmation
 reason is `loading` until the completed result supplies its explanation and a
 normalized safety score (`0` unsafe, `1` safe). Clients render that result in the
 existing risk-badge position with safety-appropriate visuals. A live
 approval-level change is pushed to every in-memory SDK
 chat immediately, including during an active turn, so leaving Allow all
 cannot leave the SDK in allow-all mode for later tool calls in that turn.
-`chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
+`chat.experimental.autoApprovals.enabled` controls whether Assisted permissions (Preview) is
 offered in approval pickers and defaults on outside Stable builds. Enterprise
-policy still leaves Approve When Safe and Allow All visible, but disables both with an
+policy still leaves Assisted permissions (Preview) and Allow All visible, but disables both with an
 administrator-directed explanation and normalizes either value back to Ask When Needed.
 The agent mode axis is independent: Autopilot with Ask When Needed still uses
 SDK permission mode `off` and preserves the configured sandbox policy.

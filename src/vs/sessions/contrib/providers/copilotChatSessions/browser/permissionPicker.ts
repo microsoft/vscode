@@ -99,7 +99,7 @@ export function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionL
 	switch (level) {
 		case ChatPermissionLevel.Assisted:
 			return {
-				label: localize('permissions.assisted', "Assisted permissions"),
+				label: localize('permissions.assisted', "Assisted permissions (Preview)"),
 				detail: localize('permissions.assisted.subtext', "Evaluates risk before running tools"),
 				icon: Codicon.sparkle,
 				hover: localize('permissions.assisted.description', "An LLM judge evaluates each tool call. Tools it doesn't approve require your approval."),

@@ -46,12 +46,12 @@ suite('chatPermissionWarnings', () => {
 		assert.strictEqual(hasShownElevatedWarning(ChatPermissionLevel.Autopilot, s), true);
 	});
 
-	test('confirming Allow All suppresses the lower-reach Approve When Safe warning', () => {
+	test('confirming Allow All suppresses the lower-reach Assisted permissions (Preview) warning', () => {
 		const s = storage(AUTO_APPROVE_DONT_SHOW_AGAIN_KEY);
 		assert.strictEqual(hasShownElevatedWarning(ChatPermissionLevel.Assisted, s), true);
 	});
 
-	test('confirming Approve When Safe does not suppress the Allow All warning', () => {
+	test('confirming Assisted permissions (Preview) does not suppress the Allow All warning', () => {
 		const s = storage(ASSISTED_APPROVAL_DONT_SHOW_AGAIN_KEY);
 		assert.strictEqual(hasShownElevatedWarning(ChatPermissionLevel.AutoApprove, s), false);
 	});

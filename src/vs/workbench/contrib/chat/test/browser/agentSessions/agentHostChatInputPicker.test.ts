@@ -71,7 +71,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 
 		suite('AgentHostChatInputPicker - approval controls', () => {
 
-			test('shows Approve When Safe only when the experimental setting is enabled', () => {
+			test('shows Assisted permissions (Preview) only when the experimental setting is enabled', () => {
 				assert.deepStrictEqual({
 					enabled: isAutoApproveValueVisible(ChatPermissionLevel.Assisted, true),
 					disabled: isAutoApproveValueVisible(ChatPermissionLevel.Assisted, false),
@@ -83,7 +83,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 				});
 			});
 
-			test('enterprise policy restricts and normalizes Approve When Safe and Allow All equally', () => {
+			test('enterprise policy restricts and normalizes Assisted permissions (Preview) and Allow All equally', () => {
 				assert.deepStrictEqual({
 					autoRestricted: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.Assisted, true),
 					bypassRestricted: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.AutoApprove, true),
@@ -128,7 +128,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 
 		test('explains approval choices on item hover', () => {
 			assert.deepStrictEqual({
-				auto: getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', description: 'Evaluates risk before running tools' }, false),
+				auto: getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions (Preview)', description: 'Evaluates risk before running tools' }, false),
 				bypass: getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'autoApprove', label: 'Allow all', description: 'Runs tool calls without asking' }, false),
 			}, {
 				auto: 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.',
@@ -138,7 +138,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 
 		test('directs users to their administrator when approvals are disabled by policy', () => {
 			assert.strictEqual(
-				getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true),
+				getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions (Preview)' }, true),
 				'Disabled by your organization. Contact your administrator.'
 			);
 		});

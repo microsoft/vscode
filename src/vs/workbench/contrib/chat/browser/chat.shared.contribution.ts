@@ -530,7 +530,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AutoApprovalsEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.experimental.autoApprovals.enabled', "Controls whether Assisted permissions is shown in Agent Host approval pickers."),
+			description: nls.localize('chat.experimental.autoApprovals.enabled', "Controls whether Assisted permissions (Preview) is shown in Agent Host approval pickers."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -565,7 +565,7 @@ configurationRegistry.registerConfiguration({
 					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove],
 					enumDescriptions: [
 						nls.localize('chat.defaultConfiguration.approvals.default', "Ask When Needed — asks when approval settings don't apply."),
-						nls.localize('chat.defaultConfiguration.approvals.assisted', "Assisted permissions — evaluates risk before running tools."),
+						nls.localize('chat.defaultConfiguration.approvals.assisted', "Assisted permissions (Preview) — evaluates risk before running tools."),
 						nls.localize('chat.defaultConfiguration.approvals.autoApprove', "Allow All — runs tool calls without asking."),
 					],
 					default: ChatPermissionLevel.Default,
