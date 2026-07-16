@@ -1672,6 +1672,35 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
 	});
 
+	test('same-account refresh (unchanged identity) does not flash or drop cache', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		// Eligible enterprise account → Available + eligible cache written.
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.ok(storageData.has('marketplace.cachedAccess'));
+
+		// Record every status transition emitted from here on.
+		const statuses: ExtensionGalleryManifestStatus[] = [];
+		disposableStore.add(service.onDidChangeExtensionGalleryManifestStatus(status => statuses.push(status)));
+
+		// A routine account DATA refresh (e.g. a rotated session token or re-fetched entitlements)
+		// fires onDidChangeDefaultAccount with the SAME identity (provider + session + accountName)
+		// but a fresh account object. This must NOT tear down the live marketplace.
+		defaultAccount = createDefaultAccount({ enterprise: true, entitlementsData: null });
+		onDidChangeDefaultAccount.fire(defaultAccount);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		// No teardown flash to Unavailable, the eligible cache is preserved, and the manifest stays
+		// Available.
+		assert.ok(!statuses.includes(ExtensionGalleryManifestStatus.Unavailable), 'marketplace flashed on a same-account refresh');
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.ok(storageData.has('marketplace.cachedAccess'));
+	});
+
 	// --- No configuredServiceUrl ---
 
 	test('no configuredServiceUrl — uses default gallery manifest', async () => {

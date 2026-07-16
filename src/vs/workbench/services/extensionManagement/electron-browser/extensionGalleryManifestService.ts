@@ -158,6 +158,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// (extension getManifest, VSIX download).
 	private readonly channels: IChannel[] = [];
 
+	// Identity (`provider:session:accountName`) of the account the most recent GitHub validation
+	// resolved, or `undefined` when none. Deliberately excludes volatile fields (token info,
+	// entitlements) so `onDidChangeDefaultAccount` — which also fires on routine same-account data
+	// refreshes — can distinguish a genuine account switch/sign-out (tear down + revalidate) from a
+	// same-account refresh (revalidate in place, no flash, cache preserved).
+	private currentGitHubAccountIdentity: string | undefined;
+
 	constructor(
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -370,12 +377,19 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		// Default: GitHub
 		const validate = () => this.handleGitHubAccess(configuredServiceUrl, ++this.validationEpoch);
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
-			this.clearCachedAccess();
-			// Revoke the previously authorized manifest before revalidating (see the Microsoft
-			// path above) so a transient failure resolving the new account cannot preserve the
-			// old account's `Available` status.
-			this.update(null);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			const newIdentity = account ? WorkbenchExtensionGalleryManifestService.getAccountIdentity(account) : undefined;
+			if (newIdentity !== this.currentGitHubAccountIdentity) {
+				// The account identity actually changed (switch) or disappeared (sign-out): the
+				// previously authorized marketplace no longer applies. Drop its cache and revoke the
+				// manifest before revalidating (see the Microsoft path above) so a transient failure
+				// resolving the new account cannot preserve the old account's `Available` status.
+				this.clearCachedAccess();
+				this.update(null);
+			}
+			// Same identity → only the account DATA changed (token/entitlement refresh). Do NOT flash
+			// the marketplace to Unavailable or drop the cache; just revalidate in place. If the
+			// refreshed entitlements changed eligibility, handleGitHubAccess moves to the right state.
 			validate();
 		}));
 		this._register(this.authenticationService.onDidChangeSessions(e => {
@@ -417,6 +431,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// A newer validation superseded this one while we awaited — discard.
 				return;
 			}
+			// Record the resolved account identity so onDidChangeDefaultAccount can tell a genuine
+			// switch/sign-out from a same-account data refresh. Set before branching so it is
+			// captured even when we no-op below (already Available).
+			this.currentGitHubAccountIdentity = account ? WorkbenchExtensionGalleryManifestService.getAccountIdentity(account) : undefined;
 			const eligibility = account ? this.checkAccess(account) : 'ineligible';
 			if (!account) {
 				// Auth service responded: no account → invalidate cache
@@ -1022,6 +1040,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			throw new Error('Eligibility endpoint returned a malformed response');
 		}
 		return { eligible: response.eligible, reason: response.reason };
+	}
+
+	/**
+	 * A stable identity string for a default account: `provider:session:accountName`. Deliberately
+	 * excludes volatile data (token info, entitlements) so a routine data refresh that fires
+	 * `onDidChangeDefaultAccount` for the SAME account is not mistaken for an account switch.
+	 */
+	private static getAccountIdentity(account: IDefaultAccount): string {
+		return `${account.authenticationProvider.id}:${account.sessionId}:${account.accountName}`;
 	}
 
 	/**
