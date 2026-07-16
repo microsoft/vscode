@@ -281,9 +281,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 				if (breakpoints.length) {
 					const isShiftPressed = e.event.shiftKey;
+					const isAltPressed = e.event.altKey;
 					const enabled = breakpoints.some(bp => bp.enabled);
 
-					if (isShiftPressed) {
+					if (isAltPressed) {
+						// Alt+click on existing breakpoint opens the breakpoint widget for editing
+						this.showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column);
+					} else if (isShiftPressed) {
 						breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 					} else if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition || !!bp.triggeredBy)) {
 						// Show the dialog if there is a potential condition to be accidently lost.
@@ -327,7 +331,10 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						}
 					}
 				} else if (canSetBreakpoints) {
-					if (e.event.middleButton) {
+					if (e.event.altKey) {
+						// Alt+click on empty gutter opens the breakpoint widget for adding a conditional breakpoint
+						this.showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.CONDITION);
+					} else if (e.event.middleButton) {
 						const action = this.configurationService.getValue<IDebugConfiguration>('debug').gutterMiddleClickAction;
 						if (action !== 'none') {
 							let context: BreakpointWidgetContext;

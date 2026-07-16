@@ -561,15 +561,16 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
 		[],
-		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType }[]>(
-			'A promise that resolves to an array of objects containing uri and type.',
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType; extensionId: string }[]>(
+			'A promise that resolves to an array of objects containing uri, type, and extensionId.',
 			(value) => {
 				if (!value) {
 					return [];
 				}
 				return value.map(item => ({
 					uri: URI.revive(item.uri),
-					type: item.type
+					type: item.type,
+					extensionId: item.extensionId
 				}));
 			}
 		)

@@ -22,7 +22,7 @@ import product from '../../product.json' with { type: 'json' };
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/142.0.7444.265:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/148.0.7778.280:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [
@@ -44,8 +44,8 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	// Get the files for which we want to find dependencies.
-	const canAsar = false; // TODO@esm ASAR disabled in ESM
-	const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
+	// Native modules are unpacked next to the ASAR archive in `node_modules.asar.unpacked`.
+	const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
 	if (findResult.status) {
 		console.error('Error finding files:');

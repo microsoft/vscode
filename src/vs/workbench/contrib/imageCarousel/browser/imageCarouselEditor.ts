@@ -64,6 +64,7 @@ export class ImageCarouselEditor extends EditorPane {
 		captionText: HTMLElement;
 		captionSeparator: HTMLElement;
 		counter: HTMLElement;
+		ariaStatus: HTMLElement;
 		prevBtn: HTMLButtonElement;
 		nextBtn: HTMLButtonElement;
 		sectionsContainer: HTMLElement;
@@ -147,10 +148,10 @@ export class ImageCarouselEditor extends EditorPane {
 					h('div.video-container@videoContainer'),
 				]),
 				h('button.nav-arrow.prev-arrow@prevBtn', { ariaLabel: localize('imageCarousel.previousImage', "Previous image") }, [
-					h('span.codicon.codicon-chevron-left'),
+					h('span.codicon.codicon-chevron-left', { ariaHidden: 'true' }),
 				]),
 				h('button.nav-arrow.next-arrow@nextBtn', { ariaLabel: localize('imageCarousel.nextImage', "Next image") }, [
-					h('span.codicon.codicon-chevron-right'),
+					h('span.codicon.codicon-chevron-right', { ariaHidden: 'true' }),
 				]),
 			]),
 			h('div.bottom-bar@bottomBar', [
@@ -160,8 +161,18 @@ export class ImageCarouselEditor extends EditorPane {
 					h('span.image-counter@counter'),
 				]),
 				h('div.sections-container@sectionsContainer'),
+				h('span.sr-only@ariaStatus'),
 			]),
 		]);
+
+		// ARIA: set up slideshow container for screen readers
+		elements.root.setAttribute('role', 'group');
+		elements.root.setAttribute('aria-label', localize('imageCarousel.ariaLabel', "Images Preview"));
+		elements.captionSeparator.setAttribute('aria-hidden', 'true');
+		elements.ariaStatus.setAttribute('aria-live', 'polite');
+		elements.ariaStatus.setAttribute('aria-atomic', 'true');
+		elements.sectionsContainer.setAttribute('role', 'group');
+		elements.sectionsContainer.setAttribute('aria-label', localize('imageCarousel.thumbnails', "Image thumbnails"));
 
 		this._elements = {
 			root: elements.root,
@@ -172,6 +183,7 @@ export class ImageCarouselEditor extends EditorPane {
 			captionText: elements.captionText,
 			captionSeparator: elements.captionSeparator,
 			counter: elements.counter,
+			ariaStatus: elements.ariaStatus,
 			prevBtn: elements.prevBtn as HTMLButtonElement,
 			nextBtn: elements.nextBtn as HTMLButtonElement,
 			sectionsContainer: elements.sectionsContainer,
@@ -179,6 +191,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// Initialize image in fit mode
 		this._elements.mainImage.classList.add('scale-to-fit');
+		this._elements.mainImage.alt = '';
 
 		// Hide video container initially
 		this._elements.videoContainer.style.display = 'none';
@@ -274,7 +287,9 @@ export class ImageCarouselEditor extends EditorPane {
 
 			// Add separator between sections (not before the first)
 			if (s > 0 && this._sections.length > 1) {
-				this._elements.sectionsContainer.appendChild(h('div.thumbnail-separator').root);
+				const separator = h('div.thumbnail-separator').root;
+				separator.setAttribute('aria-hidden', 'true');
+				this._elements.sectionsContainer.appendChild(separator);
 			}
 
 			for (let i = 0; i < section.images.length; i++) {
@@ -295,16 +310,54 @@ export class ImageCarouselEditor extends EditorPane {
 				} else {
 					const img = document.createElement('img');
 					img.className = 'thumbnail-image';
-					this._loadBlobUrl(image).then(url => {
-						img.src = url;
-					}, () => {
-						btn.classList.add('broken');
-					});
 					img.alt = image.name;
-					this._contentDisposables.add(addDisposableListener(img, 'error', () => {
-						btn.classList.add('broken');
+					const thumbnailDisposables = this._contentDisposables.add(new DisposableStore());
+
+					const markBroken = () => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
+						if (!btn.classList.contains('broken')) {
+							btn.classList.add('broken');
+							img.removeAttribute('src');
+							img.alt = '';
+							img.remove();
+							const fallback = h('span.codicon.codicon-warning.thumbnail-broken-icon');
+							fallback.root.setAttribute('aria-hidden', 'true');
+							btn.appendChild(fallback.root);
+						}
+					};
+
+					this._loadBlobUrl(image).then(url => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
+						if (url) {
+							const preloader = new Image();
+							thumbnailDisposables.add(addDisposableListener(preloader, 'load', () => {
+								if (btn.classList.contains('broken')) {
+									return;
+								}
+								img.src = url;
+								if (!img.parentElement) {
+									btn.appendChild(img);
+								}
+							}));
+							thumbnailDisposables.add(addDisposableListener(preloader, 'error', () => {
+								markBroken();
+							}));
+							preloader.src = url;
+						} else {
+							markBroken();
+						}
+					}, () => {
+						markBroken();
+					});
+					thumbnailDisposables.add(addDisposableListener(img, 'error', () => {
+						markBroken();
 					}));
-					btn.appendChild(img);
 				}
 
 				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
@@ -434,17 +487,25 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.captionText.style.display = 'none';
 			this._elements.captionSeparator.style.display = 'none';
 		}
-		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", this._currentIndex + 1, this._flatImages.length);
+		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", navigationIndex + 1, this._flatImages.length);
+
+		// Announce to screen readers with full context (position + caption/name)
+		const itemKind = isVideo
+			? localize('imageCarousel.kindVideo', "Video")
+			: localize('imageCarousel.kindImage', "Image");
+		this._elements.ariaStatus.textContent = currentImage.caption
+			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.caption)
+			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.name);
 
 		// Update button states
-		this._elements.prevBtn.disabled = this._currentIndex === 0;
-		this._elements.nextBtn.disabled = this._currentIndex === this._flatImages.length - 1;
+		this._elements.prevBtn.disabled = navigationIndex === 0;
+		this._elements.nextBtn.disabled = navigationIndex === this._flatImages.length - 1;
 
 		// Update thumbnail selection — only toggle active class and
 		// call getBoundingClientRect on the active thumbnail to avoid
 		// layout thrashing across all thumbnails on every navigation.
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
-			const isActive = i === this._currentIndex;
+			const isActive = i === navigationIndex;
 			const thumbnail = this._thumbnailElements[i];
 			thumbnail.classList.toggle('active', isActive);
 			if (isActive) {
@@ -458,7 +519,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		// Using scrollIntoView with 'nearest' avoids forced layout from
 		// getBoundingClientRect + scrollLeft and is handled efficiently by
 		// the browser's scroll machinery.
-		const activeThumbnail = this._thumbnailElements[this._currentIndex];
+		const activeThumbnail = this._thumbnailElements[navigationIndex];
 		if (activeThumbnail) {
 			activeThumbnail.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}

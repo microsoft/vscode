@@ -24,7 +24,8 @@ function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): I
 	const source = new OffscreenCanvas(w, h);
 	const imageData = new ImageData(w, h);
 	imageData.data.set(data);
-	ensureNonNullable(source.getContext('2d')).putImageData(imageData, 0, 0);
+	// Force a CPU-backed 2D context. GPU readback can fail silently in CI and produce zero-initialized bytes.
+	ensureNonNullable(source.getContext('2d', { willReadFrequently: true })).putImageData(imageData, 0, 0);
 	return {
 		source,
 		boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },

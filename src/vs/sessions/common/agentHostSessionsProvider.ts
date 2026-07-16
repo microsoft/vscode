@@ -1,0 +1,311 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Event } from '../../base/common/event.js';
+import { IObservable } from '../../base/common/observable.js';
+import { equals } from '../../base/common/objects.js';
+import { URI } from '../../base/common/uri.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { ISessionAgentRef } from '../services/sessions/common/session.js';
+
+/**
+ * Progress emitted while an agent-host provider is establishing a connection.
+ */
+export interface IAgentHostConnectProgress {
+	readonly connectionKey: string;
+	readonly message: string;
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	readonly state: McpServerState;
+	readonly logOutputChannelId?: string;
+	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
+	start(): Promise<void>;
+	/** Stops the server. Providers that cannot control lifecycle may no-op. */
+	stop(): Promise<void>;
+	setEnabled(enabled: boolean): void;
+}
+
+/**
+ * Extended sessions provider for agent host providers (local and remote).
+ * Adds remote connection properties and dynamic session configuration.
+ */
+export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	// -- Remote Connection (optional, used by remote agent host providers) --
+	/** Connection status observable, present on remote providers. */
+	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
+	/** Remote address string, present on remote providers. */
+	readonly remoteAddress?: string;
+	/**
+	 * Establish (or re-establish) the connection for this host on demand.
+	 * Tears down any existing connection first. Present on remote providers
+	 * that manage their own transport (e.g. tunnel relay); providers that
+	 * use the generic {@link IRemoteAgentHostService} reconnect flow may
+	 * leave this undefined.
+	 */
+	connect?(): Promise<void>;
+	/**
+	 * Tear down the active connection for this host without forgetting the
+	 * entry. A subsequent {@link connect} call should be able to re-establish
+	 * it. Present on remote providers that manage their own transport.
+	 */
+	disconnect?(): Promise<void>;
+
+	/**
+	 * When `true`, the workspace picker keeps this provider's browse
+	 * action(s) enabled even while {@link connectionStatus} reports
+	 * `disconnected` — the assumption being that clicking the action
+	 * itself triggers a connect attempt (e.g. booting a stopped WSL
+	 * distro). The `incompatible` state is still treated as unavailable
+	 * because the user can't recover from it via a click.
+	 */
+	readonly canConnectOnDemand?: boolean;
+
+	// -- Dynamic Session Config --
+
+	/** Fires when dynamic configuration for a session changes. */
+	readonly onDidChangeSessionConfig: Event<string>;
+	/** Returns the last resolved dynamic configuration for a session. */
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/**
+	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
+	 * flight. Pickers gate on this rather than `session.loading` so they
+	 * stay interactive in the required-values-missing state.
+	 */
+	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
+	/** Sets one dynamic configuration property and re-resolves the schema. */
+	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	/**
+	 * Replaces the full set of running-session config values atomically.
+	 *
+	 * Dispatches a single `session/configChanged` action with replace
+	 * semantics. Only user-editable properties (`sessionMutable: true` and
+	 * not `readOnly`) are actually replaced from the caller-supplied values —
+	 * for every other property the current value is carried through, so
+	 * non-mutable / read-only properties (e.g. `isolation`, `branch`) can
+	 * never be altered through this API even if included in the input.
+	 * Unknown keys (no schema entry) are ignored.
+	 *
+	 * No-op for pre-creation (new) sessions — use {@link setSessionConfigValue}
+	 * there since the schema is still being resolved.
+	 */
+	replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void>;
+	/** Returns dynamic completions for a configuration property. */
+	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
+	/** Returns the resolved config that should be sent to createSession. */
+	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+	/** Clears dynamic configuration state for an abandoned new session. */
+	clearSessionConfig(sessionId: string): void;
+
+	// -- Root (agent host) Config --
+
+	/** Fires when the root (agent host) configuration schema or values change. */
+	readonly onDidChangeRootConfig: Event<void>;
+	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
+	getRootConfig(): RootConfigState | undefined;
+	/**
+	 * Sets one root configuration property.
+	 *
+	 * Optimistically updates local state and dispatches a
+	 * `root/configChanged` action (non-replace) to the agent host.
+	 */
+	setRootConfigValue(property: string, value: unknown): Promise<void>;
+	/**
+	 * Replaces the full set of root configuration values atomically.
+	 *
+	 * Dispatches a single `root/configChanged` action with replace semantics.
+	 * Unknown keys (no schema entry) are ignored.
+	 */
+	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
+
+	/** Authenticate against the backing agent-host connection. */
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
+	// -- Custom Agents --
+
+	/**
+	 * Fires when the effective custom-agent set for any session may have
+	 * changed (root state customizations or per-session customizations
+	 * updated). The event has no payload — consumers re-read via
+	 * {@link getCustomAgents}.
+	 */
+	readonly onDidChangeCustomAgents: Event<void>;
+	/**
+	 * Returns the merged, de-duped custom-agent list a session should see,
+	 * computed from root, active-client, and session customizations. Returns
+	 * an empty array when the session is unknown or no agents have been
+	 * advertised.
+	 */
+	getCustomAgents(sessionId: string): readonly AgentCustomization[];
+
+	readonly onDidChangeCustomizations: Event<void>;
+
+	/**
+	 * Returns the full set of customizations.
+	 */
+	getCustomizations(sessionId: string): readonly Customization[];
+
+	/**
+	 * Returns the working directory for the session, if provided by the host.
+	 */
+	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
+	 * Returns the MCP servers exposed by the session as rich objects whose
+	 * methods dispatch protocol-level toggle and lifecycle actions.
+	 * Returns an empty array when the session is unknown or exposes no MCP
+	 * servers.
+	 */
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+
+	/**
+	 * Set (or clear) the selected custom agent for a session. Optional so
+	 * providers that don't expose custom agents can omit it.
+	 * @param sessionId The ID of the session.
+	 * @param agent The agent to select, or `undefined` to clear the selection
+	 *              and use the provider's default behavior.
+	 */
+	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+
+	/**
+	 * Returns the agent-host annotations channel for a session so that
+	 * sessions-layer features (e.g. agent feedback) can subscribe to and
+	 * dispatch annotation actions against the session's
+	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
+	 * session is unknown or the host connection is unavailable.
+	 */
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
+}
+
+export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
+ * Experimental setting id controlling whether the local agent host acts as the
+ * default sessions provider. When enabled (and `chat.agentHost.enabled` is
+ * true), the local agent host's session types are surfaced before those of
+ * other providers. Defaults to `false`.
+ */
+export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
+
+export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
+export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
+export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
+
+/**
+ * Checks whether a provider is an agent host provider based on its
+ * reserved provider ID (`local-agent-host` or `agenthost-*` prefix).
+ */
+export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
+	return isAgentHostProviderId(provider.id);
+}
+
+/**
+ * Checks whether a provider ID is for an agent host provider
+ * (`local-agent-host` or any `agenthost-*` provider).
+ */
+export function isAgentHostProviderId(providerId: string): boolean {
+	return providerId === LOCAL_AGENT_HOST_PROVIDER_ID || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
+}
+
+/**
+ * Structural equality for resolved session configs. Returns true when both
+ * inputs have the same value-key set with deep-equal values and the same set
+ * of schema property keys with identical (by-identity) property objects.
+ * Schema property objects are compared by identity since they originate from
+ * the same protocol snapshot in the providers that use this helper. Values
+ * are deep-compared via {@link equals} so non-string entries (e.g. permission
+ * objects) compare correctly.
+ */
+export function resolvedConfigsEqual(a: ResolveSessionConfigResult, b: ResolveSessionConfigResult): boolean {
+	const aValueKeys = Object.keys(a.values);
+	const bValueKeys = Object.keys(b.values);
+	if (aValueKeys.length !== bValueKeys.length) {
+		return false;
+	}
+	for (const key of aValueKeys) {
+		if (!equals(a.values[key], b.values[key])) {
+			return false;
+		}
+	}
+	const aPropKeys = Object.keys(a.schema.properties);
+	const bPropKeys = Object.keys(b.schema.properties);
+	if (aPropKeys.length !== bPropKeys.length) {
+		return false;
+	}
+	for (const key of aPropKeys) {
+		if (a.schema.properties[key] !== b.schema.properties[key]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/** Known auto-approve config values. */
+const AUTO_APPROVE_ENUM = ['default', 'autoApprove', 'autopilot'];
+
+type MutableConfigSchemaItem =
+	| { type: 'string'; title: string; sessionMutable: true; enum: string[] }
+	| { type: 'number'; title: string; sessionMutable: true }
+	| { type: 'boolean'; title: string; sessionMutable: true }
+	| { type: 'array'; title: string; sessionMutable: true }
+	| { type: 'object'; title: string; sessionMutable: true };
+
+function buildMutableConfigSchemaItem(key: string, value: unknown): MutableConfigSchemaItem | undefined {
+	if (typeof value === 'string') {
+		return {
+			type: 'string',
+			title: key,
+			sessionMutable: true,
+			enum: key === 'autoApprove' ? AUTO_APPROVE_ENUM : [value],
+		};
+	}
+	if (typeof value === 'number') {
+		return { type: 'number', title: key, sessionMutable: true };
+	}
+	if (typeof value === 'boolean') {
+		return { type: 'boolean', title: key, sessionMutable: true };
+	}
+	if (Array.isArray(value)) {
+		return { type: 'array', title: key, sessionMutable: true };
+	}
+	if (value && typeof value === 'object') {
+		return { type: 'object', title: key, sessionMutable: true };
+	}
+	return undefined;
+}
+
+/**
+ * Builds a minimal session-mutable config schema from changed values.
+ * Used when a restored session receives a ConfigChanged action before
+ * the full schema has been hydrated. Properties whose value type isn't
+ * representable in the config schema (e.g. `null`, `undefined`) are
+ * omitted.
+ */
+export function buildMutableConfigSchema(config: Record<string, unknown>): Record<string, MutableConfigSchemaItem> {
+	const properties: Record<string, MutableConfigSchemaItem> = {};
+	for (const key of Object.keys(config)) {
+		const property = buildMutableConfigSchemaItem(key, config[key]);
+		if (property) {
+			properties[key] = property;
+		}
+	}
+	return properties;
+}

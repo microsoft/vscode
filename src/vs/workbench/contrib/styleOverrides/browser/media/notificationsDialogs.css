@@ -1,0 +1,119 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Notifications and Dialogs".
+ *
+ */
+
+.style-override.monaco-workbench .notifications-list-container .notification-list-item {
+	padding: 6px 2px;
+}
+
+.style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon {
+	font-size: var(--vscode-codiconFontSize);
+	margin: 0 8px 0 6px;
+}
+
+.style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button-dropdown,
+.style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button {
+	margin: 0 4px 0 0;
+}
+
+.style-override.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-source {
+	color: var(--vscode-descriptionForeground);
+	margin-left: 24px;
+}
+
+/*
+ * Reposition the notification center to sit within the Modern UI outer gutter:
+ * an 8px horizontal inset, and a bottom inset that clears the 22px status bar
+ * plus the gutter (34px total). `!important` is required to win over the base
+ * positioning rules (which vary with the status bar) and, for `top-right`, over
+ * the inline `top` offset the notification controller applies in JS.
+ *
+ * `top-right` uses a fixed 35px — the height of the custom title bar
+ * (DEFAULT_CUSTOM_TITLEBAR_HEIGHT), which the Modern UI experiment always shows
+ * — so the center tucks directly beneath it.
+ */
+.style-override.monaco-workbench > .notifications-center {
+	right: 8px !important;
+	bottom: 34px !important;
+}
+
+.style-override.monaco-workbench > .notifications-center.bottom-left {
+	right: auto !important;
+	left: 8px !important;
+	bottom: 34px !important;
+}
+
+.style-override.monaco-workbench > .notifications-center.top-right {
+	bottom: auto !important;
+	top: 35px !important;
+}
+
+/*
+ * Toasts mirror the center, but each toast carries a 4px margin, so every
+ * container offset is reduced by 4px to keep the visible toast surface aligned
+ * with the center (8px / 34px / 35px once the margin is added back).
+ */
+.style-override.monaco-workbench > .notifications-toasts {
+	right: 4px !important;
+	bottom: 30px !important;
+}
+
+.style-override.monaco-workbench > .notifications-toasts.bottom-left {
+	right: auto !important;
+	left: 4px !important;
+	bottom: 30px !important;
+}
+
+.style-override.monaco-workbench > .notifications-toasts.top-right {
+	bottom: auto !important;
+	top: 31px !important;
+}
+
+.style-override.monaco-workbench > .notifications-center > .notifications-center-header {
+	padding-right: 2px;
+}
+
+.style-override .monaco-dialog-box {
+	padding: 4px;
+	min-width: 440px;
+}
+
+.style-override .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
+	padding-left: 8px;
+	padding-right: 20px;
+}
+
+.style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+	margin: 2px 0 12px 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.style-override .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
+.style-override .monaco-dialog-box .dialog-toolbar-row {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+}
+
+.style-override .monaco-dialog-box .dialog-footer-row {
+	padding: 0 8px;
+}
+
+.style-override .monaco-dialog-box .dialog-message-row {
+	padding: 16px 8px 0px;
+}
+
+.style-override .monaco-dialog-box > .dialog-buttons-row {
+	padding: 16px 0px 0px;
+}
+

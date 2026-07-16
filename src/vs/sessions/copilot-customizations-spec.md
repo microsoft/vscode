@@ -4,7 +4,7 @@
 >
 > **Source:** `github/copilot-agent-runtime` codebase as of 2026-02-25.
 
-> Some information has been removed by the human compiling this spec, scoping to what is deemed most relevant for the sessions window implementation. For the full details, see the source code (for maintainers likely checked out side-by-side).
+> Some information has been removed by the human compiling this spec, scoping to what is deemed most relevant for the agent sessions window implementation. For the full details, see the source code (for maintainers likely checked out side-by-side).
 
 ---
 

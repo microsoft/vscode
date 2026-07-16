@@ -46,6 +46,7 @@ export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.
 registerColor('editorSuggestWidget.selectedForeground', quickInputListFocusForeground, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
 registerColor('editorSuggestWidget.selectedIconForeground', quickInputListFocusIconForeground, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', quickInputListFocusBackground, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetFocusOutline = registerColor('editorSuggestWidget.focusOutline', activeContrastBorder, nls.localize('editorSuggestWidgetFocusOutline', 'Outline color of the focused (keyboard-navigated) entry in the suggest widget.'));
 registerColor('editorSuggestWidget.highlightForeground', listHighlightForeground, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 registerColor('editorSuggestWidget.focusHighlightForeground', listFocusHighlightForeground, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
 registerColor('editorSuggestWidgetStatus.foreground', transparent(editorSuggestWidgetForeground, .5), nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
@@ -106,7 +107,7 @@ export class SuggestWidget implements IDisposable {
 
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
-	private _loadingTimeout?: IDisposable;
+	private readonly _loadingTimeout = new MutableDisposable();
 	private readonly _pendingLayout = new MutableDisposable();
 	private readonly _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
@@ -267,7 +268,7 @@ export class SuggestWidget implements IDisposable {
 		});
 		this._list.style(getListStyles({
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-			listInactiveFocusOutline: activeContrastBorder
+			listInactiveFocusOutline: editorSuggestWidgetFocusOutline
 		}));
 
 		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, undefined);
@@ -313,7 +314,7 @@ export class SuggestWidget implements IDisposable {
 		this._list.dispose();
 		this._status.dispose();
 		this._disposables.dispose();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.dispose();
 		this._pendingLayout.dispose();
 		this._pendingShowDetails.dispose();
 		this._showTimeout.dispose();
@@ -536,14 +537,14 @@ export class SuggestWidget implements IDisposable {
 		this._isAuto = !!auto;
 
 		if (!this._isAuto) {
-			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._loadingTimeout.value = disposableTimeout(() => this._setState(State.Loading), delay);
 		}
 	}
 
 	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, noFocus: boolean): void {
 
 		this._contentWidget.setPosition(this.editor.getPosition());
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._currentSuggestionDetails?.cancel();
 		this._currentSuggestionDetails = undefined;
@@ -776,7 +777,7 @@ export class SuggestWidget implements IDisposable {
 	hideWidget(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
-		this._loadingTimeout?.dispose();
+		this._loadingTimeout.clear();
 
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);

@@ -11,8 +11,6 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -28,8 +26,8 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -67,6 +65,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
 	private _contentInitialized = false;
+	private _lastLayoutWidth: number | undefined;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
 		const outputCodeblocks = this._outputSubPart?.codeblocks ?? [];
@@ -100,16 +99,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
-		const elements = dom.h('.chat-confirmation-widget');
+		const elements = dom.h('.chat-confirmation-widget.chat-confirmation-widget-collapsible');
+		const contentAnimation = dom.h('.chat-confirmation-widget-message-animation', [
+			dom.h('.chat-confirmation-widget-message-animation-inner@inner'),
+		]);
 		this.domNode = container.root;
 		container.root.appendChild(elements.root);
 
@@ -119,13 +118,14 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
+		this._titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
 		const btn = this._register(new ButtonWithIcon(elements.root, {}));
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
 		btn.labelElement.append(titleEl.root);
+		elements.root.appendChild(contentAnimation.root);
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
 		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
@@ -139,7 +139,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		this._register(autorun(r => {
 			const value = expanded.read(r);
 			const checkmarksEnabled = showCheckmarks.read(r);
-			elements.root.classList.toggle('collapsed', !value);
 
 			const isInProgress = !output && !isError;
 			if (isError) {
@@ -154,21 +153,28 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
 
 			// Update hover chevron direction
-			hoverChevron.classList.toggle('codicon-chevron-right', !value);
-			hoverChevron.classList.toggle('codicon-chevron-down', value);
+			hoverChevron.classList.toggle('expanded', value);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {
 				this._contentInitialized = true;
 				const messageContainer = dom.h('.chat-confirmation-widget-message');
 				messageContainer.root.appendChild(this.createMessageContents());
-				elements.root.appendChild(messageContainer.root);
+				contentAnimation.inner.appendChild(messageContainer.root);
+				const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatCollapsibleInputOutputContentPart.message', () => this.layoutToMessageWidth(messageContainer.root)));
+				this._register(resizeObserver.observe(messageContainer.root));
+				this.layoutToMessageWidth(messageContainer.root);
+				contentAnimation.root.getBoundingClientRect();
 			}
+			elements.root.classList.toggle('collapsed', !value);
+			contentAnimation.inner.inert = !value;
+			btn.element.ariaExpanded = String(value);
 		}));
 
 		const toggle = (e: Event) => {
 			if (!e.defaultPrevented) {
 				const value = expanded.get();
+				container.root.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 				expanded.set(!value, undefined);
 				e.preventDefault();
 			}
@@ -225,28 +231,30 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		// Create the text model lazily when rendering
-		const textModel = this._register(this.modelService.createModel(
-			part.data,
-			this.languageService.createById(part.languageId),
-			undefined,
-			true
-		));
-
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
-			textModel: Promise.resolve(textModel),
+			text: part.data,
 			codeBlockIndex: part.codeBlockIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
+	}
+
+	private layoutToMessageWidth(messageContainer: HTMLElement): void {
+		const width = dom.getContentWidth(messageContainer);
+		if (width <= 0 || width === this._lastLayoutWidth) {
+			return;
+		}
+
+		this._lastLayoutWidth = width;
+		this.layout(width);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

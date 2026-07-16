@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Floating status pills centered above the chat input. The pills themselves are
+	the shared `.chat-turn-pills` widget (styled in chatTurnPills.css); this file
+	only positions and centers that widget above the input. */
+
+.session-chat-input-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
+}
+
+.session-chat-input-toolbar.hidden {
+	display: none;
+}
+

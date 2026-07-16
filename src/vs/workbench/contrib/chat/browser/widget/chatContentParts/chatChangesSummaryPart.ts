@@ -5,8 +5,9 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -14,9 +15,10 @@ import { autorun, IObservable } from '../../../../../../base/common/observable.j
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { localize2 } from '../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../nls.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -26,25 +28,103 @@ import { createFileIconThemableTreeContainerScope } from '../../../../files/brow
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+
+const CHANGES_SUMMARY_ELEMENT_HEIGHT = 22;
+const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
+
+/** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
+export interface IChangesSummaryFileListOptions {
+	/**
+	 * Provides the actions shown in a per-row action bar (right-aligned). Return
+	 * an empty array for rows that should have no actions. When omitted, no action
+	 * bar is rendered.
+	 */
+	readonly getRowActions?: (diff: IEditSessionEntryDiff) => IAction[];
+}
+
+/**
+ * Renders the collapsible list of changed files (one row per {@link IEditSessionEntryDiff},
+ * showing the file's resource label and its +added/-removed counts) into `container`,
+ * keeping it in sync with `diffs`. Rows open the file or its diff on activation.
+ * Shared by the checkpoint file changes summary and the agent turn changes summary
+ * so both render an identical list.
+ */
+export function renderChangesSummaryFileList(
+	container: HTMLElement,
+	diffs: IObservable<readonly IEditSessionEntryDiff[]>,
+	instantiationService: IInstantiationService,
+	editorService: IEditorService,
+	configurationService: IConfigurationService,
+	options?: IChangesSummaryFileListOptions,
+): IDisposable {
+	const store = new DisposableStore();
+	const list = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options)).get();
+	const listNode = list.getHTMLElement();
+	container.appendChild(listNode.parentElement!);
+
+	store.add(list.onDidOpen((item) => {
+		const diff = item.element;
+		if (!diff) {
+			return;
+		}
+
+		const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
+		const openInDiffEditorByDefault = configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+		const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+
+		if (!openInDiffEditor) {
+			const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
+			if (fileURI) {
+				editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
+				return;
+			}
+			// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+			// fall back to the diff editor.
+		}
+
+		editorService.openEditor({
+			original: { resource: diff.originalURI },
+			modified: { resource: diff.modifiedURI },
+			options: { preserveFocus: true }
+		});
+	}));
+
+	store.add(list.onContextMenu(e => {
+		dom.EventHelper.stop(e.browserEvent, true);
+	}));
+
+	store.add(autorun((r) => {
+		const currentDiffs = diffs.read(r);
+
+		const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
+		const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
+		list.layout(height);
+		listNode.style.height = height + 'px';
+
+		list.splice(0, list.length, currentDiffs);
+	}));
+
+	return store;
+}
+
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
 	public readonly domNode: HTMLElement;
 
-	public readonly ELEMENT_HEIGHT = 22;
-	public readonly MAX_ITEMS_SHOWN = 6;
-
 	private readonly diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
 	private fileChangesDiffsObservable: IObservable<readonly IEditSessionEntryDiff[]>;
-
-	private list!: WorkbenchList<IEditSessionEntryDiff>;
-	private isCollapsed: boolean = true;
+	private readonly detailsElement: HTMLDetailsElement;
 
 	constructor(
 		private readonly content: IChatFileChangesSummaryPart,
@@ -52,21 +132,45 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatResponseFileChangesService private readonly chatResponseFileChangesService: IChatResponseFileChangesService,
 	) {
 		super();
 
 		this.fileChangesDiffsObservable = this.computeFileChangesDiffs(content);
 
-		const headerDomNode = $('.checkpoint-file-changes-summary-header');
-		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
-		this.domNode.tabIndex = 0;
+		this.domNode = $('.checkpoint-file-changes-summary.checkpoint-file-changes-compact');
+		this.detailsElement = document.createElement('details');
+		this.detailsElement.classList.add('checkpoint-file-changes-disclosure');
+		this.domNode.appendChild(this.detailsElement);
+		const headerDomNode = this.detailsElement.appendChild(document.createElement('summary'));
+		headerDomNode.classList.add('checkpoint-file-changes-summary-header');
+
+		// Hide the whole summary when there are no changes to show. The part is
+		// created eagerly for completed responses, but session types whose
+		// changes are computed asynchronously (e.g. agent host turn changesets)
+		// only know whether a turn produced edits once the diffs resolve.
+		this._register(autorun(r => {
+			const hasChanges = this.fileChangesDiffsObservable.read(r).length > 0;
+			this.domNode.style.display = hasChanges ? '' : 'none';
+		}));
 
 		this._register(this.renderHeader(headerDomNode));
-		this._register(this.renderFilesList(this.domNode));
+		this._register(this.renderFilesList(this.detailsElement));
+		this._register(dom.addDisposableListener(headerDomNode, 'click', () => {
+			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		}));
 	}
 
 	private computeFileChangesDiffs({ requestId, sessionResource }: IChatFileChangesSummaryPart) {
+		// Prefer a session-type-specific provider (the authoritative source for
+		// session types that own their own change computation); otherwise fall
+		// back to the chat editing session's per-request diffs.
+		const fromProvider = this.chatResponseFileChangesService.getChangesForRequest(sessionResource, requestId);
+		if (fromProvider) {
+			return fromProvider;
+		}
 		return this.chatService.chatModels
 			.map(models => Iterable.find(models, m => isEqual(m.sessionResource, sessionResource)))
 			.map(model => model?.editingSession?.getDiffsForFilesInRequest(requestId))
@@ -84,38 +188,53 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	}
 
 	private renderHeader(container: HTMLElement): IDisposable {
-		const viewListButtonContainer = container.appendChild($('.chat-file-changes-label'));
-		const viewListButton = new ButtonWithIcon(viewListButtonContainer, {});
+		const filesLabel = container.appendChild($('span.chat-file-changes-label'));
+		const counts = container.appendChild($('span.chat-file-changes-counts', { 'aria-hidden': 'true' }));
+		const addedLabel = counts.appendChild($('span.insertions'));
+		const removedLabel = counts.appendChild($('span.deletions'));
+		const disposables = new DisposableStore();
+		disposables.add(this.renderViewAllFileChangesButton(container));
+		const chevron = container.appendChild($('span.chat-file-changes-chevron.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 
 		this._register(autorun(r => {
 			const diffs = this.fileChangesDiffsObservable.read(r);
-			viewListButton.label = diffs.length === 1 ? `Changed 1 file` : `Changed ${diffs.length} files`;
+			const fileCountLabel = diffs.length === 1
+				? localize('chat.fileChanges.oneFile', '1 file changed')
+				: localize('chat.fileChanges.manyFiles', '{0} files changed', diffs.length);
+			const additions = diffs.reduce((total, diff) => total + diff.added, 0);
+			const deletions = diffs.reduce((total, diff) => total + diff.removed, 0);
+			filesLabel.textContent = fileCountLabel;
+			addedLabel.textContent = `+${additions}`;
+			removedLabel.textContent = `-${deletions}`;
+			container.setAttribute('aria-label', localize(
+				'chat.fileChanges.accessibleSummary',
+				'{0}, {1} lines added, {2} lines deleted',
+				fileCountLabel,
+				additions,
+				deletions
+			));
 		}));
 
 		const setExpansionState = () => {
-			viewListButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			this.domNode.classList.toggle('chat-file-changes-collapsed', this.isCollapsed);
+			container.setAttribute('aria-expanded', String(this.detailsElement.open));
+			chevron.classList.toggle('expanded', this.detailsElement.open);
 		};
 		setExpansionState();
 
-		const disposables = new DisposableStore();
-		disposables.add(viewListButton);
-		disposables.add(viewListButton.onDidClick(() => {
-			this.isCollapsed = !this.isCollapsed;
-			setExpansionState();
-		}));
-		disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+		disposables.add(dom.addDisposableListener(this.detailsElement, 'toggle', setExpansionState));
 		return toDisposable(() => disposables.dispose());
 	}
 
 	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
-		const button = container.appendChild($('.chat-view-changes-icon'));
+		const button = container.appendChild(document.createElement('button'));
+		button.classList.add('chat-view-changes-icon');
+		button.type = 'button';
 		const hoverDisposable = this.hoverService.setupDelayedHover(button, () => ({
 			content: localize2('chat.viewFileChangesSummary', 'View All File Changes')
 		}));
 		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
-		button.setAttribute('role', 'button');
-		button.tabIndex = 0;
+		button.setAttribute('aria-label', localize('chat.viewFileChangesSummary', 'View All File Changes'));
 
 		return combinedDisposable(hoverDisposable, dom.addDisposableListener(button, 'click', (e) => {
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = this.fileChangesDiffsObservable.get().map(diff => ({
@@ -127,7 +246,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			const input = this.instantiationService.createInstance(
 				MultiDiffEditorInput,
 				source,
-				'Checkpoint File Changes',
+				localize('chat.checkpointFileChanges', 'Checkpoint File Changes'),
 				resources.map(resource => {
 					return new MultiDiffEditorItem(
 						resource.originalUri,
@@ -143,42 +262,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	}
 
 	private renderFilesList(container: HTMLElement): IDisposable {
-		const store = new DisposableStore();
-		this.list = store.add(this.instantiationService.createInstance(CollapsibleChangesSummaryListPool)).get();
-		const listNode = this.list.getHTMLElement();
-		container.appendChild(listNode.parentElement!);
-
-		store.add(this.list.onDidOpen((item) => {
-			const diff = item.element;
-			if (!diff) {
-				return;
-			}
-
-			const input = {
-				original: { resource: diff.originalURI },
-				modified: { resource: diff.modifiedURI },
-				options: { preserveFocus: true }
-			};
-
-			this.editorService.openEditor(input);
-		}));
-
-		store.add(this.list.onContextMenu(e => {
-			dom.EventHelper.stop(e.browserEvent, true);
-		}));
-
-		store.add(autorun((r) => {
-			const diffs = this.fileChangesDiffsObservable.read(r);
-
-			const itemsShown = Math.min(diffs.length, this.MAX_ITEMS_SHOWN);
-			const height = itemsShown * this.ELEMENT_HEIGHT;
-			this.list.layout(height);
-			listNode.style.height = height + 'px';
-
-			this.list.splice(0, this.list.length, diffs);
-		}));
-
-		return store;
+		return renderChangesSummaryFileList(container, this.fileChangesDiffsObservable, this.instantiationService, this.editorService, this.configurationService);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
@@ -199,6 +283,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 	private _resourcePool: ResourcePool<IChatFileChangesSummaryListWrapper>;
 
 	constructor(
+		private readonly options: IChangesSummaryFileListOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
@@ -216,7 +301,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels)],
+			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options)],
 			{
 				alwaysConsumeMouseWheel: false
 			}
@@ -236,13 +321,14 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
+	readonly actionBar?: ActionBar;
 	changesElement?: HTMLElement;
 }
 
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
 
 	getHeight(element: IEditSessionEntryDiff): number {
-		return 22;
+		return CHANGES_SUMMARY_ELEMENT_HEIGHT;
 	}
 
 	getTemplateId(element: IEditSessionEntryDiff): string {
@@ -257,11 +343,30 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	readonly templateId: string = CollapsibleChangesSummaryListRenderer.TEMPLATE_ID;
 
-	constructor(private labels: ResourceLabels) { }
+	constructor(
+		private labels: ResourceLabels,
+		private readonly options?: IChangesSummaryFileListOptions,
+	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		return { label, dispose: () => label.dispose() };
+		// Only when a row-action provider is supplied do we add a right-aligned
+		// action bar; the row becomes a flex row so the label fills the remaining
+		// width and the actions hug the right edge.
+		let actionBar: ActionBar | undefined;
+		if (this.options?.getRowActions) {
+			container.classList.add('chat-summary-list-row-with-actions');
+			const actionsContainer = container.appendChild($('.chat-summary-list-actions'));
+			actionBar = new ActionBar(actionsContainer);
+		}
+		return {
+			label,
+			actionBar,
+			dispose: () => {
+				label.dispose();
+				actionBar?.dispose();
+			}
+		};
 	}
 
 	renderElement(data: IEditSessionEntryDiff, index: number, templateData: ICollapsibleChangesSummaryListTemplate): void {
@@ -284,6 +389,11 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			removed.textContent = `-${data.removed}`;
 
 			templateData.changesElement = changesSummary;
+		}
+
+		if (templateData.actionBar && this.options?.getRowActions) {
+			templateData.actionBar.clear();
+			templateData.actionBar.push(this.options.getRowActions(data), { icon: false, label: true });
 		}
 	}
 

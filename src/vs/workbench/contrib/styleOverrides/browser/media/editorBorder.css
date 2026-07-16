@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Style-override module: "Editor Border".
+ *
+ * Frames the editor area as a distinct card by drawing a subtle 1px border with
+ * rounded corners around the whole editor part (tabs, breadcrumbs and editor
+ * body). This separates the editor from the surrounding chrome (side bar,
+ * panel, auxiliary bar) and mirrors the card-like editor treatment used in the
+ * Agents window (src/vs/sessions/browser/media/style.css).
+ *
+ * The border is drawn with `box-sizing: border-box` so it sits inside the area
+ * the grid already allocates to the editor part — no margin is added, avoiding a
+ * relayout. `overflow: hidden` clips the editor content to the rounded corners.
+ * The floating editor window part (`.modal-editor-part`) is excluded.
+ *
+ * All rules are gated behind the `.style-override` class, which the
+ * StyleOverridesContribution toggles onto the workbench container(s) when the
+ * `workbench.experimental.modernUI` (Modern UI Update) setting is enabled.
+ * Without that class these rules never apply.
+ */
+
+.style-override .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+/*
+ * The editor part paints a separator shadow on its leading edge (via the
+ * `::after` overlay) to set itself apart from the side bar. With the explicit
+ * border above that shadow is redundant and would double up, so suppress it.
+ */
+.style-override .part.editor:not(.modal-editor-part)::after {
+	box-shadow: none;
+}
+
+/*
+ * Unify the surrounding chrome with the editor card: the floating side bar,
+ * auxiliary bar and bottom panel cards (see `browser/media/floatingPanels.css`)
+ * default to the `agentsPanel` border token. Re-point them at the same
+* `editorGroup-border` token the editor card uses above so every top-level card
+ * shares one border color. Only the color is overridden; the width and radius
+ * from floatingPanels.css are kept. The extra `.monaco-workbench` class (both
+ * `.style-override` and `.floating-panels` sit on the workbench element) raises
+ * specificity above the equally-`!important` rule in floatingPanels.css.
+ */
+.monaco-workbench.style-override.floating-panels .part.sidebar,
+.monaco-workbench.style-override.floating-panels .part.auxiliarybar,
+.monaco-workbench.style-override.floating-panels .part.panel,
+.monaco-workbench.style-override.floating-panels .part.editor {
+	border-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
+}
+
+.monaco-workbench.style-override .chat-view-position-left > .voice-agent-controls-wrapper {
+	.agent-sessions-container {
+		border-right-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
+	}
+}
+
+.monaco-workbench.style-override .chat-view-position-right > .voice-agent-controls-wrapper {
+	.agent-sessions-container {
+		border-left-color: var(--vscode-agentsPanel-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent)) !important;
+	}
+}

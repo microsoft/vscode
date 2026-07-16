@@ -24,7 +24,8 @@ export type IntegratedBrowserOpenSource =
 	/** Opened via the "New Tab" command from an existing tab. */
 	| 'newTabCommand'
 	/** Opened via the localhost link opener when the `workbench.browser.openLocalhostLinks` setting
-	 * is enabled. This happens when clicking localhost links from the terminal, chat, or other sources. */
+	 * is enabled. This happens when clicking localhost (e.g., `localhost`, `127.0.0.1`, `[::1]`) or all-interfaces
+	 * links (e.g., `0.0.0.0`, `[::]`) from the terminal, chat, or other sources. */
 	| 'localhostLinkOpener'
 	/** Opened when clicking a link inside the Integrated Browser that opens in a new focused editor
 	 * (e.g., links with target="_blank"). */
@@ -36,7 +37,9 @@ export type IntegratedBrowserOpenSource =
 	 * (e.g., Shift+click). */
 	| 'browserLinkNewWindow'
 	/** Opened when the user copies a browser editor to a new window via "Copy into New Window". */
-	| 'copyToNewWindow';
+	| 'copyToNewWindow'
+	/** Opened via the "Open in Integrated Browser" command for a local file. */
+	| 'openFileCommand';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

@@ -8,6 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { IBrowserViewGroup, IBrowserViewGroupService, IBrowserViewGroupViewEvent, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
+import { IBrowserViewOwner } from '../common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 /**
@@ -22,9 +23,9 @@ import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 export interface IBrowserViewGroupRemoteService {
 	/**
 	 * Create a new browser view group.
-	 * @param windowId The ID of the primary window the group should be associated with.
+	 * @param owner The owner of the group's lifecycle.
 	 */
-	createGroup(windowId: number): Promise<IBrowserViewGroup>;
+	createGroup(owner: IBrowserViewOwner): Promise<IBrowserViewGroup>;
 }
 
 /**
@@ -90,8 +91,8 @@ export class BrowserViewGroupRemoteService implements IBrowserViewGroupRemoteSer
 		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 	}
 
-	async createGroup(windowId: number): Promise<IBrowserViewGroup> {
-		const id = await this._groupService.createGroup(windowId);
+	async createGroup(owner: IBrowserViewOwner): Promise<IBrowserViewGroup> {
+		const id = await this._groupService.createGroup(owner);
 		return this._wrap(id);
 	}
 

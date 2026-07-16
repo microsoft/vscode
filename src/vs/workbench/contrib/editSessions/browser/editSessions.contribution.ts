@@ -644,6 +644,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			for (const change of folder.workingChanges) {
 				const uri = joinPath(folderRoot.uri, change.relativeFilePath);
+				if (!this.uriIdentityService.extUri.isEqualOrParent(uri, folderRoot.uri) || this.uriIdentityService.extUri.isEqual(uri, folderRoot.uri)) {
+					this.logService.warn(`Skipping change outside workspace folder: ${change.relativeFilePath}`);
+					continue;
+				}
 
 				changes.push({ uri, type: change.type, contents: change.contents });
 				if (await this.willChangeLocalContents(localChanges, uri, change)) {

@@ -4,35 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Container - button style hover */
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
+	margin-left: 0;
+}
+
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 100%;
+	flex: 0 1 auto;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	min-width: 0;
+	width: 31vw;
+	max-width: 600px;
 	height: 22px;
-	border-radius: 4px;
+	border: 1px solid var(--vscode-commandCenter-border);
+	background-color: transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
 	gap: 6px;
 	cursor: default;
+	opacity: 1;
+	transition: opacity 120ms ease-out;
 }
 
-/* Session pill - clickable area for session picker */
+.command-center .agent-sessions-titlebar-container:hover {
+	color: var(--vscode-commandCenter-activeForeground);
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder);
+}
+
+/* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
+	justify-content: space-around;
 	align-items: center;
-	padding: 0 4px;
-	border-radius: 4px;
+	flex: 1 1 auto;
+	padding: 0 8px;
 	min-width: 0;
-	max-width: 600px;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+	max-width: 100%;
+	height: 100%;
+	cursor: pointer;
+	touch-action: manipulation;
+	/* Match the VS Code window command center title which is dimmed. */
+	opacity: 0.6;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
@@ -48,6 +72,7 @@
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
+	overflow: hidden;
 }
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
@@ -56,71 +81,91 @@
 	font-size: 14px;
 }
 
-/* Label (title) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+/* Session title - primary label in the command center box. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-title {
+	flex: 0 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Repository/folder label */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
+/* Workspace name - secondary, dimmed label shown after the session title.
+	It must not be cropped: when space is tight the session title truncates
+	first while the workspace name stays fully visible. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 
-/* Dot separator */
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
+/* Separator between the session title and the workspace name. */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
-	opacity: 0.5;
 	flex-shrink: 0;
+
+	&::before {
+		content: '\00B7';
+	}
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
+/* Sidebar toggle unread badge */
+.agent-sessions-workbench .action-item.sidebar-toggle-action {
+	position: relative;
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
-}
-
-/* Session count widget (tasklist icon + unread count, left of pill) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	flex-shrink: 0;
-	cursor: pointer;
+.agent-sessions-workbench .action-item.sidebar-toggle-action .sidebar-toggle-badge {
+	position: absolute;
+	top: 0;
+	right: -4px;
+	min-width: 14px;
+	height: 14px;
+	line-height: 14px;
 	padding: 0 4px;
-	height: 22px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	outline: none;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
-	font-size: 16px;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count-label {
-	font-size: 12px;
+	box-sizing: border-box;
+	font-size: 9px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
-	line-height: 16px;
+	text-align: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
+	pointer-events: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.command-center .agent-sessions-titlebar-container {
+		transition: none;
+	}
+}
+
+/* Approved state: a transient green confirmation shown after the user approves
+	one or more sessions' pending actions from the sessions list. It stays
+	clickable (activating whatever the underlying state would do). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-approved-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
