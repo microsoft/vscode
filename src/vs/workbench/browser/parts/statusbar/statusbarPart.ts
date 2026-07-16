@@ -670,6 +670,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// Update compact entries to refresh hover colors based on current theme
 		this.updateCompactEntries();
 
+		// Mark the bar when a style override is active (currently only the debugging
+		// color) so Modern UI can restore the recolor, which floating mode otherwise
+		// paints transparent.
+		container.classList.toggle('has-style-override', !!styleOverride?.background);
+
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {

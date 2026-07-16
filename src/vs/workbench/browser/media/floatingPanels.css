@@ -178,6 +178,16 @@
 	display: none !important;
 }
 
+/*
+ * Modern UI paints the status bar transparent, which suppresses the whole-bar
+ * recolor used to signal an active style override (e.g. an active debug session).
+ * While an override is active, restore the whole-bar recolor so the cue reads as
+ * clearly as it does in the classic UI.
+ */
+.monaco-workbench.floating-panels .part.statusbar.has-style-override {
+	background-color: color-mix(in srgb, var(--vscode-statusBar-debuggingBackground) 30%, transparent) !important;
+}
+
 /* Inset and vertically center the status bar items within its floating gutter. */
 .monaco-workbench.floating-panels .part.statusbar {
 	padding-left: var(--vscode-spacing-size60);

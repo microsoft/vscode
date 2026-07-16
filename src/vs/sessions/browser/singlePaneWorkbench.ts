@@ -323,15 +323,24 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	/**
-	 * No-op: the editor-part grid view hosts the docked auxiliary bar, so its
-	 * visibility flips whenever the *detail* opens/closes (not the editor content).
-	 * Editor-content visibility and its part-visibility events are driven directly
-	 * by `setEditorHidden` / `_applyEditorVisibility` / `_applyAuxiliaryBarVisibility`
-	 * / `_syncEditorVisibility`, so mapping the shared node's grid visibility to
-	 * `setEditorHidden` here would wrongly reveal the editor when only the detail is
-	 * shown.
+	 * No-op unless detail-only (editor content hidden): there the shared node is a
+	 * snap view, so sash-drag collapse/reveal maps onto hiding/showing the auxiliary bar.
 	 */
-	protected override _onEditorPartGridVisibilityChange(_visible: boolean): void { }
+	protected override _onEditorPartGridVisibilityChange(visible: boolean): void {
+		if (this.partVisibility.editor) {
+			return;
+		}
+		if (!visible) {
+			const suppression = this.suppressEditorPartAutoVisibility();
+			try {
+				this.setAuxiliaryBarHiddenForResize(true);
+			} finally {
+				suppression.dispose();
+			}
+			return;
+		}
+		this.setAuxiliaryBarHiddenForResize(false);
+	}
 
 	protected override _applyAuxiliaryBarVisibility(hidden: boolean, source?: 'resize'): void {
 		// The auxiliary bar is docked inside the editor part (not a grid view), so
