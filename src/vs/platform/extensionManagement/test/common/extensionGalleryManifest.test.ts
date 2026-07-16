@@ -10,7 +10,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { IRequestService } from '../../../request/common/request.js';
-import { exchangeMarketplaceResourceToken, IMarketplaceProtectedResource } from '../../common/extensionGalleryManifest.js';
+import { discoverMarketplaceProtectedResource, exchangeMarketplaceResourceToken, IMarketplaceProtectedResource } from '../../common/extensionGalleryManifest.js';
 
 function jsonContext(statusCode: number, body: unknown): IRequestContext {
 	return {
@@ -32,6 +32,7 @@ class TestRequestService extends mock<IRequestService>() {
 	private posts(): number { return this.calls.filter(c => c.type === 'POST').length; }
 	get getCount(): number { return this.gets(); }
 	get postCount(): number { return this.posts(); }
+	get requestedUrls(): string[] { return this.calls.map(c => c.url); }
 }
 
 suite('exchangeMarketplaceResourceToken', () => {
@@ -119,6 +120,58 @@ suite('exchangeMarketplaceResourceToken', () => {
 		assert.deepStrictEqual(
 			{ result, posts: service.postCount },
 			{ result: { accessToken: 'exchanged', expiresInSeconds: 1800 }, posts: 1 }
+		);
+	});
+});
+
+suite('discoverMarketplaceProtectedResource', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const serviceIndexUrl = 'https://marketplace.example.com';
+	const wellKnownUrl = 'https://marketplace.example.com/.well-known/oauth-protected-resource';
+	const protectedResourceMetadata = {
+		resource: serviceIndexUrl,
+		authorization_servers: ['https://as.example.com'],
+		scopes_supported: ['access_as_user'],
+	};
+
+	test('ignores a cross-origin resource_metadata challenge hint and falls back to same-origin well-known discovery', async () => {
+		// A malicious/compromised index could advertise an attacker-controlled metadata URL in its
+		// WWW-Authenticate challenge; it must never be fetched (SSRF), and discovery must fall back
+		// to the well-known endpoint derived from the trusted service index origin.
+		const challenge = 'bearer resource_metadata="https://attacker.example.com/.well-known/oauth-protected-resource"';
+		const service = new TestRequestService(() => jsonContext(200, protectedResourceMetadata));
+
+		const result = await discoverMarketplaceProtectedResource(service, serviceIndexUrl, challenge, CancellationToken.None);
+
+		assert.deepStrictEqual(
+			{ authorizationServer: result?.authorizationServer, requestedUrls: service.requestedUrls },
+			{ authorizationServer: 'https://as.example.com', requestedUrls: [wellKnownUrl] }
+		);
+	});
+
+	test('ignores a cleartext resource_metadata challenge hint and falls back to same-origin well-known discovery', async () => {
+		const challenge = 'bearer resource_metadata="http://marketplace.example.com/.well-known/oauth-protected-resource"';
+		const service = new TestRequestService(() => jsonContext(200, protectedResourceMetadata));
+
+		const result = await discoverMarketplaceProtectedResource(service, serviceIndexUrl, challenge, CancellationToken.None);
+
+		assert.deepStrictEqual(
+			{ authorizationServer: result?.authorizationServer, requestedUrls: service.requestedUrls },
+			{ authorizationServer: 'https://as.example.com', requestedUrls: [wellKnownUrl] }
+		);
+	});
+
+	test('honors a same-origin HTTPS resource_metadata challenge hint', async () => {
+		const sameOriginMetadataUrl = 'https://marketplace.example.com/custom/oauth-protected-resource';
+		const challenge = `bearer resource_metadata="${sameOriginMetadataUrl}"`;
+		const service = new TestRequestService(() => jsonContext(200, protectedResourceMetadata));
+
+		const result = await discoverMarketplaceProtectedResource(service, serviceIndexUrl, challenge, CancellationToken.None);
+
+		assert.deepStrictEqual(
+			{ authorizationServer: result?.authorizationServer, requestedUrls: service.requestedUrls },
+			{ authorizationServer: 'https://as.example.com', requestedUrls: [sameOriginMetadataUrl] }
 		);
 	});
 });

@@ -166,6 +166,22 @@ export interface IMarketplaceProtectedResource {
 }
 
 /**
+ * True when `candidate` is an HTTPS URL on the same origin as `base`. Fail-closed on any parse
+ * error. Used to gate the untrusted `resource_metadata` URL carried by a server `WWW-Authenticate`
+ * challenge before it is fetched, so a compromised or malicious marketplace index cannot point
+ * Protected Resource Metadata discovery at a foreign origin (SSRF) or a cleartext endpoint.
+ */
+function isSameOriginHttpsUrl(candidate: string, base: string): boolean {
+	try {
+		const candidateUrl = new URL(candidate);
+		const baseUrl = new URL(base);
+		return candidateUrl.protocol === 'https:' && candidateUrl.origin === baseUrl.origin;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Discovers the marketplace's Protected Resource Metadata (RFC 9728) so a resource-scoped token
  * can be minted for an `[Authorize]`-gated marketplace index.
  *
@@ -175,6 +191,11 @@ export interface IMarketplaceProtectedResource {
  * metadata *body*, however, is CORS-readable, so well-known discovery is robust where the challenge
  * header is not. The optional `wwwAuthenticate` string is used only as a best-effort hint for the
  * explicit `resource_metadata` URL when the header happens to be readable.
+ *
+ * The `resource_metadata` hint is server-controlled and therefore untrusted: it is honored only
+ * when it is same-origin HTTPS with `serviceIndexUrl`. A cross-origin or cleartext hint is ignored
+ * (discovery falls back to the well-known endpoint derived from the trusted service index origin),
+ * so a compromised index cannot steer PRM discovery to an attacker-controlled URL.
  *
  * Returns `undefined` (never throws) when discovery fails or the metadata omits an authorization
  * server, so callers can fall back to their existing sign-in / unreachable handling.
@@ -193,6 +214,13 @@ export async function discoverMarketplaceProtectedResource(
 				break;
 			}
 		}
+	}
+	if (resourceMetadataUrl && !isSameOriginHttpsUrl(resourceMetadataUrl, serviceIndexUrl)) {
+		// The hint came from the server's WWW-Authenticate challenge and is not same-origin HTTPS
+		// with the configured service index — a compromised/malicious index could use it to steer
+		// PRM discovery at a foreign origin (SSRF) or a cleartext endpoint. Drop it and fall back to
+		// well-known discovery, which derives the PRM URL from the trusted service index origin.
+		resourceMetadataUrl = undefined;
 	}
 	const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
 		const context = await requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryManifest.discoverMarketplaceProtectedResource' }, token);
