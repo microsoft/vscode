@@ -47,6 +47,7 @@ import {
 	VoiceReconnectClassification, VoiceReconnectEvent,
 	VoiceLatencyClassification, VoiceLatencyEvent,
 } from './voiceTelemetry.js';
+import { IAudioCaptureLeaseService } from './audioCaptureLeaseService.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -296,6 +297,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _connectWatchdog = this._register(new MutableDisposable());
 	private static readonly _CONNECT_TIMEOUT_MS = 10000;
 	private _connectAttemptGeneration = 0;
+	private readonly _audioCaptureLease = this._register(new MutableDisposable());
 	private readonly _autoApprovedSessions = new Set<string>();
 	private _transcriptFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttMaxDurationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -659,6 +661,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAudioCaptureLeaseService private readonly audioCaptureLeaseService: IAudioCaptureLeaseService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
@@ -857,6 +860,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		const audioCaptureLease = this.audioCaptureLeaseService.acquire('voice-mode');
+		if (!audioCaptureLease) {
+			this.notificationService.warn(localize('voice.audioBusy', "Finish dictation or the other Voice Mode session before starting Voice Mode."));
+			return;
+		}
+		this._audioCaptureLease.value = audioCaptureLease;
 		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
 		this._window = window;
@@ -1754,7 +1763,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._statusText.set(`Error: ${detail}`, undefined);
 			}
 		}));
-
 		this._voiceEventDisposables.add(this.voiceClientService.onFatalDisconnect(e => {
 			this._handleFatalDisconnect(e.code, e.reason);
 		}));
@@ -1812,6 +1820,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
 		this.voiceClientService.disconnect();
+		this._audioCaptureLease.clear();
 		this._pttHeld = false;
 		this._userSpeechActive = false;
 		this._pttToggleMode = false;
@@ -1946,6 +1955,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._isProcessingQueue = false;
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
+		this._audioCaptureLease.clear();
 		this._pttHeld = false;
 		this._userSpeechActive = false;
 		this._pttToggleMode = false;

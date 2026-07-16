@@ -6669,6 +6669,23 @@
     ],
     "walkthroughs": [
       {
+        "id": "copilotDictation",
+        "title": "%github.copilot.walkthrough.dictation.title%",
+        "description": "%github.copilot.walkthrough.dictation.description%",
+        "when": "!isWeb && chatIsEnabled && !config.chat.experimental.dictation.enabled",
+        "steps": [
+          {
+            "id": "copilot.dictation.enable",
+            "title": "%github.copilot.walkthrough.dictation.step.title%",
+            "description": "%github.copilot.walkthrough.dictation.step.description%",
+            "media": {
+              "image": "assets/copilot.png",
+              "altText": "%github.copilot.walkthrough.dictation.media.altText%"
+            }
+          }
+        ]
+      },
+      {
         "id": "copilotWelcome",
         "title": "%github.copilot.walkthrough.title%",
         "description": "%github.copilot.walkthrough.description%",

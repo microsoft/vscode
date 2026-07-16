@@ -4,371 +4,390 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from './chatSpeechToTextService.js';
 
-/**
- * Inline decoration class for the still-processing tail of not-yet-finalized
- * dictation text: placeholder-colored with a shimmer animation.
- */
 const INTERIM_SHIMMER_CLASS = 'dictation-interim-shimmer';
-
-/**
- * Inline decoration class for the settled prefix of not-yet-finalized dictation
- * text: placeholder-colored but no longer shimmering, because it has stopped
- * changing between interim transcripts.
- */
 const INTERIM_SETTLED_CLASS = 'dictation-interim-settled';
-
 const LOG_PREFIX = '[chat-stt-dictation]';
 
-/** Number of leading characters `a` and `b` share. */
+export const IChatDictationController = createDecorator<IChatDictationController>('chatDictationController');
+
+export interface IChatDictationController {
+	readonly _serviceBrand: undefined;
+	readonly isActive: boolean;
+	readonly activeEditor: ICodeEditor | undefined;
+	start(editor: ICodeEditor, window: Window & typeof globalThis): Promise<void>;
+	stop(): Promise<void>;
+	cancel(): void;
+}
+
 function commonPrefixLength(a: string, b: string): number {
 	const max = Math.min(a.length, b.length);
-	let i = 0;
-	while (i < max && a.charCodeAt(i) === b.charCodeAt(i)) {
-		i++;
+	let index = 0;
+	while (index < max && a.charCodeAt(index) === b.charCodeAt(index)) {
+		index++;
 	}
-	return i;
+	return index;
 }
 
-/**
- * Back `index` up to the end of the last whole word at or before it, i.e. the
- * offset just after the previous whitespace. This keeps a partially-transcribed
- * trailing word in the shimmering (processing) region instead of prematurely
- * settling it.
- */
 function wordBoundaryAtOrBefore(text: string, index: number): number {
-	let i = index;
-	while (i > 0 && !/\s/.test(text.charAt(i - 1))) {
-		i--;
+	let result = index;
+	while (result > 0 && !/\s/.test(text.charAt(result - 1))) {
+		result--;
 	}
-	return i;
+	return result;
 }
 
-/**
- * Renders the cumulative transcript into a code editor, replacing its own
- * inserted region on each update so dictation appears live as the user speaks.
- */
-class LiveTranscriptInserter {
-	private _anchor: Position | undefined;
-	private _end: Position | undefined;
+class LiveTranscriptInserter extends Disposable {
+	private readonly _modelListeners = this._register(new DisposableStore());
+	private _decorationId: string | undefined;
+	private _selection: Selection | undefined;
 	private _needsLeadingSpace = false;
+	private _pendingOwnedChanges = 0;
+	private _externalEditDetected = false;
+	private _externalEditTouchedOwnedRange = false;
+	private _lastOwnedRange: Range | undefined;
+	private _originalReadOnly = false;
 	private _settledDecorations: IEditorDecorationsCollection | undefined;
 	private _shimmerDecorations: IEditorDecorationsCollection | undefined;
-	private _prevInterimText = '';
-	private _finalized = false;
+	private _previousInterimText = '';
+	private _finalizing = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _onExternalEdit: () => void,
 		private readonly _logService: ILogService,
-	) { }
-
-	/**
-	 * Render the cumulative transcript. While `interim` is true the text is not
-	 * yet finalized, so it is rendered in the placeholder color: the settled
-	 * leading portion (unchanged since the previous interim transcript) is shown
-	 * statically, while the still-processing trailing portion shimmers. The final
-	 * update (`interim === false`) clears both decorations, leaving solid text.
-	 *
-	 * Once a final update has been applied, later interim updates are ignored:
-	 * the transcription service can emit a trailing interim transcript as it
-	 * shuts down (after `stopAndTranscribe` resolves), which would otherwise
-	 * overwrite the final text and re-apply the shimmer.
-	 */
-	update(fullText: string, interim: boolean = true): void {
-		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} len=${fullText.length}`);
-		if (this._finalized && interim) {
-			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (already finalized)`);
-			return;
-		}
-		if (!interim) {
-			this._finalized = true;
-		}
-		const model = this._editor.getModel();
-		if (!model) {
-			this._logService.trace(`${LOG_PREFIX} inserter.update no model`);
-			return;
-		}
-
-		if (!this._anchor) {
-			const selection = this._editor.getSelection() ?? model.getFullModelRange().collapseToEnd();
-			const start = selection.getStartPosition();
-			this._anchor = start;
-			this._end = start;
-			this._needsLeadingSpace = start.column > 1 && !/\s$/.test(model.getValueInRange(new Range(
-				start.lineNumber, Math.max(1, start.column - 1), start.lineNumber, start.column,
-			)));
-		}
-
-		const text = (this._needsLeadingSpace ? ' ' : '') + fullText;
-
-		// The edit replaces the region this inserter wrote last time (anchor ..
-		// previous end) with the new cumulative transcript.
-		const replaceRange = Range.fromPositions(this._anchor, this._end ?? this._anchor);
-
-		const lines = text.split('\n');
-		const endLine = this._anchor.lineNumber + lines.length - 1;
-		const endColumn = lines.length === 1 ? this._anchor.column + lines[0].length : lines[lines.length - 1].length + 1;
-		this._end = new Position(endLine, endColumn);
-
-		// While transcription is in progress keep the caret parked at the start
-		// of the dictated region (a blinking cursor at the beginning) rather than
-		// chasing the growing/revised interim text. Once finalized, move it to the
-		// end so the user can continue typing after the dictated text. The caret
-		// is passed as executeEdits' endCursorState so the editor never briefly
-		// places it at the end of the applied edit first.
-		const caret = interim ? this._anchor : this._end;
-		this._editor.executeEdits(
-			'chatSpeechToText',
-			[{ range: replaceRange, text, forceMoveMarkers: true }],
-			[Selection.fromPositions(caret)],
-		);
-
-		this._updateInterimDecorations(text, fullText, interim);
-		this._prevInterimText = interim ? fullText : '';
+	) {
+		super();
 	}
 
-	/** Position of the given character offset within the inserted `text`. */
-	private _positionAtOffset(text: string, offset: number): Position {
-		const anchor = this._anchor!;
-		const sub = text.slice(0, offset);
-		const lines = sub.split('\n');
+	begin(): void {
+		const model = this._editor.getModel();
+		if (!model || this._decorationId) {
+			return;
+		}
+		const selection = this._editor.getSelection() ?? Selection.fromPositions(model.getFullModelRange().getEndPosition());
+		const anchor = selection.getEndPosition();
+		this._selection = selection;
+		this._needsLeadingSpace = anchor.column > 1 && !/\s$/.test(model.getValueInRange(new Range(
+			anchor.lineNumber,
+			anchor.column - 1,
+			anchor.lineNumber,
+			anchor.column,
+		)));
+		this._decorationId = model.deltaDecorations([], [{
+			range: Range.fromPositions(anchor),
+			options: {
+				description: 'chat-dictation-transcript',
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			}
+		}])[0];
+		this._lastOwnedRange = Range.fromPositions(anchor);
+		this._originalReadOnly = this._editor.getOption(EditorOption.readOnly);
+		this._editor.updateOptions({ readOnly: true });
+		this._editor.focus();
+		this._modelListeners.add(model.onDidChangeContent(event => {
+			if (this._pendingOwnedChanges > 0) {
+				this._pendingOwnedChanges--;
+				return;
+			}
+			if (this._externalEditDetected) {
+				return;
+			}
+			this._externalEditDetected = true;
+			this._externalEditTouchedOwnedRange = !!this._lastOwnedRange
+				&& event.changes.some(change => Range.areIntersecting(change.range, this._lastOwnedRange!));
+			queueMicrotask(this._onExternalEdit);
+		}));
+	}
+
+	update(fullText: string): void {
+		if (this._finalizing || this._externalEditDetected) {
+			return;
+		}
+		const model = this._editor.getModel();
+		const range = this._ownedRange();
+		if (!model || !range) {
+			return;
+		}
+		const text = `${this._needsLeadingSpace ? ' ' : ''}${fullText}`;
+		const startOffset = model.getOffsetAt(range.getStartPosition());
+		this._applyWithoutUndo(range, text);
+		const end = model.getPositionAt(startOffset + text.length);
+		this._decorationId = model.deltaDecorations([this._decorationId!], [{
+			range: Range.fromPositions(range.getStartPosition(), end),
+			options: {
+				description: 'chat-dictation-transcript',
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			}
+		}])[0];
+		this._lastOwnedRange = Range.fromPositions(range.getStartPosition(), end);
+		this._editor.setPosition(range.getStartPosition());
+		this._updateInterimDecorations(text, fullText, range.getStartPosition(), end);
+		this._previousInterimText = fullText;
+	}
+
+	beginFinalize(): void {
+		this._logService.trace(`${LOG_PREFIX} beginFinalize`);
+		this._finalizing = true;
+		this._clearInterimDecorations();
+	}
+
+	commit(finalText: string): void {
+		const model = this._editor.getModel();
+		const range = this._ownedRange();
+		if (!model || !range || this._externalEditDetected) {
+			return;
+		}
+		const text = `${this._needsLeadingSpace ? ' ' : ''}${finalText}`;
+		const start = range.getStartPosition();
+		const startOffset = model.getOffsetAt(start);
+		this._applyWithoutUndo(range, '');
+		this._clearOwnedDecoration();
+		this._editor.updateOptions({ readOnly: this._originalReadOnly });
+		this._editor.pushUndoStop();
+		this._pendingOwnedChanges++;
+		this._editor.executeEdits('chatDictationFinal', [{ range: Range.fromPositions(start), text }]);
+		this._editor.pushUndoStop();
+		this._editor.setPosition(model.getPositionAt(startOffset + text.length));
+		this._restoreEditor();
+	}
+
+	revert(): void {
+		const range = this._ownedRange();
+		if (range && !this._externalEditTouchedOwnedRange) {
+			this._applyWithoutUndo(range, '');
+		}
+		this._clearOwnedDecoration();
+		this._restoreEditor();
+		if (this._selection) {
+			this._editor.setSelection(this._selection);
+		}
+	}
+
+	clearShimmer(): void {
+		this._clearInterimDecorations();
+	}
+
+	private _updateInterimDecorations(text: string, fullText: string, start: Position, end: Position): void {
+		const leading = this._needsLeadingSpace ? 1 : 0;
+		const common = commonPrefixLength(fullText, this._previousInterimText);
+		const settledCharacters = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
+		const split = this._positionAtOffset(text, leading + settledCharacters, start);
+		this._settledDecorations ??= this._editor.createDecorationsCollection();
+		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
+		this._settledDecorations.set(Position.equals(start, split) ? [] : [{
+			range: Range.fromPositions(start, split),
+			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
+		}]);
+		this._shimmerDecorations.set(Position.equals(split, end) ? [] : [{
+			range: Range.fromPositions(split, end),
+			options: { description: 'chatSpeechToText-interim', inlineClassName: INTERIM_SHIMMER_CLASS },
+		}]);
+	}
+
+	private _positionAtOffset(text: string, offset: number, anchor: Position): Position {
+		const lines = text.slice(0, offset).split('\n');
 		if (lines.length === 1) {
 			return new Position(anchor.lineNumber, anchor.column + lines[0].length);
 		}
 		return new Position(anchor.lineNumber + lines.length - 1, lines[lines.length - 1].length + 1);
 	}
 
-	/**
-	 * Render the interim text in the placeholder color, shimmering only the
-	 * still-processing trailing portion. The settled prefix is the part of the
-	 * transcript that has not changed since the previous interim update, so words
-	 * stop shimmering once the recognizer stops revising them. Cleared entirely
-	 * once the text is finalized.
-	 */
-	private _updateInterimDecorations(text: string, fullText: string, interim: boolean): void {
-		if (!interim || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
-			this._logService.trace(`${LOG_PREFIX} interim decorations clear (interim=${interim})`);
-			this._settledDecorations?.clear();
-			this._shimmerDecorations?.clear();
-			return;
-		}
-
-		const leading = this._needsLeadingSpace ? 1 : 0;
-		const common = commonPrefixLength(fullText, this._prevInterimText);
-		// When the tail diverges from the previous interim (a word is being
-		// revised) settle only up to the last word boundary so the whole
-		// in-progress word shimmers. But once the transcript stops changing (the
-		// common prefix already covers the entire current text) settle
-		// everything, otherwise the last word would shimmer forever.
-		const settledChars = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
-		const splitPosition = this._positionAtOffset(text, leading + settledChars);
-
-		this._settledDecorations ??= this._editor.createDecorationsCollection();
-		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
-
-		const settled = Position.equals(this._anchor, splitPosition) ? [] : [{
-			range: Range.fromPositions(this._anchor, splitPosition),
-			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
-		}];
-		const shimmer = Position.equals(splitPosition, this._end) ? [] : [{
-			range: Range.fromPositions(splitPosition, this._end),
-			options: { description: 'chatSpeechToText-interim', inlineClassName: INTERIM_SHIMMER_CLASS },
-		}];
-		this._logService.trace(`${LOG_PREFIX} interim decorations settledChars=${settledChars} split=${splitPosition.lineNumber}:${splitPosition.column}`);
-		this._settledDecorations.set(settled);
-		this._shimmerDecorations.set(shimmer);
-	}
-
-	/** Stop shimmering, leaving whatever text is currently inserted as solid. */
-	clearShimmer(): void {
-		this._logService.trace(`${LOG_PREFIX} clearShimmer`);
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
-	}
-
-	/**
-	 * Lock out further interim updates and stop shimmering immediately. Called
-	 * when the user stops talking, before the (async) final transcription
-	 * resolves, so a trailing interim transcript can neither overwrite the text
-	 * nor re-apply the shimmer. The subsequent final `update(text, false)` still
-	 * applies because it is not an interim update.
-	 */
-	beginFinalize(): void {
-		this._logService.trace(`${LOG_PREFIX} beginFinalize`);
-		this._finalized = true;
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
-	}
-
-	/**
-	 * Remove everything this inserter has written (including any leading space it
-	 * added) and restore the caret to where dictation began. Used when dictation
-	 * is cancelled so no dictated text is left behind.
-	 */
-	revert(): void {
-		this._settledDecorations?.clear();
-		this._shimmerDecorations?.clear();
+	private _applyWithoutUndo(range: Range, text: string): void {
 		const model = this._editor.getModel();
-		if (!model || !this._anchor || !this._end) {
+		if (!model) {
 			return;
 		}
-		this._editor.executeEdits('chatSpeechToText', [{
-			range: Range.fromPositions(this._anchor, this._end),
-			text: '',
-			forceMoveMarkers: true,
-		}]);
-		this._editor.setPosition(this._anchor);
-		this._anchor = undefined;
-		this._end = undefined;
+		this._pendingOwnedChanges++;
+		model.applyEdits([{ range, text, forceMoveMarkers: true }]);
+	}
+
+	private _ownedRange(): Range | undefined {
+		const model = this._editor.getModel();
+		return model && this._decorationId ? model.getDecorationRange(this._decorationId) ?? undefined : undefined;
+	}
+
+	private _clearInterimDecorations(): void {
+		this._settledDecorations?.clear();
+		this._shimmerDecorations?.clear();
+	}
+
+	private _clearOwnedDecoration(): void {
+		const model = this._editor.getModel();
+		if (model && this._decorationId) {
+			model.deltaDecorations([this._decorationId], []);
+		}
+		this._decorationId = undefined;
+		this._lastOwnedRange = undefined;
+		this._clearInterimDecorations();
+	}
+
+	private _restoreEditor(): void {
+		this._editor.updateOptions({ readOnly: this._originalReadOnly });
+		this._editor.focus();
+		this._modelListeners.clear();
+	}
+
+	override dispose(): void {
+		this._clearOwnedDecoration();
+		this._restoreEditor();
+		super.dispose();
 	}
 }
 
 interface IActiveDictation {
-	readonly service: IChatSpeechToTextService;
 	readonly editor: ICodeEditor;
 	readonly inserter: LiveTranscriptInserter;
 	readonly disposables: DisposableStore;
-	readonly logService: ILogService;
+	stopping: boolean;
 }
 
-/**
- * Only one dictation can run at a time (the service is a singleton), so the
- * active session is tracked at module scope and shared by every entry point
- * (toggle action, hold-to-talk, and the sessions composer button).
- */
-let _active: IActiveDictation | undefined;
+export class ChatDictationController extends Disposable implements IChatDictationController {
+	declare readonly _serviceBrand: undefined;
 
-/** True while a dictation is in progress. */
-export function isDictating(): boolean {
-	return !!_active;
-}
+	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
+	private _session: IActiveDictation | undefined;
 
-/** The editor currently being dictated into, if any (used to scope the glow). */
-export function activeDictationEditor(): ICodeEditor | undefined {
-	return _active?.editor;
-}
-
-/** Start dictating into `editor`, rendering the transcript live. */
-export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService): Promise<void> {
-	if (_active || service.state !== ChatSpeechToTextState.Idle) {
-		return;
+	get isActive(): boolean {
+		return !!this._session;
 	}
-	const inserter = new LiveTranscriptInserter(editor, logService);
-	const disposables = new DisposableStore();
-	// Show a "Listening…" placeholder only once the session is actually
-	// connected and recording, i.e. the service is in the Recording state and
-	// the on-device model has finished preparing (downloading/loading). It must
-	// not appear during microphone acquisition or while the model is still being
-	// prepared, since transcription cannot happen yet. The placeholder remains
-	// visible until transcript text is inserted, and is restored to its previous
-	// value when the session ends.
-	const previousPlaceholder = editor.getOption(EditorOption.placeholder);
-	const listeningPlaceholder = localize('chatStt.listening', "Listening…");
-	const applyPlaceholder = () => {
-		if (!editor.getModel()) {
+
+	get activeEditor(): ICodeEditor | undefined {
+		return this._session?.editor;
+	}
+
+	constructor(
+		@IChatSpeechToTextService private readonly _speechToTextService: IChatSpeechToTextService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	async start(editor: ICodeEditor, window: Window & typeof globalThis): Promise<void> {
+		if (this._session || this._speechToTextService.state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
-		const shouldListen = service.state === ChatSpeechToTextState.Recording && !service.isPreparingModel;
-		const current = editor.getOption(EditorOption.placeholder);
-		if (shouldListen) {
-			if (current !== listeningPlaceholder) {
-				editor.updateOptions({ placeholder: listeningPlaceholder });
+		const disposables = new DisposableStore();
+		const inserter = new LiveTranscriptInserter(editor, () => this._cancelForExternalEdit(), this._logService);
+		const previousPlaceholder = editor.getOption(EditorOption.placeholder);
+		const listeningPlaceholder = localize('chatStt.listening', "Listening…");
+		const updatePlaceholder = () => {
+			if (!editor.getModel()) {
+				return;
 			}
-		} else if (current === listeningPlaceholder) {
-			editor.updateOptions({ placeholder: previousPlaceholder });
+			const shouldListen = this._speechToTextService.state === ChatSpeechToTextState.Recording
+				&& !this._speechToTextService.isPreparingModel;
+			if (shouldListen && editor.getOption(EditorOption.placeholder) !== listeningPlaceholder) {
+				editor.updateOptions({ placeholder: listeningPlaceholder });
+			} else if (!shouldListen && editor.getOption(EditorOption.placeholder) === listeningPlaceholder) {
+				editor.updateOptions({ placeholder: previousPlaceholder });
+			}
+		};
+		disposables.add(toDisposable(() => {
+			inserter.clearShimmer();
+			if (editor.getModel() && editor.getOption(EditorOption.placeholder) === listeningPlaceholder) {
+				editor.updateOptions({ placeholder: previousPlaceholder });
+			}
+		}));
+		disposables.add(inserter);
+		disposables.add(this._speechToTextService.onDidUpdateTranscript(text => inserter.update(text)));
+		disposables.add(this._speechToTextService.onDidFail(() => this._endSession({ revert: true, cancelService: false })));
+		disposables.add(this._speechToTextService.onDidChangePreparingModel(updatePlaceholder));
+		disposables.add(this._speechToTextService.onDidChangeState(state => {
+			this._logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
+			if (state === ChatSpeechToTextState.Recording) {
+				inserter.begin();
+				status(localize('chatDictation.recordingStarted', "Dictation recording started."));
+			} else if (state === ChatSpeechToTextState.Transcribing) {
+				inserter.beginFinalize();
+				status(localize('chatDictation.finalizing', "Finishing dictation."));
+			} else if (state === ChatSpeechToTextState.Idle && this._session && !this._session.stopping) {
+				this._endSession({ revert: true, cancelService: false });
+			}
+			updatePlaceholder();
+		}));
+		disposables.add(editor.onDidDispose(() => this._endSession({ revert: true, cancelService: true })));
+		this._session = { editor, inserter, disposables, stopping: false };
+		this._active.value = disposables;
+		try {
+			await this._speechToTextService.start(window);
+			if (this._speechToTextService.state === ChatSpeechToTextState.Idle && this._session?.editor === editor) {
+				this._endSession({ revert: true, cancelService: false });
+			}
+		} catch {
+			this._endSession({ revert: true, cancelService: false });
 		}
-	};
-	disposables.add(toDisposable(() => {
-		// Ensure the interim shimmer never lingers, regardless of how the session
-		// ends (final transcript, cancel, editor disposal, or a service-side error).
-		inserter.clearShimmer();
-		if (!editor.getModel() || editor.getOption(EditorOption.placeholder) !== listeningPlaceholder) {
+	}
+
+	async stop(): Promise<void> {
+		const session = this._session;
+		if (!session || session.stopping || this._speechToTextService.state !== ChatSpeechToTextState.Recording) {
 			return;
 		}
-		editor.updateOptions({ placeholder: previousPlaceholder });
-	}));
-	disposables.add(service.onDidUpdateTranscript(text => {
-		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${text.length} state=${service.state}`);
-		inserter.update(text);
-	}));
-	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
-	disposables.add(service.onDidChangeState(state => {
-		logService.trace(`${LOG_PREFIX} onDidChangeState ${state}`);
-		if (state === ChatSpeechToTextState.Idle && _active?.service === service) {
-			// If the service ends the session on its own (e.g. the model failed
-			// to load and it surfaced an error), drop the stale active reference
-			// so the toolbar and glow reflect that dictation is no longer running.
-			_active = undefined;
-			disposables.dispose();
+		session.stopping = true;
+		session.inserter.beginFinalize();
+		try {
+			const finalText = await this._speechToTextService.stopAndTranscribe();
+			if (finalText !== undefined) {
+				session.inserter.commit(finalText);
+				status(localize('chatDictation.ready', "Dictation finished. Review or edit the text, then send it when ready."));
+				this._clearSession();
+			} else {
+				this._endSession({ revert: true, cancelService: false });
+			}
+		} catch {
+			this._endSession({ revert: true, cancelService: false });
+		}
+	}
+
+	cancel(): void {
+		this._endSession({
+			revert: true,
+			cancelService: true,
+			announcement: localize('chatDictation.cancelled', "Dictation cancelled."),
+		});
+	}
+
+	private _cancelForExternalEdit(): void {
+		this._endSession({
+			revert: true,
+			cancelService: true,
+			announcement: localize('chatDictation.externalEdit', "Dictation was cancelled because the input changed."),
+		});
+	}
+
+	private _endSession(options: { revert: boolean; cancelService: boolean; announcement?: string }): void {
+		const session = this._session;
+		if (!session) {
 			return;
 		}
-		applyPlaceholder();
-	}));
-	// The target editor can be disposed out from under us (e.g. the Agents
-	// composer is closed); cancel dictation instead of leaving the microphone
-	// and local transcription running against a dead editor.
-	disposables.add(editor.onDidDispose(() => cancelDictation()));
-	_active = { service, editor, inserter, disposables, logService };
-	try {
-		await service.start(window);
-	} catch {
-		// Acquisition/connection failure is surfaced by the service.
-		if (_active?.service === service) {
-			_active = undefined;
+		if (options.revert) {
+			session.inserter.revert();
 		}
-		disposables.dispose();
-	}
-}
-
-/** Stop the active dictation and apply the final transcript. */
-export async function stopDictation(): Promise<void> {
-	const active = _active;
-	if (!active) {
-		return;
-	}
-	_active = undefined;
-	active.logService.trace(`${LOG_PREFIX} stopDictation begin, state=${active.service.state}`);
-	// Stop shimmering and lock out interim updates right away so a trailing
-	// interim transcript emitted while transcription finalizes cannot re-apply
-	// the shimmer or overwrite the final text.
-	active.inserter.beginFinalize();
-	try {
-		const text = await active.service.stopAndTranscribe();
-		active.logService.trace(`${LOG_PREFIX} stopAndTranscribe resolved text=${text === undefined ? 'undefined' : `len=${text.length}`}`);
-		if (text !== undefined) {
-			// Final transcript: render it solid (no shimmer).
-			active.inserter.update(text, false);
-		} else {
-			// No final transcript to apply; make sure the shimmer does not linger
-			// over the last interim text.
-			active.inserter.clearShimmer();
+		this._clearSession();
+		if (options.cancelService) {
+			this._speechToTextService.cancel();
 		}
-	} finally {
-		active.logService.trace(`${LOG_PREFIX} stopDictation dispose`);
-		active.disposables.dispose();
+		if (options.announcement) {
+			status(options.announcement);
+		}
 	}
-}
 
-/** Abort the active dictation, discarding whatever was recorded. */
-export function cancelDictation(): void {
-	const active = _active;
-	if (!active) {
-		return;
+	private _clearSession(): void {
+		this._session = undefined;
+		this._active.clear();
 	}
-	_active = undefined;
-	// Remove any live transcript already written to the editor so Escape leaves
-	// the input exactly as it was before dictation started.
-	active.inserter.revert();
-	active.disposables.dispose();
-	active.service.cancel();
 }

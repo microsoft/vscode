@@ -20,6 +20,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { IChatDictationController } from '../../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -101,6 +102,13 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly state = ChatSpeechToTextState.Idle;
 				override readonly isConfigured = false;
 				override readonly isPreparingModel = false;
+			}());
+			reg.defineInstance(IChatDictationController, new class extends mock<IChatDictationController>() {
+				override readonly isActive = false;
+				override readonly activeEditor = undefined;
+				override async start() { }
+				override async stop() { }
+				override cancel() { }
 			}());
 		},
 	});

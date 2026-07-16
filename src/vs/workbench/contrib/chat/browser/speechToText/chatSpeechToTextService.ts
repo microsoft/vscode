@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -22,6 +22,8 @@ import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTransc
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IRemoteChatSpeechToTextService, RemoteChatSpeechToTextState } from './remoteChatSpeechToTextService.js';
+import { IAudioCaptureLeaseService } from '../voiceClient/audioCaptureLeaseService.js';
 
 export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService>('chatSpeechToTextService');
 
@@ -30,6 +32,7 @@ const SAMPLE_RATE = 16000;
 
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
 const ENABLED_SETTING = 'chat.speechToText.enabled';
+export const REMOTE_ENABLED_SETTING = 'chat.experimental.dictation.enabled';
 /** On-device model (Whisper or Nemotron) to use for dictation. */
 const MODEL_SETTING = 'chat.speechToText.model';
 /** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
@@ -72,6 +75,8 @@ type SpeechToTextModelPrepareClassification = {
 export const enum ChatSpeechToTextState {
 	/** Not recording. */
 	Idle = 'idle',
+	/** Authenticating, connecting, or acquiring the microphone. */
+	Starting = 'starting',
 	/** Capturing microphone audio and streaming it for transcription. */
 	Recording = 'recording',
 	/** Recording stopped, awaiting the final transcript. */
@@ -90,6 +95,7 @@ export interface IChatSpeechToTextService {
 	 * (finalized utterances plus any in-progress delta).
 	 */
 	readonly onDidUpdateTranscript: Event<string>;
+	readonly onDidFail: Event<void>;
 
 	/**
 	 * Whether on-device speech-to-text is available on this platform. Callers
@@ -133,11 +139,17 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _onDidUpdateTranscript = this._register(new Emitter<string>());
 	readonly onDidUpdateTranscript = this._onDidUpdateTranscript.event;
 
+	private readonly _onDidFail = this._register(new Emitter<void>());
+	readonly onDidFail = this._onDidFail.event;
+
 	private readonly _onDidChangePreparingModel = this._register(new Emitter<boolean>());
 	readonly onDidChangePreparingModel = this._onDidChangePreparingModel.event;
 
 	private _isPreparingModel = false;
 	get isPreparingModel(): boolean {
+		if (this._isRemoteEnabled()) {
+			return false;
+		}
 		return this._isPreparingModel;
 	}
 
@@ -151,10 +163,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
+		if (this._isRemoteEnabled()) {
+			return toChatSpeechToTextState(this._remoteSpeechToText.state);
+		}
 		return this._state;
 	}
 
 	private readonly _recordingContextKey: IContextKey<boolean>;
+	private readonly _startingContextKey: IContextKey<boolean>;
+	private readonly _finalizingContextKey: IContextKey<boolean>;
 	private readonly _configuredContextKey: IContextKey<boolean>;
 	private readonly _preparingContextKey: IContextKey<boolean>;
 
@@ -164,8 +181,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _processorNode: ScriptProcessorNode | undefined;
 
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
+	private readonly _localAudioLease = this._register(new MutableDisposable<IDisposable>());
+	private _localOperationId = 0;
 
 	get isConfigured(): boolean {
+		if (this._isRemoteEnabled()) {
+			return this._remoteSpeechToText.isConfigured;
+		}
 		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
 			return false;
 		}
@@ -201,15 +223,37 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILocalTranscriptionService private readonly _localTranscription: ILocalTranscriptionService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IRemoteChatSpeechToTextService private readonly _remoteSpeechToText: IRemoteChatSpeechToTextService,
+		@IAudioCaptureLeaseService private readonly _audioCaptureLeaseService: IAudioCaptureLeaseService,
 	) {
 		super();
 		this._recordingContextKey = ChatContextKeys.speechToTextRecording.bindTo(contextKeyService);
+		this._startingContextKey = ChatContextKeys.speechToTextStarting.bindTo(contextKeyService);
+		this._finalizingContextKey = ChatContextKeys.speechToTextFinalizing.bindTo(contextKeyService);
 		this._configuredContextKey = ChatContextKeys.speechToTextConfigured.bindTo(contextKeyService);
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ENABLED_SETTING)) {
+			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
+				if (e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
+					if (!this._isRemoteEnabled() && this._remoteSpeechToText.state !== RemoteChatSpeechToTextState.Idle) {
+						this._remoteSpeechToText.cancel();
+					} else if (this._isRemoteEnabled() && this._state !== ChatSpeechToTextState.Idle) {
+						this.cancel();
+					}
+					this._updateStateContextKeys(ChatSpeechToTextState.Idle);
+					this._onDidChangeState.fire(ChatSpeechToTextState.Idle);
+				}
 				this._updateConfiguredContextKey();
+			}
+		}));
+		this._register(this._remoteSpeechToText.onDidUpdateTranscript(text => this._onDidUpdateTranscript.fire(text)));
+		this._register(this._remoteSpeechToText.onDidFail(() => this._onDidFail.fire()));
+		this._register(this._remoteSpeechToText.onDidChangeState(state => {
+			if (this._isRemoteEnabled()) {
+				const chatState = toChatSpeechToTextState(state);
+				this._updateStateContextKeys(chatState);
+				this._onDidChangeState.fire(chatState);
 			}
 		}));
 	}
@@ -277,8 +321,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			return;
 		}
 		this._state = state;
-		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording);
+		this._updateStateContextKeys(state);
 		this._onDidChangeState.fire(state);
+	}
+
+	private _updateStateContextKeys(state: ChatSpeechToTextState): void {
+		this._recordingContextKey.set(state === ChatSpeechToTextState.Recording);
+		this._startingContextKey.set(state === ChatSpeechToTextState.Starting);
+		this._finalizingContextKey.set(state === ChatSpeechToTextState.Transcribing);
 	}
 
 	private get _transcript(): string {
@@ -286,6 +336,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async start(window: Window & typeof globalThis): Promise<void> {
+		if (this._isRemoteEnabled()) {
+			return this._remoteSpeechToText.start(window);
+		}
 		if (this._state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
@@ -301,6 +354,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			});
 			return;
 		}
+		const audioLease = this._audioCaptureLeaseService.acquire('local-chat-dictation');
+		if (!audioLease) {
+			this._notificationService.warn(localize('chatStt.audioBusy', "Finish Voice Mode or the other dictation before starting dictation."));
+			throw new Error('Audio capture is busy');
+		}
+		this._localAudioLease.value = audioLease;
+		const operationId = ++this._localOperationId;
+		this._setState(ChatSpeechToTextState.Starting);
 
 		this._sessionStartMs = Date.now();
 		this._sessionSegments = 0;
@@ -310,11 +371,19 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		try {
 			stream = await this._acquireStream(window);
 		} catch (err) {
+			if (!this._isCurrentLocalStart(operationId)) {
+				return;
+			}
+			this._localAudioLease.clear();
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] microphone acquisition failed', err);
 			this._notificationService.error(localize('chatStt.micError', "Could not access the microphone for speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
+		}
+		if (!this._isCurrentLocalStart(operationId)) {
+			stream.getTracks().forEach(track => track.stop());
+			return;
 		}
 
 		this._finalizedText = '';
@@ -324,12 +393,22 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		try {
 			await this._startLocalSession();
 		} catch (err) {
+			if (!this._isCurrentLocalStart(operationId)) {
+				this._localTranscription.cancel();
+				this._teardown();
+				return;
+			}
 			this._teardown();
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start transcription', err);
 			this._notificationService.error(localize('chatStt.connectError', "Could not start speech-to-text: {0}", toErrorMessage(err)));
 			throw err;
+		}
+		if (!this._isCurrentLocalStart(operationId)) {
+			this._localTranscription.cancel();
+			this._teardown();
+			return;
 		}
 
 		try {
@@ -508,6 +587,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._deltaText = '';
 		this._setState(ChatSpeechToTextState.Idle);
 		this._notificationService.error(message);
+		this._onDidFail.fire();
 	}
 
 	/**
@@ -524,6 +604,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async stopAndTranscribe(): Promise<string | undefined> {
+		if (this._isRemoteEnabled()) {
+			return this._remoteSpeechToText.stopAndTranscribe();
+		}
 		if (this._state !== ChatSpeechToTextState.Recording) {
 			return undefined;
 		}
@@ -549,6 +632,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	cancel(): void {
+		if (this._remoteSpeechToText.state !== RemoteChatSpeechToTextState.Idle) {
+			this._remoteSpeechToText.cancel();
+			return;
+		}
+		this._localOperationId++;
 		const wasRecording = this._state === ChatSpeechToTextState.Recording;
 		this._logSessionTelemetry('cancelled');
 		this._localTranscription.cancel();
@@ -605,6 +693,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// model reached a terminal state does not emit a model-prepare event.
 		this._prepareStartMs = 0;
 		this._localSessionDisposables.clear();
+		this._localAudioLease.clear();
+	}
+
+	private _isCurrentLocalStart(operationId: number): boolean {
+		return this._localOperationId === operationId && this._state === ChatSpeechToTextState.Starting;
 	}
 
 	private async _acquireStream(window: Window & typeof globalThis): Promise<MediaStream> {
@@ -633,6 +726,23 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			delete audioConstraints.deviceId;
 			return window.navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
 		}
+	}
+
+	private _isRemoteEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(REMOTE_ENABLED_SETTING) === true;
+	}
+}
+
+function toChatSpeechToTextState(state: RemoteChatSpeechToTextState): ChatSpeechToTextState {
+	switch (state) {
+		case RemoteChatSpeechToTextState.Idle:
+			return ChatSpeechToTextState.Idle;
+		case RemoteChatSpeechToTextState.Starting:
+			return ChatSpeechToTextState.Starting;
+		case RemoteChatSpeechToTextState.Recording:
+			return ChatSpeechToTextState.Recording;
+		case RemoteChatSpeechToTextState.Finalizing:
+			return ChatSpeechToTextState.Transcribing;
 	}
 }
 

@@ -81,8 +81,8 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
-import { isDictating, startDictation, stopDictation } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { IChatDictationController } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -326,6 +326,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatSpeechToTextService private readonly chatSpeechToTextService: IChatSpeechToTextService,
+		@IChatDictationController private readonly chatDictationController: IChatDictationController,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -704,11 +705,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		// Dictation (speech-to-text) mic button. Shares the STT service, mic
-		// device, and gating (on-device support + `chat.speechToText.enabled`)
-		// with the main chat input; inserts the transcript into this composer's
-		// editor. Placed before the voice controls so dictation leads the
-		// mic-related group.
+		// Dictation uses the same service and controller as the main chat input.
 		try {
 			this._createSpeechToTextButton(toolbar);
 		} catch (error) {
@@ -756,22 +753,29 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		button.role = 'button';
 		const micLabel = localize('sessionsStt.dictate', "Dictate (Speech to Text)");
 		const stopLabel = localize('sessionsStt.stop', "Stop Dictation");
-		this._register(this.hoverService.setupDelayedHover(button, {
-			content: micLabel,
+		const startingLabel = localize('sessionsStt.starting', "Cancel Starting Dictation");
+		const finalizingLabel = localize('sessionsStt.finalizing', "Finishing Dictation…");
+		this._register(this.hoverService.setupDelayedHover(button, () => ({
+			content: button.ariaLabel ?? micLabel,
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
-		}));
+		})));
 
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
-			const recording = sttService.state !== ChatSpeechToTextState.Idle;
+			const starting = sttService.state === ChatSpeechToTextState.Starting;
+			const recording = sttService.state === ChatSpeechToTextState.Recording;
+			const finalizing = sttService.state === ChatSpeechToTextState.Transcribing;
 			dom.clearNode(button);
-			const icon = preparing ? spinningLoading : (recording ? Codicon.stopCircle : Codicon.mic);
+			const icon = preparing || starting || finalizing ? spinningLoading : (recording ? Codicon.stopCircle : Codicon.mic);
 			dom.append(button, renderIcon(icon));
 			button.classList.toggle('recording', recording && !preparing);
 			button.ariaLabel = preparing
 				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
-				: (recording ? stopLabel : micLabel);
+				: starting ? startingLabel
+					: finalizing ? finalizingLabel
+						: recording ? stopLabel : micLabel;
+			button.ariaDisabled = finalizing ? 'true' : 'false';
 		};
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
@@ -782,7 +786,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		};
 		updateVisibility();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled')) {
+			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
 				updateVisibility();
 			}
 		}));
@@ -807,14 +811,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	/**
-	 * Toggle on-device dictation into this composer's editor. Shared by the mic
+	 * Toggle dictation into this composer's editor. Shared by the mic
 	 * button and the Cmd/Ctrl+I chord. The global Dictate action can't target
 	 * this composer (it isn't an IChatWidget), so routing is handled here.
 	 */
 	private async _toggleDictation(): Promise<void> {
 		const sttService = this.chatSpeechToTextService;
-		if (isDictating()) {
-			await stopDictation();
+		if (this.chatDictationController.isActive) {
+			if (sttService.state === ChatSpeechToTextState.Recording) {
+				await this.chatDictationController.stop();
+			} else if (sttService.state === ChatSpeechToTextState.Starting) {
+				this.chatDictationController.cancel();
+			}
 			return;
 		}
 		if (!sttService.isConfigured || sttService.state !== ChatSpeechToTextState.Idle || !this._editor) {
@@ -824,7 +832,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (!domNode) {
 			return;
 		}
-		await startDictation(sttService, this._editor, dom.getWindow(domNode), this.logService);
+		await this.chatDictationController.start(this._editor, dom.getWindow(domNode));
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---

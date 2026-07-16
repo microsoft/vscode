@@ -29,6 +29,7 @@ import {
 	IVoiceNarrationSignal,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { addWebSocketAuthToken, getVoiceWebSocketUrl } from './voiceEndpoint.js';
 
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -259,9 +260,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _getWsUrl(): string {
-		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
-		const url = typeof configured === 'string' ? configured.trim() : '';
-		return url || this._productService.voiceWsUrl || '';
+		return getVoiceWebSocketUrl(this._configurationService, this._productService);
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
@@ -282,10 +281,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
 			return;
 		}
-		const url = this._authToken
-			? `${baseUrl}?token=${encodeURIComponent(this._authToken)}`
-			: baseUrl;
-		const ws = new win.WebSocket(url);
+		const url = this._authToken ? addWebSocketAuthToken(baseUrl, this._authToken) : baseUrl;
+		let ws: WebSocket;
+		try {
+			ws = new win.WebSocket(url);
+		} catch (error) {
+			this._logService.error('[voice] failed to create WebSocket', error);
+			this._onError.fire('WebSocket connection failed');
+			this._cleanup();
+			this._onFatalDisconnect.fire({ code: 0, reason: 'WebSocket connection failed' });
+			return;
+		}
 		this._ws = ws;
 		this._sessionStartedOnSocket = false;
 
@@ -434,6 +440,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason ?? '' });
 					this._cleanup();
 					return;
 				}
@@ -458,6 +465,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				const elapsed = Date.now() - this._reconnectStartedAt;
 				if (elapsed >= MAX_RECONNECT_DURATION_MS) {
 					this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
+					this._onFatalDisconnect.fire({ code: evt.code, reason: evt.reason || 'Reconnect timeout' });
 					this._cleanup();
 					return;
 				}

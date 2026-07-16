@@ -102,7 +102,13 @@ import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chat
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
-import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from './speechToText/chatSpeechToTextService.js';
+import { IRemoteChatSpeechToTextService, RemoteChatSpeechToTextService } from './speechToText/remoteChatSpeechToTextService.js';
+import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
+import { AudioCaptureLeaseService, IAudioCaptureLeaseService } from './voiceClient/audioCaptureLeaseService.js';
+import { ChatDictationController, IChatDictationController } from './speechToText/dictationSession.js';
+import { ChatDictationNotificationContribution } from './chatDictationNotification.js';
+import { DictationAudioCaptureFactory, IDictationAudioCaptureFactory } from './speechToText/dictationAudioCapture.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
@@ -257,6 +263,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
 			default: product.quality !== 'stable',
+			tags: ['experimental']
+		},
+		[REMOTE_ENABLED_SETTING]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.experimental.dictation.enabled', "Enables dictating into the Copilot Chat input using the hosted transcription service. Dictated text remains editable and is never sent automatically. When enabled, this setting takes precedence over on-device speech-to-text."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental']
 		},
 		'chat.speechToText.model': {
@@ -2752,6 +2765,7 @@ registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingSta
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatQuotaNotificationContribution.ID, ChatQuotaNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatPromoNotificationContribution.ID, ChatPromoNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatDictationNotificationContribution.ID, ChatDictationNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(HasByokModelsContribution.ID, HasByokModelsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
@@ -2816,6 +2830,11 @@ agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDi
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatSpeechToTextService, ChatSpeechToTextService, InstantiationType.Eager);
+registerSingleton(IChatDictationController, ChatDictationController, InstantiationType.Delayed);
+registerSingleton(IRemoteChatSpeechToTextService, RemoteChatSpeechToTextService, InstantiationType.Delayed);
+registerSingleton(IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient, InstantiationType.Delayed);
+registerSingleton(IAudioCaptureLeaseService, AudioCaptureLeaseService, InstantiationType.Delayed);
+registerSingleton(IDictationAudioCaptureFactory, DictationAudioCaptureFactory, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

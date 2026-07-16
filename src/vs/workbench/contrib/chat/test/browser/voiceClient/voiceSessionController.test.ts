@@ -29,6 +29,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
+import { AudioCaptureLeaseService } from '../../../browser/voiceClient/audioCaptureLeaseService.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IVoiceClientService, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
@@ -132,6 +133,7 @@ suite('VoiceSessionController', () => {
 			new class extends mock<IAccessibilitySignalService>() { }(),
 			new class extends mock<IAccessibilityService>() { }(),
 			new TestChatWidgetService(),
+			new AudioCaptureLeaseService(),
 			new class extends mock<INotificationService>() { }(),
 		));
 	}

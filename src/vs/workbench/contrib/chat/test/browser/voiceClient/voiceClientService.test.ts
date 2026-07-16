@@ -16,6 +16,7 @@ import { IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
+	static throwOnConstruct = false;
 
 	readyState: number = WebSocket.OPEN;
 	readonly sent: Record<string, unknown>[] = [];
@@ -25,6 +26,9 @@ class TestWebSocket {
 	onclose: ((event: CloseEvent) => void) | null = null;
 
 	constructor() {
+		if (TestWebSocket.throwOnConstruct) {
+			throw new Error('WebSocket unavailable');
+		}
 		TestWebSocket.instance = this;
 	}
 
@@ -68,6 +72,7 @@ suite('VoiceClientService', () => {
 
 	setup(() => {
 		TestWebSocket.instance = undefined;
+		TestWebSocket.throwOnConstruct = false;
 	});
 
 	function createService(configuration: Record<string, unknown> = {}): { service: VoiceClientService; configurationService: TestConfigurationService } {
@@ -373,5 +378,67 @@ suite('VoiceClientService', () => {
 				voice: 'daniel_neutral',
 			}],
 		});
+	});
+
+	test('reports terminal connection closes', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+		const terminalEvents: { code: number; reason: string }[] = [];
+		store.add(service.onFatalDisconnect(event => terminalEvents.push(event)));
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onclose) {
+			throw new Error('Voice WebSocket was not created');
+		}
+
+		socket.onclose(new mainWindow.CloseEvent('close', {
+			code: 4001,
+			reason: 'Authentication failed',
+		}));
+
+		assert.deepStrictEqual(terminalEvents, [{ code: 4001, reason: 'Authentication failed' }]);
+	});
+
+	test('reports unsolicited clean closes as terminal', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(new TestConfigurationService(), new NullLogService(), productService));
+		const terminalEvents: { code: number; reason: string }[] = [];
+		store.add(service.onFatalDisconnect(event => terminalEvents.push(event)));
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onclose) {
+			throw new Error('Voice WebSocket was not created');
+		}
+
+		socket.onclose(new mainWindow.CloseEvent('close', { code: 1000 }));
+
+		assert.deepStrictEqual(terminalEvents, [{ code: 1000, reason: '' }]);
+	});
+
+	test('reports synchronous WebSocket construction failures as terminal', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(new TestConfigurationService(), new NullLogService(), productService));
+		const terminalEvents: { code: number; reason: string }[] = [];
+		store.add(service.onFatalDisconnect(event => terminalEvents.push(event)));
+		TestWebSocket.throwOnConstruct = true;
+
+		await service.connect(createTestWindow());
+		assert.deepStrictEqual(terminalEvents, [{ code: 0, reason: 'WebSocket connection failed' }]);
 	});
 });
