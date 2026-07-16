@@ -322,15 +322,25 @@ suite('Request Service', () => {
 		assert.strictEqual(attemptCount, 1, 'PATCH request should not have been retried');
 	});
 
-	// Redirect handling for a mock request that returns a 3xx with a `location`, then a 200.
-	const redirectingRawRequest = (capturedHeaders: (IHeaders | undefined)[], location: string): IRawRequestFunction => {
+	// Redirect handling for a mock request that returns a 3xx with a `location`, then a 200. Each
+	// hop records the request headers AND the resolved target (protocol/host/port/path) derived
+	// from the options the request stack computed, so tests can assert the follow-up request used
+	// the URL resolved against the current URL — not the raw `location` header.
+	interface ICapturedRedirectRequest {
+		headers: IHeaders | undefined;
+		protocol: string | undefined;
+		hostname: string | undefined;
+		port: number | undefined;
+		path: string | undefined;
+	}
+	const redirectingRawRequest = (captured: ICapturedRedirectRequest[], location: string): IRawRequestFunction => {
 		return ((opts: any, callback: (res: any) => void) => {
-			capturedHeaders.push(opts.headers);
+			captured.push({ headers: opts.headers, protocol: opts.protocol, hostname: opts.hostname, port: opts.port, path: opts.path });
 			// Choose the response by how many requests have been made so far (via the shared
-			// `capturedHeaders` array) rather than a closure-local counter: the redirect follow
-			// re-invokes `getRawRequest` and builds a fresh closure per hop, so a local counter
-			// would reset and redirect forever.
-			const res = capturedHeaders.length === 1
+			// `captured` array) rather than a closure-local counter: the redirect follow re-invokes
+			// `getRawRequest` and builds a fresh closure per hop, so a local counter would reset and
+			// redirect forever.
+			const res = captured.length === 1
 				? { statusCode: 302, headers: { location }, on: () => { }, pipe: () => ({ on: () => { } }) }
 				: { statusCode: 200, headers: {}, on: () => { }, pipe: () => ({ on: () => { } }) };
 			const mockReq: any = {
@@ -343,35 +353,77 @@ suite('Request Service', () => {
 		}) as unknown as IRawRequestFunction;
 	};
 
-	test('strips the Authorization header when following a cross-origin redirect', async () => {
-		const capturedHeaders: (IHeaders | undefined)[] = [];
+	test('strips origin credential headers when following a cross-origin redirect', async () => {
+		const captured: ICapturedRedirectRequest[] = [];
 		await nodeRequest({
 			url: 'https://market.example.com/api/asset',
 			type: 'GET',
-			headers: { Authorization: 'Bearer secret-token', 'Proxy-Authorization': 'proxy-secret', 'X-Other': 'keep' },
-			getRawRequest: () => redirectingRawRequest(capturedHeaders, 'https://cdn.other.example/asset.vsix'),
+			headers: { Authorization: 'auth-value-1', Cookie: 'sid=abc', 'Proxy-Authorization': 'proxy-value', 'X-Other': 'keep' },
+			getRawRequest: () => redirectingRawRequest(captured, 'https://cdn.other.example/asset.vsix'),
 			callSite: 'requestService.test.redirectCrossOrigin'
 		}, CancellationToken.None);
 
-		assert.strictEqual(capturedHeaders.length, 2, 'Expected an initial request and one redirect');
-		assert.strictEqual(capturedHeaders[0]?.['Authorization'], 'Bearer secret-token', 'Initial request should carry Authorization');
-		assert.strictEqual(capturedHeaders[1]?.['Authorization'], undefined, 'Cross-origin redirect must not forward Authorization');
-		assert.strictEqual(capturedHeaders[1]?.['Proxy-Authorization'], 'proxy-secret', 'Proxy-Authorization is bound to the proxy, not the origin, and is preserved');
-		assert.strictEqual(capturedHeaders[1]?.['X-Other'], 'keep', 'Non-credential headers are preserved across the redirect');
+		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
+		assert.strictEqual(captured[0]?.headers?.['Authorization'], 'auth-value-1', 'Initial request should carry Authorization');
+		assert.strictEqual(captured[1]?.protocol, 'https:', 'Redirect must be followed to the resolved target');
+		assert.strictEqual(captured[1]?.hostname, 'cdn.other.example', 'Redirect must go to the resolved cross-origin host, not the original host');
+		assert.strictEqual(captured[1]?.headers?.['Authorization'], undefined, 'Cross-origin redirect must not forward Authorization');
+		assert.strictEqual(captured[1]?.headers?.['Cookie'], undefined, 'Cross-origin redirect must not forward Cookie');
+		assert.strictEqual(captured[1]?.headers?.['Proxy-Authorization'], 'proxy-value', 'Proxy-Authorization is bound to the proxy, not the origin, and is preserved');
+		assert.strictEqual(captured[1]?.headers?.['X-Other'], 'keep', 'Non-credential headers are preserved across the redirect');
 	});
 
-	test('preserves the Authorization header across a same-origin (relative) redirect', async () => {
-		const capturedHeaders: (IHeaders | undefined)[] = [];
+	test('preserves origin credential headers across a same-origin (relative) redirect', async () => {
+		const captured: ICapturedRedirectRequest[] = [];
 		await nodeRequest({
 			url: 'https://market.example.com/api/asset',
 			type: 'GET',
-			headers: { Authorization: 'Bearer secret-token' },
-			// Relative location resolves against the current URL → same origin → header kept.
-			getRawRequest: () => redirectingRawRequest(capturedHeaders, '/api/asset/v2'),
+			headers: { Authorization: 'auth-value-1', Cookie: 'sid=abc' },
+			// Relative location resolves against the current URL → same origin → headers kept. The
+			// follow-up must request the RESOLVED absolute URL (host + resolved path), not the raw
+			// relative `location` (which the request stack could not fetch on its own).
+			getRawRequest: () => redirectingRawRequest(captured, '/api/asset/v2'),
 			callSite: 'requestService.test.redirectSameOrigin'
 		}, CancellationToken.None);
 
-		assert.strictEqual(capturedHeaders.length, 2, 'Expected an initial request and one redirect');
-		assert.strictEqual(capturedHeaders[1]?.['Authorization'], 'Bearer secret-token', 'Same-origin redirect keeps the Authorization header');
+		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
+		assert.strictEqual(captured[1]?.hostname, 'market.example.com', 'Relative redirect resolves against the current origin');
+		assert.strictEqual(captured[1]?.path, '/api/asset/v2', 'Relative redirect resolves the path against the current URL');
+		assert.strictEqual(captured[1]?.headers?.['Authorization'], 'auth-value-1', 'Same-origin redirect keeps the Authorization header');
+		assert.strictEqual(captured[1]?.headers?.['Cookie'], 'sid=abc', 'Same-origin redirect keeps the Cookie header');
+	});
+
+	test('strips origin credentials when a protocol-relative redirect changes origin', async () => {
+		const captured: ICapturedRedirectRequest[] = [];
+		await nodeRequest({
+			// A protocol-relative `//host` location must resolve using the current scheme AND be
+			// recognized as cross-origin; a naive raw-header follow would mis-handle host/scheme.
+			url: 'https://market.example.com/api/asset',
+			type: 'GET',
+			headers: { Authorization: 'auth-value-1' },
+			getRawRequest: () => redirectingRawRequest(captured, '//cdn.other.example/asset.vsix'),
+			callSite: 'requestService.test.redirectProtocolRelative'
+		}, CancellationToken.None);
+
+		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
+		assert.strictEqual(captured[1]?.protocol, 'https:', 'Protocol-relative redirect adopts the current scheme');
+		assert.strictEqual(captured[1]?.hostname, 'cdn.other.example', 'Protocol-relative redirect resolves to the new host');
+		assert.strictEqual(captured[1]?.headers?.['Authorization'], undefined, 'Protocol-relative cross-origin redirect must not forward Authorization');
+	});
+
+	test('does not follow a redirect to a non-HTTP(S) scheme', async () => {
+		const captured: ICapturedRedirectRequest[] = [];
+		const context = await nodeRequest({
+			url: 'https://market.example.com/api/asset',
+			type: 'GET',
+			headers: { Authorization: 'auth-value-1' },
+			// A `Location` on a foreign scheme must never be fetched by the HTTP stack; the 3xx is
+			// surfaced as the final response instead.
+			getRawRequest: () => redirectingRawRequest(captured, 'file:///etc/passwd'),
+			callSite: 'requestService.test.redirectNonHttp'
+		}, CancellationToken.None);
+
+		assert.strictEqual(captured.length, 1, 'A non-HTTP(S) redirect target must not be followed');
+		assert.strictEqual(context.res.statusCode, 302, 'The 3xx response is surfaced as the final response');
 	});
 });

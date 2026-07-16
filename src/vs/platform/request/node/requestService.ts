@@ -173,24 +173,41 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 }
 
 /**
- * Whether following `location` from `currentUrl` crosses to a different origin (scheme + host +
- * port, with default ports normalized). Fails safe: an unparseable URL is treated as cross-origin
- * so credentials are stripped rather than forwarded to a target we cannot verify.
+ * Resolves a redirect `location` (which may be relative or protocol-relative) against the request
+ * URL and classifies whether following it crosses to a different origin (scheme + host + port, with
+ * default ports normalized). Returns `undefined` when the target is unparseable or uses a
+ * non-HTTP(S) scheme, signalling that the redirect must not be followed.
+ *
+ * Resolving once and returning the SAME absolute URL that the origin check was made against is
+ * essential: validating the resolved URL but then re-requesting the raw `location` header would let
+ * a relative (`/path`) or protocol-relative (`//host/path`) redirect send credentials to an origin
+ * the cross-origin check never saw (node's URL parser mis-resolves a bare path to no host, and a
+ * protocol-relative target silently downgrades the scheme). The caller therefore uses `url` for the
+ * follow-up request, not the raw header.
  */
-function isCrossOriginRedirect(currentUrl: string, location: string): boolean {
+function resolveRedirectTarget(currentUrl: string, location: string): { url: string; crossOrigin: boolean } | undefined {
+	let from: URL;
+	let to: URL;
 	try {
-		const from = new URL(currentUrl);
-		const to = new URL(location, currentUrl); // resolves relative redirect targets
-		return from.origin !== to.origin;
+		from = new URL(currentUrl);
+		to = new URL(location, currentUrl); // resolves relative / protocol-relative redirect targets
 	} catch {
-		return true;
+		return undefined;
 	}
+	// Only ever follow HTTP(S) redirects. A `Location` pointing at another scheme (`file:`, `data:`,
+	// a custom app scheme, …) must never be fetched by the HTTP request stack.
+	if (to.protocol !== 'http:' && to.protocol !== 'https:') {
+		return undefined;
+	}
+	return { url: to.toString(), crossOrigin: from.origin !== to.origin };
 }
 
 /**
- * Returns a copy of `headers` with origin credential headers removed (case-insensitive
- * `Authorization`). `Proxy-Authorization` is intentionally preserved: it authenticates to the
- * forward proxy, which does not change when the origin server issues a redirect.
+ * Returns a copy of `headers` with origin-bound credential headers removed (case-insensitive
+ * `Authorization`, `Cookie`, and `Cookie2`). These authenticate to the origin server, which is a
+ * different host after a cross-origin redirect, so forwarding them would leak credentials to the new
+ * host. `Proxy-Authorization` is intentionally preserved: it authenticates to the forward proxy,
+ * which does not change when the origin server issues a redirect.
  */
 function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders | undefined {
 	if (!headers) {
@@ -198,7 +215,8 @@ function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders |
 	}
 	const result: IHeaders = {};
 	for (const name of Object.keys(headers)) {
-		if (name.toLowerCase() === 'authorization') {
+		const lower = name.toLowerCase();
+		if (lower === 'authorization' || lower === 'cookie' || lower === 'cookie2') {
 			continue;
 		}
 		result[name] = headers[name];
@@ -259,17 +277,26 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-				const location = res.headers['location'];
+			const location = res.headers['location'];
+			// Resolve the redirect target ONCE against the current URL. `resolveRedirectTarget`
+			// returns `undefined` for an unparseable or non-HTTP(S) `location`, in which case we do
+			// NOT follow it and fall through to surface the 3xx response as-is (fails closed: no
+			// credentials are sent to a target we could not verify).
+			const redirectTarget = (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && location)
+				? resolveRedirectTarget(options.url!, location)
+				: undefined;
+			if (redirectTarget) {
 				// On a cross-origin redirect, never forward origin credentials to the new host: an
-				// `Authorization` bearer/basic secret is bound to the original origin (this mirrors
-				// WHATWG fetch, which strips `Authorization` on cross-origin redirects, and curl,
-				// which does not resend credentials to a different host). Same-origin redirects keep
-				// the header so authenticated flows that legitimately redirect within one origin work.
-				const crossOrigin = isCrossOriginRedirect(options.url!, location);
+				// `Authorization` bearer/basic secret (and any explicit `Cookie`) is bound to the
+				// original origin (this mirrors WHATWG fetch, which strips these on cross-origin
+				// redirects, and curl, which does not resend credentials to a different host).
+				// Same-origin redirects keep the headers so authenticated flows that legitimately
+				// redirect within one origin work. The follow-up request uses the resolved absolute
+				// URL the origin check was made against — never the raw `location` header.
+				const crossOrigin = redirectTarget.crossOrigin;
 				nodeRequest({
 					...options,
-					url: location,
+					url: redirectTarget.url,
 					followRedirects: followRedirects - 1,
 					headers: crossOrigin ? stripOriginCredentialHeaders(options.headers) : options.headers,
 					user: crossOrigin ? undefined : options.user,
