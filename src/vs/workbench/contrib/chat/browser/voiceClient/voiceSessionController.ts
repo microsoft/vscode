@@ -2813,8 +2813,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// user already heard stays silent until it changes or resolves.
 				const confirmationAlreadyHeard = narratable.kind === 'confirmation'
 					&& this._narratedConfirmation.get(sessionKey) === narratable.text;
+				// Only narrate a response on focus when it's a completion recorded
+				// THIS run - i.e. the session owns a pending-response summary, set on
+				// the observed idle transition in _handleNarratableStateChange. A
+				// resident model surfaced by focus or eager-load carries whatever
+				// reply it last held, including one that completed before we started
+				// tracking (e.g. an old session revealed by a list/filter change);
+				// that predates our observation and must not be read out. The
+				// pending-summary token is the per-turn freshness signal (the same one
+				// that drives the unread-reply indicator), so focus narrates exactly
+				// the replies that show as unread. Confirmations are exempt: they are
+				// current actionable state, deduped separately by _narratedConfirmation.
+				const staleResponse = narratable.kind === 'response'
+					&& !this._pendingResponseSummaries.has(sessionKey);
 				if (confirmationAlreadyHeard) {
 					this.logService.trace(`[voice] activate skip: confirmation already heard for ${key.slice(-32)}`);
+				} else if (staleResponse) {
+					this.logService.trace(`[voice] activate skip: stale response (no pending summary) for ${key.slice(-32)}`);
 				} else {
 					this._narrate(key, narratable.kind, narratable.text);
 				}
