@@ -121,8 +121,8 @@ describe('ExternalEditTracker', () => {
 	});
 
 	describe('acknowledgment handling', () => {
-		// Stream whose externalEdit records the edit but never invokes the proceed callback and
-		// never resolves — reproducing core dropping the externalEdit acknowledgment (#320292).
+		// Stream whose externalEdit never invokes the proceed callback and never resolves —
+		// reproducing core dropping the externalEdit acknowledgment (#320292).
 		class SilentExternalEditStream extends SpyChatResponseStream {
 			override externalEdit(): Promise<string> {
 				return new Promise<string>(() => { /* never resolves, callback never invoked */ });
@@ -218,6 +218,42 @@ describe('ExternalEditTracker', () => {
 			expect(stream.callbackResolved).toBe(true);
 
 			tokenSource.dispose();
+		});
+	});
+
+	describe('multiple files per edit key', () => {
+		// Stream that acknowledges each edit immediately but keeps it open until the tracked deferred
+		// resolves (mirroring core). `resolvedCount` only increments once a file's proceed callback
+		// returns, so it proves how many of the key's files were actually released.
+		class MultiFileAckStream extends SpyChatResponseStream {
+			resolvedCount = 0;
+			override async externalEdit(_target: vscode.Uri | vscode.Uri[], callback: () => Thenable<unknown>): Promise<string> {
+				await callback();
+				this.resolvedCount++;
+				return 'edit-id';
+			}
+		}
+
+		it('completeEdit releases every file tracked under the same edit key', async () => {
+			// The Copilot CLI path calls trackEdit once per file with the same tool call id. Each file
+			// must keep its own edit open — overwriting on the shared key would strand the earlier
+			// file's proceed callback and leak core's per-resource streaming-edit lock (#320292).
+			const tracker = new ExternalEditTracker([], 1000);
+			const stream = new MultiFileAckStream();
+			const file1 = URI.file('/workspace/src/client.go');
+			const file2 = URI.file('/workspace/src/serve.go');
+
+			await tracker.trackEdit('tool-1', [file1], stream, CancellationToken.None);
+			await tracker.trackEdit('tool-1', [file2], stream, CancellationToken.None);
+
+			// Both edits are acknowledged but still open, awaiting completion.
+			expect(stream.resolvedCount).toBe(0);
+
+			const editId = await tracker.completeEdit('tool-1');
+
+			// Completing the shared key must release both files, not just the last one tracked.
+			expect(stream.resolvedCount).toBe(2);
+			expect(editId).toBe('edit-id');
 		});
 	});
 });
