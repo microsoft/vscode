@@ -81,4 +81,22 @@ suite('exchangeMarketplaceResourceToken', () => {
 			{ result: undefined, posts: 0 }
 		);
 	});
+
+	test('returns the exchanged token and its advertised lifetime on success', async () => {
+		const cts = store.add(new CancellationTokenSource());
+		const metadata = { issuer: authorizationServer, token_endpoint: `${authorizationServer}/token`, response_types_supported: ['code'] };
+		const service = new TestRequestService(options => {
+			if ((options.type ?? 'GET') === 'GET') {
+				return jsonContext(200, metadata);
+			}
+			return jsonContext(200, { access_token: 'exchanged', token_type: 'Bearer', expires_in: 1800 });
+		});
+
+		const result = await exchangeMarketplaceResourceToken(service, protectedResource, 'subject', () => true, cts.token);
+
+		assert.deepStrictEqual(
+			{ result, posts: service.postCount },
+			{ result: { accessToken: 'exchanged', expiresInSeconds: 1800 }, posts: 1 }
+		);
+	});
 });

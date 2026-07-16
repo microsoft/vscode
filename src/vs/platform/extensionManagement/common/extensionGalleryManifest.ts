@@ -234,8 +234,10 @@ export async function discoverMarketplaceProtectedResource(
  * endpoint — never to the resource server. Both the authorization server and its discovered token
  * endpoint are validated with `isSafeTarget` (fail-closed) before the token is sent, so a
  * compromised or misconfigured PRM cannot exfiltrate the GitHub token to a foreign/cleartext
- * origin. Returns `undefined` (never throws) when discovery or the exchange fails, so callers fall
- * back to their existing sign-in handling.
+ * origin. On success returns the minted `accessToken` together with its advertised lifetime
+ * (`expiresInSeconds`, from the token response's `expires_in`) so the caller can schedule a
+ * proactive re-mint before it expires. Returns `undefined` (never throws) when discovery or the
+ * exchange fails, so callers fall back to their existing sign-in handling.
  */
 export async function exchangeMarketplaceResourceToken(
 	requestService: IRequestService,
@@ -243,7 +245,7 @@ export async function exchangeMarketplaceResourceToken(
 	subjectToken: string,
 	isSafeTarget: (targetUrl: string) => boolean,
 	token: CancellationToken,
-): Promise<string | undefined> {
+): Promise<{ accessToken: string; expiresInSeconds?: number } | undefined> {
 	if (!isSafeTarget(protectedResource.authorizationServer)) {
 		return undefined;
 	}
@@ -290,7 +292,7 @@ export async function exchangeMarketplaceResourceToken(
 		}
 		const response = await asJson<IAuthorizationTokenResponse>(context);
 		if (response && isAuthorizationTokenResponse(response) && response.access_token) {
-			return response.access_token;
+			return { accessToken: response.access_token, expiresInSeconds: response.expires_in };
 		}
 		return undefined;
 	} catch {

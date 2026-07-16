@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -123,6 +125,21 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private static readonly MICROSOFT_AUTH_SCOPES = PRIVATE_MARKETPLACE_SCOPES;
 	private static readonly CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 
+	// Proactive-refresh schedule for the negotiated GitHub resource token. The exchanged token
+	// carries an `expires_in`; we re-mint at a fraction of its lifetime so a fresh token is in
+	// place before the current one expires (the marketplace never sees an expired bearer). When
+	// the server omits `expires_in` we fall back to a conservative default lifetime rather than
+	// leaving the token to expire silently.
+	private static readonly GITHUB_TOKEN_REFRESH_FRACTION = 0.75;
+	private static readonly GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS = 3600;
+	private static readonly GITHUB_TOKEN_MIN_REFRESH_MS = 60_000;
+	private static readonly GITHUB_TOKEN_MAX_REFRESH_MS = 6 * 60 * 60 * 1000;
+	// Capped exponential backoff used when a proactive re-mint fails: rather than giving up (which
+	// would wedge the marketplace until a window reload), we keep retrying so the token self-heals
+	// once connectivity/identity is restored.
+	private static readonly GITHUB_TOKEN_RETRY_MIN_MS = 30_000;
+	private static readonly GITHUB_TOKEN_RETRY_MAX_MS = 5 * 60 * 1000;
+
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
 
@@ -164,6 +181,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// refreshes — can distinguish a genuine account switch/sign-out (tear down + revalidate) from a
 	// same-account refresh (revalidate in place, no flash, cache preserved).
 	private currentGitHubAccountIdentity: string | undefined;
+
+	// Timer that proactively re-mints the negotiated GitHub resource token before it expires (see
+	// the GITHUB_TOKEN_* constants). Armed on every successful negotiation and re-armed after each
+	// refresh; cleared at the single teardown choke point in `update(null)` so it never outlives an
+	// Available session. `gitHubTokenRefreshBackoffMs` tracks the current retry backoff (0 while
+	// healthy) so a run of failed re-mints escalates its delay up to the retry cap.
+	private readonly gitHubTokenRefreshTimer = this._register(new MutableDisposable<IDisposable>());
+	private gitHubTokenRefreshBackoffMs = 0;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -473,6 +498,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				let manifest: IExtensionGalleryManifest;
 				let indexToken: string | undefined;
 				let indexWasNegotiated = false;
+				let indexExpiresInSeconds: number | undefined;
 				try {
 					const negotiated = await this.fetchServiceIndexNegotiated(
 						configuredServiceUrl,
@@ -486,6 +512,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 					manifest = negotiated.manifest;
 					indexToken = negotiated.token;
 					indexWasNegotiated = negotiated.negotiated;
+					indexExpiresInSeconds = negotiated.expiresInSeconds;
 				} catch (error) {
 					if (this.validationEpoch !== epoch) {
 						return;
@@ -524,6 +551,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// update(null, …) and clears it.
 				if (indexWasNegotiated && indexToken) {
 					this.negotiatedAccessToken = indexToken;
+					// Proactively re-mint the resource token before it expires so the marketplace is
+					// never wedged by a silently expired bearer. A failed re-mint self-heals via a
+					// capped-backoff retry (no window reload needed).
+					this.scheduleGitHubTokenRefresh(configuredServiceUrl, indexExpiresInSeconds);
 				}
 				this.update(manifest);
 				this.telemetryService.publicLog2<
@@ -578,17 +609,86 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				return;
 			}
 			// Only adopt a freshly negotiated (gated-index) token; on an open index there is nothing
-			// to refresh. A failed refresh throws and is swallowed below, leaving the current token
+			// to refresh. A failed refresh throws and is handled below, leaving the current token
 			// intact.
 			if (negotiated.negotiated && negotiated.token) {
 				this.updateNegotiatedAccessToken(negotiated.token);
+				// Success: reset the failure backoff and schedule the next proactive re-mint from
+				// the freshly advertised lifetime.
+				this.scheduleGitHubTokenRefresh(configuredServiceUrl, negotiated.expiresInSeconds);
 			}
 		} catch (error) {
 			// A failed background token refresh must NOT break a working marketplace — keep the
-			// current token/status. If the resource token has genuinely expired, a subsequent API
-			// 401 or a later account change / window reload re-runs full validation.
-			this.logService.trace('[Marketplace] Background refresh of the negotiated GitHub marketplace token failed; keeping current access', error);
+			// current token/status. Rather than giving up (which would let the resource token
+			// silently expire and wedge the marketplace until a window reload), re-arm on a capped
+			// backoff so the re-mint self-heals once connectivity/identity is restored. Only re-arm
+			// while access is still live for this validation — a concurrent sign-out/account switch
+			// bumps the epoch and clears the timer via `update(null)`, and must win.
+			this.logService.trace('[Marketplace] Background refresh of the negotiated GitHub marketplace token failed; will retry', error);
+			if (this.validationEpoch === epoch
+				&& this.currentStatus === ExtensionGalleryManifestStatus.Available
+				&& this.negotiatedAccessToken) {
+				this.rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl);
+			}
 		}
+	}
+
+	/**
+	 * Schedules the next PROACTIVE re-mint of the negotiated GitHub resource token, timed at a
+	 * fraction ({@link GITHUB_TOKEN_REFRESH_FRACTION}) of the token's advertised lifetime so a fresh
+	 * token is in place before the current one expires. Resets the failure backoff — this is the
+	 * healthy path. When the server omits `expires_in`, a conservative default lifetime is used so
+	 * the token is still refreshed rather than left to expire silently. Replacing the
+	 * {@link MutableDisposable} value disposes any previously armed timer.
+	 */
+	private scheduleGitHubTokenRefresh(configuredServiceUrl: string, expiresInSeconds: number | undefined): void {
+		this.gitHubTokenRefreshBackoffMs = 0;
+		const lifetimeSeconds = expiresInSeconds && expiresInSeconds > 0
+			? expiresInSeconds
+			: WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS;
+		const delay = Math.min(
+			WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MAX_REFRESH_MS,
+			Math.max(
+				WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MIN_REFRESH_MS,
+				Math.floor(lifetimeSeconds * 1000 * WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_REFRESH_FRACTION),
+			),
+		);
+		this.armGitHubTokenRefresh(configuredServiceUrl, delay);
+	}
+
+	/**
+	 * Re-arms the proactive refresh after a failed re-mint using a capped exponential backoff
+	 * (30s → doubling → 5m), so a transient outage or a briefly-unavailable identity keeps being
+	 * retried instead of permanently wedging the marketplace.
+	 */
+	private rearmGitHubTokenRefreshAfterFailure(configuredServiceUrl: string): void {
+		const next = this.gitHubTokenRefreshBackoffMs === 0
+			? WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_RETRY_MIN_MS
+			: Math.min(this.gitHubTokenRefreshBackoffMs * 2, WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_RETRY_MAX_MS);
+		this.gitHubTokenRefreshBackoffMs = next;
+		this.armGitHubTokenRefresh(configuredServiceUrl, next);
+	}
+
+	/**
+	 * Arms the single proactive-refresh timer. The timer fires with a freshly bumped validation
+	 * epoch (matching the reactive session-change refresh) so a concurrent stale validation is
+	 * superseded; a sign-out/account switch that clears access first will have disposed this timer
+	 * via `update(null)`.
+	 */
+	private armGitHubTokenRefresh(configuredServiceUrl: string, delayMs: number): void {
+		this.gitHubTokenRefreshTimer.value = this.scheduleGitHubTokenRefreshTimeout(
+			() => this.refreshNegotiatedGitHubToken(configuredServiceUrl, ++this.validationEpoch),
+			delayMs,
+		);
+	}
+
+	/**
+	 * Seam over `disposableTimeout` so tests can drive the proactive-refresh schedule
+	 * deterministically (capturing the delay and firing the callback on demand) without waiting on
+	 * real wall-clock timers. Production uses the real timer.
+	 */
+	protected scheduleGitHubTokenRefreshTimeout(handler: () => void, delayMs: number): IDisposable {
+		return disposableTimeout(handler, delayMs);
 	}
 
 	private checkAccess(account: IDefaultAccount): 'eligible' | 'ineligible' | 'unknown' {
@@ -707,7 +807,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 						protectedResource,
 						WorkbenchExtensionGalleryManifestService.MICROSOFT_AUTH_SCOPES,
 					);
-					return resourceSession?.accessToken;
+					// The Microsoft/MSAL provider owns refresh of its own sessions (via getSessions +
+					// onDidChangeSessions), so no proactive expiry scheduling is needed here — leave
+					// `expiresInSeconds` undefined.
+					return resourceSession ? { token: resourceSession.accessToken } : undefined;
 				},
 				() => this.validationEpoch === epoch,
 			);
@@ -872,9 +975,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	private async fetchServiceIndexNegotiated(
 		configuredServiceUrl: string,
 		initialToken: string | undefined,
-		acquireToken: (protectedResource: IMarketplaceProtectedResource) => Promise<string | undefined>,
+		acquireToken: (protectedResource: IMarketplaceProtectedResource) => Promise<{ token: string; expiresInSeconds?: number } | undefined>,
 		isCurrent: () => boolean = () => true,
-	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean }> {
+	): Promise<{ manifest: IExtensionGalleryManifest; token: string | undefined; negotiated: boolean; expiresInSeconds?: number }> {
 		try {
 			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, initialToken);
 			return { manifest, token: initialToken, negotiated: false };
@@ -902,8 +1005,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// authorization server. Bail; the caller's epoch guard discards this cancellation.
 				throw new CancellationError();
 			}
-			const token = await acquireToken(protectedResource);
-			if (!token) {
+			const acquired = await acquireToken(protectedResource);
+			if (!acquired) {
 				// No resource-scoped token could be obtained silently (e.g. consent not yet
 				// granted, or a token exchange that could not complete) — re-throw the original
 				// 401 so the caller prompts for sign-in rather than mislabeling it.
@@ -914,8 +1017,8 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// for an identity that may no longer be current.
 				throw new CancellationError();
 			}
-			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, token);
-			return { manifest, token, negotiated: true };
+			const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl, acquired.token);
+			return { manifest, token: acquired.token, negotiated: true, expiresInSeconds: acquired.expiresInSeconds };
 		}
 	}
 
@@ -974,17 +1077,18 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		configuredServiceUrl: string,
 		protectedResource: IMarketplaceProtectedResource,
 		subjectToken: string | undefined,
-	): Promise<string | undefined> {
+	): Promise<{ token: string; expiresInSeconds?: number } | undefined> {
 		if (!subjectToken) {
 			return undefined;
 		}
-		return exchangeMarketplaceResourceToken(
+		const exchanged = await exchangeMarketplaceResourceToken(
 			this.requestService,
 			protectedResource,
 			subjectToken,
 			targetUrl => WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(targetUrl, configuredServiceUrl),
 			CancellationToken.None,
 		);
+		return exchanged ? { token: exchanged.accessToken, expiresInSeconds: exchanged.expiresInSeconds } : undefined;
 	}
 
 	/**
@@ -1252,8 +1356,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// Any transition to a non-Available state (sign-out, account switch, config change,
 			// access denied, unreachable, …) routes through here with a null manifest. Drop the
 			// negotiated resource token so it can never outlive the access that produced it; the
-			// eligible→Available path re-sets it after a successful negotiation.
+			// eligible→Available path re-sets it after a successful negotiation. Cancel the pending
+			// proactive re-mint (and reset its backoff) for the same reason — a fresh negotiation
+			// re-arms it. This is the single teardown choke point for the refresh timer.
 			this.negotiatedAccessToken = undefined;
+			this.gitHubTokenRefreshTimer.clear();
+			this.gitHubTokenRefreshBackoffMs = 0;
 		}
 		if (this.extensionGalleryManifest !== manifest) {
 			this.extensionGalleryManifest = manifest;

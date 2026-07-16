@@ -9,6 +9,7 @@ import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -38,6 +39,26 @@ function mockResponse(statusCode: number, body: object, headers: IHeaders = {}):
 		res: { headers, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
 	};
+}
+
+/**
+ * Test subclass that intercepts the proactive GitHub-token refresh timer so tests can assert the
+ * scheduled delay and fire the refresh deterministically, without waiting on real wall-clock
+ * timers. Each captured entry is disposed (its `disposed` flag flips) when the timer is replaced
+ * (re-scheduled) or when the service is torn down.
+ */
+class TestableGalleryManifestService extends WorkbenchExtensionGalleryManifestService {
+	readonly scheduledRefreshes: Array<{ delayMs: number; fire: () => void; disposed: boolean }> = [];
+
+	get pendingRefreshes(): Array<{ delayMs: number; fire: () => void; disposed: boolean }> {
+		return this.scheduledRefreshes.filter(entry => !entry.disposed);
+	}
+
+	protected override scheduleGitHubTokenRefreshTimeout(handler: () => void, delayMs: number): IDisposable {
+		const entry = { delayMs, fire: handler, disposed: false };
+		this.scheduledRefreshes.push(entry);
+		return toDisposable(() => { entry.disposed = true; });
+	}
 }
 
 function createDefaultAccount(overrides: Partial<IDefaultAccount> = {}): IDefaultAccount {
@@ -1052,6 +1073,94 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+	});
+
+	test('GitHub provider — auth-enabled: the negotiated token is proactively re-minted before it expires and re-scheduled', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		let exchanges = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// Advertise a finite lifetime so a proactive re-mint is scheduled at a fraction of it.
+				return mockResponse(200, { access_token: `gh-resource-token-${++exchanges}`, token_type: 'Bearer', expires_in: 1800 });
+			}
+			// The gated index only yields the manifest once a negotiated token is presented; the
+			// anonymous probe 401s (discovery falls back to well-known PRM, no challenge header).
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token-1');
+
+		// A proactive refresh is scheduled at 75% of the advertised 1800s lifetime.
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [1_350_000]);
+
+		// Firing it re-mints the token in place, pushes it over the channel, and re-schedules — all
+		// without leaving Available (no view flash).
+		service.pendingRefreshes[0].fire();
+		for (let i = 0; i < 50 && await service.getAccessToken() === 'gh-resource-token-1'; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token-2');
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.ok(channelCalls.some(c => c.command === 'setAccessToken' && (c.args as unknown[])?.[0] === 'gh-resource-token-2'), 'expected setAccessToken channel push for the re-minted token');
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [1_350_000]);
+	});
+
+	test('GitHub provider — auth-enabled: a failed proactive re-mint keeps access and retries on a capped backoff', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		let exchanges = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// The initial negotiation succeeds; the proactive refresh exchange fails.
+				exchanges++;
+				return exchanges === 1
+					? mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer', expires_in: 1800 })
+					: mockResponse(500, { message: 'exchange failed' });
+			}
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [1_350_000]);
+
+		// The proactive re-mint fails: access is preserved (the current token may still be valid) and
+		// the refresh re-arms on the retry backoff rather than giving up (which would wedge the
+		// marketplace until a window reload).
+		service.pendingRefreshes[0].fire();
+		for (let i = 0; i < 100 && service.pendingRefreshes[0]?.delayMs !== 30_000; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+		assert.ok(exchanges >= 2, 'the proactive refresh attempted a fresh exchange');
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [30_000]);
 	});
 
 	test('GitHub provider — sign-out during PRM discovery cancels the token exchange (stale subject token not sent)', async () => {
