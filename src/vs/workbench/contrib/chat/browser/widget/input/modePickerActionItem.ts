@@ -80,10 +80,26 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		// Get custom agent target dynamically (may change when switching session types)
 		const getCustomAgentTarget = () => delegate.customAgentTarget?.() ?? Target.Undefined;
 
-		// Category definitions
-		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
-		const customCategory = { label: localize('custom', "Custom"), order: 1 };
+		// Category definitions. Labels match the storage groups of the AI Customization view.
+		const builtInCategory = { label: localize('built-in', "Built-in"), order: 0, showHeader: true };
+		const workspaceCategory = { label: localize('workspaceGroup', "Workspace"), order: 1, showHeader: true };
+		const userCategory = { label: localize('userGroup', "User"), order: 2, showHeader: true };
+		const pluginCategory = { label: localize('pluginGroup', "Plugins"), order: 3, showHeader: true };
+		const extensionCategory = { label: localize('extensionGroup', "Extensions"), order: 4, showHeader: true };
+		const customCategory = { label: localize('custom', "Custom"), order: 5, showHeader: true };
 		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999, showHeader: true };
+
+		// Custom agents are grouped by where they are defined so workspace-local agents are
+		// distinguishable from the ones available across all workspaces.
+		const customAgentCategory = (mode: IChatMode) => {
+			switch (mode.source?.storage) {
+				case PromptsStorage.local: return workspaceCategory;
+				case PromptsStorage.user: return userCategory;
+				case PromptsStorage.plugin: return pluginCategory;
+				case PromptsStorage.extension: return extensionCategory;
+				default: return customCategory;
+			}
+		};
 
 		const agentModeDisabledViaPolicy = configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
 
@@ -171,7 +187,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				tooltip: '',
 				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
-				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
+				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customAgentCategory(mode)
 			};
 		};
 
