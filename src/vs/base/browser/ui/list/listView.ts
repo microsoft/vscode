@@ -8,7 +8,7 @@ import { addDisposableListener, animate, Dimension, getActiveElement, getContent
 import { DomEmitter } from '../../event.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
-import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
+import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
 import { distinct, equals, splice } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout } from '../../../common/async.js';
 import { memoize } from '../../../common/decorators.js';
@@ -233,6 +233,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	readonly domNode: HTMLElement;
 	readonly containerDomNode: HTMLElement;
 	readonly scrollableElementDomNode: HTMLElement;
+	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo;
 	readonly length: number;
 	readonly contentHeight: number;
 	readonly contentWidth: number;
@@ -343,6 +344,7 @@ export class ListView<T> implements IListView<T> {
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
 	get containerDomNode(): HTMLElement { return this.rowsContainer; }
 	get scrollableElementDomNode(): HTMLElement { return this.scrollableElement.getDomNode(); }
+	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo { return this.scrollableElement.getOverviewRulerLayoutInfo(); }
 
 	private _horizontalScrolling: boolean = false;
 	private get horizontalScrolling(): boolean { return this._horizontalScrolling; }

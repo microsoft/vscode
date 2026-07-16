@@ -171,6 +171,11 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			this.previewPointerOver = false;
 			this.schedulePreviewHide();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ScrollbarPromptMarkersMaxCount)) {
+				this.refresh();
+			}
+		}));
 	}
 
 	setVisible(visible: boolean): void {
@@ -504,8 +509,7 @@ export class ChatScrollbarPromptMarkerController extends Disposable {
 			marker.style.width = `${MARKER_INLINE_SIZE}px`;
 			marker.style.insetInlineEnd = '0';
 			marker.style.setProperty('--chat-scrollbar-prompt-marker-resting-width', `${MARKER_INLINE_SIZE}px`);
-			marker.style.setProperty('--chat-scrollbar-prompt-marker-hover-width', `${promptHoverWidthById.get(descriptor.id) ?? MARKER_INLINE_SIZE}px`);
-			marker.style.setProperty('--chat-scrollbar-prompt-marker-magnified-width', `${MAX_PROMPT_HOVER_INLINE_SIZE}px`);
+			marker.style.setProperty('--chat-scrollbar-prompt-marker-magnified-width', `${promptHoverWidthById.get(descriptor.id) ?? MARKER_INLINE_SIZE}px`);
 			marker.style.zIndex = String(descriptor.priority);
 			marker.className = `chat-scrollbar-prompt-marker chat-scrollbar-prompt-marker-type-${descriptor.markerType}`;
 			marker.classList.toggle(

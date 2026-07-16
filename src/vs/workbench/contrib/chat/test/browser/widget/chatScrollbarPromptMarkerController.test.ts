@@ -9,8 +9,9 @@ import { safeIntl } from '../../../../../../base/common/date.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
+import { ChatConfiguration, ChatScrollbarPromptMarkerClickBehavior } from '../../../common/constants.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatScrollbarPromptMarkerController, IChatScrollbarPromptMarkerHost } from '../../../browser/widget/chatScrollbarPromptMarkerController.js';
 
@@ -355,9 +356,39 @@ suite('ChatScrollbarPromptMarkerController', () => {
 
 			assert.strictEqual(shortMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-resting-width'), '8px');
 			assert.strictEqual(longMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-resting-width'), '8px');
-			assert.strictEqual(shortMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-width'), '16px');
-			assert.strictEqual(longMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-hover-width'), '32px');
+			assert.strictEqual(shortMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-magnified-width'), '16px');
 			assert.strictEqual(longMarker.style.getPropertyValue('--chat-scrollbar-prompt-marker-magnified-width'), '32px');
+		});
+
+		test('maximumMarkers setting changes re-render the marker set immediately', async () => {
+			const requestA = makeRequest('r1');
+			const requestB = makeRequest('r2');
+			const requestC = makeRequest('r3');
+			const layoutInfo = makeLayoutInfo(14);
+			const configService = makeConfigService(ChatScrollbarPromptMarkerClickBehavior.Reveal);
+			const host = new FakeHost({
+				renderHeight: 200,
+				scrollHeight: 200,
+				items: [requestA, requestB, requestC],
+				layoutInfo,
+			});
+			const controller = disposables.add(new ChatScrollbarPromptMarkerController(host, configService));
+
+			controller.layout();
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 3);
+
+			await configService.setUserConfiguration(ChatConfiguration.ScrollbarPromptMarkersMaxCount, 2);
+			configService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === ChatConfiguration.ScrollbarPromptMarkersMaxCount,
+				affectedKeys: new Set([ChatConfiguration.ScrollbarPromptMarkersMaxCount]),
+				change: {
+					keys: [ChatConfiguration.ScrollbarPromptMarkersMaxCount],
+					overrides: [],
+				},
+				source: ConfigurationTarget.USER,
+			});
+
+			assert.strictEqual(controller['container'].querySelectorAll('.chat-scrollbar-prompt-marker').length, 2);
 		});
 
 		test('active class follows the visible prompt row id', () => {

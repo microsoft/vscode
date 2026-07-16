@@ -12,6 +12,7 @@ import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { Gesture } from '../../touch.js';
 import { alert, AriaRole } from '../aria/aria.js';
 import { CombinedSpliceable } from './splice.js';
+import { IOverviewRulerLayoutInfo } from '../scrollbar/scrollableElement.js';
 import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
 import { binarySearch, range } from '../../../common/arrays.js';
 import { timeout } from '../../../common/async.js';
@@ -2027,6 +2028,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	getScrollableElement(): HTMLElement {
 		return this.view.scrollableElementDomNode;
+	}
+
+	getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
+		return this.view.getOverviewRulerLayoutInfo();
+	}
+
+	getElementHeight(index: number): number {
+		return this.view.elementHeight(index);
 	}
 
 	getElementID(index: number): string {
