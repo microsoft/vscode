@@ -394,6 +394,8 @@ function areXonshLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 		return xonshLoginArgs.includes(originalArgs.toLowerCase());
 	}
 	return originalArgs.length === 1 && xonshLoginArgs.includes(originalArgs[0].toLowerCase());
+}
+
 /**
  * Patterns that indicate sensitive environment variable names.
  */
