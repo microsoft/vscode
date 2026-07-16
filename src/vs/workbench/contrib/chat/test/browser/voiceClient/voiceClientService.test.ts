@@ -141,6 +141,7 @@ suite('VoiceClientService', () => {
 		}
 		for (const message of [
 			{ type: 'transcription', text: 'invalid status', status: 'pending' },
+			{ type: 'transcription', text: 'unscoped revision', status: 'partial', revision: 1 },
 			{ type: 'transcription', text: 'invalid revision', status: 'partial', turn_id: 'turn-1', revision: 1.5 },
 			{ type: 'transcription', text: 'negative revision', status: 'partial', turn_id: 'turn-1', revision: -1 },
 			{ type: 'transcription', text: 'legacy final' },

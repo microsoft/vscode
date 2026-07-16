@@ -287,7 +287,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					const status = msg.status === undefined ? 'final' : asTranscriptionStatus(msg.status);
 					const turnId = msg.turn_id === undefined ? undefined : asOptionalNonEmptyString(msg.turn_id);
 					const revision = msg.revision === undefined ? undefined : asTranscriptionRevision(msg.revision);
-					if (!status || (msg.turn_id !== undefined && !turnId) || (msg.revision !== undefined && revision === undefined)) {
+					if (!status || (msg.turn_id !== undefined && !turnId) || (msg.revision !== undefined && (!turnId || revision === undefined))) {
 						break;
 					}
 					this._onTranscription.fire({
