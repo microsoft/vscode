@@ -67,6 +67,15 @@ Workbench-level global styles live in `src/vs/workbench/browser/media/`.
 | Missing `min-width: 0` on flex children | Prevents truncation issues |
 | Forgetting `pointer-events: none` on hidden overlays | Prevents click-through bugs |
 
+### Never Add New `!important`
+
+Do not introduce `!important` in new or modified CSS. When a declaration loses
+the cascade, inspect the competing selector and increase specificity with the
+smallest appropriate component, workbench, or state-class prefix instead.
+Existing `!important` declarations may be preserved and must not be removed
+mechanically during unrelated edits. Do not copy them, add new ones, or use
+them to avoid understanding selector ownership.
+
 ## 5. SplitView Layout
 
 **File**: `src/vs/base/browser/ui/splitview/splitview.ts`
