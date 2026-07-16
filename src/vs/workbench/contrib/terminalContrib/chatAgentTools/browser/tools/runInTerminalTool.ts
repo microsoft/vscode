@@ -87,7 +87,7 @@ import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligible
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
-import { compact } from './console-compactor/console-compactor.browser.js';
+import { compact } from './consoleCompactor/consoleCompactor.js';
 
 // #region Tool data
 

@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { classifyCommand, compact } from '../../browser/tools/console-compactor/console-compactor.browser.js';
+import { classifyCommand, compact } from '../../browser/tools/consoleCompactor/consoleCompactor.js';
 
 suite('Console Compactor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

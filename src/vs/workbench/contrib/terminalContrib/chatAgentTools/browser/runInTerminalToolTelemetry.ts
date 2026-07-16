@@ -8,7 +8,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import type { Report } from './tools/console-compactor/console-compactor.browser.js';
+import type { Report } from './tools/consoleCompactor/consoleCompactor.js';
 import { ShellIntegrationQuality } from './toolTerminalCreator.js';
 
 export class RunInTerminalToolTelemetry {
