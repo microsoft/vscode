@@ -168,6 +168,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Internal state ---
 	private _pttHeld = false;
 	private _pttToggleMode = false;
+	/**
+	 * True while a passive hands-free barge-in listen is streaming during the
+	 * assistant's playback (opened by `_startBargeInListen`). It is NOT toggle
+	 * mode — an explicit `pttDown()` promotes this stream into a user-driven
+	 * interrupt rather than finishing it. Cleared once the turn ends, is
+	 * promoted, or transitions to a normal listening turn when playback stops.
+	 */
+	private _bargeInListenActive = false;
 	/** When true, the auto-listen loop is suppressed (user pressed Stop
 	 *  Recording). Cleared on the next explicit `pttDown` or on connect. */
 	private _autoListenSuppressed = false;
@@ -750,6 +758,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				setTimeout(() => this._processQueue(), 500);
 			} else {
 				if (this._pttHeld) {
+					if (this._bargeInListenActive) {
+						// The passive barge-in turn opened during playback is now
+						// a normal listening turn (the user stayed silent through
+						// playback). Behave like an auto-listen turn: a tap stops
+						// it, and the backend's server-VAD ends it via
+						// `turn_auto_ended`.
+						this._bargeInListenActive = false;
+						this._pttToggleMode = true;
+					}
 					this._voiceState.set('listening', undefined);
 					this._statusText.set('Listening...', undefined);
 				} else {
@@ -1401,6 +1418,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.voiceClientService.disconnect();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._bargeInListenActive = false;
 		this._isConnected.set(false, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
@@ -1506,6 +1524,45 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.logService.trace('[voice] pttDown: toggle-mode second tap -> finishing turn');
 			this._pttToggleMode = false;
 			this._finishPtt();
+			return;
+		}
+
+		// Promote a passive barge-in listen into a user-driven interrupt. The
+		// mic is already streaming this turn to the backend (ptt_start already
+		// sent), so we keep the SAME turn — do NOT re-acquire the mic or send a
+		// second ptt_start — and apply the interrupt side effects. Releasing the
+		// button afterwards goes through the normal `pttUp()` path.
+		if (this._bargeInListenActive) {
+			this.logService.trace('[voice] pttDown: promoting passive barge-in listen to user interrupt');
+			this._bargeInListenActive = false;
+			this._autoListenSuppressed = false;
+			this._pttWaitingForPlayback = false;
+			// Re-anchor hold timing to the real press so pttUp's tap/hold split works.
+			this._telemetryPttDownMs = Date.now();
+			this._telemetryFirstTranscriptionMs = undefined;
+			this._telemetryTurnCount++;
+			this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+			if (this._delayedMicStopTimer) {
+				clearTimeout(this._delayedMicStopTimer);
+				this._delayedMicStopTimer = undefined;
+			}
+			this._cancelTranscriptFade();
+			this._startUserTurn();
+			this._audioQueue.length = 0;
+			this._currentPlaybackSessionId = null;
+			this._isProcessingQueue = false;
+			this._suppressIncomingAudio = true;
+			this.ttsPlaybackService.stopPlayback();
+			this._voiceState.set('listening', undefined);
+			this._statusText.set('Listening...', undefined);
+			if (!this._pttMaxDurationTimer) {
+				this._pttMaxDurationTimer = setTimeout(() => {
+					if (this._pttHeld) {
+						this._statusText.set('Max duration reached', undefined);
+						this.pttUp();
+					}
+				}, VoiceSessionController._PTT_MAX_DURATION_MS);
+			}
 			return;
 		}
 
@@ -1626,6 +1683,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _finishPtt(reason: 'local' | 'auto' = 'local'): void {
 		// End toggle (hands-free) mode on every turn-ending path — even when not held — so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
 		this._pttToggleMode = false;
+		this._bargeInListenActive = false;
 		if (!this._pttHeld) { return; }
 		this._clearAutoListenTimer();
 		this._pttHeld = false;
@@ -1770,9 +1828,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttHeld = true;
-		// Toggle mode so the turn stays open until the backend ends it
-		// (`turn_auto_ended`) or the user taps to stop — it must not auto-finish.
-		this._pttToggleMode = true;
+		// Track this as a passive barge-in listen (NOT toggle mode) so an
+		// explicit `pttDown()` promotes it into a user-driven interrupt instead
+		// of the toggle branch finishing it. The turn stays open on its own —
+		// nothing calls `pttUp()`/`_finishPtt()` — until the backend ends it
+		// (`turn_auto_ended`), the user promotes it, or playback stops.
+		this._bargeInListenActive = true;
 		// NOTE: this marks the turn start at playback time, not when the user
 		// actually starts speaking, so voice latency/hold telemetry in
 		// hands-free mode includes playback duration. Accepted known limitation
@@ -1784,7 +1845,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch(err => {
 			this.logService.warn('[voice] barge-in listen failed to start', err);
 			this._pttHeld = false;
-			this._pttToggleMode = false;
+			this._bargeInListenActive = false;
 		});
 	}
 
