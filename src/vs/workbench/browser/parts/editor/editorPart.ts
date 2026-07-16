@@ -199,6 +199,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
 		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
+		this._register(this.layoutService.onDidChangeWindowMaximized(e => {
+			if (e.windowId === this.windowId) {
+				this.relayout();
+			}
+		}));
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -1438,8 +1443,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const outerLeft = owners.left === Parts.EDITOR_PART;
 			const outerRight = owners.right === Parts.EDITOR_PART;
 
-			const leftMargin = outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN;
-			const rightMargin = outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN;
+			const targetWindow = getWindow(this.element);
+			const isMaximized = this.layoutService.isWindowMaximized(targetWindow) || this.layoutService.getContainer(targetWindow).classList.contains('fullscreen');
+
+			const leftMargin = (outerLeft && isMaximized) ? 0 : (outerLeft ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN);
+			const rightMargin = (outerRight && isMaximized) ? 0 : (outerRight ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN);
 
 			width = Math.max(0, width - leftMargin - rightMargin);
 			const { topMargin, bottomMargin } = this.getFloatingPanelHeightInsets();
