@@ -318,6 +318,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				// process may keep running).
 				this.validationEpoch++;
 				this.clearCachedAccess();
+				// The restart prompt is dismissable, so tear down the live marketplace now instead
+				// of leaving the previous config's manifest, negotiated token, and proactive-refresh
+				// timer running against a serviceUrl/provider the admin just abandoned. Routing
+				// through update(null) drops the token and cancels the timer at the single teardown
+				// choke point; the marketplace goes Unavailable until the (pending) restart re-runs
+				// validation for the new config.
+				this.update(null);
 				this.requestRestart();
 			}
 		}));

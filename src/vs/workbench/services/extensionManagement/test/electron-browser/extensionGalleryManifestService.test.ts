@@ -1368,6 +1368,45 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
+	test('GitHub provider — config change tears down the live marketplace even if the restart is declined', async () => {
+		// A serviceUrl/authProvider change prompts a (dismissable) restart. If the user declines,
+		// the previous config's manifest, negotiated resource token, and proactive-refresh timer
+		// must not keep running against the abandoned marketplace — the config listener routes
+		// through update(null) to tear them down immediately.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer', expires_in: 1800 });
+			}
+			// Gated index: only yields the manifest once a negotiated token is presented.
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token');
+		assert.ok(service.pendingRefreshes.length >= 1, 'a proactive refresh timer is armed while Available');
+
+		// The marketplace configuration changes; the restart is only prompted (dismissable).
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as unknown as IConfigurationChangeEvent);
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unavailable);
+		assert.strictEqual(await service.getAccessToken(), undefined);
+		assert.strictEqual(service.pendingRefreshes.length, 0, 'the proactive refresh timer is cancelled on teardown');
+	});
+
 	test('GitHub provider — eligible account, manifest fetch fails → Unreachable', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });
