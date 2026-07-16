@@ -100,6 +100,117 @@ export function isModelValidForSession(
 }
 
 /**
+ * Reconstructs the "Manage Models" identifier that an agent-host copy of an
+ * extension-provided BYOK model is toggled under, or `undefined` when the model
+ * is not such a copy. Re-exported from the shared `ILanguageModelChatMetadata`
+ * namespace (which also backs the `common` model-visibility layer) so picker and
+ * management code reconstruct the identifier the same way.
+ */
+export const getAgentHostByokManageModelsIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier;
+
+/**
+ * Whether a model should be hidden from the picker given the user's Manage Models
+ * visibility toggles. Matches the model by its own identifier and, for agent-host
+ * copies of extension BYOK models, additionally by the reconstructed original
+ * identifier (see {@link getAgentHostByokManageModelsIdentifier}) — which includes
+ * any user-configured provider group carried across the bridge — so a BYOK model
+ * hidden in Manage Models is also hidden in the agent-host picker.
+ */
+export function isModelHiddenInPicker(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	isModelHidden: (identifier: string) => boolean,
+): boolean {
+	if (isModelHidden(model.identifier)) {
+		return true;
+	}
+	const manageModelsIdentifier = getAgentHostByokManageModelsIdentifier(model.metadata);
+	return manageModelsIdentifier !== undefined && isModelHidden(manageModelsIdentifier);
+}
+
+/**
+ * Whether the selected model carried by the shared, session-type-agnostic untitled draft
+ * (`chat.untitledInputState`) must be dropped before the draft is applied to an empty session
+ * that is being opened.
+ *
+ * The draft is shared across all session types, so its `selectedModel` can belong to a
+ * different pool in either direction — e.g. a `copilot/*` model leaking into an agent-host
+ * session, or an `agent-host-*` model leaking into a general/local session. Applying such a
+ * cross-pool model while the session is opening lets the sync resolve it to (and persist) a
+ * wrong default over the destination pool's persisted model. Dropped when present but not valid
+ * for `sessionType`; an in-pool draft model is kept. See
+ * `chatInputPart._getPersistedEmptyInputState`.
+ */
+export function shouldDropAgnosticDraftModel(
+	draftModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+	allModels: ILanguageModelChatMetadataAndIdentifier[],
+	sessionType: string | undefined,
+): boolean {
+	return !!draftModel && !isModelValidForSession(draftModel, allModels, sessionType);
+}
+
+/**
+ * Whether an {@link ILanguageModelChatMetadataAndIdentifier} selection should be written to the
+ * persisted per-(location, sessionType) model storage key.
+ *
+ * A model selection is only persisted for an explicit request (`storeSelection`) that is NOT
+ * happening while the input is switching to a session (`suppressDuringSessionSwitch`). While
+ * switching, the model may be set in-memory (for the picker) and restored from the key, but must
+ * never WRITE the key — only an explicit user action may. This is the single guard on
+ * `chatInputPart`'s sole storage writer (`setCurrentLanguageModel`).
+ */
+export function shouldPersistModelSelection(storeSelection: boolean, suppressDuringSessionSwitch: boolean): boolean {
+	return storeSelection && !suppressDuringSessionSwitch;
+}
+
+/**
+ * Whether model-selection persistence must be suppressed while the input switches to a session.
+ *
+ * True for every empty session of an own-pool (agent-host) session type: the per-type key holds
+ * the user's last explicit pick, and switching to the session must not clobber it via any of the
+ * paths that run during the switch (draft sync, empty-state seeding, autorun default).
+ * General/local (no own pool) is unaffected.
+ */
+export function shouldSuppressModelPersistenceOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean): boolean {
+	return isEmpty && sessionOwnsPool;
+}
+
+/**
+ * Whether the persisted per-session-type model should be restored (into the picker) when the
+ * input switches to a session.
+ *
+ * True only for a FRESH untitled own-pool session — one with no incoming `selectedModel` in its
+ * own input state. A session that already carries its own model (a transferred/handoff or
+ * startup-restored draft) keeps that model in-memory and is left alone. Distinct from
+ * {@link shouldSuppressModelPersistenceOnSessionSwitch}, which suppresses the STORAGE write for
+ * ALL empty own-pool sessions regardless.
+ */
+export function shouldRestorePerTypeModelOnSessionSwitch(isEmpty: boolean, sessionOwnsPool: boolean, hadIncomingModel: boolean): boolean {
+	return isEmpty && sessionOwnsPool && !hadIncomingModel;
+}
+
+/**
+ * Whether the input should WAIT for a restored session's own remembered model to be contributed,
+ * instead of falling back to the pool default.
+ *
+ * True when the session's remembered `desiredModel` belongs to this session's own pool (it
+ * targets `sessionType`) but is not yet present in `allModels` — i.e. the session-type pool has
+ * not finished loading at restore time (cold or partial). Waiting avoids persisting a transient
+ * pool default (e.g. Haiku) over the session's remembered model (e.g. Opus) while the pool
+ * settles. A model that does not belong to this session's pool returns false, so the caller
+ * defaults instead of waiting forever.
+ */
+export function shouldWaitForSessionModel(
+	desiredModel: ILanguageModelChatMetadataAndIdentifier,
+	sessionType: string | undefined,
+	allModels: ILanguageModelChatMetadataAndIdentifier[],
+): boolean {
+	if (!sessionType || desiredModel.metadata.targetChatSessionType !== sessionType) {
+		return false;
+	}
+	return !allModels.some(m => m.identifier === desiredModel.identifier);
+}
+
+/**
  * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
  * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
@@ -454,4 +565,21 @@ export function getModelPickerUnavailableReason(context: {
 		return ModelPickerUnavailableReason.SetupRequired;
 	}
 	return undefined;
+}
+
+/**
+ * Whether a picker should show the cache-break hint: suppressed when dismissed, when the cache is cold, or
+ * when there is nothing to switch to (#325185). `excludeAutoModel` also suppresses it under Auto (model picker only).
+ */
+export function shouldShowCacheBreakHint(context: {
+	readonly dismissed: boolean;
+	readonly cacheWarm: boolean;
+	readonly noModelsAvailable: boolean;
+	readonly excludeAutoModel: boolean;
+	readonly selectedModelIsAuto: boolean;
+}): boolean {
+	if (context.dismissed || !context.cacheWarm || context.noModelsAvailable) {
+		return false;
+	}
+	return !(context.excludeAutoModel && context.selectedModelIsAuto);
 }

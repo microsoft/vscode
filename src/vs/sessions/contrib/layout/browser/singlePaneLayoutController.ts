@@ -63,6 +63,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			this._context = {
 				get isRestoringSessionLayout() { return that._isRestoringSessionLayout; },
 				withSessionLayoutRestore: work => that._withSessionLayoutRestore(work),
+				onDidEndSessionLayoutRestore: that.onDidEndSessionLayoutRestore,
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
@@ -96,12 +97,6 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				return;
 			}
 			const coordinator = this._register(new SinglePaneDockedTabsCoordinator(this._sessionChangesService));
-
-			// Managed tabs (Changes multi-diff, Files placeholder) surface their
-			// content in the detail panel, so opening them must not reveal the editor
-			// area. Own that policy here rather than hardcoding editor ids in the core
-			// workbench.
-			this._register(this._layoutService.setEditorRevealOnOpenExclusion(editor => coordinator.isManagedEditor(editor)));
 
 			this._register(this._instantiationService.createInstance(SinglePaneManagedTabsStrategy, this._ctx, coordinator));
 			this._register(this._instantiationService.createInstance(SinglePaneEditorAreaCollapseStrategy, this._ctx, coordinator));

@@ -68,6 +68,25 @@ export const enum BrowserViewSharingState {
 	Unavailable = 'unavailable',
 }
 
+/** Whether a browser URL belongs to the same destination host as the target URL. */
+export function browserViewUrlMatches(candidateUrl: string | undefined, targetUrl: string, includeBlank = false): boolean {
+	const target = URL.parse(targetUrl);
+	if (!target || (target.protocol !== 'file:' && !target.host)) {
+		return false;
+	}
+	if (includeBlank && (!candidateUrl || candidateUrl === 'about:blank')) {
+		return true;
+	}
+
+	const candidate = URL.parse(candidateUrl ?? '');
+	return candidate?.host === target.host ||
+		(target.protocol === 'file:' && candidate?.protocol === 'file:') ||
+		!!(candidate?.host && target.host && (
+			candidate.host.endsWith('.' + target.host) ||
+			target.host.endsWith('.' + candidate.host)
+		));
+}
+
 /** Extracts the host from a URL string for zoom tracking purposes. */
 function parseZoomHost(url: string): string | undefined {
 	const parsed = URL.parse(url);
@@ -261,8 +280,8 @@ export interface IBrowserViewWorkbenchService {
 	 * editor. Honors the `workbench.browser.newTabPlacement` setting, routing new
 	 * tabs into a dedicated (locked) side group or auxiliary window when
 	 * configured. When the workbench forces editors into a modal part
-	 * (`workbench.editor.useModal: 'all'`, the default in the Agents window),
-	 * browser opens that target the active group (or leave it unspecified) are
+	 * (`workbench.editor.useModal: 'all'`), browser opens that target the active
+	 * group (or leave it unspecified) are
 	 * redirected to the main editor area so the browser docks instead of opening
 	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
 	 * specific group) are left untouched.

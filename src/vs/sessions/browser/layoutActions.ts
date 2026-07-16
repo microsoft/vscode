@@ -16,8 +16,7 @@ import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRe
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../common/sessionConfig.js';
+import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -82,7 +81,7 @@ const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-const isSinglePaneDetailPanelDisabled = ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true).negate();
+const isSinglePaneDetailPanelDisabled = SinglePaneLayoutEnabledContext.negate();
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
 	command: {

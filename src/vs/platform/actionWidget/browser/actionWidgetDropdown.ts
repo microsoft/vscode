@@ -25,6 +25,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 */
 	detail?: string;
 	/**
+	 * Optional description used in the accessible label instead of the visual description.
+	 */
+	ariaDescription?: string;
+	/**
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
 	hover?: IActionListItemHover;
@@ -151,6 +155,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					ariaDescription: action.ariaDescription,
 					detail: action.detail,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
@@ -273,6 +278,14 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			accessibilityProvider,
 			this._options.listOptions
 		);
+	}
+
+	override hide(): void {
+		const wasVisible = this.isVisible();
+		super.hide();
+		if (wasVisible) {
+			this.actionWidgetService.hide(true);
+		}
 	}
 
 	setEnabled(enabled: boolean): void {

@@ -46,6 +46,7 @@ export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.
 registerColor('editorSuggestWidget.selectedForeground', quickInputListFocusForeground, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
 registerColor('editorSuggestWidget.selectedIconForeground', quickInputListFocusIconForeground, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', quickInputListFocusBackground, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetFocusOutline = registerColor('editorSuggestWidget.focusOutline', activeContrastBorder, nls.localize('editorSuggestWidgetFocusOutline', 'Outline color of the focused (keyboard-navigated) entry in the suggest widget.'));
 registerColor('editorSuggestWidget.highlightForeground', listHighlightForeground, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 registerColor('editorSuggestWidget.focusHighlightForeground', listFocusHighlightForeground, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
 registerColor('editorSuggestWidgetStatus.foreground', transparent(editorSuggestWidgetForeground, .5), nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
@@ -267,7 +268,7 @@ export class SuggestWidget implements IDisposable {
 		});
 		this._list.style(getListStyles({
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
-			listInactiveFocusOutline: activeContrastBorder
+			listInactiveFocusOutline: editorSuggestWidgetFocusOutline
 		}));
 
 		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, undefined);

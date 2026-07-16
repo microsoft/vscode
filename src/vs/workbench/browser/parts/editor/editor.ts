@@ -262,19 +262,23 @@ export interface IEditorGroupViewOptions {
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * Menu ids for the full-width header rendered by the group below the tab bar
-	 * (leading + trailing toolbars). When unset the group renders no header. The
-	 * header is only shown for an active editor that opts in via
-	 * {@link IEditorPane.getHeaderActions}.
+	 * Optional menu ids used by the group header and tab bar. When unset the
+	 * workbench uses the shared defaults and renders no full-width header.
 	 */
-	readonly headerMenuIds?: IEditorGroupHeaderMenuIds;
+	readonly menuIds?: IEditorGroupMenuIds;
 }
 
-export interface IEditorGroupHeaderMenuIds {
+export interface IEditorGroupMenuIds {
 	/** Menu whose actions render as the leading (left) header toolbar. */
-	readonly primary: MenuId;
+	readonly headerPrimary?: MenuId;
 	/** Menu whose actions render as the trailing (right) header toolbar. */
-	readonly secondary: MenuId;
+	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
+	readonly editorActions?: MenuId;
+	/** Menu shown when right-clicking the empty tab-bar area. */
+	readonly tabsBarContext?: MenuId;
+	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
+	readonly tabsBarAddTab?: MenuId;
 }
 
 /**
