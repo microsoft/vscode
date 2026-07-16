@@ -506,7 +506,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 						// deployment serves an open index and needs no token. Only a gated index
 						// (`401`) triggers the token exchange below.
 						undefined,
-						protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken),
+						protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken, () => this.validationEpoch === epoch),
 						() => this.validationEpoch === epoch,
 					);
 					manifest = negotiated.manifest;
@@ -602,7 +602,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			const negotiated = await this.fetchServiceIndexNegotiated(
 				configuredServiceUrl,
 				undefined,
-				protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken),
+				protectedResource => this.acquireGitHubResourceToken(configuredServiceUrl, protectedResource, subjectToken, () => this.validationEpoch === epoch),
 				() => this.validationEpoch === epoch,
 			);
 			if (this.validationEpoch !== epoch) {
@@ -1077,6 +1077,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		configuredServiceUrl: string,
 		protectedResource: IMarketplaceProtectedResource,
 		subjectToken: string | undefined,
+		isCurrent: () => boolean,
 	): Promise<{ token: string; expiresInSeconds?: number } | undefined> {
 		if (!subjectToken) {
 			return undefined;
@@ -1087,6 +1088,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			subjectToken,
 			targetUrl => WorkbenchExtensionGalleryManifestService.isSafeTokenTarget(targetUrl, configuredServiceUrl),
 			CancellationToken.None,
+			isCurrent,
 		);
 		return exchanged ? { token: exchanged.accessToken, expiresInSeconds: exchanged.expiresInSeconds } : undefined;
 	}

@@ -64,6 +64,28 @@ suite('exchangeMarketplaceResourceToken', () => {
 		);
 	});
 
+	test('does not POST the token exchange when the caller is superseded during authorization-server discovery', async () => {
+		// The production caller passes CancellationToken.None and instead drives currentness via
+		// `isCurrent`; verify that predicate alone suppresses the subject-token POST.
+		let current = true;
+		const metadata = { issuer: authorizationServer, token_endpoint: `${authorizationServer}/token`, response_types_supported: ['code'] };
+		const service = new TestRequestService(options => {
+			if ((options.type ?? 'GET') === 'GET') {
+				// Simulate a sign-out / account switch (validation epoch moves) mid-discovery.
+				current = false;
+				return jsonContext(200, metadata);
+			}
+			return jsonContext(200, { access_token: 'exchanged' });
+		});
+
+		const result = await exchangeMarketplaceResourceToken(service, protectedResource, 'subject', () => true, CancellationToken.None, () => current);
+
+		assert.deepStrictEqual(
+			{ result, gets: service.getCount, posts: service.postCount },
+			{ result: undefined, gets: 1, posts: 0 }
+		);
+	});
+
 	test('does not exchange when the discovered issuer does not match the authorization server', async () => {
 		const cts = store.add(new CancellationTokenSource());
 		const mismatched = { issuer: 'https://evil.example.com', token_endpoint: 'https://evil.example.com/token', response_types_supported: ['code'] };

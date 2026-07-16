@@ -238,6 +238,11 @@ export async function discoverMarketplaceProtectedResource(
  * (`expiresInSeconds`, from the token response's `expires_in`) so the caller can schedule a
  * proactive re-mint before it expires. Returns `undefined` (never throws) when discovery or the
  * exchange fails, so callers fall back to their existing sign-in handling.
+ *
+ * `isCurrent` lets the caller abort just before the subject token is POSTed if its validation has
+ * been superseded (e.g. a sign-out / account switch while the authorization-server metadata GET was
+ * in flight). The desktop caller drives currentness this way because it passes
+ * `CancellationToken.None` — so this predicate, not `token`, is what actually guards that path.
  */
 export async function exchangeMarketplaceResourceToken(
 	requestService: IRequestService,
@@ -245,6 +250,7 @@ export async function exchangeMarketplaceResourceToken(
 	subjectToken: string,
 	isSafeTarget: (targetUrl: string) => boolean,
 	token: CancellationToken,
+	isCurrent: () => boolean = () => true,
 ): Promise<{ accessToken: string; expiresInSeconds?: number } | undefined> {
 	if (!isSafeTarget(protectedResource.authorizationServer)) {
 		return undefined;
@@ -265,8 +271,9 @@ export async function exchangeMarketplaceResourceToken(
 			return undefined;
 		}
 		// A sign-out / account switch can occur while the AS-metadata GET above is in flight. If the
-		// caller cancelled since, do not POST the (now potentially revoked) subject token.
-		if (token.isCancellationRequested) {
+		// caller cancelled — or its validation has been superseded (`isCurrent()` is false) — do not
+		// POST the (now potentially revoked) subject token.
+		if (token.isCancellationRequested || !isCurrent()) {
 			return undefined;
 		}
 		const body = new URLSearchParams();
