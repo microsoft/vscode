@@ -10,6 +10,7 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ProcessPropertyType, type IProcessDataEvent, type IProcessProperty, type IProcessPropertyMap, type IProcessReadyEvent, type ITerminalChildProcess } from '../../../../platform/terminal/common/terminal.js';
+import { stripMouseTrackingEnableFromData } from '../../../../platform/terminal/common/terminalMouseModeReset.js';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
@@ -96,7 +97,12 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 					// never override with 0x0 as that is a marker for an unknown initial size
 					this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true } });
 				}
-				const e: IProcessDataEvent = { data: innerEvent.data, trackCommit: true };
+				// Strip mouse-tracking *enable* CSI only. Keep alt-screen / paste /
+				// focus so fullscreen layout can restore. Historical ?100xh / ?9h
+				// re-arms sticky mouse on a new xterm after Reload; live TUIs
+				// re-enable mouse themselves after real FocusGained.
+				const data = stripMouseTrackingEnableFromData(innerEvent.data);
+				const e: IProcessDataEvent = { data, trackCommit: true };
 				this._onProcessData.fire(e);
 				await e.writePromise;
 			}
