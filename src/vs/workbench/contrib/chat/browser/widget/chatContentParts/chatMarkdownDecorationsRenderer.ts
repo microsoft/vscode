@@ -9,7 +9,10 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../../base/common/uri.js';
+import { IRange } from '../../../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../../../editor/common/languages.js';
+import { registerOpenEditorListeners } from '../../../../../../platform/editor/browser/editor.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -27,6 +30,8 @@ import { IChatWidgetService } from '../../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { revealInSideBarCommand } from '../../../../files/browser/fileActions.contribution.js';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -73,6 +78,9 @@ interface ISlashCommandWidgetArgs {
 
 export interface IDecorationWidgetArgs {
 	title?: string;
+	resource?: UriComponents;
+	selection?: IRange;
+	isDirectory?: boolean;
 }
 
 export class ChatMarkdownDecorationsRenderer {
@@ -89,6 +97,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
@@ -107,17 +116,24 @@ export class ChatMarkdownDecorationsRenderer {
 	}
 
 	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
-		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
-			part.data :
-			undefined;
-		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
+		const location = part instanceof ChatRequestDynamicVariablePart && isLocation(part.data) ? part.data : undefined;
+		const isFileReference = part instanceof ChatRequestDynamicVariablePart && (part.isFile || part.isDirectory);
+		const uri = part instanceof ChatRequestDynamicVariablePart
+			? URI.isUri(part.data) ? part.data : location?.uri
+			: undefined;
+		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) + (location ? `#${location.range.startLineNumber}:${location.range.startColumn}-${location.range.endLineNumber}:${location.range.endColumn}` : '') :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
 					part instanceof ChatRequestSlashPromptPart ? part.name :
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
-		const args: IDecorationWidgetArgs = { title };
+		const args: IDecorationWidgetArgs = {
+			title,
+			resource: isFileReference ? uri?.toJSON() : undefined,
+			selection: isFileReference ? location?.range : undefined,
+			isDirectory: part instanceof ChatRequestDynamicVariablePart ? part.isDirectory : undefined,
+		};
 		const text = part.text;
 		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 	}
@@ -257,6 +273,19 @@ export class ChatMarkdownDecorationsRenderer {
 		}
 
 		container.appendChild(alias);
+		if (args?.resource) {
+			container.classList.add('clickable');
+			container.tabIndex = 0;
+			container.role = 'link';
+			store.add(registerOpenEditorListeners(container, options => {
+				const resource = URI.revive(args.resource);
+				if (args.isDirectory) {
+					void this.commandService.executeCommand(revealInSideBarCommand.id, resource);
+				} else {
+					void this.editorService.openEditor({ resource, options: { ...options.editorOptions, selection: args.selection } }, options.openToSide ? SIDE_GROUP : undefined);
+				}
+			}));
+		}
 		return container;
 	}
 

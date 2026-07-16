@@ -55,7 +55,11 @@ export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray
 					icon: attachment.icon,
 					isFile: attachment.kind === 'file',
 					isDirectory: attachment.kind === 'directory',
-					data: attachment.value
+					data: attachment.value,
+					references: attachment.references,
+					omittedState: attachment.omittedState,
+					imageCount: attachment.kind === 'directory' ? attachment.imageCount : undefined,
+					_meta: attachment._meta,
 				};
 				references.push(referenceObj);
 			}

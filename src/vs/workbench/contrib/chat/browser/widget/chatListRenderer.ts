@@ -1620,7 +1620,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let content: IChatRendererContent[] = [];
 		const explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry);
 		const explicitImageVariables = explicitFileOrImageVariables.filter(variable => variable.kind === 'image');
-		const explicitFileOrDirectoryVariables = element.variables.filter(variable => variable.kind === 'file' || variable.kind === 'directory' || isPasteVariableEntry(variable));
+		const explicitFileOrDirectoryVariables = element.variables.filter(variable => (!variable.range && (variable.kind === 'file' || variable.kind === 'directory')) || isPasteVariableEntry(variable));
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		if (!element.confirmation) {
 			const markdown = isChatFollowup(element.message) ?

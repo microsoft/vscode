@@ -18,6 +18,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 
+export const OPEN_CHAT_FILE_REFERENCE_COMMAND_ID = 'workbench.action.chat.openFileReference';
+
 export const enum BYOKUtilityModelDefault {
 	None = 'none',
 	MainAgent = 'mainAgent',

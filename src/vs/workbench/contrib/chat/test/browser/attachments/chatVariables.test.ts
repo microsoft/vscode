@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
@@ -161,6 +162,33 @@ suite('getDynamicVariablesForWidget', () => {
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].isFile, false);
 		assert.strictEqual(result[0].isDirectory, true);
+	});
+
+	test('preserves attachment metadata when restoring ranged variables', () => {
+		const reference = { reference: URI.file('/workspace/file.ts'), kind: 'reference' as const };
+		const attachments = [createMockAttachment({
+			kind: 'directory',
+			range: { start: 0, endExclusive: 5 },
+			references: [reference],
+			imageCount: 3,
+			_meta: { source: 'test' },
+		})];
+		const widget = createMockWidget({ editing: true, attachments, contribVariables: [] });
+
+		assert.deepStrictEqual(getDynamicVariablesForWidget(widget)[0], {
+			id: 'attach-1',
+			fullName: 'test-attachment',
+			modelDescription: undefined,
+			range: new Range(1, 1, 1, 6),
+			icon: undefined,
+			isFile: false,
+			isDirectory: true,
+			data: 'test-value',
+			references: [reference],
+			omittedState: undefined,
+			imageCount: 3,
+			_meta: { source: 'test' },
+		});
 	});
 });
 

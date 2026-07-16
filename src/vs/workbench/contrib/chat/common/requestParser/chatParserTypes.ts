@@ -12,7 +12,8 @@ import { IChatSlashData } from '../participants/chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IToolData } from '../tools/languageModelToolsService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../attachments/chatVariableEntries.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, OmittedState } from '../attachments/chatVariableEntries.js';
+import { IChatContentReference } from '../chatService/chatService.js';
 import { arrayEquals } from '../../../../../base/common/equals.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -208,10 +209,10 @@ export class ChatRequestSlashPromptPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon, readonly isFile?: boolean, readonly isDirectory?: boolean, readonly _meta?: Record<string, unknown>, readonly references?: IChatContentReference[], readonly omittedState?: OmittedState, readonly imageCount?: number) { }
 
 	get referenceText(): string {
-		return this.text.replace(chatVariableLeader, '');
+		return this.text.startsWith(chatVariableLeader) || this.text.startsWith(chatAgentLeader) ? this.text.slice(1) : this.text;
 	}
 
 	get promptText(): string {
@@ -223,7 +224,21 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 			return IDiagnosticVariableEntryFilterData.toEntry((this.data as IChatRequestProblemsVariable).filter);
 		}
 
-		return { kind: this.isDirectory ? 'directory' : this.isFile ? 'file' : 'generic', id: this.id, name: this.referenceText, range: this.range, value: this.data, fullName: this.fullName, icon: this.icon, _meta: this._meta };
+		const entry = {
+			id: this.id,
+			name: this.referenceText,
+			range: this.range,
+			value: this.data,
+			fullName: this.fullName,
+			icon: this.icon,
+			_meta: this._meta,
+			...(this.references ? { references: this.references } : {}),
+			...(this.omittedState !== undefined ? { omittedState: this.omittedState } : {}),
+		};
+		if (this.isDirectory) {
+			return { ...entry, kind: 'directory', ...(this.imageCount !== undefined ? { imageCount: this.imageCount } : {}) };
+		}
+		return { ...entry, kind: this.isFile ? 'file' : 'generic' };
 	}
 }
 
@@ -303,7 +318,10 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).icon,
 					(part as ChatRequestDynamicVariablePart).isFile,
 					(part as ChatRequestDynamicVariablePart).isDirectory,
-					(part as ChatRequestDynamicVariablePart)._meta
+					(part as ChatRequestDynamicVariablePart)._meta,
+					(part as ChatRequestDynamicVariablePart).references,
+					(part as ChatRequestDynamicVariablePart).omittedState,
+					(part as ChatRequestDynamicVariablePart).imageCount
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

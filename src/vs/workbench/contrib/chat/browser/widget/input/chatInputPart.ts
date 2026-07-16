@@ -107,6 +107,7 @@ import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider } fr
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
+import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
@@ -350,6 +351,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidClickOverlay: Event<void> = this._onDidClickOverlay.event;
 
 	private readonly _attachmentModel: ChatAttachmentModel;
+	private _migratingFileAttachments = false;
 	private _widget?: IChatWidget;
 	public get attachmentModel(): ChatAttachmentModel {
 		return this._attachmentModel;
@@ -1738,6 +1740,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} finally {
 			this._isSyncingToOrFromInputModel = false;
 		}
+
+		this.migrateFileAttachmentsToInput(this.attachmentModel.attachments);
 	}
 
 	/**
@@ -2380,8 +2384,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		await this.restoreAttachments(historyEntry?.attachments ?? []);
-
 		const inputText = historyEntry?.inputText ?? '';
 		const contribData = historyEntry?.contrib ?? {};
 		aria.status(inputText);
@@ -2389,6 +2391,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._widget?.contribs.forEach(contrib => {
 			contrib.setInputState?.(contribData);
 		});
+		await this.restoreAttachments(historyEntry?.attachments ?? []);
 		this._onDidLoadInputState.fire();
 
 		const model = this._inputEditor.getModel();
@@ -3248,6 +3251,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (e.added.length > 0) {
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 			}
+			if (this.migrateFileAttachmentsToInput([...e.added, ...e.updated])) {
+				return;
+			}
 			this._handleAttachedContextChange();
 		}));
 
@@ -3802,7 +3808,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.handleAttachmentNavigation(e);
 		}));
 
-		const attachments = [...this.attachmentModel.attachments.entries()];
+		const attachments = [...this.attachmentModel.attachments.filter(attachment => !attachment.range || (attachment.kind !== 'file' && attachment.kind !== 'directory')).entries()];
 		const hasAttachments = Boolean(attachments.length);
 
 		// Render implicit context (active editor in Ask mode, or selection)
@@ -3876,7 +3882,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
 			const range = isLocation(attachment.value) ? attachment.value.range : undefined;
-			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
+			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, attachments.length - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true, isCurrentInput: true };
@@ -3916,7 +3922,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget.element.focus();
 			}
 
-			if (index === Math.min(this._indexOfLastOpenedContext, this.attachmentModel.size - 1)) {
+			if (index === Math.min(this._indexOfLastOpenedContext, attachments.length - 1)) {
 				attachmentWidget.element.focus();
 			}
 
@@ -3931,6 +3937,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._indexOfLastOpenedContext = -1;
+	}
+
+	private migrateFileAttachmentsToInput(added: readonly IChatRequestVariableEntry[]): boolean {
+		if (this._migratingFileAttachments || this._isSyncingToOrFromInputModel || !this._widget?.supportsFileReferences) {
+			return false;
+		}
+
+		const entries = added.filter(attachment =>
+			!attachment.range &&
+			(attachment.kind === 'file' || attachment.kind === 'directory') &&
+			(attachment.kind !== 'directory' || typeof attachment.imageCount === 'number') &&
+			(URI.isUri(attachment.value) || isLocation(attachment.value))
+		);
+		if (entries.length === 0) {
+			return false;
+		}
+
+		const dynamicVariableModel = this._widget?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+		if (!dynamicVariableModel) {
+			return false;
+		}
+
+		this._migratingFileAttachments = true;
+		try {
+			this.attachmentModel.delete(...entries.map(entry => entry.id));
+			if (!dynamicVariableModel.insertFileReferences(entries)) {
+				this.attachmentModel.addContext(...entries);
+			}
+			return true;
+		} finally {
+			this._migratingFileAttachments = false;
+		}
 	}
 
 	private handleAttachmentDeletion(e: KeyboardEvent | unknown, index: number, attachment: IChatRequestVariableEntry) {

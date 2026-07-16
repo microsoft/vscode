@@ -68,16 +68,13 @@ export class ChatRequestParser {
 			const char = message.charAt(i);
 			let newPart: IParsedChatRequestPart | undefined;
 			if (previousChar.match(/\s/) || i === 0) {
-				if (char === chatVariableLeader) {
+				newPart = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
+				if (!newPart && char === chatVariableLeader) {
 					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts, toolsByName, toolSetsByName);
-				} else if (char === chatAgentLeader) {
+				} else if (!newPart && char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
-				} else if (char === chatSubcommandLeader) {
+				} else if (!newPart && char === chatSubcommandLeader) {
 					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
-				}
-
-				if (!newPart) {
-					newPart = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
 				}
 			}
 
@@ -284,7 +281,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile, refAtThisPosition.isDirectory, refAtThisPosition._meta);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile, refAtThisPosition.isDirectory, refAtThisPosition._meta, refAtThisPosition.references, refAtThisPosition.omittedState, refAtThisPosition.imageCount);
 		}
 
 		return;

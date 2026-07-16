@@ -7,6 +7,9 @@ import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -16,7 +19,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ChatRequestAgentSubcommandPart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -313,6 +316,34 @@ suite('ChatRequestParser', () => {
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
 		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Chat], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
+
+	test('dynamic @file reference takes priority over an agent with the same name', () => {
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([])]);
+		instantiationService.stub(IChatAgentService, agentsService);
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'file:///workspace/agent',
+			range: new Range(1, 1, 1, 7),
+			data: URI.file('/workspace/agent'),
+			isFile: true,
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent explain this');
+		const reference = result.parts[0];
+
+		assert.ok(reference instanceof ChatRequestDynamicVariablePart);
+		assert.deepStrictEqual(reference.toVariableEntry(), {
+			id: 'file:///workspace/agent',
+			name: 'agent',
+			range: new OffsetRange(0, 6),
+			value: URI.file('/workspace/agent'),
+			fullName: undefined,
+			icon: undefined,
+			_meta: undefined,
+			kind: 'file',
+		});
+	});
 
 	test('agent host: forcedAgent + supportsPromptAttachments revives /skill as prompt slash part', async () => {
 		// Mirrors what AgentHostSessionHandler._parsePromptForHistory does

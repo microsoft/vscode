@@ -11,7 +11,7 @@ import { Location } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModel } from '../model/chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from '../chatService/chatService.js';
-import { IDiagnosticVariableEntryFilterData, StringChatContextValue } from './chatVariableEntries.js';
+import { IDiagnosticVariableEntryFilterData, OmittedState, StringChatContextValue } from './chatVariableEntries.js';
 import { ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
 
 export interface IChatVariableData {
@@ -59,6 +59,9 @@ export interface IDynamicVariable {
 	isFile?: boolean;
 	isDirectory?: boolean;
 	data: IChatRequestVariableValue;
+	references?: IChatContentReference[];
+	omittedState?: OmittedState;
+	imageCount?: number;
 	/**
 	 * Implementation-defined metadata that flows through to the resulting
 	 * {@link IChatRequestVariableEntry} and any {@link MessageAttachment}
