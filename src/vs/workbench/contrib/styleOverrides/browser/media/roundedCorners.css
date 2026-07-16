@@ -86,6 +86,10 @@
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
 }
 
+.style-override .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
 /* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
  * control it belongs to the controls tier). */
 .style-override .monaco-action-bar .update-indicator {
@@ -280,6 +284,22 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.style-override.monaco-workbench .monaco-count-badge {
+/*
+ * Short numeric count badges (e.g. Search result and tree item counts) are small
+ * and roughly circular, so a full-circle radius reads as a clean round dot. (The
+ * activity-bar badge is a separate `.badge .badge-content` element, not a
+ * `.monaco-count-badge`, so it is unaffected by these rules.)
+ */
+.style-override.monaco-workbench .monaco-count-badge:not(.long) {
 	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/*
+ * Long text badges (`.long`, e.g. the Run and Debug call-stack "Running" /
+ * "Paused" state labels) are wide pills. A full-circle radius turns them into
+ * stadium-shaped capsules; the controls-tier radius keeps them as rectangular
+ * pills, matching the base `countBadge.css` intent where `.long` is squared off.
+ */
+.style-override.monaco-workbench .monaco-count-badge.long {
+	border-radius: var(--vscode-cornerRadius-small);
 }

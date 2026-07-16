@@ -14,7 +14,7 @@ import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnable
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
-import { EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { EditStreamingWithTelemetry, type IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
@@ -37,6 +37,11 @@ import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRan
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { NESInlineCompletionContext, NextEditProvider } from '../../node/nextEditProvider';
 import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder, ReusedRequestKind } from '../../node/nextEditProviderTelemetry';
+
+const testModelTelemetry: IStatelessNextEditModelTelemetry = {
+	modelName: 'test-speculative-patch-model',
+	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02WithRecentLineNumbers' }),
+};
 
 interface ICallRecord {
 	readonly request: StatelessNextEditRequest;
@@ -71,6 +76,8 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 	private readonly _behaviors: ProviderBehavior[] = [];
 	public readonly calls: ICallRecord[] = [];
 	private readonly _callDeferreds: DeferredPromise<void>[] = [];
+
+	constructor(private readonly _modelTelemetry?: IStatelessNextEditModelTelemetry) { }
 
 	/**
 	 * When set, each `provideNextEdit` call will assign this to `request.requestEditWindow`
@@ -113,6 +120,12 @@ class TestStatelessNextEditProvider implements IStatelessNextEditProvider {
 		const streamedEditWindow = this.editWindow?.window;
 		const streamedOriginalWindow = this.editWindow instanceof RequestEditWindowWithCursorJump ? this.editWindow.originalWindow : undefined;
 		const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
+		if (this._modelTelemetry?.modelName !== undefined) {
+			telemetryBuilder.setModelName(this._modelTelemetry.modelName);
+		}
+		if (this._modelTelemetry?.modelConfig !== undefined) {
+			telemetryBuilder.setModelConfig(this._modelTelemetry.modelConfig);
+		}
 		const activeDocId = request.getActiveDocument().id;
 		const cancellationRequested = new DeferredPromise<void>();
 		const completed = new DeferredPromise<void>();
@@ -643,7 +656,7 @@ describe('NextEditProvider speculative requests', () => {
 		it('cached speculative result has sp- headerRequestId and isFromCache=true', async () => {
 			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
 
-			const statelessProvider = new TestStatelessNextEditProvider();
+			const statelessProvider = new TestStatelessNextEditProvider(testModelTelemetry);
 			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
 			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(2, 'console.log(value + 1);') });
 			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
@@ -677,6 +690,9 @@ describe('NextEditProvider speculative requests', () => {
 			expect(telemetry.headerRequestId!.startsWith('sp-')).toBe(true);
 			expect(telemetry.isFromCache).toBe(true);
 			expect(telemetry.reusedRequest).toBeUndefined();
+			expect(telemetry.modelName).toBe(testModelTelemetry.modelName);
+			expect(telemetry.modelConfig).toBe(testModelTelemetry.modelConfig);
+			expect(telemetry.hadStatelessNextEditProviderCall).toBeUndefined();
 		});
 	});
 

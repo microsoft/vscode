@@ -8,7 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { claudePreferAgentHostSettingId, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -161,14 +161,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._handleRootStateChange(initialRootState);
 		}
 
-		// React to per-window preference flips for AH-vs-EH Claude. The
-		// extension's `chatSessions` contribution gates the EH side declaratively
-		// via its `when` clause; we mirror that on the AH side by toggling
-		// registration of the `claude` provider inside this window. Flipping
-		// the relevant setting unregisters / re-registers Claude live.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			const relevantSetting = claudePreferAgentHostSettingId(this._isSessionsWindow);
-			if (!e.affectsConfiguration(relevantSetting)) {
+			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
@@ -178,22 +172,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 	}
 
-	/**
-	 * Whether this window wants the given agent registered, given the
-	 * per-window AH/EH preference settings. Today only the `claude` provider
-	 * has dual implementations (EH from the Copilot extension, AH from inside
-	 * the agent host process) and a corresponding preference; all other
-	 * providers are AH-only and unconditionally allowed.
-	 *
-	 * Symmetric with the EH-side gate that lives in the extension's
-	 * `chatSessions` contribution `when` clause:
-	 *   - Agents Window  → `chat.agents.claude.preferAgentHost`
-	 *   - Editor Window  → `chat.editor.claude.preferAgentHost`
-	 *
-	 * If the relevant setting is `false`, the EH Claude is the one that
-	 * surfaces in this window, so the AH side suppresses its own registration
-	 * to avoid Claude appearing twice in the same window.
-	 */
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
@@ -235,6 +213,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
+		const ahService = this._agentHostService;
 
 		// Chat session contribution.
 		// Keep the delegation picker available for local agent host sessions in
@@ -256,13 +235,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
+				get terminalCommandPrefix() {
+					return ahService.initializeResult.get()?.terminalCommandPrefix;
+				}
 			},
 		}));
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
 
-		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
+			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,

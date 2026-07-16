@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 
 suite('openSessionLink', () => {
 
@@ -22,6 +22,12 @@ suite('openSessionLink', () => {
 		assert.strictEqual(isCreateChatTool('create_chat'), true);
 		assert.strictEqual(isCreateChatTool('mcp__server__create_chat'), true);
 		assert.strictEqual(isCreateChatTool('create_session'), false);
+	});
+
+	test('isSendMessageTool matches bare and mcp-prefixed names', () => {
+		assert.strictEqual(isSendMessageTool('send_message'), true);
+		assert.strictEqual(isSendMessageTool('mcp__server__send_message'), true);
+		assert.strictEqual(isSendMessageTool('create_chat'), false);
 	});
 
 	test('builds a link from a backend session URI', () => {

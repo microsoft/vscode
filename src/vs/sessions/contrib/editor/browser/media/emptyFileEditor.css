@@ -8,17 +8,37 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	color: var(--vscode-agentsPanel-foreground);
 	background: var(--vscode-editor-background);
-	cursor: pointer;
-	touch-action: manipulation;
+	user-select: none;
 }
 
-.empty-file-editor:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.empty-file-editor-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: var(--vscode-spacing-size160);
+	padding: 20px;
+	max-width: 280px;
 }
 
-.empty-file-editor-placeholder {
+.empty-file-editor-icon.codicon {
+	font-size: 24px !important;
+	width: 24px;
+	height: 24px;
 	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}
+
+.empty-file-editor-description {
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.empty-file-editor-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: 2px;
 }

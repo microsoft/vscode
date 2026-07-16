@@ -483,6 +483,8 @@ export interface IChatQuestionCarousel {
 	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
+	/** True when accepted/answered outside the carousel UI (e.g. via voice) without structured answers. */
+	answeredExternally?: boolean;
 	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
@@ -535,6 +537,8 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
+	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	reasoningDurationMs?: number;
 }
 
 /**
@@ -776,6 +780,7 @@ export namespace IChatToolInvocation {
 		WaitingForPostApproval,
 		Completed,
 		Cancelled,
+		WaitingForAuthentication,
 	}
 
 	interface IChatToolInvocationStateBase {
@@ -810,6 +815,12 @@ export namespace IChatToolInvocation {
 		progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	}
 
+	export interface IChatToolInvocationWaitingForAuthenticationState extends IChatToolInvocationStateBase, IChatToolInvocationPostConfirmState {
+		type: StateKind.WaitingForAuthentication;
+		readonly server: IChatMcpAuthenticationRequiredServer;
+		cancel(): void;
+	}
+
 	interface IChatToolInvocationPostExecuteState extends IChatToolInvocationPostConfirmState {
 		resultDetails: IToolResult['toolResultDetails'];
 	}
@@ -837,6 +848,7 @@ export namespace IChatToolInvocation {
 		| IChatToolInvocationStreamingState
 		| IChatToolInvocationWaitingForConfirmationState
 		| IChatToolInvocationExecutingState
+		| IChatToolInvocationWaitingForAuthenticationState
 		| IChatToolWaitingForPostApprovalState
 		| IChatToolInvocationCompleteState
 		| IChatToolInvocationCancelledState;
@@ -1234,6 +1246,7 @@ export interface IChatMcpAuthenticationRequiredServer {
 	readonly name: string;
 	readonly resource: string;
 	readonly authorizationServers?: readonly string[];
+	readonly supportedScopes?: readonly string[];
 	readonly requiredScopes?: readonly string[];
 	readonly reason?: string;
 }

@@ -20,6 +20,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -27,7 +28,6 @@ import { ISessionGroupsService } from '../../../../services/sessions/browser/ses
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -805,7 +805,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 registerAction2(class UnarchiveSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessionsViewPane.unarchiveSession',
+			id: UNARCHIVE_SESSION_COMMAND_ID,
 			title: localize2('unarchiveSession', "Restore"),
 			icon: Codicon.discard,
 			menu: [{
@@ -957,10 +957,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsListModelService = accessor.get(ISessionsListModelService);
-		for (const session of sessions) {
-			sessionsListModelService.markRead(session);
-		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.markAllRead(sessions);
 	}
 });
 
@@ -993,9 +991,9 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		for (const session of sessions) {
-			sessionsListModelService.markUnread(session);
+			sessionsManagementService.markUnread(session);
 		}
 	}
 });
@@ -1055,10 +1053,9 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		const sessions = sessionsManagementService.getSessions()
-			.filter(s => !s.isArchived.get() && !sessionsListModelService.isSessionRead(s));
-		sessionsListModelService.markAllRead(sessions);
+			.filter(s => !s.isArchived.get() && !s.isRead.get());
+		sessionsManagementService.markAllRead(sessions);
 	}
 });
 

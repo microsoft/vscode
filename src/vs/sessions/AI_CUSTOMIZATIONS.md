@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── pluginListWidget.ts                         # Agent plugins section
 ├── aiCustomizationIcons.ts                     # Icons
 └── media/
-    └── aiCustomizationManagement.css
+    └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
 
 src/vs/workbench/contrib/chat/common/
 ├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
@@ -70,6 +70,12 @@ The management editor opens as a compact modal editor. The modal title and welco
 The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
 
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
+
+When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
+
+Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
+
+Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
 
 ### IAICustomizationWorkspaceService
 
@@ -206,11 +212,13 @@ AHP Remote Server ────────────────────�
 
 **Key files:**
 
-- **`aiCustomizationItemSource.ts`** — The browser-side pipeline: `IAICustomizationListItem` (view model), `IAICustomizationItemSource` (data contract), `AICustomizationItemNormalizer` (maps `ICustomizationItem` → view model, inferring storage/grouping from URIs when the provider doesn't supply them), `ProviderCustomizationItemSource` (orchestrates provider + sync + normalizer), and shared utilities (`expandHookFileItems`, `getFriendlyName`, `isChatExtensionItem`).
+- **`aiCustomizationItemSource.ts`** — The browser-side pipeline: `IAICustomizationListItem` (view model), `IAICustomizationItemSource` (data contract for both customization rows and harness-provided source folders), `AICustomizationItemNormalizer` (maps `ICustomizationItem` → view model, inferring storage/grouping from URIs when the provider doesn't supply them), `ProviderCustomizationItemSource` (orchestrates provider + sync + normalizer), and shared utilities (`expandHookFileItems`, `getFriendlyName`, `isChatExtensionItem`).
 
 - **`promptsServiceCustomizationItemProvider.ts`** — Adapts `IPromptsService` to `ICustomizationItemProvider`. Reads agents, skills, instructions, hooks, and prompts from the core service, expands instruction categories and hook entries, applies harness-specific filters (storage sources, workspace subpaths, instruction file patterns), and returns `ICustomizationItem[]` with `storage` set from the authoritative promptsService metadata. Used as the default item provider for harnesses that don't supply their own.
 
 - **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
+
+- **`promptMigration.ts`** — Shared prompt-file migration utilities used by the management editor: prompt-to-skill content conversion, source-folder selection, collision-safe skill naming, and the per-file migrate/write/delete workflow with partial-failure reporting.
 
 ### MCP server list active-session controls
 

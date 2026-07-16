@@ -5,6 +5,7 @@
 
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../telemetry/common/languageModelToolTelemetry.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { hash } from '../../../base/common/hash.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -98,11 +99,26 @@ export interface IAgentHostToolCallDetailsReport {
 	parallelToolCallsTotal: number;
 }
 
+export interface IAgentHostSkillContentReadReport {
+	/** The skill name. */
+	name: string;
+	/** Path to the SKILL.md file. */
+	path: string;
+	/** Full skill content; hashed (never sent raw), matching the extension. */
+	content: string;
+	/** Where the skill was discovered (project, personal-copilot, plugin, builtin, …). */
+	source: string | undefined;
+	/** Name of the plugin the skill came from, when applicable (AH-native analog of the extension's skill extension id). */
+	pluginName: string | undefined;
+	/** Version of the plugin the skill came from, when applicable. */
+	pluginVersion: string | undefined;
+}
+
 export interface IAgentHostToolCallStalledEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -123,7 +139,7 @@ export type IAgentHostToolCallStalledClassification = {
 export interface IAgentHostToolCallStalledReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	stalledTimeMs: number;
@@ -133,7 +149,7 @@ export interface IAgentHostStalledToolCallCompletedEvent {
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
@@ -158,7 +174,7 @@ export type IAgentHostStalledToolCallCompletedClassification = {
 export interface IAgentHostStalledToolCallCompletedReport {
 	provider: string;
 	session: string;
-	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution;
+	blockerKind: SessionInputRequestKind.ToolConfirmation | SessionInputRequestKind.ToolClientExecution | SessionInputRequestKind.ToolAuthentication;
 	toolId: string;
 	toolSourceKind: string;
 	result: ToolInvokedResult;
@@ -316,6 +332,47 @@ export class AgentHostTelemetryReporter {
 		};
 		restricted.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', properties, measurements);
 		restricted.sendInternalMSFTTelemetryEvent('toolCallDetailsInternal', properties, measurements);
+	}
+
+	/**
+	 * Mirrors the Copilot extension's restricted `skillContentRead` event (`skillTelemetry.ts` ->
+	 * `sendSkillContentReadTelemetry`) — records which skill file was loaded into the conversation.
+	 * The extension emits it from the skill/readFile tools; the agent host observes the equivalent
+	 * boundary at the SDK `skill.invoked` event, whose payload already carries the content (hashed
+	 * here, never sent raw), the discovery `source`, and the plugin identity. The extension's
+	 * `skillExtensionId` / `skillExtensionVersion` encode the contributing *VS Code extension*, which
+	 * does not exist in the agent host; the AH-native provenance is the plugin, so `pluginName` /
+	 * `pluginVersion` fill those columns. No-ops when the skill name is empty.
+	 *
+	 * @param report The invoked skill's metadata (from the SDK `skill.invoked` payload).
+	 */
+	skillContentRead(report: IAgentHostSkillContentReadReport): void {
+		const restricted = this._restricted;
+		if (!restricted || !report.name) {
+			return;
+		}
+		const contentHash = report.content ? String(hash(report.content)) : '';
+		const skillStorage = report.source ?? '';
+		// Match the extension: the version is only reported when the (plugin) id is known, so we
+		// never emit a `skillExtensionVersion` without a corresponding `skillExtensionId`.
+		const skillExtensionVersion = report.pluginName ? (report.pluginVersion ?? '') : '';
+		const plaintextProps = {
+			skillName: report.name,
+			skillPath: report.path,
+			skillExtensionId: report.pluginName ?? '',
+			skillExtensionVersion,
+			skillStorage,
+			skillContentHash: contentHash,
+		};
+		restricted.sendGHTelemetryEvent('skillContentRead', {
+			skillNameHash: String(hash(report.name)),
+			skillExtensionIdHash: report.pluginName ? String(hash(report.pluginName)) : '',
+			skillExtensionVersion,
+			skillStorage,
+			skillContentHash: contentHash,
+		});
+		restricted.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
+		restricted.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
 	}
 
 	turnCompleted(report: IAgentHostTurnCompletedReport): void {

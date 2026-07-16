@@ -30,8 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -95,7 +94,6 @@ const $ = dom.$;
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
 const DIFF_STATS_ACTION_ID = 'workbench.changesView.action.viewChanges';
-const DIFF_STATS_LABEL_ACTION_ID = 'workbench.changesView.action.diffStatsLabel';
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 
 /** Maximum number of file rows the tree pane's minimum size grows to accommodate. */
@@ -315,7 +313,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 					: op.status === SessionChangesetOperationStatus.Running
 						? `$(loading) ${op.label}`
 						: op.label,
-				tooltip: op.description,
+				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => changeset.invokeOperation(op.id),
 			});
@@ -446,18 +444,21 @@ export class ChangesActionsBar extends Disposable {
 			updateVisibility();
 		}));
 	}
+
 }
 
 // --- Editor header menus (single-pane): the Changes editor declares
-// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats, left) and
-// Menus.SessionsEditorHeaderSecondary (diff/code-review/view-mode actions, right), and
+// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats + code review,
+// left) and Menus.SessionsEditorHeaderSecondary (diff/view-mode actions, right), and
 // the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
-// hosted in the sessions title bar (Menus.TitleBarSessionMenu). The custom action view
-// items below are registered globally by menu id so the toolbars render them.
+// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
+// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
+// The custom action view items below are registered globally by menu id so the
+// header toolbars render them.
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request title-bar action item. */
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
@@ -492,26 +493,14 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 			return instantiationService.createInstance(ChangesPickerActionItem, action);
 		}, onDidRegister.event));
 
-		// Editor area VISIBLE: non-interactive "N files +X -Y" label.
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_LABEL_ACTION_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
-		}, onDidRegister.event));
-
-		// Editor area CLOSED: interactive diff-stats (classic Changes view header action)
-		// that opens the Changes editor on click.
+		// Always rendered, whether the editor area is visible or collapsed: the same
+		// diff-stats action as the classic Changes view header (clicking it opens the
+		// Changes editor), but with the richer "N files +X -Y" rendering.
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
-		}, onDidRegister.event));
-
-		// Create Pull Request button bar, hosted in the title bar (right, session actions area).
-		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
+			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
 		}, onDidRegister.event));
 
 		onDidRegister.fire();
@@ -1902,38 +1891,12 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 // --- Diff Stats Actions
 //
-// Two variants render in the editor-group header's left title bar (SessionsEditorHeaderPrimary):
-//  - Editor area VISIBLE: a non-interactive "N files +X -Y" label (ChangesDiffStatsLabelAction,
-//    rendered by SinglePaneChangesDiffStatsActionItem).
-//  - Editor area CLOSED: the interactive diff-stats from the classic Changes view header
-//    (ChangesDiffStatsAction, rendered by ChangesDiffStatsActionItem) — clicking it opens the
-//    Changes editor. It resolves the Changes view because the detail panel is showing it.
-
-/**
- * Non-interactive diff-stats label shown on the editor-group header (left) while the
- * editor area is visible. It only presents the "N files +X -Y" summary and is not
- * clickable — the {@link SinglePaneChangesDiffStatsActionItem} swallows clicks.
- */
-class ChangesDiffStatsLabelAction extends Action2 {
-	static readonly ID = DIFF_STATS_LABEL_ACTION_ID;
-
-	constructor() {
-		super({
-			id: ChangesDiffStatsLabelAction.ID,
-			title: localize2('changesView.diffStatsLabel', 'Changes Stats'),
-			f1: false,
-			menu: [{
-				id: Menus.SessionsEditorHeaderPrimary,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, MainEditorAreaVisibleContext)
-			}],
-		});
-	}
-
-	override async run(): Promise<void> { /* non-interactive label */ }
-}
-registerAction2(ChangesDiffStatsLabelAction);
+// The editor-group header's left title bar (SessionsEditorHeaderPrimary) always renders
+// the same diff-stats action (ChangesDiffStatsAction) that the classic Changes view
+// header uses — the one otherwise shown only while the editor area is collapsed —
+// whether the editor area is visible or closed. Clicking it opens (or re-opens) the
+// Changes editor. It uses SinglePaneChangesDiffStatsActionItem, a richer "N files +X -Y"
+// rendering (the detail-panel header uses the compact animated base rendering instead).
 
 class ChangesDiffStatsAction extends Action2 {
 	static readonly ID = 'workbench.changesView.action.viewChanges';
@@ -1952,10 +1915,7 @@ class ChangesDiffStatsAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 2,
-				// Shown only when the editor area is collapsed; clicking it opens the
-				// (currently closed) Changes editor. While the editor area is visible the
-				// non-interactive label (ChangesDiffStatsLabelAction) takes this slot.
-				when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, MainEditorAreaVisibleContext.negate())
+				when: ChatContextKeys.hasAgentSessionChanges
 			}],
 		});
 	}
@@ -2046,26 +2006,19 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 }
 
 /**
- * Diff-stats label for the single-pane Changes editor header: a richer "N files +X -Y"
- * rendering (the detail-panel header uses the compact animated base rendering). It is a
- * **non-interactive status label** — no hover background and clicks are swallowed. Adds
- * the `changes-diff-stats-action-rich` marker class so its styling applies wherever it
- * renders (the classic internal header or the single-pane editor-group header).
+ * Diff-stats action item for the single-pane Changes editor header: a richer
+ * "N files +X -Y" rendering (the detail-panel header uses the compact animated
+ * base rendering). Unlike the base item this remains fully interactive — clicking
+ * it runs the action (opens the Changes editor) the same as the base rendering.
+ * Adds the `changes-diff-stats-action-rich` marker class so its styling applies
+ * wherever it renders (the classic internal header or the single-pane editor-group
+ * header).
  */
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('changes-diff-stats-action-rich');
-	}
-
-	override onClick(event: dom.EventLike): void {
-		// Non-interactive: this is a status label, not an action.
-		dom.EventHelper.stop(event, true);
-	}
-
-	override focus(): void {
-		// Not focusable: it is a label, not an interactive action.
 	}
 
 	protected override renderLabelContents(label: HTMLElement): void {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -22,6 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -31,7 +32,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -55,6 +56,9 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -252,6 +256,27 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 	}
 });
 
+const codexExtensionHostAvailableWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext.negate(),
+	ContextKeyExpr.or(
+		AGENT_HOST_ENABLED_CONTEXT_KEY.negate(),
+		ContextKeyExpr.not(`config.${AgentHostCodexAgentEnabledSettingId}`),
+		ContextKeyExpr.not(`config.${CodexPreferAgentHostEditorSettingId}`),
+	),
+)!;
+
+export function applyCodexAgentHostPreference(contribution: IChatSessionsExtensionPoint): IChatSessionsExtensionPoint {
+	if (contribution.type !== SessionType.Codex) {
+		return contribution;
+	}
+
+	const contributedWhen = contribution.when ? ContextKeyExpr.deserialize(contribution.when) : undefined;
+	return {
+		...contribution,
+		when: ContextKeyExpr.and(contributedWhen, codexExtensionHostAvailableWhen)?.serialize(),
+	};
+}
+
 class ContributedChatSessionData extends Disposable {
 
 	private readonly _optionsCache: ChatSessionOptionsMap;
@@ -427,6 +452,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return entry.controller.resolveChatSessionItem(resource, token);
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];
@@ -441,6 +478,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
+		contribution = applyCodexAgentHostPreference(contribution);
 		this._logService.trace(`[ChatSessionsService] registerContribution called for type='${contribution.type}', canDelegate=${contribution.canDelegate}, when='${contribution.when}', extension='${ext.identifier.value}'`);
 		if (this._contributions.has(contribution.type)) {
 			this._logService.trace(`[ChatSessionsService] registerContribution: type='${contribution.type}' already registered, skipping`);
@@ -1148,15 +1186,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
-		const sessionType = getChatSessionType(sessionResource);
-		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
-		const controllerData = this._itemControllers.get(resolvedType);
+		const controllerData = this._getChatSessionItemController(sessionResource);
 		if (!controllerData?.controller.deleteChatSessionItem) {
 			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
 		}
 
 		await controllerData.initialRefresh;
 		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
+	private _getChatSessionItemController(sessionResource: URI) {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		return this._itemControllers.get(resolvedType);
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
@@ -1463,7 +1505,12 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 				throw new BugIndicatingError(`Invalid chat session position argument: ${chatSessionPosition}`);
 			}
 
-			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditor: true });
+			// Resolve the editor to replace up front from the currently active
+			// chat editor, so the replacement targets that specific tab rather
+			// than whatever becomes active during the async open.
+			const activeEditor = accessor.get(IEditorGroupsService).activeGroup.activeEditor;
+			const replaceEditorForResource = activeEditor instanceof ChatEditorInput ? activeEditor.sessionResource : undefined;
+			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditorForResource });
 		}
 	});
 }
@@ -1513,7 +1560,13 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
-	readonly replaceEditor?: boolean;
+	/**
+	 * When set, the editor showing this (source) session resource is replaced
+	 * in place with the newly opened session. The source resource is resolved
+	 * to its concrete editor at replace time, so the correct tab is replaced
+	 * even if the user activated a different editor during the async setup.
+	 */
+	readonly replaceEditorForResource?: URI;
 };
 
 export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
@@ -1526,6 +1579,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
+	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
@@ -1537,11 +1591,24 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		importConversationStore.set(sessionResource, chatSendOptions.importConversation);
 	}
 
-	// Open chat session
+	// Open chat session. For a sidebar "Continue in…" migration the transition
+	// spans multiple async phases (load → materializing send → untitled→real
+	// rebind), during which the chat widget is transiently empty. Hold the
+	// sessions list suppressed across the whole transition so it never flashes.
+	let sessionsListSuppression: IDisposable | undefined;
+	let transitionProgress: DeferredPromise<void> | undefined;
 	try {
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+				if (chatSendOptions?.importConversation) {
+					sessionsListSuppression = view.beginSessionsListSuppression();
+					// Show the chat view's working indicator for the whole transition (the
+					// widget is blank while the backend session materializes) so it does not
+					// look hung. Completed once the migration finishes below.
+					transitionProgress = new DeferredPromise<void>();
+					progressService.withProgress({ location: ChatViewId }, () => transitionProgress!.p);
+				}
 				if (openOptions.type === AgentSessionProviders.Local) {
 					await view.startNewLocalSession();
 				} else {
@@ -1559,13 +1626,28 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 						fallback: localize('chatEditorContributionName', "{0}", openOptions.displayName),
 					}
 				};
-				if (openOptions.replaceEditor) {
-					// TODO: Do not rely on active editor
-					const activeEditor = editorGroupService.activeGroup.activeEditor;
-					if (!activeEditor || !(activeEditor instanceof ChatEditorInput)) {
-						throw new Error('No active chat editor to replace');
+				if (openOptions.replaceEditorForResource) {
+					// Replace the specific source chat editor, identified by its
+					// session resource — not whatever happens to be active now. The
+					// repository extraction and other awaits above may have run while
+					// the user activated a different chat editor, so consulting the
+					// active editor could replace an unrelated tab.
+					const sourceResource = openOptions.replaceEditorForResource;
+					let replaced = false;
+					for (const group of editorGroupService.groups) {
+						const editor = group.editors.find(e => e instanceof ChatEditorInput && resources.isEqual(e.sessionResource, sourceResource));
+						if (editor) {
+							await editorService.replaceEditors([{ editor, replacement: { resource: sessionResource, options } }], group);
+							replaced = true;
+							break;
+						}
 					}
-					await editorService.replaceEditors([{ editor: activeEditor, replacement: { resource: sessionResource, options } }], editorGroupService.activeGroup);
+					if (!replaced) {
+						// No chat editor to replace in place — fall back to opening a
+						// new editor so the session (and the user's pending send) is
+						// never lost.
+						await editorService.openEditor({ resource: sessionResource, options });
+					}
 				} else {
 					await editorService.openEditor({ resource: sessionResource, options });
 				}
@@ -1575,6 +1657,8 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		}
 	} catch (e) {
 		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
+		sessionsListSuppression?.dispose();
+		transitionProgress?.complete();
 		return;
 	}
 
@@ -1614,6 +1698,12 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+
+	// The migration transition is complete (session loaded, request sent and any
+	// untitled→real rebind done); allow the sessions list again and stop the
+	// working indicator.
+	sessionsListSuppression?.dispose();
+	transitionProgress?.complete();
 }
 
 /**

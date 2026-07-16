@@ -6,7 +6,7 @@
 import { IContextMenuProvider } from '../../contextmenu.js';
 import * as DOM from '../../dom.js';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
-import { AnchorAlignment } from '../contextview/contextview.js';
+import { AnchorAlignment, IContextViewCloseAnimation } from '../contextview/contextview.js';
 import { DropdownMenuActionViewItem } from '../dropdown/dropdownActionViewItem.js';
 import { Action, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
 import { Codicon } from '../../../common/codicons.js';
@@ -42,6 +42,8 @@ export interface IToolBarOptions {
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
+	dropdownMenuClassName?: string;
+	dropdownMenuCloseAnimation?: IContextViewCloseAnimation;
 	renderDropdownAsChildElement?: boolean;
 	moreIcon?: ThemeIcon;
 	allowContextMenu?: boolean;
@@ -124,6 +126,8 @@ export class ToolBar extends Disposable {
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: ThemeIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
+							menuClassName: this.options.dropdownMenuClassName,
+							closeAnimation: this.options.dropdownMenuCloseAnimation,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
 							skipTelemetry: this.options.skipTelemetry,
@@ -155,6 +159,8 @@ export class ToolBar extends Disposable {
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
 							classNames: action.class,
+							menuClassName: this.options.dropdownMenuClassName,
+							closeAnimation: this.options.dropdownMenuCloseAnimation,
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
 							skipTelemetry: this.options.skipTelemetry,

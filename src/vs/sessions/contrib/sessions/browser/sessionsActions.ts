@@ -66,7 +66,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
@@ -103,11 +103,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const toPickItem = (session: ISession): ISessionPickItem => {
 			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
-			// Status icon, mirroring the sessions list and session header. Use the
-			// list model service's read state (not session.isRead) so the icon
-			// matches what the sessions list shows.
+			// Status icon, mirroring the sessions list and session header.
 			const status = session.status.get();
-			const isRead = sessionsListModelService.isSessionRead(session);
+			const isRead = session.isRead.get();
 			const isArchived = session.isArchived.get();
 			const workspace = session.workspace.get();
 			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
@@ -225,7 +223,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 });
 
 const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
@@ -235,7 +233,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --
@@ -907,10 +905,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 /**
- * Base class for the compact "New" pill button rendered in the sessions UI (sidebar header,
- * titlebar, session header). Subclasses provide the command id, label and hover/aria text.
+ * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
+ * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
+ * label and hover/aria text.
  */
-abstract class CompactNewButtonActionViewItem extends BaseActionViewItem {
+export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
@@ -1035,7 +1034,7 @@ abstract class CompactNewButtonActionViewItem extends BaseActionViewItem {
  * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
  * header and the titlebar.
  */
-class NewSessionActionViewItem extends CompactNewButtonActionViewItem {
+class NewSessionActionViewItem extends CompactButtonActionViewItem {
 
 	constructor(
 		action: IAction,
@@ -1133,7 +1132,7 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
  * Renders the "New Chat" action in the session header as the compact pill, matching the
  * "New" session pill in the sessions list header / titlebar.
  */
-class NewChatActionViewItem extends CompactNewButtonActionViewItem {
+class NewChatActionViewItem extends CompactButtonActionViewItem {
 
 	protected override get commandId(): string {
 		return ADD_CHAT_TO_SESSION_ACTION_ID;

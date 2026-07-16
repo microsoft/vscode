@@ -22,6 +22,7 @@ import {
 	IVoiceTurnConfig,
 	IVoiceTurnAutoEnded,
 	IVoiceTurnAutoEndReason,
+	IVoiceBargeIn,
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
@@ -63,6 +64,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private readonly _onAudioResponse = this._register(new Emitter<IVoiceAudioResponse>());
 	readonly onAudioResponse: Event<IVoiceAudioResponse> = this._onAudioResponse.event;
+
+	private readonly _onBargeIn = this._register(new Emitter<IVoiceBargeIn>());
+	readonly onBargeIn: Event<IVoiceBargeIn> = this._onBargeIn.event;
 
 	private readonly _onToolCall = this._register(new Emitter<IVoiceToolCall>());
 	readonly onToolCall: Event<IVoiceToolCall> = this._onToolCall.event;
@@ -109,7 +113,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		// on the next ``start_session`` / ``resume_session`` instead.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
-				e.affectsConfiguration('agents.voice.turn.autoEndMode') ||
 				e.affectsConfiguration('agents.voice.turn.silenceMs') ||
 				e.affectsConfiguration('agents.voice.turn.stopPhrases')
 			) {
@@ -138,22 +141,29 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	/**
 	 * Assemble the ``turn_config`` wire object from the ``agents.voice.turn.*``
-	 * settings, normalizing each into the shape the backend expects.
+	 * settings, normalizing each into the shape the backend expects. The
+	 * ``auto_end_mode`` is derived from the other two settings: trailing-silence
+	 * ending is enabled unless ``silenceMs`` is ``-1`` (or otherwise non-positive),
+	 * and stop-phrase ending is enabled when at least one phrase is configured.
 	 */
 	private _getTurnConfig(): IVoiceTurnConfig {
 		const cfg = this._configurationService;
 
-		const modeRaw = cfg.getValue<string>('agents.voice.turn.autoEndMode');
-		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
-			modeRaw === 'vad' || modeRaw === 'phrase' || modeRaw === 'both' ? modeRaw : 'off';
-
 		const silenceRaw = cfg.getValue<number>('agents.voice.turn.silenceMs');
-		const silence_ms = typeof silenceRaw === 'number' && silenceRaw > 0 ? Math.round(silenceRaw) : 800;
+		const silenceEnabled = typeof silenceRaw === 'number' && silenceRaw > 0;
+		const silence_ms = silenceEnabled ? Math.round(silenceRaw) : 800;
 
 		const phrasesRaw = cfg.getValue<string[]>('agents.voice.turn.stopPhrases');
 		const stop_phrases = Array.isArray(phrasesRaw)
 			? phrasesRaw.map(p => String(p).trim()).filter(p => p.length > 0)
 			: [];
+		const phrasesEnabled = stop_phrases.length > 0;
+
+		const auto_end_mode: IVoiceTurnConfig['auto_end_mode'] =
+			silenceEnabled && phrasesEnabled ? 'both'
+				: silenceEnabled ? 'vad'
+					: phrasesEnabled ? 'phrase'
+						: 'off';
 
 		return { auto_end_mode, silence_ms, stop_phrases, vad_gate_asr: true };
 	}
@@ -224,6 +234,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				committed?: string;
 				reason?: string;
 				turn_id?: string;
+				interrupted_turn_id?: string;
 			};
 			try {
 				msg = JSON.parse(evt.data as string);
@@ -247,6 +258,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				case 'speech_started':
 					this._onSpeechStarted.fire({});
+					break;
+				case 'barge_in':
+					this._onBargeIn.fire({
+						turnId: msg.turn_id ?? '',
+						interruptedTurnId: msg.interrupted_turn_id ?? '',
+					});
 					break;
 				case 'transcription':
 					this._onTranscription.fire({ text: msg.text ?? '', status: (msg.status as 'partial' | 'final') ?? 'final', committed: msg.committed as string ?? '' });
@@ -291,7 +308,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		};
 
 		ws.onclose = (evt: CloseEvent) => {
-			this._logService.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+			this._logService.trace(`[voice] ws.onclose code=${evt.code} reason=${evt.reason ?? ''} wasClean=${evt.wasClean}`);
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
 					this._cleanup();
@@ -332,7 +349,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	disconnect(): void {
-		this._logService.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
+		this._logService.trace('[voice] disconnect() called');
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -551,6 +568,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			removes,
 			...(activeChanged && context.active_session ? { active_session: context.active_session } : {}),
 		}));
+		this._logService.trace(`[voice] _sendDelta upserts=[${upserts.map(u => `${String(u.id).slice(-8)}:${u.agent_state ?? '(no-state)'}${Object.prototype.hasOwnProperty.call(u, 'agent_state_detail') ? '+detail' : ''}${Object.prototype.hasOwnProperty.call(u, 'last_response_summary') && u.last_response_summary ? '+summary' : ''}`).join(', ')}] removes=${removes.length} activeChanged=${activeChanged}`);
 	}
 
 	private _seedTracking(context: IVoiceSessionContext): void {

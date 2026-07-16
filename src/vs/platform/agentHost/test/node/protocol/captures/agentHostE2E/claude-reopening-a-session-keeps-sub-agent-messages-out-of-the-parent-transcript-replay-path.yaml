@@ -1,0 +1,141 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the `Task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Agent
+          input:
+            description: List files in cwd
+            prompt: |-
+              List the files in the current working directory. Begin your response with exactly this sentence on its own line:
+
+              subagent replay note sentinel-7f3a
+
+              Then list the files.
+            subagent_type: general-purpose
+            run_in_background: false
+      stopReason: tool_use
+      usage:
+        inputTokens: 6837
+        outputTokens: 217
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory. Begin your response with exactly this sentence on its own line:
+
+            subagent replay note sentinel-7f3a
+
+            Then list the files.
+    response:
+      content:
+        - type: text
+          text: subagent replay note sentinel-7f3a
+        - type: tool_use
+          id: toolcall_1
+          name: Bash
+          input:
+            command: ls -la "/private${workdir}/ahp-subagent-replay-FKcp1Z"
+            description: List files in working directory
+      stopReason: tool_use
+      usage:
+        inputTokens: 2675
+        outputTokens: 149
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            List the files in the current working directory. Begin your response with exactly this sentence on its own line:
+
+            subagent replay note sentinel-7f3a
+
+            Then list the files.
+        - role: assistant
+          content:
+            - type: text
+              text: subagent replay note sentinel-7f3a
+            - type: tool_use
+              name: Bash
+              input:
+                command: ls -la "/private${workdir}/ahp-subagent-replay-FKcp1Z"
+                description: List files in working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                total 16
+                drwx------     4 ${user}  staff    128 Jul  9 16:55 .
+                drwx------@ 1145 ${user}  staff  36640 Jul  9 16:55 ..
+                -rw-r--r--     1 ${user}  staff      5 Jul  9 16:55 file-a.txt
+                -rw-r--r--     1 ${user}  staff      4 Jul  9 16:55 file-b.txt
+    response:
+      content: |-
+        subagent replay note sentinel-7f3a
+
+        The working directory contains 2 files:
+
+        - /private${workdir}/ahp-subagent-replay-FKcp1Z/file-a.txt
+        - /private${workdir}/ahp-subagent-replay-FKcp1Z/file-b.txt
+      stopReason: end_turn
+      usage:
+        inputTokens: 4165
+        outputTokens: 157
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the `Task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Agent
+              input:
+                description: List files in cwd
+                prompt: |-
+                  List the files in the current working directory. Begin your response with exactly this sentence on its own line:
+
+                  subagent replay note sentinel-7f3a
+
+                  Then list the files.
+                subagent_type: general-purpose
+                run_in_background: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: text
+                  text: |-
+                    subagent replay note sentinel-7f3a
+
+                    The working directory contains 2 files:
+
+                    - /private${workdir}/ahp-subagent-replay-FKcp1Z/file-a.txt
+                    - /private${workdir}/ahp-subagent-replay-FKcp1Z/file-b.txt
+                - type: text
+                  text: |-
+                    agentId: a072652024085f2e7 (use SendMessage with to: 'a072652024085f2e7', summary: '<5-10 word recap>' to continue this agent)
+                    <usage>subagent_tokens: 25858
+                    tool_uses: 1
+                    duration_ms: 13466</usage>
+    response:
+      content: SUBAGENT_DONE
+      stopReason: end_turn
+      usage:
+        inputTokens: 2
+        outputTokens: 13

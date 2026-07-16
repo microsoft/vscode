@@ -10,11 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, withSessionGitState, withSessionGitHubState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import {
 	applyCreateChatTool,
 	applyDeleteSessionTool,
+	applySendMessageTool,
 	createChatToolName,
 	createSessionServerToolGroup,
 	createSessionToolName,
@@ -23,12 +24,18 @@ import {
 	getCreateSessionArgs,
 	getCurrentSessionToolName,
 	getDeleteSessionArgs,
+	getSendMessageArgs,
+	getSessionContextArgs,
+	serializeSessionContext,
+	getSessionContextToolName,
 	filterSessions,
 	getListSessionsArgs,
 	listSessionsToolName,
+	sendMessageToolName,
 	sessionServerToolDefinitions,
 	sessionToolRequiresConfirmation,
 	serializeSessions,
+	type IChatContextSnapshot,
 	type ISessionServerToolAccessor,
 } from '../../node/shared/sessionServerTools.js';
 
@@ -52,18 +59,21 @@ suite('SessionServerTools', () => {
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt) => { overrides?.onPrompt?.(session, chat, prompt); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
 			deleteSession: overrides?.deleteSession ?? (async session => { overrides?.onDelete?.(session); }),
+			getChatContext: overrides?.getChatContext ?? (() => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 		};
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [listSessionsToolName, getCurrentSessionToolName, createSessionToolName, createChatToolName, deleteSessionToolName]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [listSessionsToolName, getCurrentSessionToolName, createSessionToolName, createChatToolName, sendMessageToolName, getSessionContextToolName, deleteSessionToolName]);
 		assert.strictEqual(sessionToolRequiresConfirmation(createSessionToolName), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(createChatToolName), true);
+		assert.strictEqual(sessionToolRequiresConfirmation(sendMessageToolName), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(deleteSessionToolName), true);
 		assert.strictEqual(sessionToolRequiresConfirmation(listSessionsToolName), false);
 		assert.strictEqual(sessionToolRequiresConfirmation(getCurrentSessionToolName), false);
+		assert.strictEqual(sessionToolRequiresConfirmation(getSessionContextToolName), false);
 	});
 
 	test('serializeSessions produces compact metadata', () => {
@@ -109,6 +119,17 @@ suite('SessionServerTools', () => {
 				github: { owner: 'microsoft', repo: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1' },
 			}],
 		});
+	});
+
+	test('serializeSessions reports archived status for metadata-only archives', () => {
+		const metadataOnly: IAgentSessionMetadata = { ...sessionMeta('archived', SessionStatus.Idle, workspace), isArchived: true };
+		const bitOnly: IAgentSessionMetadata = { ...sessionMeta('bitArchived', SessionStatus.Idle | SessionStatus.IsArchived, workspace) };
+		const noStatus: IAgentSessionMetadata = { session: URI.parse('copilot:/noStatus'), startTime: 0, modifiedTime: 0, isArchived: true, workingDirectory: workspace };
+		assert.deepStrictEqual(JSON.parse(serializeSessions([metadataOnly, bitOnly, noStatus])).sessions.map((s: { session: string; status?: string }) => ({ session: s.session, status: s.status })), [
+			{ session: 'copilot:/archived', status: 'idle,archived' },
+			{ session: 'copilot:/bitArchived', status: 'idle,archived' },
+			{ session: 'copilot:/noStatus', status: 'archived' },
+		]);
 	});
 
 	test('getCreateSessionArgs resolves workspace by working directory and model by id/name', () => {
@@ -177,6 +198,7 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual({
 			byStatus: await ids({ status: ['inputNeeded'] }),
+			byArchivedStatus: await ids({ status: ['archived'] }),
 			byWorkspace: await ids({ workspace: workspace.toString() }),
 			withChanges: await ids({ withChanges: true }),
 			unread: await ids({ unread: true }),
@@ -188,6 +210,7 @@ suite('SessionServerTools', () => {
 			all: await ids({}),
 		}, {
 			byStatus: ['copilot:/needsInput'],
+			byArchivedStatus: ['copilot:/archived'],
 			byWorkspace: ['copilot:/idle', 'copilot:/needsInput', 'copilot:/withPr'],
 			withChanges: ['copilot:/idle'],
 			unread: ['copilot:/needsInput'],
@@ -202,12 +225,30 @@ suite('SessionServerTools', () => {
 	});
 
 	test('getListSessionsArgs validates filter input', () => {
-		assert.deepStrictEqual(getListSessionsArgs({}), { status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined });
+		assert.deepStrictEqual(getListSessionsArgs({}), { session: undefined, status: undefined, workspace: undefined, withChanges: undefined, unread: undefined, withPullRequest: undefined, includeArchived: undefined, createdAfter: undefined, createdBefore: undefined });
 		assert.throws(() => getListSessionsArgs({ status: ['bogus'] }), /status/);
 		assert.throws(() => getListSessionsArgs({ withChanges: 'yes' }), /withChanges/);
 		assert.throws(() => getListSessionsArgs({ includeArchived: 'no' }), /includeArchived/);
 		assert.throws(() => getListSessionsArgs({ createdAfter: 'not-a-date' }), /createdAfter/);
 		assert.strictEqual(filterSessions([sessionMeta('s1', SessionStatus.Idle, workspace)], getListSessionsArgs({})).length, 1);
+	});
+
+	test('list_sessions fetches a single session by URI or open link, bypassing other filters', () => {
+		const archived = { ...sessionMeta('archived', SessionStatus.Idle, workspace), isArchived: true };
+		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace), archived];
+		const ids = (args: object) => filterSessions(sessions, getListSessionsArgs(args)).map(s => s.session.toString());
+		assert.deepStrictEqual({
+			byUri: ids({ session: 'copilot:/s1' }),
+			byLink: ids({ session: 'agent-host-session://copilot/s1' }),
+			// A direct lookup returns an archived session even though archived are hidden by default.
+			archivedByUri: ids({ session: 'copilot:/archived' }),
+			unknown: ids({ session: 'copilot:/nope' }),
+		}, {
+			byUri: ['copilot:/s1'],
+			byLink: ['copilot:/s1'],
+			archivedByUri: ['copilot:/archived'],
+			unknown: [],
+		});
 	});
 
 	test('create_session stamps spawn depth and enforces the recursion depth limit', async () => {
@@ -275,6 +316,106 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(createdChat?.chat.toString(), result.chat);
 		assert.strictEqual(prompted?.chat.toString(), result.chat);
 		assert.strictEqual(prompted?.prompt, 'do it');
+	});
+
+	test('send_message targets the default chat / a specific chat, refuses the current chat, and validates', async () => {
+		const prompts: { session: URI; chat: URI; prompt: string }[] = [];
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+			onPrompt: (session, chat, prompt) => { prompts.push({ session, chat, prompt }); },
+		});
+		const currentChannel = buildDefaultChatUri('copilot:/s1');
+
+		// Explicit session -> owning session's default chat.
+		const toSession = await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, currentChannel);
+		assert.strictEqual(prompts.at(-1)?.session.toString(), 'copilot:/s2');
+		assert.strictEqual(prompts.at(-1)?.chat.toString(), buildDefaultChatUri('copilot:/s2'));
+		assert.strictEqual(prompts.at(-1)?.prompt, 'hi');
+		assert.ok(toSession.includes('agent-host-session://copilot/s2'));
+
+		// A create_chat open link -> that specific chat channel.
+		await applySendMessageTool(accessor, { session: 'agent-host-session://copilot/s2?chat=c9', message: 'yo' }, currentChannel);
+		assert.strictEqual(prompts.at(-1)?.chat.toString(), buildChatUri('copilot:/s2', 'c9'));
+
+		// Refuses messaging the exact current chat channel (self-loop guard).
+		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/s1', message: 'loop' }, currentChannel), /current chat/);
+		// Unknown session and missing session/message are rejected.
+		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
+		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
+		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
+	});
+
+	suite('get_session_context', () => {
+		const toolCall = (toolName: string, input: object): ToolCallState => ({
+			toolCallId: 't', toolName, displayName: toolName,
+			invocationMessage: '', toolInput: JSON.stringify(input),
+			status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded,
+			success: true, pastTenseMessage: '',
+		});
+		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
+		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
+		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
+			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+
+		const snapshot: IChatContextSnapshot = {
+			turns: [
+				turn('t1', 'do the thing', [toolPart(toolCall('read_file', { path: 'a.ts' })), md('Working on it.')]),
+				turn('t2', 'now finish it', [toolPart(toolCall('apply_patch', { patch: '@@' })), md('Here is the result.')]),
+			],
+			hasMoreHistory: true,
+		};
+
+		test('summary returns per-turn gists (message + reply snippet), no tool calls', () => {
+			assert.deepStrictEqual(JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'summary', 10)), {
+				session: 'copilot:/s1',
+				openLink: 'agent-host-session://copilot/s1',
+				detail: 'summary',
+				transcript: [
+					{ turn: 1, state: 'complete', user: 'do the thing', assistant: 'Working on it.' },
+					{ turn: 2, state: 'complete', user: 'now finish it', assistant: 'Here is the result.' },
+				],
+				hasMoreHistory: true,
+				truncated: false,
+			});
+		});
+
+		test('digest adds assistant text and tool-call names', () => {
+			const digest = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'digest', 10));
+			assert.deepStrictEqual(digest.transcript[0], { turn: 1, state: 'complete', user: 'do the thing', assistant: 'Working on it.', toolCalls: ['read_file'] });
+		});
+
+		test('detail=full targeting a specific chat carries the chat link and tool inputs', () => {
+			const full = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), 'c9', snapshot, 'full', 10));
+			assert.strictEqual(full.openLink, 'agent-host-session://copilot/s1?chat=c9');
+			assert.deepStrictEqual(full.transcript[1].toolCalls, [{ name: 'apply_patch', input: '{"patch":"@@"}' }]);
+		});
+
+		test('transcriptLimit drops older turns and flags truncated', () => {
+			const limited = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'summary', 1));
+			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
+		});
+
+		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {
+			const store = new DisposableStore();
+			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
+			const withCtx = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => snapshot }));
+			const live = JSON.parse(await withCtx.execute(stateManager, 'copilot:/caller', getSessionContextToolName, { session: 'copilot:/s1' }));
+			assert.strictEqual(live.transcript.length, 2);
+
+			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: () => undefined }));
+			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, 'copilot:/caller', getSessionContextToolName, { session: 'copilot:/s1' })), {
+				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
+			});
+			store.dispose();
+		});
+
+		test('getSessionContextArgs validates input', () => {
+			assert.throws(() => getSessionContextArgs({}, []), /session/);
+			assert.throws(() => getSessionContextArgs({ session: 'copilot:/nope' }, [sessionMeta('s1', SessionStatus.Idle, workspace)]), /known session/);
+			assert.throws(() => getSessionContextArgs({ session: 'copilot:/s1', detail: 'huge' }, [sessionMeta('s1', SessionStatus.Idle, workspace)]), /detail/);
+			assert.strictEqual(getSessionContextArgs({ session: 'copilot:/s1', transcriptLimit: 999 }, [sessionMeta('s1', SessionStatus.Idle, workspace)]).transcriptLimit, 50);
+		});
 	});
 
 	test('get_current_session returns the current session link + metadata', async () => {

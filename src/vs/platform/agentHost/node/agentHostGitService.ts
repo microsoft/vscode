@@ -151,7 +151,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		// `-f` (force) so recreation succeeds even when the worktree directory was
+		// deleted out-of-band but git still has it registered ("missing but
+		// already registered worktree"). This is our own managed per-session
+		// worktree/branch, so overriding git's safeguards here is safe.
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {

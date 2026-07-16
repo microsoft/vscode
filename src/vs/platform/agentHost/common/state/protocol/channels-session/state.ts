@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
+import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -231,6 +231,8 @@ export const enum SessionInputRequestKind {
 	ToolConfirmation = 'toolConfirmation',
 	/** A running tool the session wants an active client to execute. */
 	ToolClientExecution = 'toolClientExecution',
+	/** A tool call blocked on MCP authentication mid-execution. */
+	ToolAuthentication = 'toolAuthentication',
 }
 
 /**
@@ -325,6 +327,31 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
 }
 
 /**
+ * A tool call blocked on MCP authentication mid-execution, surfaced at the
+ * session level.
+ *
+ * The {@link toolCall} is always a {@link ToolCallAuthRequiredState} (a
+ * {@link ToolCallState} in `auth-required` status). Unlike
+ * {@link SessionToolConfirmationRequest}, this is **not** answered by
+ * dispatching a `chat/*` action directly: the client obtains a token for
+ * {@link ToolCallAuthRequiredState.auth | `toolCall.auth`}`.resource` and
+ * pushes it via the existing `authenticate` command (see
+ * {@link /specification/authentication | Authentication}). The host resumes
+ * the tool call and dispatches `chat/toolCallAuthResolved` once the token is
+ * accepted, at which point it also removes this entry with
+ * `session/inputNeededRemoved`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolAuthenticationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolAuthentication;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting authentication. */
+	toolCall: ToolCallAuthRequiredState;
+}
+
+/**
  * One outstanding piece of input a session is blocked on, aggregated across all
  * chats in {@link SessionState.inputNeeded}.
  *
@@ -333,15 +360,17 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
  * to construct the response, so a client can answer by dispatching the ordinary
  * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
  * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
- * to the chat**. The host removes the entry with `session/inputNeededRemoved`
- * once the underlying request resolves.
+ * to the chat** — except {@link SessionToolAuthenticationRequest}, which is
+ * resolved via the `authenticate` command instead. The host removes the entry
+ * with `session/inputNeededRemoved` once the underlying request resolves.
  *
  * @category Session Input Types
  */
 export type SessionInputRequest =
 	| SessionChatInputRequest
 	| SessionToolConfirmationRequest
-	| SessionToolClientExecutionRequest;
+	| SessionToolClientExecutionRequest
+	| SessionToolAuthenticationRequest;
 
 /**
  * Server-owned project metadata for a session.
@@ -639,6 +668,14 @@ interface CustomizationBase {
 	 * Absent when the customization covers the whole resource.
 	 */
 	range?: TextRange;
+	/**
+	 * Additional provider-specific metadata for this customization.
+	 *
+	 * Mirrors the MCP `_meta` convention. Optional and opaque to the
+	 * protocol; producers and consumers agree on its contents
+	 * out-of-band.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -740,6 +777,15 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/**
+	 * Version of the plugin, sourced from the
+	 * [Open Plugins](https://open-plugins.com/) manifest's optional
+	 * `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
+	 * declares no version — the field is optional there — or the source
+	 * has no version concept. Provenance / display only: the host neither
+	 * parses nor enforces it.
+	 */
+	version?: string;
 }
 
 /**
@@ -854,12 +900,6 @@ export interface AgentCustomization extends ChildCustomizationBase {
 	 * to. Absent or `false` means the user may select it.
 	 */
 	disableUserInvocation?: boolean;
-	/**
-	 * Additional provider-specific metadata for this custom agent.
-	 *
-	 * Mirrors the MCP `_meta` convention.
-	 */
-	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -1178,6 +1218,49 @@ export interface McpServerReadyState {
 }
 
 /**
+ * Reusable MCP authentication challenge — the RFC 9728 discovery info a
+ * client needs to obtain a token and push it via the `authenticate` command.
+ * Deliberately carries **no token**: this describes what is being asked for,
+ * never the ****** itself.
+ *
+ * Shared by two independent state machines that describe the same OAuth
+ * challenge from different vantage points:
+ *
+ * - {@link McpServerAuthRequiredState} — the MCP server itself cannot serve
+ *   *any* request until the client authenticates.
+ * - {@link ToolCallAuthRequiredState} — a specific in-flight tool call is
+ *   paused pending authentication (typically
+ *   {@link McpAuthRequiredReason.InsufficientScope} step-up auth
+ *   mid-execution). The server state and the tool-call state remain
+ *   separate on purpose: the server saying "I need auth" and a tool
+ *   invocation saying "I am waiting on that auth" are different facts that
+ *   can be true independently.
+ *
+ * @category MCP Server State
+ */
+export interface McpAuthRequirement {
+	/** Why authentication is required. */
+	reason: McpAuthRequiredReason;
+	/**
+	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
+	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+	 * indicator. `authorization_servers` is REQUIRED by the MCP
+	 * authorization spec.
+	 */
+	resource: ProtectedResourceMetadata;
+	/**
+	 * Scopes required for the current challenge, parsed from the
+	 * `WWW-Authenticate: ******"…"` header (or `scopes_supported`
+	 * fallback). Authoritative for the next authorization request — clients
+	 * MUST NOT assume any subset/superset relationship to
+	 * `resource.scopes_supported`.
+	 */
+	requiredScopes?: string[];
+	/** Human-readable hint, typically from the OAuth `error_description`. */
+	description?: string;
+}
+
+/**
  * Server is reachable but cannot serve requests until the client
  * authenticates. Mirrors the discovery flow defined by
  * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
@@ -1202,27 +1285,8 @@ export interface McpServerReadyState {
  *
  * @category MCP Server State
  */
-export interface McpServerAuthRequiredState {
+export interface McpServerAuthRequiredState extends McpAuthRequirement {
 	kind: McpServerStatus.AuthRequired;
-	/** Why authentication is required. */
-	reason: McpAuthRequiredReason;
-	/**
-	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
-	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
-	 * indicator. `authorization_servers` is REQUIRED by the MCP
-	 * authorization spec.
-	 */
-	resource: ProtectedResourceMetadata;
-	/**
-	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
-	 * fallback). Authoritative for the next authorization request — clients
-	 * MUST NOT assume any subset/superset relationship to
-	 * `resource.scopes_supported`.
-	 */
-	requiredScopes?: string[];
-	/** Human-readable hint, typically from the OAuth `error_description`. */
-	description?: string;
 }
 
 /**

@@ -15,7 +15,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -41,9 +40,9 @@ import { IListService, WorkbenchAsyncDataTree, WorkbenchDataTree, WorkbenchListF
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { EditorResourceAccessor, DEFAULT_EDITOR_ASSOCIATION, IEditorPartOptions, SideBySideEditor, isDiffEditorInput } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorPartOptions, SideBySideEditor } from '../../../common/editor.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorResolverService, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
@@ -52,7 +51,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
-import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
+import { createEditorTypeActions, editorTypeDisplayLabel, getAvailableEditorTypes, hasDefaultEditorAssociation } from './editorTypePicker.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -265,12 +264,13 @@ export class BreadcrumbsControl {
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
-	private readonly _editorTypeNode: HTMLDivElement;
-	private readonly _editorTypeLabel: HTMLSpanElement;
-	private readonly _editorTypeHover: IManagedHover;
+	private _editorTypeNode: HTMLDivElement | undefined;
+	private _editorTypeLabel: HTMLSpanElement | undefined;
+	private _editorTypeHover: IManagedHover | undefined;
 	private _lastLayoutDimension: dom.Dimension | undefined;
 
 	private readonly _disposables = new DisposableStore();
+	private readonly _editorTypeDisposables = this._disposables.add(new DisposableStore());
 	private readonly _breadcrumbsDisposables = new DisposableStore();
 	private readonly _labels: ResourceLabels;
 	private readonly _model = new MutableDisposable<BreadcrumbsModel>();
@@ -328,24 +328,6 @@ export class BreadcrumbsControl {
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 
-		// Editor type dropdown (right-aligned). Lets the user switch between the editors that can
-		// open the active resource (e.g. "Text Editor" vs. "Markdown Preview"). Only shown when a
-		// more specialized editor is available for the resource.
-		this._editorTypeNode = document.createElement('div');
-		this._editorTypeNode.classList.add('breadcrumbs-editor-type', 'hidden');
-		this._editorTypeNode.setAttribute('role', 'button');
-		this._editorTypeLabel = document.createElement('span');
-		this._editorTypeLabel.classList.add('label');
-		this._editorTypeNode.appendChild(this._editorTypeLabel);
-		const editorTypeChevron = document.createElement('span');
-		editorTypeChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
-		this._editorTypeNode.appendChild(editorTypeChevron);
-		dom.append(this.domNode, this._editorTypeNode);
-		this._editorTypeHover = this._disposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._editorTypeNode, ''));
-		this._disposables.add(dom.addDisposableListener(this._editorTypeNode, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			this._showEditorTypePicker();
-		}));
 		if (this._options.showEditorTypePicker) {
 			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
 		}
@@ -389,7 +371,7 @@ export class BreadcrumbsControl {
 		}
 		// When the editor type dropdown is visible it occupies space on the right, so shrink the
 		// breadcrumbs widget accordingly to avoid it rendering behind the dropdown.
-		if (dim && !this._editorTypeNode.classList.contains('hidden')) {
+		if (dim && this._editorTypeNode) {
 			const editorTypeWidth = this._editorTypeNode.offsetWidth;
 			dim = new dom.Dimension(Math.max(0, dim.width - editorTypeWidth), dim.height);
 		}
@@ -407,7 +389,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.set(false);
 		this._ckBreadcrumbsHasSymbols.set(false);
 		this.domNode.classList.toggle('hidden', true);
-		this._editorTypeNode.classList.toggle('hidden', true);
+		this._hideEditorTypeControl();
 
 		if (!wasHidden) {
 			this._onDidVisibilityChange.fire();
@@ -530,133 +512,73 @@ export class BreadcrumbsControl {
 		return wasHidden !== this.isHidden();
 	}
 
-	/**
-	 * Determines the editors available for the active editor's resource. Returns `undefined` when
-	 * there is nothing meaningful to switch between: no resource, only the default text editor, or an
-	 * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
-	 */
-	private _getAvailableEditors(): { resource: URI; isDiffEditor: boolean; originalResource?: URI; modifiedResource?: URI; currentId: string; editors: RegisteredEditorInfo[] } | undefined {
-		const activeEditor = this._editorGroup.activeEditor;
-		const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			return undefined;
-		}
-		const editors = this._editorResolverService.getEditors(resource);
-		if (editors.length <= 1) {
-			return undefined;
-		}
-		const isDiffEditor = isDiffEditorInput(activeEditor);
-		return {
-			resource,
-			isDiffEditor,
-			originalResource: isDiffEditor ? activeEditor.original.resource : undefined,
-			modifiedResource: isDiffEditor ? activeEditor.modified.resource : undefined,
-			currentId: activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id,
-			editors
-		};
-	}
-
-	/**
-	 * The label to show for an editor type. In a diff context the default text editor is presented as
-	 * "Text Diff Editor" to match how it actually opens.
-	 */
-	private _editorTypeDisplayLabel(editor: RegisteredEditorInfo, isDiffEditor: boolean): string {
-		if (isDiffEditor && editor.id === DEFAULT_EDITOR_ASSOCIATION.id) {
-			return localize('textDiffEditor', "Text Diff Editor");
-		}
-		return editor.label;
-	}
-
 	private _updateEditorTypeControl(): void {
-		const wasHidden = this._editorTypeNode.classList.contains('hidden');
-		const previousWidth = wasHidden ? 0 : this._editorTypeNode.offsetWidth;
+		const previousWidth = this._editorTypeNode?.offsetWidth ?? 0;
 
-		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? this._getAvailableEditors() : undefined;
-		if (!available) {
-			this._editorTypeNode.classList.toggle('hidden', true);
+		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
+		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
+		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
+			this._hideEditorTypeControl();
 		} else {
+			const { label: editorTypeLabel, hover: editorTypeHover } = this._createEditorTypeControl();
 			const current = available.editors.find(editor => editor.id === available.currentId);
-			const label = current ? this._editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
-			this._editorTypeLabel.textContent = label;
-			this._editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
-			this._editorTypeNode.classList.toggle('hidden', false);
+			const label = current ? editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
+			editorTypeLabel.textContent = label;
+			editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
 		}
 
 		// The dropdown width may have changed (different editor label or visibility toggled). Since the
 		// breadcrumbs widget uses an explicit pixel width that reserves room for the dropdown, re-run the
 		// layout so the widget shrinks/grows to match the new dropdown width.
-		const isHiddenNow = this._editorTypeNode.classList.contains('hidden');
-		const currentWidth = isHiddenNow ? 0 : this._editorTypeNode.offsetWidth;
+		const currentWidth = this._editorTypeNode?.offsetWidth ?? 0;
 		if (this._lastLayoutDimension && currentWidth !== previousWidth) {
 			this.layout(this._lastLayoutDimension);
 		}
 	}
 
+	private _createEditorTypeControl(): { label: HTMLSpanElement; hover: IManagedHover } {
+		if (this._editorTypeNode && this._editorTypeLabel && this._editorTypeHover) {
+			return { label: this._editorTypeLabel, hover: this._editorTypeHover };
+		}
+
+		this._editorTypeNode = document.createElement('div');
+		this._editorTypeNode.classList.add('breadcrumbs-editor-type');
+		this._editorTypeNode.setAttribute('role', 'button');
+		this._editorTypeLabel = document.createElement('span');
+		this._editorTypeLabel.classList.add('label');
+		this._editorTypeNode.appendChild(this._editorTypeLabel);
+		const editorTypeChevron = document.createElement('span');
+		editorTypeChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
+		this._editorTypeNode.appendChild(editorTypeChevron);
+		dom.append(this.domNode, this._editorTypeNode);
+		this._editorTypeHover = this._editorTypeDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._editorTypeNode, ''));
+		this._editorTypeDisposables.add(dom.addDisposableListener(this._editorTypeNode, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._showEditorTypePicker();
+		}));
+		return { label: this._editorTypeLabel, hover: this._editorTypeHover };
+	}
+
+	private _hideEditorTypeControl(): void {
+		this._editorTypeDisposables.clear();
+		this._editorTypeNode?.remove();
+		this._editorTypeNode = undefined;
+		this._editorTypeLabel = undefined;
+		this._editorTypeHover = undefined;
+	}
+
 	private _showEditorTypePicker(): void {
-		const available = this._getAvailableEditors();
+		const editorTypeNode = this._editorTypeNode;
+		if (!editorTypeNode) {
+			return;
+		}
+		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService);
 		if (!available) {
 			return;
 		}
-		const glob = `*${extUri.extname(available.resource)}`;
-		// Show the contributing extension in parentheses, but only for extension-provided editors.
-		// Built-in providers share this localized label, so their (redundant) source is omitted.
-		const builtinProviderLabel = localize('builtinProviderDisplayName', "Built-in");
-		const labelWithSource = (editor: RegisteredEditorInfo) => {
-			const label = this._editorTypeDisplayLabel(editor, available.isDiffEditor);
-			return editor.detail && editor.detail !== builtinProviderLabel
-				? localize('editorType.labelWithSource', "{0} - {1}", label, editor.detail)
-				: label;
-		};
-
-		// Reopen the active editor with the chosen editor type. The currently active type is checked.
-		const reopenActions: IAction[] = available.editors.map(editor => toAction({
-			id: editor.id,
-			label: labelWithSource(editor),
-			checked: editor.id === available.currentId,
-			run: () => this._commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id)
-		}));
-
-		// Persist the chosen editor as the default for this file type. For diffs this updates the
-		// specialized `workbench.diffEditorAssociations` setting instead of the general one. The
-		// currently configured default (if any) is checked.
-		const configuredDefault = this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor);
-		const setDefaultActions: IAction[] = available.editors.map(editor => toAction({
-			id: `setDefault.${editor.id}`,
-			label: labelWithSource(editor),
-			checked: editor.id === configuredDefault,
-			run: () => this._editorResolverService.updateUserAssociations(glob, editor.id, available.isDiffEditor)
-		}));
-		const setDefaultSubmenu = new SubmenuAction(
-			'breadcrumbs.editorType.setDefault',
-			available.isDiffEditor
-				? localize('editorType.setDefaultDiff', "Set Default (Diff Only) for '{0}'", glob)
-				: localize('editorType.setDefault', "Set Default for '{0}'", glob),
-			setDefaultActions
-		);
-
-		const actions: IAction[] = [...reopenActions, new Separator(), setDefaultSubmenu];
-
-		// For diffs, offer to open either side as a standalone editor.
-		if (available.isDiffEditor) {
-			actions.push(new Separator());
-			if (available.originalResource) {
-				actions.push(toAction({
-					id: 'breadcrumbs.editorType.openOriginal',
-					label: localize('editorType.openOriginal', "Open Original"),
-					run: () => this._editorService.openEditor({ resource: available.originalResource! })
-				}));
-			}
-			if (available.modifiedResource) {
-				actions.push(toAction({
-					id: 'breadcrumbs.editorType.openModified',
-					label: localize('editorType.openModified', "Open Modified"),
-					run: () => this._editorService.openEditor({ resource: available.modifiedResource! })
-				}));
-			}
-		}
-
+		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => this._editorTypeNode,
+			getAnchor: () => editorTypeNode,
 			getActions: () => actions
 		});
 	}

@@ -66,6 +66,13 @@ type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']
 type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly pluginDirectories?: string[];
 	readonly remoteSession?: 'export';
+	/**
+	 * Opt the runtime into self-fetching enterprise managed settings at session
+	 * bootstrap. Declared locally until the published `@github/copilot-sdk` carries
+	 * it on `SessionConfigBase`; it is forwarded to `createSession` and read by the
+	 * runtime at runtime regardless of the published SDK's static type.
+	 */
+	readonly enableManagedSettings?: boolean;
 };
 
 /**
@@ -300,15 +307,12 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	// Surface the serving window's BYOK models. The registry tracks every
-	// connected renderer but does not union their model sets — a window's BYOK
-	// models come from its installed extensions, so all serving windows expose
-	// the same set and the registry picks one serving window (see
-	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
-	// connection by the proxy (`getServingConnection`).
+	// Surface the serving window's BYOK models. The registry does not union
+	// windows' model sets — all serving windows expose the same set, so it picks
+	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
 	let byokModels: IByokLmModelInfo[];
 	try {
-		byokModels = await bridgeRegistry.listModels();
+		byokModels = [...bridgeRegistry.getModels()];
 	} catch (err) {
 		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
 		return {};
@@ -530,7 +534,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
-		// renderer reports no BYOK models). Merged into the returned config so both
+		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
@@ -618,6 +622,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
+			// Opt the runtime into self-fetching enterprise managed settings
+			// (bypass-permissions policy) at session bootstrap. The runtime uses
+			// the session's gitHubToken to call /copilot_internal/managed_settings
+			// and enforces the result fail-closed before the first turn.
+			// Typed locally on CopilotSessionLaunchConfig pending the SDK type update.
+			enableManagedSettings: true,
 		};
 	}
 }
