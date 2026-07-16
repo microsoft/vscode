@@ -17,17 +17,14 @@ import { AutomationsAccessibilityHelp } from '../../../../workbench/contrib/chat
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
-import { AutomationSessionTypeProvider } from './automationSessionTypeProvider.js';
 
 registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
-registerSingleton(IAutomationSessionTypeProvider, AutomationSessionTypeProvider, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
@@ -44,6 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental', 'advanced'],
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 			included: product.quality !== 'stable',
+			experiment: { mode: 'auto' },
 		},
 		[CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING]: {
 			type: 'number',

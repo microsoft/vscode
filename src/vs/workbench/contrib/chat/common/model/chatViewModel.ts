@@ -42,6 +42,11 @@ function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): b
 	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
 }
 
+/**
+ * The active response that content streams into: the last non-pending item, ignoring
+ * trailing queued/steering rows (and their dividers). Falls back to the last item when
+ * everything is pending.
+ */
 export function getStickyScrollTargetItem<T extends IChatViewModelItemWithPendingState>(items: readonly T[]): T | undefined {
 	for (let i = items.length - 1; i >= 0; i--) {
 		const item = items[i];
@@ -110,6 +115,7 @@ export interface IChatRequestViewModel {
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
@@ -117,6 +123,7 @@ export interface IChatRequestViewModel {
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
+	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
@@ -263,6 +270,7 @@ export interface IChatResponseViewModel {
 	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -501,6 +509,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isCompleteAddedRequest;
 	}
 
+	get isTerminalCommand() {
+		return this._model.isTerminalCommand;
+	}
+
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
 	}
@@ -534,6 +546,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get timestamp() {
 		return this._model.timestamp;
+	}
+
+	get requestTimestamp() {
+		return this._model.requestTimestamp;
 	}
 
 	get pendingKind() {
@@ -643,6 +659,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isCompleteAddedRequest;
 	}
 
+	get isTerminalCommand() {
+		return this._model.request?.isTerminalCommand ?? false;
+	}
+
 	get replyFollowups() {
 		return this._model.followups?.filter((f): f is IChatFollowup => f.kind === 'reply');
 	}
@@ -668,7 +688,12 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
-		return getStickyScrollTargetItem(this.session.getItems()) === this;
+		// NOTE: this is used in `dataId` to force a re-render when the response transitions
+		// between being the last row and not, e.g. when a queued/steering row is added below
+		// it. It must reflect the actual last row so the row re-renders and drops the
+		// reserved-space filler class. Progressive rendering targets the streaming response
+		// separately (see `getStickyScrollTargetItem`).
+		return this.session.getItems().at(-1) === this;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;

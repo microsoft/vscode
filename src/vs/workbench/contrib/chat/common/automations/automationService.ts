@@ -81,7 +81,7 @@ export interface IAutomationService {
 	updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation>;
 	deleteAutomation(id: string): Promise<void>;
 
-	/** Records a new run as `pending`. Throws if the automation does not exist. */
+	/** Records a new run as `pending` and advances the schedule for scheduled/catch-up runs. Throws if the automation does not exist. */
 	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun>;
 
 	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
@@ -92,10 +92,4 @@ export interface IAutomationService {
 
 	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
-
-	/**
-	 * Sets `lastRunAt = now` and recomputes `nextRunAt`. Called right after
-	 * dispatch so the same automation isn't picked up twice on the next tick.
-	 */
-	advanceNextRunAt(id: string, now?: Date): Promise<IAutomation | undefined>;
 }

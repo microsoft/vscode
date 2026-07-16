@@ -109,6 +109,7 @@ function createMockProvider(id: string, opts?: {
 		setModel: () => { },
 		archiveSession: async () => { },
 		unarchiveSession: async () => { },
+		setSessionReadState: async () => { },
 		deleteSession: async () => { },
 		deleteSessions: async () => { },
 		deleteChat: async () => true,

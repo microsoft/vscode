@@ -54,17 +54,19 @@
 
 /* Requires-input state of the sessions titlebar widget: shown when the primary
 	side bar is hidden and at least one session is blocked. The command center box
-	(owned by SessionsTitleBarWidget) adopts an orange accent. */
+	(owned by SessionsTitleBarWidget) adopts a light orange accent — enough to draw
+	the eye without shouting: the orange label carries the signal while the fill and
+	border stay subtle so the pill reads as a gentle hint rather than an alert. */
 .command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input {
 	color: var(--vscode-charts-orange);
-	border-color: var(--vscode-charts-orange);
-	background-color: color-mix(in srgb, var(--vscode-charts-orange) 14%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-charts-orange) 40%, var(--vscode-commandCenter-border));
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 7%, transparent);
 }
 
 .command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:hover {
 	color: var(--vscode-charts-orange);
-	border-color: var(--vscode-charts-orange);
-	background-color: color-mix(in srgb, var(--vscode-charts-orange) 22%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-charts-orange) 60%, var(--vscode-commandCenter-border));
+	background-color: color-mix(in srgb, var(--vscode-charts-orange) 12%, transparent);
 }
 
 .command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:focus {
@@ -86,15 +88,15 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
-/* Attention blink: pulses the orange fill twice when a new session becomes blocked. */
+/* Attention blink: gently pulses the orange fill twice when a new session becomes blocked. */
 @keyframes agent-sessions-titlebar-attention-blink {
 	0%,
 	100% {
-		background-color: color-mix(in srgb, var(--vscode-charts-orange) 14%, transparent);
+		background-color: color-mix(in srgb, var(--vscode-charts-orange) 7%, transparent);
 	}
 
 	50% {
-		background-color: color-mix(in srgb, var(--vscode-charts-orange) 45%, transparent);
+		background-color: color-mix(in srgb, var(--vscode-charts-orange) 26%, transparent);
 	}
 }
 

@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -655,9 +655,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * top) need a top margin; all other parts sit flush with the title bar.
 	 */
 	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
-		// Bottom panel: always needs a top margin (the gap between editor and the panel card).
+		// Bottom panel: needs a top margin only when the editor is visible (inter-card gap).
+		// When maximized (editor hidden) the panel is flush with the title bar — no top margin.
 		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
-			return margin;
+			return this.layoutService.isVisible(Parts.EDITOR_PART, getWindow(this.element)) ? margin : 0;
 		}
 		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
 		// is at the top: needs a top margin matching the editor's gap from the panel card.
@@ -711,10 +712,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
 		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
-			? margin * 2 : margin;
+			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
 			height: topMargin + bottomMargin + borderTotal

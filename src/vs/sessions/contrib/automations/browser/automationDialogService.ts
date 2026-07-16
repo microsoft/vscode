@@ -6,7 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -21,11 +21,35 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { IAutomationSessionTypeProvider } from '../../../../workbench/contrib/chat/common/automations/automationSessionTypes.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { IFormState, IValidationState, isAutomationDialogPopupTarget, renderForm, updateSaveButtonState } from './automationDialog.js';
+import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
+
+const automationDialogAllowableCommands = new Set([
+	'workbench.action.quit',
+	'workbench.action.reloadWindow',
+	'copy',
+	'cut',
+	'paste',
+	'editor.action.selectAll',
+	'editor.action.clipboardCopyAction',
+	'editor.action.clipboardCutAction',
+	'editor.action.clipboardPasteAction',
+	'hideCodeActionWidget',
+	'clearFilterCodeActionWidget',
+	'selectPrevCodeAction',
+	'selectNextCodeAction',
+	'acceptSelectedCodeAction',
+	'previewSelectedCodeAction',
+	'toggleSectionCodeAction',
+	'collapseSectionCodeAction',
+	'expandSectionCodeAction',
+	'quickInput.next',
+	'quickInput.previous',
+	'quickInput.accept',
+	'quickInput.hide',
+]);
 
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
@@ -46,7 +70,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
-		@IAutomationSessionTypeProvider private readonly sessionTypeProvider: IAutomationSessionTypeProvider,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
@@ -69,14 +92,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 			enabled: initial?.enabled ?? true,
 		};
 
-		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined };
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, branchError: undefined };
 
 		let saveButton: IButton | undefined;
+		let cancelButton: IButton | undefined;
 		let revalidate: () => void = () => { };
 		let getPrompt: () => string = () => initial?.prompt ?? '';
 		let getMode: () => string | undefined = () => initial?.mode;
 		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 		let getModelId: () => string | undefined = () => initial?.modelId;
+		let getBranch: () => string | undefined = () => initial?.isolationMode === 'worktree' ? initial.branch : undefined;
+		let getFocusableElements: () => readonly HTMLElement[] = () => [];
+		let focusFirst: () => void = () => { };
 
 		const title = isEdit
 			? localize('automation.dialog.editTitle', "Edit automation")
@@ -87,8 +114,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			localize('automation.dialog.cancel', "Cancel"),
 		];
 
+		const activeContainer = this.layoutService.activeContainer;
 		const dialog = disposables.add(new Dialog(
-			this.layoutService.activeContainer,
+			activeContainer,
 			title,
 			buttonLabels,
 			createWorkbenchDialogOptions({
@@ -103,6 +131,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 						styleButton: button => {
 							saveButton = button;
 							revalidate();
+						},
+					},
+					{
+						styleButton: button => {
+							cancelButton = button;
 						},
 					},
 				],
@@ -120,25 +153,42 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, this.sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+					const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.productService, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 					getPrompt = handle.getPrompt;
 					getMode = handle.getMode;
 					getPermissionLevel = handle.getPermissionLevel;
 					getModelId = handle.getModelId;
-					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt);
+					getBranch = handle.getBranch;
+					getFocusableElements = handle.getFocusableElements;
+					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
+						DOM.getWindow(container),
+						() => [
+							...getFocusableElements(),
+							...(saveButton ? [saveButton.element] : []),
+							...(cancelButton ? [cancelButton.element] : []),
+						],
+						isAutomationDialogPopupTarget,
+					));
+					focusFirst = keyboardNavigation.focusFirst;
+					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
 					revalidate();
 				},
-			}, this.keybindingService, this.layoutService, this.hostService),
+			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands),
 		));
 
+		activeContainer.classList.add('automation-dialog-open');
+		disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
+
 		try {
-			const result = await dialog.show();
+			const resultPromise = dialog.show();
+			focusFirst();
+			const result = await resultPromise;
 			if (result.button !== 0) {
 				return undefined;
 			}
 			// Guard against submit-with-Enter bypassing live validation.
 			revalidate();
-			if (validation.nameError || validation.promptError || validation.folderError) {
+			if (validation.nameError || validation.promptError || validation.folderError || validation.branchError) {
 				return undefined;
 			}
 			if (!state.folderUri) {
@@ -156,6 +206,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			const mode = getMode();
 			const permissionLevel = getPermissionLevel();
 			const modelId = getModelId();
+			const branch = getBranch();
 
 			if (isEdit && initial) {
 				const patch: IUpdateAutomationOptions = {
@@ -169,7 +220,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
 					isolationMode: state.isolationMode ?? null,
-					branch: state.branch ?? null,
+					branch: branch ?? null,
 					enabled: state.enabled,
 				};
 				return { kind: 'update', id: initial.id, value: patch };
@@ -186,7 +237,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				mode,
 				permissionLevel,
 				isolationMode: state.isolationMode,
-				branch: state.branch,
+				branch,
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };

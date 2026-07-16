@@ -12,14 +12,22 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
+import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentSession } from '../common/agentService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
+
+export interface IAgentSessionConfigurationChangeEvent {
+	readonly session: ProtocolURI;
+	readonly config: Record<string, unknown>;
+}
 
 /**
  * Cohesive read/write surface for agent-host configuration.
@@ -45,6 +53,9 @@ export interface IAgentConfigurationService {
 	 */
 	readonly onDidRootConfigChange: Event<void>;
 
+	/** Fires whenever a session configuration change is processed. */
+	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent>;
+
 	/**
 	 * Returns the effective value of `key` for `session`, walking the
 	 * `session → parent session → host` chain and returning the first
@@ -66,6 +77,16 @@ export interface IAgentConfigurationService {
 	 * a working directory.
 	 */
 	getEffectiveWorkingDirectory(session: ProtocolURI): string | undefined;
+
+	/**
+	 * Whether a fresh worktree-isolation session's worktree has not yet been
+	 * created. Agents consult this to defer prewarming (and any other eager
+	 * materialization) until the host resolves the worktree on the first send.
+	 */
+	isWorkingDirectoryPending(session: ProtocolURI): boolean;
+
+	/** Resolves a persisted working directory, repairing a removed worktree when possible. */
+	resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI>;
 
 	/**
 	 * Merges a partial config patch into a session's values via a
@@ -119,6 +140,21 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
+	private readonly _onDidSessionConfigChange = this._register(new Emitter<IAgentSessionConfigurationChangeEvent>());
+	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
+
+	/**
+	 * Host-owned worktree isolation controller. Injected after construction (via
+	 * {@link setWorktreeIsolation}) because it only becomes available once the
+	 * branch-name generator has been wired, which happens after this service is
+	 * built. Consulted by {@link isWorkingDirectoryPending}, which degrades to
+	 * folder behavior while it is unset (tests, early startup).
+	 */
+	private _worktree: WorktreeIsolation | undefined;
+
+	setWorktreeIsolation(worktree: WorktreeIsolation): void {
+		this._worktree = worktree;
+	}
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -132,10 +168,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const existing = this._stateManager.rootState.config;
 		const ownSchema = agentHostCustomizationConfigSchema.toProtocol();
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
+		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -143,6 +180,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
 				this._onDidRootConfigChange.fire();
+			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
+				this._onDidSessionConfigChange.fire({
+					session: envelope.channel,
+					config: envelope.action.config,
+				});
 			}
 		}));
 	}
@@ -178,6 +220,14 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			return this._stateManager.getSessionState(parentInfo.parentSession.toString())?.workingDirectory;
 		}
 		return undefined;
+	}
+
+	isWorkingDirectoryPending(session: ProtocolURI): boolean {
+		return this._worktree?.isWorkingDirectoryPending(AgentSession.id(session)) ?? false;
+	}
+
+	async resolveWorkingDirectoryForResume(session: ProtocolURI, workingDirectory: URI): Promise<URI> {
+		return this._worktree?.resolveWorkingDirectoryForResume(URI.parse(session), AgentSession.id(session), workingDirectory) ?? workingDirectory;
 	}
 
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void {
@@ -280,6 +330,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			return {
 				...agentHostCustomizationConfigSchema.validateOrDefault(parsed, defaults),
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
+				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 			};
 		} catch (err) {
 			const code = err && typeof err === 'object' && hasKey(err, { code: true }) ? String(err.code) : undefined;

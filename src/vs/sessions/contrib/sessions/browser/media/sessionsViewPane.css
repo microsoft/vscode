@@ -113,9 +113,12 @@
 	.agent-sessions-header-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
 		margin-left: auto;
 		flex-shrink: 0;
+	}
+
+	.agent-sessions-header-actions .actions-container {
+		gap: 4px;
 	}
 
 	/* Inline search input — replaces label + actions when active */

@@ -163,13 +163,18 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	async makeChatRequest2({
 		debugName,
 		messages,
+		ignoreStatefulMarker,
+		summarizedAtRoundId,
 		requestOptions,
 		finishedCb,
 		location,
 		source,
 		telemetryProperties,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
-		const vscodeMessages = convertToApiChatMessage(messages);
+		const vscodeMessages = convertToApiChatMessage(messages, {
+			ignoreStatefulMarker,
+			summarizedAtRoundId,
+		});
 		const ourRequestId = generateUuid();
 
 		// Capture active OTel trace context to propagate through IPC to the BYOK provider.
@@ -323,7 +328,12 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
-export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
+interface ConvertToApiChatMessageOptions {
+	readonly ignoreStatefulMarker?: boolean;
+	readonly summarizedAtRoundId?: string;
+}
+
+export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: ConvertToApiChatMessageOptions = {}): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
 	const apiMessages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> = [];
 	for (const message of messages) {
 		const apiContent: Array<vscode.LanguageModelTextPart | vscode.LanguageModelToolResultPart2 | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart> = [];
@@ -349,7 +359,12 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vsco
 				apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Opaque) {
 				const statefulMarker = rawPartAsStatefulMarker(contentPart);
-				if (statefulMarker) {
+				// A marker created under a different local summary generation points at
+				// server-side history that the rendered summary has replaced. Omit it so
+				// this request establishes a new BYOK Responses chain from the summary.
+				if (statefulMarker
+					&& !options.ignoreStatefulMarker
+					&& statefulMarker.summarizedAtRoundId === options.summarizedAtRoundId) {
 					apiContent.push(new vscode.LanguageModelDataPart(encodeStatefulMarker(statefulMarker.modelId, statefulMarker.marker), CustomDataPartMimeTypes.StatefulMarker));
 				}
 				const thinkingData = rawPartAsThinkingData(contentPart);
