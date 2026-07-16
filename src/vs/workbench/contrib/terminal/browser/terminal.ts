@@ -974,7 +974,16 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fires just before the terminal instance is disposed, while `xterm.js` and
+	 * other instance-owned resources are still alive. Subscribe here if you need to clean up
+	 * state that depends on those resources (e.g. xterm.js addons). For "the instance is gone"
+	 * notifications, use {@link onDisposed} instead.
+	 */
+	readonly onWillDispose: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed, after `xterm.js` has been
+	 * disposed.
 	 */
 	readonly onDisposed: Event<ITerminalInstance>;
 

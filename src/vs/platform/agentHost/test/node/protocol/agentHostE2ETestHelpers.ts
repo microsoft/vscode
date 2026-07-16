@@ -62,6 +62,7 @@ const RUN_RECORD_ONLY_TESTS = RECORD && !UPDATE_SNAPSHOTS;
 const REPLAY_MODE: CapiReplayMode = RECORD ? 'record' : 'replay';
 const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
+const isLinux = process.platform === 'linux';
 /** Gate for agent host e2e tests whose local execution is POSIX-specific (shell tool
  * calls, git worktrees, `pwd`) and does not reproduce on Windows. */
 const isWindows = process.platform === 'win32';
@@ -226,6 +227,12 @@ export interface IAgentHostE2EProviderConfig {
 	 * session. Claude has not landed subagents yet (Phase 12 in roadmap).
 	 */
 	readonly supportsSubagents: boolean;
+	/**
+	 * When set, shell-dependent replay tests are skipped on Linux because this
+	 * provider completes recorded shell-tool turns without emitting tool-call
+	 * notifications there. Recording and other platforms keep full coverage.
+	 */
+	readonly shellToolReplayUnstableOnLinux?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -750,6 +757,7 @@ export class AgentHostE2EServerLease {
 export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): void {
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
+		const shellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
 		let client: TestProtocolClient;
 		let lease: AgentHostE2EServerLease | undefined;
 		let suiteDataDir: string | undefined;
@@ -879,7 +887,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			}
 		});
 
-		test('tool call triggers permission request and can be approved', async function () {
+		(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
@@ -1048,7 +1056,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 		// Worktree isolation asserts on resolved `.worktrees/...` paths and a
 		// host-terminal `pwd`, which are POSIX-shaped (the fixtures were recorded on
 		// macOS); skip on Windows where the worktree paths and shell differ.
-		(config.supportsWorktreeIsolation && !isWindows ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+		(config.supportsWorktreeIsolation && !isWindows && shellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);

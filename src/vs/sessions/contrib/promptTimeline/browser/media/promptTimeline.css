@@ -27,13 +27,11 @@
 /* Reserve room on the transcript's right edge so message content clears the rail's marks.
  * The chat "card" rows (sessions style.css) pad only 32px on the right — where the marks sit — so
  * bubbles crowd the pills. We reserve the rail's full width plus the minimum gap, but only while
- * the rail is mounted. `.prompt-timeline-host` is added to the same `.interactive-session`
- * element, so the compound plus the card-rule scope wins on specificity without touching the base
- * layout when the rail is absent. */
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session .interactive-item-container,
-.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.interactive-session > .chat-suggest-next-widget,
-.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session .interactive-item-container,
-.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.interactive-session > .chat-suggest-next-widget {
+ * the rail surface is mounted (`.prompt-timeline-with-rail`); header-only keeps the base layout. */
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
 	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap));
 }
 
@@ -44,6 +42,106 @@
 /* Not enough horizontal room next to the transcript: hide the marks but keep the rail laid out so its ResizeObserver can detect it fits again. */
 .prompt-timeline-rail.overflowing .prompt-timeline-ruler-marks {
 	display: none;
+}
+
+/* ---- Sticky prompt header ------------------------------------------------------------------
+ * A flat, opaque band pinned to the top of the transcript (editor "sticky scroll" pattern): it
+ * shares the transcript surface, carries only a hairline bottom border and a soft downward shadow,
+ * and names the prompt currently scrolled off the top. Independent of the rail: `.hidden` (toggled
+ * in JS once a prompt is pinned) drives the reveal, so it also works in header-only mode. */
+.prompt-timeline-sticky {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 9;
+	opacity: 0;
+	transform: translateY(-6px);
+	transition: opacity 140ms ease, transform 140ms ease;
+	pointer-events: none;
+}
+
+.prompt-timeline-sticky:not(.hidden) {
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-sticky {
+		transition: none;
+		transform: none;
+	}
+}
+
+.prompt-timeline-sticky-button {
+	display: block;
+	width: 100%;
+	padding: 0;
+	border: none;
+	border-bottom: 1px solid var(--vscode-agentsPanel-border, transparent);
+	background: var(--vscode-agentsPanel-background);
+	box-shadow: 0 6px 6px -6px var(--vscode-widget-shadow, transparent);
+	color: var(--vscode-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+/* High-contrast themes rely on the explicit contrast border and suppress decorative shadows. */
+.hc-black .prompt-timeline-sticky-button,
+.hc-light .prompt-timeline-sticky-button {
+	box-shadow: none;
+}
+
+/* Layer the (translucent) hover tint over the opaque surface so the band never turns see-through. */
+.prompt-timeline-sticky-button:hover {
+	background:
+		linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground)),
+		var(--vscode-agentsPanel-background);
+}
+
+.prompt-timeline-sticky-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Match the transcript's centered message column (chatView.css: max-width 950, margin auto, 32px inset)
+ * so the pinned prompt aligns with the prompts underneath. The right inset matches the column too:
+ * 32px normally, widened to clear the rail lane when the rail is present. */
+.prompt-timeline-sticky-content {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	box-sizing: border-box;
+	max-width: 950px;
+	margin: 0 auto;
+	padding-left: 32px;
+	padding-right: 32px;
+}
+
+.prompt-timeline-host.prompt-timeline-with-rail .prompt-timeline-sticky-content {
+	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap));
+}
+
+.prompt-timeline-sticky-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.prompt-timeline-sticky-count {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.prompt-timeline-sticky-chevron {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Interactive hover/focus card: prompt text, clickable diff stat, and files. */
