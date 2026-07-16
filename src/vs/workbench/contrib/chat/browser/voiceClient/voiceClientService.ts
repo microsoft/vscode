@@ -429,24 +429,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendBargeInStart(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
-		}
-	}
-
-	sendBargeInAudioChunk(audio: string): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
-		}
-	}
-
-	sendBargeInStop(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
-		}
-	}
-
 	sendPttDiagnostic(turnId: string, metrics: Record<string, unknown>): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_diagnostic', turn_id: turnId, metrics }));

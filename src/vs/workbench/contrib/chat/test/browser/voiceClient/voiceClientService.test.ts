@@ -16,7 +16,8 @@ import { IVoiceBargeIn } from '../../../common/voiceClient/voiceClientService.js
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
 
-	readonly readyState = 3;
+	readonly readyState = 1;
+	readonly sent: string[] = [];
 	onopen: (() => void) | null = null;
 	onmessage: ((event: MessageEvent) => void) | null = null;
 	onerror: (() => void) | null = null;
@@ -27,7 +28,9 @@ class TestWebSocket {
 	}
 
 	close(): void { }
-	send(): void { }
+	send(data: string): void {
+		this.sent.push(data);
+	}
 }
 
 function createTestWindow(): Window & typeof globalThis {
@@ -43,22 +46,26 @@ function createTestWindow(): Window & typeof globalThis {
 
 suite('VoiceClientService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const productService: IProductService = {
+		_serviceBrand: undefined,
+		...product,
+		voiceWsUrl: 'ws://voice.test/realtime/voice',
+	};
+
+	function createService(): VoiceClientService {
+		return store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+	}
 
 	setup(() => {
 		TestWebSocket.instance = undefined;
 	});
 
 	test('emits barge-in events from the backend', async () => {
-		const productService: IProductService = {
-			_serviceBrand: undefined,
-			...product,
-			voiceWsUrl: 'ws://voice.test/realtime/voice',
-		};
-		const service = store.add(new VoiceClientService(
-			new TestConfigurationService(),
-			new NullLogService(),
-			productService,
-		));
+		const service = createService();
 		const events: IVoiceBargeIn[] = [];
 		store.add(service.onBargeIn(event => events.push(event)));
 
@@ -79,5 +86,20 @@ suite('VoiceClientService', () => {
 			turnId: 'interrupting-turn',
 			interruptedTurnId: 'cancelled-turn',
 		}]);
+	});
+
+	test('sends microphone audio using the PTT protocol', async () => {
+		const service = createService();
+
+		await service.connect(createTestWindow());
+		service.sendPttStart('turn-1');
+		service.sendPttAudioChunk('cGNt');
+		service.sendPttEnd();
+
+		assert.deepStrictEqual(TestWebSocket.instance?.sent, [
+			JSON.stringify({ type: 'ptt_start', turn_id: 'turn-1' }),
+			JSON.stringify({ type: 'ptt_audio_chunk', audio: 'cGNt' }),
+			JSON.stringify({ type: 'ptt_end' }),
+		]);
 	});
 });
