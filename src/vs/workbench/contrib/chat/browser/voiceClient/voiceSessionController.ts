@@ -1076,6 +1076,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							// A new turn supersedes prior narration; clear dedup here (before coalescing collapses a fast idle→thinking→idle to net-zero), skipping eager-reload wobble. Arm the awaiting-summary marker so this run's completion (whenever its summary lands) is recognized as new.
 							if (currentState === 'thinking' && !this._eagerModelLoading.has(sessionId)) {
 								this._clearLastNarratedText(sessionId);
+								// A new turn also supersedes any narration deferred from the
+								// previous turn. Clear it here in the immediate path because
+								// coalescing can collapse an idle→thinking→idle burst to
+								// net-zero, so _handleNarratableStateChange never sees the
+								// `thinking` and would otherwise leave the stale entry behind.
+								this._clearDeferred(this._sessionKey(sessionId));
 								this._sessionsAwaitingResponseSummary.add(sessionId);
 							}
 							// The completion for this run has been accepted; consume the marker so a later rehydration of the same summary can't re-fire.
@@ -1759,6 +1765,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.stopCapture();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		// No reconnect is coming and a later connect() does not reset narration
+		// bookkeeping, so clear the deferred/in-flight narration state and its
+		// timers here (as disconnect() does). Otherwise a narration_unblocked on a
+		// new connection could retry narration from this evicted session, and the
+		// solicited-narration safety timers would linger past teardown.
+		for (const s of this._pendingSolicitedNarrations.values()) { clearTimeout(s.timer); }
+		this._pendingSolicitedNarrations.clear();
+		this._solicitedNarrationIds.clear();
+		this._pendingNarrationRetries.clear();
+		this._deferredNarrations.clear();
 		transaction(tx => {
 			this._isConnecting.set(false, tx);
 			this._isReconnecting.set(false, tx);
@@ -2826,6 +2842,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// only once a request is actually in flight.
 		this._prepareForPlayback();
 		this._pendingNarrationRetries.delete(sessionId);
+		// This newer request supersedes any older busy/interrupted entry deferred
+		// for this session (latest-wins per session). Without this, a later
+		// narration_unblocked could retry the stale entry and, since confirmations
+		// are not text-deduped, speak the same prompt a second time.
+		this._clearDeferred(sessionKey);
 		// Remember this id so the echoed audio (responseId === narrationId) is
 		// never dropped as an unsolicited duplicate by _isRenarration, even when
 		// its transcript matches a reply we recently read for this session. Bound
@@ -2951,6 +2972,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const narratable = resource ? this._currentNarratable(resource) : undefined;
 		if (!narratable || narratable.kind !== deferred.kind) {
 			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer warranted; dropping`);
+			this._clearDeferred(sessionKey);
+			return;
+		}
+		// The session may no longer be the one shown (the user switched away while
+		// the backend was busy). Speaking now would play this session's item over
+		// the newly shown session, bypassing the "background sessions wait until
+		// focused" policy; drop it instead - the confirmation/response indicators
+		// surface it when the user focuses this session again.
+		if (this._shouldDeferForSession(sessionKey)) {
+			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer shown; dropping`);
 			this._clearDeferred(sessionKey);
 			return;
 		}
