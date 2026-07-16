@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, PermissionAllowAllMode, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -41,6 +43,7 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/san
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -91,6 +94,7 @@ class MockCopilotSession {
 			this._allHandlers.add(eventTypeOrHandler);
 			return () => { this._allHandlers.delete(eventTypeOrHandler); };
 		}
+
 		const eventType = eventTypeOrHandler;
 		let set = this._handlers.get(eventType);
 		if (!set) {
@@ -202,6 +206,22 @@ class MockCopilotSession {
 	mcpListError: unknown = undefined;
 }
 
+class TestCopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
+
+	apiEndpoint: string | undefined;
+
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> { throw new Error('not used'); }
+	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+	async models(): Promise<CCAModel[]> { return []; }
+	async responses(): Promise<Response> { throw new Error('not used'); }
+	async utilityChatCompletion(_githubToken: string, _request: ICopilotUtilityChatCompletionRequest): Promise<string> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return this.apiEndpoint; }
+}
+
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
 	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
@@ -297,6 +317,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
+	copilotApiEndpoint?: string;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -367,6 +388,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
+	const copilotApiService = new TestCopilotApiService();
+	copilotApiService.apiEndpoint = options?.copilotApiEndpoint;
+	services.set(ICopilotApiService, copilotApiService);
 	const storedFileContents = new Map(Object.entries(options?.fileContents ?? {}));
 	services.set(IFileService, {
 		_serviceBrand: undefined,
@@ -5324,6 +5348,28 @@ suite('CopilotAgentSession', () => {
 				customizationUpdates: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationUpdated),
 			}, {
 				result: { kind: 'token', accessToken: 'existing-token' },
+				customizationUpdates: [],
+			});
+		});
+
+		test('initial GitHub MCP auth reuses the existing token for the per-user enterprise endpoint', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				githubToken: 'existing-enterprise-token',
+				copilotApiEndpoint: 'https://api.enterprise.githubcopilot.com',
+			});
+
+			const result = await runtime.handleMcpAuthRequest({
+				requestId: 'enterprise-initial-auth',
+				serverName: 'github',
+				serverUrl: 'https://api.enterprise.githubcopilot.com/mcp/',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+
+			assert.deepStrictEqual({
+				result,
+				customizationUpdates: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationUpdated),
+			}, {
+				result: { kind: 'token', accessToken: 'existing-enterprise-token' },
 				customizationUpdates: [],
 			});
 		});

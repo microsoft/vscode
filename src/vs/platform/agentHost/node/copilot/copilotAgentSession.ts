@@ -28,6 +28,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
+import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IMcpNotification, IRestoredSubagentSession, subagentChatTitle } from '../../common/agentService.js';
@@ -54,6 +55,7 @@ import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfi
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
@@ -93,7 +95,6 @@ interface IMcpAuthToolCall {
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
-const DEFAULT_GITHUB_MCP_SERVER_URL = 'https://api.githubcopilot.com/mcp';
 
 function normalizeMcpServerUrl(value: string): string | undefined {
 	if (!URL.canParse(value)) {
@@ -676,6 +677,7 @@ export class CopilotAgentSession extends Disposable {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -1184,7 +1186,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
-		const githubToken = this._initialGitHubMcpToken(request);
+		const githubToken = request.reason === 'initial' && this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length === 0
+			? await this._initialGitHubMcpToken(request)
+			: undefined;
 		if (githubToken) {
 			this._logService.info(`[Copilot:${this.sessionId}] Reusing the existing GitHub token for initial GitHub MCP authentication`);
 			return { kind: 'token', accessToken: githubToken };
@@ -1238,13 +1242,21 @@ export class CopilotAgentSession extends Disposable {
 		return result;
 	}
 
-	private _initialGitHubMcpToken(request: McpAuthRequest): string | undefined {
-		if (request.reason !== 'initial' || this._scopesFromChallenge(request.wwwAuthenticateParams?.scope).length !== 0) {
+	private async _initialGitHubMcpToken(request: McpAuthRequest): Promise<string | undefined> {
+		const githubToken = this._launchPlan.githubToken;
+		const requestUrl = normalizeMcpServerUrl(request.serverUrl);
+		if (!githubToken || requestUrl === undefined) {
 			return undefined;
 		}
-		const requestUrl = normalizeMcpServerUrl(request.serverUrl);
-		const configuredUrl = normalizeMcpServerUrl(DEFAULT_GITHUB_MCP_SERVER_URL);
-		return requestUrl !== undefined && requestUrl === configuredUrl ? this._launchPlan.githubToken : undefined;
+		let configuredUrl: string | undefined;
+		try {
+			const resolvedUrl = gitHubMcpServerUrl(await this._copilotApiService.resolveApiEndpoint(githubToken));
+			configuredUrl = resolvedUrl ? normalizeMcpServerUrl(resolvedUrl) : undefined;
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to resolve the GitHub MCP server URL: ${getErrorMessage(error)}`);
+			return undefined;
+		}
+		return requestUrl === configuredUrl ? githubToken : undefined;
 	}
 
 	private _protectedResourceFromMcpAuthRequest(request: McpAuthRequest): ProtectedResourceMetadata {
