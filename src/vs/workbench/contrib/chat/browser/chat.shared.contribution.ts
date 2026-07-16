@@ -256,7 +256,7 @@ configurationRegistry.registerConfiguration({
 		'chat.speechToText.enabled': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
-			default: product.quality === 'insider',
+			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
 		'chat.speechToText.model': {
@@ -274,6 +274,18 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('chat.speechToText.model', "The on-device Whisper model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
 			default: 'onnx-community/whisper-base',
+			tags: ['experimental']
+		},
+		'chat.speechToText.mode': {
+			type: 'string',
+			enum: ['auto', 'toggle', 'pushToTalk'],
+			enumDescriptions: [
+				nls.localize('chat.speechToText.mode.auto', "Tap the dictation shortcut to start and stop, or press and hold it to dictate only while held (push-to-talk)."),
+				nls.localize('chat.speechToText.mode.toggle', "Tap the dictation shortcut to start dictating and tap again to stop."),
+				nls.localize('chat.speechToText.mode.pushToTalk', "Press and hold the dictation shortcut to dictate; dictation stops as soon as the shortcut is released."),
+			],
+			markdownDescription: nls.localize('chat.speechToText.mode.description', "Controls how the chat dictation shortcut ({0}) behaves.", '`Cmd/Ctrl+I`'),
+			default: 'auto',
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
