@@ -115,6 +115,7 @@ export interface IChatRequestViewModel {
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
@@ -122,6 +123,7 @@ export interface IChatRequestViewModel {
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
+	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
@@ -268,6 +270,7 @@ export interface IChatResponseViewModel {
 	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
+	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -506,6 +509,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isCompleteAddedRequest;
 	}
 
+	get isTerminalCommand() {
+		return this._model.isTerminalCommand;
+	}
+
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
 	}
@@ -539,6 +546,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get timestamp() {
 		return this._model.timestamp;
+	}
+
+	get requestTimestamp() {
+		return this._model.requestTimestamp;
 	}
 
 	get pendingKind() {
@@ -646,6 +657,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCompleteAddedRequest() {
 		return this._model.isCompleteAddedRequest;
+	}
+
+	get isTerminalCommand() {
+		return this._model.request?.isTerminalCommand ?? false;
 	}
 
 	get replyFollowups() {

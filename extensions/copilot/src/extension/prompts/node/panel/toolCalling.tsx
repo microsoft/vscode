@@ -121,7 +121,11 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const children: PromptElement[] = [];
 
 		// Don't include this when rendering and triggering summarization
-		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
+		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{
+			modelId: this.promptEndpoint.model,
+			marker: round.statefulMarker,
+			summarizedAtRoundId: round.statefulMarkerSummarizedAtRoundId,
+		}} />;
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;

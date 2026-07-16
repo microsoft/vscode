@@ -364,6 +364,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': 'some',
+				agentsWindow: { default: 'all' },
 				experiment: {
 					mode: 'startup'
 				}
@@ -814,6 +815,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'tags': ['experimental'],
 				'description': localize('modernUI', "Controls whether the experimental Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
+				experiment: { mode: 'auto' },
 			},
 		}
 	});

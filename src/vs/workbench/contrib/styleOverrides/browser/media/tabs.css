@@ -29,20 +29,66 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	border-right: none !important;
+	background-clip: padding-box;
+	border-right: var(--vscode-spacing-size40) solid transparent !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: 12px !important;
+	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
+	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
+	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
-	margin-right: 4px !important;
 	--tab-border-top-color: transparent !important;
 }
 
-.style-override .part.editor .tabs-container > .tab.sizing-fit {
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	justify-content: center;
+	padding: 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact > .tab-label {
+	flex: 0 1 auto;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label {
+	width: 16px;
+	min-width: 16px;
+	max-width: 16px;
+	flex: 0 0 16px;
+	transform: translateX(-1px);
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label::before {
+	padding-right: 0;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-container {
+	display: none;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.has-icon > .tab-label > .monaco-icon-label-iconpath {
+	margin-right: 0;
+}
+
+.style-override .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact) {
+	padding: 0 10px 0 0 !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.close-action-off:not(.dirty):not(.sticky-compact) {
+	padding: 0 8px 0 4px !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sizing-fit:not(.sticky-compact) {
 	width: auto !important;
 	min-width: 0 !important;
 	flex: 0 0 auto !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	width: 32px !important;
+	min-width: 32px !important;
+	max-width: 32px !important;
+	flex: 0 0 32px !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -77,6 +123,46 @@
 	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
 }
 
+/* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
+.style-override .part.editor .tabs-container > .tab.sticky-compact {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, var(--vscode-editor-background)) !important;
+}
+
+.style-override .part.editor .tabs-and-actions-container > .monaco-scrollable-element > .sticky-tabs-background {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 7;
+	width: 0;
+	height: var(--editor-group-tab-height);
+	background-color: var(--vscode-editor-background);
+	pointer-events: none;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
+	z-index: 6;
+}
+
+.style-override .part.editor .tabs-container > .tab.sticky-compact.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.sticky-compact {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor .tabs-container > .tab.sticky-compact.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-editor-background)) !important;
+}
+
+.style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab.sticky-compact:not(.active):hover {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, var(--vscode-editor-background)) !important;
+}
+
 .style-override .part.editor .tabs-container > .tab .tab-border-top-container,
 .style-override .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
@@ -86,7 +172,7 @@
  * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
  * composite-bar action items rather than editor `.tab` elements, with an
  * underline `.active-item-indicator`. Give them the same rounded-pill look as
- * the editor tabs: normal case, 12px/600 type, a subtle background on the
+ * the editor tabs: normal case, Body 1 / 600 type, a subtle background on the
  * active tab and no underline.
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
@@ -102,7 +188,7 @@
  * inherited value), so the type must be set on the label itself.
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
@@ -130,7 +216,7 @@
  * Same composite-bar action items as the panel tabs, but the active view
  * switcher can live under `.title` or the activity-bar `.header-or-footer`
  * depending on the activity bar position, so both locations are covered. Give
- * them the rounded-pill look: normal case, 12px/600 type, a subtle background
+ * them the rounded-pill look: normal case, Body 1 / 600 type, a subtle background
  * on the active tab and no underline indicator.
  */
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
@@ -146,9 +232,15 @@
  */
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
+}
+
+.style-override .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
@@ -174,7 +266,7 @@
 }
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
@@ -182,13 +274,24 @@
  * Dim the foreground of inactive tabs so the active tab reads as the clear
  * focal point. The active tab keeps the full `--vscode-foreground` colour
  * (paired with the stronger active background above).
+ *
+ * Skip labels that carry a file-decoration color class so git/problem
+ * decoration colors still apply to the entire tab label (name + description),
+ * matching classic UI behavior. See https://github.com/microsoft/vscode/issues/325246
  */
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: color-mix(in srgb, var(--vscode-foreground) 50%, transparent) !important;
 }
 
-.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label a {
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+/* Ensure decoration color cascades to every part of the tab label. */
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] a,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .label-description,
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label[class*="monaco-decoration-itemColor"] .monaco-highlighted-label {
+	color: inherit !important;
 }
 
 /*
@@ -201,6 +304,7 @@
 .style-override .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	border-bottom: none !important;
+	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 2px 8px !important;
 }
@@ -225,4 +329,14 @@
 
 .style-override.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
 	padding: 4px;
+}
+
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
+	vertical-align: sub;
+}
+
+.style-override.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	padding: 0;
+	line-height: 24px;
 }

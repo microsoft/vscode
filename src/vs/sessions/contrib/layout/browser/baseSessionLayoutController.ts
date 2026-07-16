@@ -7,6 +7,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { isThenable, Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -111,6 +112,16 @@ export abstract class BaseLayoutController extends Disposable {
 	protected get _isRestoringSessionLayout(): boolean {
 		return this._restoringSessionLayoutDepth > 0;
 	}
+
+	/**
+	 * Fires when a session-switch layout restore fully settles (the restore depth
+	 * returns to 0, after the — possibly async — working-set apply and aux-bar
+	 * restore complete). Subclasses reconcile off this instead of reacting to the
+	 * transient part/editor changes *during* the restore, which race the settled
+	 * state (e.g. a new session's empty working set closing the docked tabs).
+	 */
+	private readonly _onDidEndSessionLayoutRestore = this._register(new Emitter<void>());
+	protected readonly onDidEndSessionLayoutRestore: Event<void> = this._onDidEndSessionLayoutRestore.event;
 
 	/**
 	 * [D9] `true` while {@link toggleSidePane} hides/shows the editor + auxiliary
@@ -281,13 +292,27 @@ export abstract class BaseLayoutController extends Disposable {
 		// deliberately except themselves from the modal part), so their tabs
 		// still need to be captured/restored per session in that mode.
 
-		// [B2] Session changed (save, apply)
-		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-			// Save working set for previous session (skip for untitled sessions)
-			if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+		// [B2] Save the outgoing session's working set eagerly on the raw active
+		// session change, not on the workspace-gated `activeSessionForWorkingSet`
+		// derive below. The derive lags while the incoming session's workspace
+		// resolves, and autoruns driven by the raw active session (e.g. the
+		// single-pane managed-tabs sync) async-close the outgoing session's docked
+		// editors during that window. Saving here synchronously — before those
+		// closes run — captures which editor was active (e.g. the Changes tab) so it
+		// is restored active on return.
+		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+			if (
+				previousSession
+				&& !isEqual(previousSession.resource, session?.resource)
+				&& previousSession.status.read(undefined) !== SessionStatus.Untitled
+				&& !this._isRestoringSessionLayout
+			) {
 				this._saveWorkingSet(previousSession.resource);
 			}
+		}));
 
+		// [B2] Session changed (apply)
+		this._register(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
 			// Apply working set for current session.
 			// On initial load (no previous session), only apply if we have a saved working set —
 			// skip applying 'empty' to avoid closing editors that are being restored.
@@ -515,15 +540,21 @@ export abstract class BaseLayoutController extends Disposable {
 			if (isThenable(result)) {
 				settledSync = false;
 				Promise.resolve(result).catch(() => undefined).finally(() => {
-					this._restoringSessionLayoutDepth--;
-					suppression?.dispose();
+					this._endSessionLayoutRestore(suppression);
 				});
 			}
 		} finally {
 			if (settledSync) {
-				this._restoringSessionLayoutDepth--;
-				suppression?.dispose();
+				this._endSessionLayoutRestore(suppression);
 			}
+		}
+	}
+
+	private _endSessionLayoutRestore(suppression: IDisposable | undefined): void {
+		this._restoringSessionLayoutDepth--;
+		suppression?.dispose();
+		if (this._restoringSessionLayoutDepth === 0) {
+			this._onDidEndSessionLayoutRestore.fire();
 		}
 	}
 

@@ -104,7 +104,25 @@ const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
 // --- ButtonBar widget
 
-class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
+/**
+ * Common surface for the changes action button-bar widgets so hosts (e.g. the
+ * editor-title actions bar) can react to and query whether any action rendered.
+ */
+interface IChangesButtonBarWidget extends IDisposable {
+	/** Fires whenever the rendered actions change. */
+	readonly onDidChangeActions: Event<void>;
+	/** Whether the widget currently renders at least one action. */
+	readonly hasActions: boolean;
+}
+
+class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _onDidChangeActions = this._register(new Emitter<void>());
+	readonly onDidChangeActions = this._onDidChangeActions.event;
+
+	private _currentButtonBar: MenuWorkbenchButtonBar | undefined;
+	get hasActions(): boolean { return (this._currentButtonBar?.buttons.length ?? 0) > 0; }
+
 	constructor(
 		container: HTMLElement,
 		hasGitOperationInProgressObs: IObservable<boolean>,
@@ -157,6 +175,10 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 			// Set the running label override
 			reader.store.add(buttonBar.onWillRun(e => runningLabelObs.set(e.action.label, undefined)));
+
+			this._currentButtonBar = buttonBar;
+			reader.store.add(buttonBar.onDidChange(() => this._onDidChangeActions.fire()));
+			this._onDidChangeActions.fire();
 
 			reader.store.add(buttonBar);
 		}));
@@ -216,7 +238,6 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
-			action.id === 'agentSession.markAsDone' ||
 			action.id === 'agentSession.restore' ||
 			action.id === 'sessions.action.fixCIChecks' ||
 			isAgentHostSkillButtonId(action.id)
@@ -240,7 +261,12 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable {
 
 // --- ButtonBar widget (Agent Host)
 
-class ChangesWorkbenchButtonBarWidget extends Disposable {
+class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
+
+	private readonly _buttonBar: WorkbenchButtonBar;
+	readonly onDidChangeActions: Event<void>;
+	get hasActions(): boolean { return this._buttonBar.buttons.length > 0; }
+
 	constructor(
 		container: HTMLElement,
 		@IMenuService menuService: IMenuService,
@@ -252,7 +278,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService));
 
-		const buttonBar = this._register(instantiationService.createInstance(
+		const buttonBar = this._buttonBar = this._register(instantiationService.createInstance(
 			WorkbenchButtonBar,
 			container,
 			{
@@ -262,6 +288,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 				}
 			}
 		));
+		this.onDidChangeActions = Event.signal(buttonBar.onDidChange);
 
 		const menuActionsObs = observableFromEvent(menu.onDidChange, () => {
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -286,7 +313,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable {
 					: op.status === SessionChangesetOperationStatus.Running
 						? `$(loading) ${op.label}`
 						: op.label,
-				tooltip: op.description,
+				tooltip: op.description ?? op.label,
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => changeset.invokeOperation(op.id),
 			});
@@ -393,6 +420,13 @@ export class ChangesActionsBar extends Disposable {
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
+		let currentWidget: IChangesButtonBarWidget | undefined;
+		const updateVisibility = () => {
+			const status = sessionsService.activeSession.get()?.status.get();
+			const visible = status !== SessionStatus.Untitled && (currentWidget?.hasActions ?? false);
+			dom.setVisibility(visible, container);
+		};
+
 		this._register(autorun(reader => {
 			dom.clearNode(container);
 
@@ -400,39 +434,32 @@ export class ChangesActionsBar extends Disposable {
 				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container)
 				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
 			reader.store.add(widget);
+			currentWidget = widget;
+			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
+			updateVisibility();
 		}));
 
 		this._register(autorun(reader => {
-			const status = sessionsService.activeSession.read(reader)?.status.read(reader);
-			dom.setVisibility(status !== SessionStatus.Untitled, container);
+			sessionsService.activeSession.read(reader)?.status.read(reader);
+			updateVisibility();
 		}));
 	}
+
 }
 
 // --- Editor header menus (single-pane): the Changes editor declares
-// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats) and
-// Menus.SessionsEditorHeaderSecondary (the actions bar) and the editor group renders
-// them. The custom action view items below are registered globally by menu id so
-// the group's generic toolbars render them.
+// Menus.SessionsEditorHeaderPrimary (Branch Changes picker + diff stats + code review,
+// left) and Menus.SessionsEditorHeaderSecondary (diff/view-mode actions, right), and
+// the editor group renders them. The Create Pull Request bar (ChangesActionsBar) is
+// hosted in the editor tabs title (Menus.SessionsEditorTitle); its custom action view
+// item is provided by the Changes editor pane (SessionChangesEditor.getActionViewItem).
+// The custom action view items below are registered globally by menu id so the
+// header toolbars render them.
 
-const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
+export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
 
-/** Anchor action for the trailing header toolbar; rendered as the {@link ChangesActionsBar}. */
-class ChangesHeaderActionsAction extends Action2 {
-	constructor() {
-		super({
-			id: CHANGES_HEADER_ACTIONS_ID,
-			title: localize2('changesView.headerActions', 'Changes Actions'),
-			f1: false,
-			menu: { id: Menus.SessionsEditorHeaderSecondary, group: 'navigation', order: 1 },
-		});
-	}
-	override async run(): Promise<void> { }
-}
-registerAction2(ChangesHeaderActionsAction);
-
-/** Renders the {@link ChangesActionsBar} widget as the trailing header action item. */
-class ChangesActionsBarActionViewItem extends BaseActionViewItem {
+/** Renders the {@link ChangesActionsBar} widget as the Create Pull Request editor tabs title action item. */
+export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
@@ -466,15 +493,14 @@ class ChangesEditorHeaderContribution extends Disposable implements IWorkbenchCo
 			return instantiationService.createInstance(ChangesPickerActionItem, action);
 		}, onDidRegister.event));
 
+		// Always rendered, whether the editor area is visible or collapsed: the same
+		// diff-stats action as the classic Changes view header (clicking it opens the
+		// Changes editor), but with the richer "N files +X -Y" rendering.
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, DIFF_STATS_ACTION_ID, (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
 			return instantiationService.createInstance(SinglePaneChangesDiffStatsActionItem, action, options);
-		}, onDidRegister.event));
-
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderSecondary, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
-			return instantiationService.createInstance(ChangesActionsBarActionViewItem, action, options);
 		}, onDidRegister.event));
 
 		onDidRegister.fire();
@@ -1863,7 +1889,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 }
 
-// --- Diff Stats Action
+// --- Diff Stats Actions
+//
+// The editor-group header's left title bar (SessionsEditorHeaderPrimary) always renders
+// the same diff-stats action (ChangesDiffStatsAction) that the classic Changes view
+// header uses — the one otherwise shown only while the editor area is collapsed —
+// whether the editor area is visible or closed. Clicking it opens (or re-opens) the
+// Changes editor. It uses SinglePaneChangesDiffStatsActionItem, a richer "N files +X -Y"
+// rendering (the detail-panel header uses the compact animated base rendering instead).
 
 class ChangesDiffStatsAction extends Action2 {
 	static readonly ID = 'workbench.changesView.action.viewChanges';
@@ -1973,11 +2006,13 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 }
 
 /**
- * Diff-stats label for the single-pane Changes editor header: a richer
- * "$(diff-multiple) N files +X -Y" rendering (the detail-panel header uses the
- * compact animated base rendering). Adds the `changes-diff-stats-action-rich`
- * marker class so its styling applies wherever it renders (the classic internal
- * header or the single-pane editor-group header).
+ * Diff-stats action item for the single-pane Changes editor header: a richer
+ * "N files +X -Y" rendering (the detail-panel header uses the compact animated
+ * base rendering). Unlike the base item this remains fully interactive — clicking
+ * it runs the action (opens the Changes editor) the same as the base rendering.
+ * Adds the `changes-diff-stats-action-rich` marker class so its styling applies
+ * wherever it renders (the classic internal header or the single-pane editor-group
+ * header).
  */
 export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsActionItem {
 
@@ -2000,7 +2035,6 @@ export class SinglePaneChangesDiffStatsActionItem extends ChangesDiffStatsAction
 
 			dom.reset(
 				label,
-				...renderLabelWithIcons('$(diff-multiple)'),
 				dom.$('span.changes-diff-stats-files', undefined, filesLabel),
 				dom.$('span.working-set-lines-added', undefined, `+${additions}`),
 				dom.$('span.working-set-lines-removed', undefined, `-${deletions}`)

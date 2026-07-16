@@ -130,12 +130,12 @@ export class Chat {
 	 * the content has actually arrived (avoiding false matches on placeholder
 	 * text like "Considering" that appears before streaming begins).
 	 */
-	async waitForResponseText(predicate: string | RegExp, timeoutMs: number = 60_000): Promise<string> {
-		return await this.pollForResponseText(CHAT_RESPONSE, CHAT_RESPONSE_RENDERED, predicate, timeoutMs);
+	async waitForResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
+		return await this.pollForResponseText(CHAT_RESPONSE, CHAT_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 	}
 
-	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000): Promise<string> {
-		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs);
+	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
+		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 		// After a contributed chat session (e.g. Copilot CLI, Claude) returns
 		// its first response, the workbench commits the untitled session into
 		// a real (titled) one and `replaceEditors` swaps the chat editor over.
@@ -168,10 +168,16 @@ export class Chat {
 		}
 	}
 
-	private async pollForResponseText(bubbleSelector: string, renderedSelector: string, predicate: string | RegExp, timeoutMs: number): Promise<string> {
+	private async pollForResponseText(bubbleSelector: string, renderedSelector: string, predicate: string | RegExp, timeoutMs: number, acceptToolConfirmations?: boolean): Promise<string> {
 		const deadline = Date.now() + timeoutMs;
 		const matches = (text: string) => typeof predicate === 'string' ? text.includes(predicate) : predicate.test(text);
 		while (Date.now() < deadline) {
+			// When requested, accept any pending terminal tool confirmation so
+			// the agentic loop can proceed to render the final response. This
+			// is a no-op for sessions that auto-approve their shell commands.
+			if (acceptToolConfirmations) {
+				await acceptToolConfirmationIfPresent(this.code);
+			}
 			const elements = await this.code.driver.getElements(renderedSelector, /* recursive */ true);
 			const matched = elements.map(el => el.textContent ?? '').filter(matches);
 			if (matched.length > 0) {
@@ -532,5 +538,56 @@ export class Chat {
 			}
 			await new Promise(r => setTimeout(r, 150));
 		}
+	}
+}
+
+/**
+ * Click the "Allow" button of a pending terminal tool confirmation if one is
+ * present. No-op when there is no confirmation (e.g. the session auto-approved
+ * its shell command). Shared by {@link Chat} and the Agents Window driver so
+ * shell-tool tests can drive the real confirmation flow without per-agent
+ * special-casing.
+ *
+ * The terminal confirmation renders as a `.chat-confirmation-widget2` whose
+ * action buttons are `.monaco-button.monaco-text-button` anchors — the primary
+ * "Allow" (rendered first), then "Skip". The dropdown chevron next to "Allow"
+ * is a `.monaco-dropdown-button.codicon` (no `.monaco-text-button`) and the
+ * carousel's "Allow All" lives on `.chat-tool-carousel-allow-all-button`, so
+ * neither is matched here. We verify the first text button actually reads
+ * "Allow" before clicking to avoid ever hitting "Skip".
+ *
+ * Uses the VS Code driver (`getElements`/`click`) rather than a raw Playwright
+ * locator: the confirmation renders outside the chat response/editor
+ * containers, and the driver reliably resolves it workbench-wide.
+ */
+export async function acceptToolConfirmationIfPresent(code: Code): Promise<void> {
+	const allowButtonSelector = '.chat-confirmation-widget2 .monaco-button.monaco-text-button';
+	try {
+		const buttons = await code.driver.getElements(allowButtonSelector, /* recursive */ true);
+		// The first text button in the widget is "Allow"; only proceed when
+		// that holds so we never accidentally hit "Skip".
+		if (!buttons || buttons.length === 0 || (buttons[0].textContent ?? '').trim() !== 'Allow') {
+			return;
+		}
+		// Filter to only visible "Allow" buttons: the DOM can contain multiple
+		// widgets (e.g. a stale one plus the currently active one, or a
+		// sandbox-prerequisite confirmation plus the terminal one), and only
+		// one is user-actionable at a time. `.first()` alone would race on
+		// element order and often pick a hidden one.
+		const allowButtons = code.driver.currentPage
+			.locator('.chat-confirmation-widget2 .monaco-button.monaco-text-button')
+			.filter({ hasText: /^Allow$/ });
+		const total = await allowButtons.count();
+		for (let i = 0; i < total; i++) {
+			const b = allowButtons.nth(i);
+			if (await b.isVisible()) {
+				await b.click({ timeout: 2_000 });
+				return;
+			}
+		}
+	} catch {
+		// Ignore: the confirmation may not be present, may not be actionable
+		// yet, or may have just been dismissed between the query and the click.
+		// The surrounding poll retries.
 	}
 }

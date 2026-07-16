@@ -114,6 +114,10 @@ jobs:
         timeoutInMinutes: 1300
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
+      - script: node build/npm/check-allow-scripts.ts
+        displayName: Check NPM install script approvals
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
       - script: |
           set -e
           find . -name 'package-lock.json' -exec sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" {} \;
