@@ -1089,7 +1089,7 @@ function str(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
-export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI): {
+export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1147,14 +1147,18 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 				permissionPath: path,
 			};
 		}
-		case 'write':
+		case 'write': {
+			const toolName = isNewFile ? CopilotToolName.Create : CopilotToolName.Edit;
 			return {
-				confirmationTitle: localize('copilot.permission.write.title', "Write file?"),
-				invocationMessage: getInvocationMessage(CopilotToolName.Edit, getToolDisplayName(CopilotToolName.Edit), path ? { path } : undefined),
+				confirmationTitle: isNewFile
+					? localize('copilot.permission.create.title', "Create file?")
+					: localize('copilot.permission.write.title', "Write file?"),
+				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				permissionKind: 'write',
 				permissionPath: path,
 			};
+		}
 		case 'mcp': {
 			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {

@@ -65,12 +65,6 @@ export interface IAutomaticInstructionsCollector {
 
 export const IAutomaticInstructionsCollector = createServiceIdentifier<IAutomaticInstructionsCollector>('IAutomaticInstructionsCollector');
 
-
-// Mirror of `GeneralPurposeAgentName` in core. Kept in sync manually since
-// the constant lives in the workbench layer that the extension does not
-// depend on at runtime.
-const GENERAL_PURPOSE_AGENT_NAME = 'General Purpose';
-
 // Path suffix of the built-in troubleshoot skill. Excluded from the
 // customizations index when agent debug log file logging is disabled,
 // matching the behavior of core.
@@ -539,7 +533,6 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 
 		// ── <agents> section ────────────────────────────────────────────
 		if (runSubagentTool) {
-			const generalPurposeAgentEnabled = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.GENERAL_PURPOSE_AGENT_ENABLED) === true;
 			const customAgents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			const canInvokeAgent = (agent: vscode.ChatCustomAgent): boolean => {
@@ -553,18 +546,11 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				return !agent.disableModelInvocation;
 			};
 
-			if (generalPurposeAgentEnabled || customAgents.length > 0) {
+			if (customAgents.length > 0) {
 				lines.push('<agents>');
 				lines.push('Here is a list of agents that can be used when running a subagent.');
 				lines.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with the agent name to run the subagent.`);
-
-				if (generalPurposeAgentEnabled) {
-					lines.push('<agent>');
-					lines.push(`<name>${GENERAL_PURPOSE_AGENT_NAME}</name>`);
-					lines.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
-					lines.push('</agent>');
-				}
+				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with an agent name from this list to run that agent, or omit agentName to use the current agent.`);
 
 				for (const agent of customAgents) {
 					if (!canInvokeAgent(agent)) {
@@ -984,6 +970,4 @@ namespace ICustomInstructionsDebugInfo {
 		return result.join('\n');
 	}
 }
-
-
 

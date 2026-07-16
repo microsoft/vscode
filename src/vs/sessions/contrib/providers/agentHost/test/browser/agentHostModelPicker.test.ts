@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import type { ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { agentHostModelPickerStorageKey, resolveAgentHostModel } from '../../browser/agentHostModelPicker.js';
+import { agentHostModelPickerStorageKey, resolveAgentHostModel, setAgentHostModelSelection } from '../../browser/agentHostModelPicker.js';
 
 function makeModel(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -29,7 +31,7 @@ function makeModel(identifier: string): ILanguageModelChatMetadataAndIdentifier 
 }
 
 suite('AgentHostModelPicker', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses resource-scheme-scoped storage keys', () => {
 		assert.strictEqual(
@@ -77,5 +79,44 @@ suite('AgentHostModelPicker', () => {
 		];
 
 		assert.strictEqual(resolveAgentHostModel(models, undefined, undefined), undefined);
+	});
+
+	test('persists and applies a direct phone model selection', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const selectedModels: { sessionId: string; modelIdentifier: string | undefined }[] = [];
+		const session = { resource: URI.parse('agent-host-copilotcli:/session'), sessionId: 'provider:session' };
+		const provider = {
+			setModel(sessionId: string, modelIdentifier: string | undefined) {
+				selectedModels.push({ sessionId, modelIdentifier });
+			},
+		};
+		const models = [makeModel('agent-host-copilotcli:model')];
+
+		const switched = setAgentHostModelSelection(session, models, models[0].identifier, provider, storageService);
+
+		assert.deepStrictEqual({
+			switched,
+			stored: storageService.get(agentHostModelPickerStorageKey('agent-host-copilotcli'), StorageScope.PROFILE),
+			selectedModels,
+		}, {
+			switched: true,
+			stored: 'agent-host-copilotcli:model',
+			selectedModels: [{ sessionId: 'provider:session', modelIdentifier: 'agent-host-copilotcli:model' }],
+		});
+	});
+
+	test('does not persist or apply an unavailable phone model', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const selectedModels: string[] = [];
+		const session = { resource: URI.parse('agent-host-copilotcli:/session'), sessionId: 'provider:session' };
+		const provider = { setModel: (_sessionId: string, modelIdentifier: string | undefined) => selectedModels.push(modelIdentifier ?? '') };
+
+		const switched = setAgentHostModelSelection(session, [makeModel('available')], 'missing', provider, storageService);
+
+		assert.deepStrictEqual({
+			switched,
+			stored: storageService.get(agentHostModelPickerStorageKey('agent-host-copilotcli'), StorageScope.PROFILE),
+			selectedModels,
+		}, { switched: false, stored: undefined, selectedModels: [] });
 	});
 });

@@ -102,7 +102,29 @@ suite('AgentHostByokLmHandler', () => {
 		const models = await handler.listModels(CancellationToken.None);
 
 		assert.deepStrictEqual(models, [
-			{ vendor: 'acme', id: 'claude', name: 'acme claude', maxContextWindowTokens: 2000, supportsVision: true },
+			{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: true },
+		]);
+	});
+
+	test('listModels carries the LM service identifier (the Manage Models visibility key)', async () => {
+		// A grouped BYOK model is registered under `<vendor>/<group>/<id>` — exactly the id the
+		// Manage Models view keys visibility by. The handler carries that identifier verbatim so
+		// the picker can honour the toggle for the model's agent-host copy.
+		const groupedId = 'openrouter/OpenRouter 2/ai21/jamba-large-1.7';
+		const service = new TestLanguageModelsService(
+			new Map<string, ILanguageModelChatMetadata>([
+				[groupedId, byokModel('openrouter', 'ai21/jamba-large-1.7')],
+				['openrouter/gpt-4', byokModel('openrouter', 'gpt-4')],
+			]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		const models = await handler.listModels(CancellationToken.None);
+
+		assert.deepStrictEqual(models, [
+			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
+			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
 		]);
 	});
 

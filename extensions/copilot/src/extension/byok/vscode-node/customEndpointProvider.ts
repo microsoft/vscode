@@ -104,7 +104,7 @@ interface _CustomEndpointModelConfig {
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface CustomEndpointModelConfig extends _CustomEndpointModelConfig {

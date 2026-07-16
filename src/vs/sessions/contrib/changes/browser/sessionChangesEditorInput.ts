@@ -12,13 +12,14 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 
 /**
  * Editor input for the Agents window Changes tab. It wraps the session's
  * multi-diff source and exposes the resolved multi-diff view model so the
  * {@link SessionChangesEditor} can render the diffs beneath its own header.
  */
-export class SessionChangesEditorInput extends EditorInput {
+export class SessionChangesEditorInput extends DockedEditorInput {
 
 	static readonly ID = 'workbench.input.agentSessions.sessionChanges';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.sessionChanges';
@@ -68,6 +69,15 @@ export class SessionChangesEditorInput extends EditorInput {
 			}, this.instantiationService));
 		}
 		return this._innerInput;
+	}
+
+	/**
+	 * The wrapped multi-diff input, whose {@link MultiDiffEditorInput.resources}
+	 * expose the session's individual file diffs. Used to resolve the session's
+	 * files (e.g. for the agent feedback affordances) from this editor input.
+	 */
+	get multiDiffInput(): MultiDiffEditorInput {
+		return this.innerInput;
 	}
 
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {

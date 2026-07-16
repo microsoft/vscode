@@ -11,7 +11,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { type IAgentCreateSessionConfig, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -148,6 +148,8 @@ class MockAgentService implements IAgentService {
 	addSubscriber(_resource: URI, _clientId: string): void { }
 	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
@@ -449,6 +451,7 @@ suite('ProtocolServerHandler', () => {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		}));
@@ -973,6 +976,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1035,6 +1039,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1083,6 +1088,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1125,6 +1131,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1174,6 +1181,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1232,6 +1240,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1284,6 +1293,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1337,6 +1347,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			// Tool call stamped for a clientId that never connected (e.g. a
@@ -1376,6 +1387,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(defaultChatUri, {
@@ -1405,6 +1417,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			// First orphaned tool call (owner never connected) arms the grace timer.
@@ -1456,6 +1469,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {
@@ -1510,6 +1524,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {
@@ -1574,6 +1589,7 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(defaultChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 		});
 		stateManager.dispatchServerAction(defaultChatUri, {

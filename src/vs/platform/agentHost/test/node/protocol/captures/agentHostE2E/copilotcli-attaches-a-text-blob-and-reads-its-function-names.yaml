@@ -1,0 +1,19 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Read the attached Python text blob. What function names are defined in it? Reply with only the function names.
+            - type: text
+              text: "<attachment mimeType=\"text/plain\" name=\"calculator.py\">\ndef subtract(a, b):\n\treturn a - b\n</attachment>"
+    response:
+      content: '`subtract`'
+      stopReason: end_turn
+      usage:
+        inputTokens: 3
+        outputTokens: 80

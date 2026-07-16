@@ -52,6 +52,7 @@ import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -91,7 +92,7 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IChatDebugService, new ChatDebugServiceImpl());
+		collection.set(IChatDebugService, new ChatDebugServiceImpl(new TestConfigurationService()));
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;

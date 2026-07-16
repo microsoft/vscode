@@ -455,19 +455,19 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 						// todod@connor4312: hack while responses API only supports text output from tools
 						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
 						if (asImages.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
 						}
 						if (asFiles.length) {
-							input.push({ role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
+							input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'PDF associated with the above tool call:' }, ...asFiles] });
 						}
 					}
 				}
 				break;
 			case Raw.ChatRole.User:
-				input.push({ role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'user', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 			case Raw.ChatRole.System:
-				input.push({ role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
+				input.push({ type: 'message', role: 'system', content: message.content.map(rawContentToResponsesContent).filter(isDefined) });
 				break;
 		}
 

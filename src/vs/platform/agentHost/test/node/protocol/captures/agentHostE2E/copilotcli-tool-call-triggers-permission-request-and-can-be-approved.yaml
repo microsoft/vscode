@@ -1,0 +1,61 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: report_intent
+          input:
+            intent: Running shell command
+        - type: tool_use
+          id: toolcall_1
+          name: bash
+          input:
+            command: echo "hello from test"
+      stopReason: tool_use
+      usage:
+        inputTokens: 3
+        outputTokens: 95
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Run the shell command: echo "hello from test"'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: report_intent
+              input:
+                intent: Running shell command
+            - type: tool_use
+              name: bash
+              input:
+                command: echo "hello from test"
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Intent logged
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Shell ID: ${uuid_0}
+                Exit code: 0
+    response:
+      content: |-
+        Done. The command output:
+        ```
+        hello from test
+        ```
+      stopReason: end_turn
+      usage:
+        inputTokens: 1
+        outputTokens: 17

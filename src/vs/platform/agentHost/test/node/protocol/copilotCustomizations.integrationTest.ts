@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Real Copilot SDK customization integration tests running on a mocked LLM.
+ * Agent host end-to-end tests (Copilot customizations, mocked LLM).
  *
  * agent host log file: ~/.vscode-insiders/tmp/tmp_vscode_1/ahp-customizations-home-mock-ZBucPX/Library/Application Support/Code - OSS Dev/logs/20260701T192836/agenthost-server.log
  */
@@ -17,7 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { CustomizationType, type DirectoryCustomization } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
-import { createRealSession, dispatchTurn, IRealSdkProviderConfig } from './realSdkTestHelpers.js';
+import { createRealSession, dispatchTurn, IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
 import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
 
 /**
@@ -42,8 +42,8 @@ function isSettledCustomizationsNotification(notification: AhpNotification, sess
 	return (getActionEnvelope(notification).action as SessionCustomizationsChangedAction).customizations.length > 0;
 }
 
-const COPILOT_CONFIG: IRealSdkProviderConfig = {
-	suiteTitle: 'Protocol WebSocket — Real Copilot SDK Mocked LLM',
+const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
+	suiteTitle: 'Agent Host E2E — Copilot (Mocked LLM)',
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
 	shellToolName: 'bash',
@@ -51,6 +51,7 @@ const COPILOT_CONFIG: IRealSdkProviderConfig = {
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: true,
 	supportsWorktreeIsolation: true,
+	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
 	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
@@ -60,7 +61,7 @@ const SETUP_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 90_000;
 const NOTIFICATION_TIMEOUT_MS = 10_000;
 
-suite('Protocol WebSocket — Real Copilot SDK, Mocked LLM (Copilot customizations)', function () {
+suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;

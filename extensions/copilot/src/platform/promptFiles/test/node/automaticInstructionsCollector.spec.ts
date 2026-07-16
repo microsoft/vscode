@@ -501,22 +501,6 @@ suite('AutomaticInstructionsCollector', () => {
 			expect(xmlContents(agents[0], 'name')[0]).toBe('agent1');
 		});
 
-		test('General Purpose agent appears first when the experiment is enabled', async () => {
-			await configService.setNonExtensionConfig(PromptConfig.GENERAL_PURPOSE_AGENT_ENABLED, true);
-			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/test.agent.md');
-			promptsService.setCustomAgents([
-				{ uri: agentUri, name: 'custom', source: 'local', description: 'Custom', userInvocable: true, disableModelInvocation: false, enabled: true } as ChatCustomAgent,
-			]);
-
-			const result = await callCollect({ tools: [tool(ToolName.CoreRunSubagent)], allowedSubagents: ['*'] });
-
-			const indexEntry = result.find(isCustomizationsIndex)!;
-			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
-			expect(agents).toHaveLength(2);
-			expect(xmlContents(agents[0], 'name')[0]).toBe('General Purpose');
-			expect(xmlContents(agents[1], 'name')[0]).toBe('custom');
-		});
-
 		test('includes nested AGENTS.md as instruction items when enabled', async () => {
 			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, true);
 			const nestedUri = URI.joinPath(rootFolderUri, 'packages/foo/AGENTS.md');

@@ -17,28 +17,31 @@ suite('claudeReplayMapper', () => {
 
 	const logService = new NullLogService();
 	const session = URI.parse('claude:/sess-1');
+	type TimestampedSessionMessage = SessionMessage & { readonly timestamp?: string };
 
-	function makeUser(uuid: string, text: string): SessionMessage {
+	function makeUser(uuid: string, text: string, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'user',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
 			message: { role: 'user', content: [{ type: 'text', text }] },
+			timestamp,
 		};
 	}
 
-	function makeAssistantText(uuid: string, text: string): SessionMessage {
+	function makeAssistantText(uuid: string, text: string, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'assistant',
 			uuid,
 			session_id: 'sess-1',
 			parent_tool_use_id: null,
 			message: { id: `msg_${uuid}`, role: 'assistant', content: [{ type: 'text', text }] },
+			timestamp,
 		};
 	}
 
-	function makeAssistantToolUse(uuid: string, toolUseId: string, name: string, input: unknown = {}): SessionMessage {
+	function makeAssistantToolUse(uuid: string, toolUseId: string, name: string, input: unknown = {}, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'assistant',
 			uuid,
@@ -49,10 +52,11 @@ suite('claudeReplayMapper', () => {
 				role: 'assistant',
 				content: [{ type: 'tool_use', id: toolUseId, name, input }],
 			},
+			timestamp,
 		};
 	}
 
-	function makeUserToolResult(uuid: string, toolUseId: string, text: string, isError = false): SessionMessage {
+	function makeUserToolResult(uuid: string, toolUseId: string, text: string, isError = false, timestamp?: string): TimestampedSessionMessage {
 		return {
 			type: 'user',
 			uuid,
@@ -62,6 +66,7 @@ suite('claudeReplayMapper', () => {
 				role: 'user',
 				content: [{ type: 'tool_result', tool_use_id: toolUseId, content: text, ...(isError ? { is_error: true } : {}) }],
 			},
+			timestamp,
 		};
 	}
 
@@ -94,6 +99,40 @@ suite('claudeReplayMapper', () => {
 		if (part.kind === ResponsePartKind.Markdown) {
 			assert.strictEqual(part.content, 'world');
 		}
+	});
+
+	test('restores turn timing from persisted message timestamps', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'hello', '2026-07-09T18:00:00.000Z'),
+			makeAssistantText('a1', 'world', '2026-07-09T18:00:02.500Z'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual({
+			startedAt: turns[0].startedAt,
+			duration: turns[0].duration,
+		}, {
+			startedAt: '2026-07-09T18:00:00.000Z',
+			duration: 2_500,
+		});
+	});
+
+	test('leaves turn timing unknown when persisted timestamps are missing or invalid', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'hello', 'invalid'),
+			makeAssistantText('a1', 'world'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual({
+			startedAt: turns[0].startedAt,
+			duration: turns[0].duration,
+		}, {
+			startedAt: undefined,
+			duration: undefined,
+		});
 	});
 
 	test('Fixture 2: tool_use + tool_result is one Turn with one Completed ToolCall', () => {
@@ -217,6 +256,20 @@ suite('claudeReplayMapper', () => {
 		assert.strictEqual(turns.length, 2);
 		assert.strictEqual(turns[0].state, TurnState.Cancelled, 'turn 1 has orphan');
 		assert.strictEqual(turns[1].state, TurnState.Complete, 'turn 2 has no orphan');
+	});
+
+	test('late tool results do not extend the active turn duration', () => {
+		const messages: SessionMessage[] = [
+			makeUser('u1', 'first', '2026-07-09T18:00:00.000Z'),
+			makeAssistantToolUse('a1', 'tu-late', 'Bash', {}, '2026-07-09T18:00:01.000Z'),
+			makeUser('u2', 'second', '2026-07-09T18:00:10.000Z'),
+			makeAssistantText('a2', 'clean reply', '2026-07-09T18:00:12.000Z'),
+			makeUserToolResult('late-result', 'tu-late', 'done', false, '2026-07-09T18:00:20.000Z'),
+		];
+
+		const turns = mapSessionMessagesToTurns(messages, session, logService);
+
+		assert.deepStrictEqual(turns.map(turn => turn.duration), [1_000, 2_000]);
 	});
 
 	test('Fixture 7: non-allowlisted system subtypes are dropped', () => {

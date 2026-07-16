@@ -215,19 +215,32 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (this._unsupportedSchema) {
 			throw new Error('Cannot modify automations: storage was written by a newer version');
 		}
-		if (!this.getAutomation(automationId)) {
+		const automation = this.getAutomation(automationId);
+		if (!automation) {
 			throw new Error(`Automation not found: ${automationId}`);
 		}
+		const now = this._now();
+		const startedAt = now.toISOString();
 		const run: IAutomationRun = Object.freeze({
 			id: generateUuid(),
 			automationId,
 			status: 'pending',
 			trigger,
-			startedAt: this._now().toISOString(),
+			startedAt,
 			leaderWindowId,
 		});
+		let nextAutomations = this._automations.get();
+		if (trigger !== 'manual') {
+			const updatedAutomation: IAutomation = Object.freeze({
+				...automation,
+				lastRunAt: startedAt,
+				nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
+				updatedAt: startedAt,
+			});
+			nextAutomations = nextAutomations.map(a => a.id === automationId ? updatedAutomation : a);
+		}
 		const nextRuns = [run, ...this._runs.get()];
-		this.commit(this._automations.get(), nextRuns);
+		this.commit(nextAutomations, nextRuns);
 		return run;
 	}
 
@@ -271,25 +284,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (changed) {
 			this.commit(this._automations.get(), nextRuns);
 		}
-	}
-
-	async advanceNextRunAt(id: string, now: Date = this._now()): Promise<IAutomation | undefined> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const current = this.getAutomation(id);
-		if (!current) {
-			return undefined;
-		}
-		const updated: IAutomation = Object.freeze({
-			...current,
-			lastRunAt: now.toISOString(),
-			nextRunAt: computeNextRunAt(current.schedule, now)?.toISOString(),
-			updatedAt: now.toISOString(),
-		});
-		const next = this._automations.get().map(a => a.id === id ? updated : a);
-		this.commit(next, this._runs.get());
-		return updated;
 	}
 
 	//#region Persistence

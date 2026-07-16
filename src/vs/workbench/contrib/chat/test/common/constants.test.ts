@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration, getComputedDefaultSessionType, getDefaultNewChatSessionType, isRememberedSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { IWorkspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { ChatConfiguration, getComputedDefaultSessionType, getDefaultNewChatSessionType, isEditorLocalAgentEnabled, isRememberedSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -15,6 +17,14 @@ import { getRememberedSessionType } from '../../common/chatSessionTypePreference
 suite('ChatConfiguration defaults', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const localWorkspace = createWorkspace(URI.file('/workspace'));
+
+	function createWorkspace(...resources: URI[]): IWorkspace {
+		return {
+			id: resources.map(resource => resource.toString()).join(','),
+			folders: resources.map(toWorkspaceFolder),
+		};
+	}
 
 	function createChatSessionsService(...types: string[]): MockChatSessionsService {
 		const service = new MockChatSessionsService();
@@ -33,9 +43,9 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
-			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
 		}, {
 			computed: localChatSessionType,
 			rememberedAware: localChatSessionType,
@@ -52,9 +62,9 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
-			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			rememberedAware: SessionType.AgentHostCopilot,
@@ -71,9 +81,9 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
-			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			rememberedAware: SessionType.AgentHostCopilot,
@@ -91,9 +101,9 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
-			extensionHostVisible: isVisibleEditorChatSessionType(SessionType.CopilotCLI, configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
+			extensionHostVisible: isVisibleEditorChatSessionType(SessionType.CopilotCLI, configurationService, chatSessionsService, localWorkspace),
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			rememberedAware: SessionType.AgentHostCopilot,
@@ -109,9 +119,9 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
-			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace),
 		}, {
 			computed: localChatSessionType,
 			rememberedAware: localChatSessionType,
@@ -124,12 +134,12 @@ suite('ChatConfiguration defaults', () => {
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, SessionType.AgentHostClaude);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude);
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
 			remembered: getRememberedSessionType(storageService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
 		}, {
 			computed: localChatSessionType,
 			remembered: SessionType.AgentHostClaude,
@@ -142,11 +152,11 @@ suite('ChatConfiguration defaults', () => {
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, SessionType.AgentHostClaude);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude);
 
 		assert.deepStrictEqual({
 			remembered: getRememberedSessionType(storageService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, { explicitOverride: SessionType.AgentHostCopilot }),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, { explicitOverride: SessionType.AgentHostCopilot }),
 		}, {
 			remembered: SessionType.AgentHostClaude,
 			rememberedAware: SessionType.AgentHostCopilot,
@@ -159,15 +169,15 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, { currentSessionType: SessionType.AgentHostCopilot }),
+			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withoutRemembered: SessionType.AgentHostCopilot,
 		});
 
-		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, SessionType.AgentHostClaude);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude);
 
 		assert.deepStrictEqual({
-			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, { currentSessionType: SessionType.AgentHostCopilot }),
+			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withRemembered: SessionType.AgentHostClaude,
 		});
@@ -181,13 +191,13 @@ suite('ChatConfiguration defaults', () => {
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
-		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, SessionType.AgentHostClaude);
-		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, SessionType.AgentHostCopilot);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude);
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostCopilot);
 
 		assert.deepStrictEqual({
-			computed: getComputedDefaultSessionType(configurationService, chatSessionsService),
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace),
 			remembered: getRememberedSessionType(storageService),
-			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace),
 		}, {
 			computed: SessionType.AgentHostCopilot,
 			remembered: undefined,
@@ -200,11 +210,56 @@ suite('ChatConfiguration defaults', () => {
 		const chatSessionsService = createChatSessionsService();
 
 		assert.deepStrictEqual({
-			agentHost: isRememberedSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService),
-			extensionContributed: isRememberedSessionTypeUsable('my-extension-agent', configurationService, chatSessionsService),
+			agentHost: isRememberedSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, localWorkspace),
+			extensionContributed: isRememberedSessionTypeUsable('my-extension-agent', configurationService, chatSessionsService, localWorkspace),
 		}, {
 			agentHost: true,
 			extensionContributed: false,
+		});
+	});
+
+	test('local agent setting is ignored only in fully virtual workspaces', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+		});
+		const remoteWorkspace = createWorkspace(URI.parse('vscode-remote://ssh-remote+test/workspace'));
+		const remoteRepositoriesWorkspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
+		const customVirtualWorkspace = createWorkspace(URI.parse('custom-vfs://provider/workspace'));
+		const mixedWorkspace = createWorkspace(URI.file('/workspace'), URI.parse('custom-vfs://provider/workspace'));
+
+		assert.deepStrictEqual({
+			local: isEditorLocalAgentEnabled(configurationService, localWorkspace),
+			remote: isEditorLocalAgentEnabled(configurationService, remoteWorkspace),
+			remoteRepositories: isEditorLocalAgentEnabled(configurationService, remoteRepositoriesWorkspace),
+			customVirtual: isEditorLocalAgentEnabled(configurationService, customVirtualWorkspace),
+			mixed: isEditorLocalAgentEnabled(configurationService, mixedWorkspace),
+		}, {
+			local: false,
+			remote: false,
+			remoteRepositories: true,
+			customVirtual: true,
+			mixed: false,
+		});
+	});
+
+	test('virtual workspace keeps local available when setting is disabled', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.EditorLocalAgentEnabled]: false,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
+
+		assert.deepStrictEqual({
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
+			localRememberedUsable: isRememberedSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
+		}, {
+			computed: localChatSessionType,
+			rememberedAware: localChatSessionType,
+			localVisible: true,
+			localRememberedUsable: true,
 		});
 	});
 });

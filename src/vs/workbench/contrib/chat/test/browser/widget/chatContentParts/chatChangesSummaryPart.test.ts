@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
+import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
 import { IChatChangesSummaryPart } from '../../../../common/model/chatViewModel.js';
@@ -69,5 +70,48 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				headerOrder: ['chat-file-changes-label', 'chat-file-changes-counts', 'chat-view-changes-icon', 'chat-file-changes-chevron'],
 			},
 		]);
+	});
+
+	test('signals user toggles and rotates the disclosure chevron', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatResponseFileChangesService, {
+			_serviceBrand: undefined,
+			registerProvider: () => Disposable.None,
+			getChangesForRequest: () => observableValue('testFileChanges', [
+				emptySessionEntryDiff(URI.file('/file.ts'), URI.file('/file.ts'))
+			]),
+		});
+		const part = store.add(instantiationService.createInstance(
+			ChatCheckpointFileChangesSummaryContentPart,
+			{
+				kind: 'changesSummary',
+				requestId: 'request',
+				sessionResource: URI.parse('chat-session://test/session'),
+			},
+			{} as IChatContentPartRenderContext,
+		));
+		let toggleCount = 0;
+		const listener = () => toggleCount++;
+		part.domNode.addEventListener(ChatCollapsibleContentPart.userToggleEvent, listener);
+		store.add(toDisposable(() => part.domNode.removeEventListener(ChatCollapsibleContentPart.userToggleEvent, listener)));
+
+		const header = part.domNode.querySelector<HTMLElement>('summary');
+		const details = part.domNode.querySelector<HTMLDetailsElement>('details');
+		const chevron = part.domNode.querySelector('.chat-file-changes-chevron');
+		assert.ok(header);
+		assert.ok(details);
+		assert.ok(chevron);
+		header.click();
+		details.dispatchEvent(new Event('toggle'));
+
+		assert.deepStrictEqual({
+			open: details.open,
+			expandedChevron: chevron.classList.contains('expanded'),
+			toggleCount,
+		}, {
+			open: true,
+			expandedChevron: true,
+			toggleCount: 1,
+		});
 	});
 });

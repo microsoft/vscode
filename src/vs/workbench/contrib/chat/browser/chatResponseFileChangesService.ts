@@ -30,6 +30,14 @@ export interface IChatResponseFileChangesProvider {
 	 * the chat editing session).
 	 */
 	getChangesForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
+
+	/**
+	 * Returns the file edits produced by `requestId` from the response output
+	 * stream, or `undefined` when unavailable. Unlike {@link getChangesForRequest},
+	 * this is not limited to a changeset and can include files outside the
+	 * workspace.
+	 */
+	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
 }
 
 export interface IChatResponseFileChangesService {
@@ -48,6 +56,12 @@ export interface IChatResponseFileChangesService {
 	 * no provider or the provider cannot supply changes for this request.
 	 */
 	getChangesForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
+
+	/**
+	 * Returns file edits produced by `requestId` from the response output stream,
+	 * when the provider can supply them.
+	 */
+	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined;
 }
 
 export class ChatResponseFileChangesService extends Disposable implements IChatResponseFileChangesService {
@@ -70,5 +84,10 @@ export class ChatResponseFileChangesService extends Disposable implements IChatR
 	getChangesForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined {
 		const provider = this._providers.get(getChatSessionType(sessionResource));
 		return provider?.getChangesForRequest(sessionResource, requestId);
+	}
+
+	getFileEditsForRequest(sessionResource: URI, requestId: string): IObservable<readonly IEditSessionEntryDiff[]> | undefined {
+		const provider = this._providers.get(getChatSessionType(sessionResource));
+		return provider?.getFileEditsForRequest?.(sessionResource, requestId);
 	}
 }

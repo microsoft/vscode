@@ -898,6 +898,25 @@ suite('ChatQuestionCarouselPart', () => {
 			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
 			assert.ok(skippedMessage, 'Should show skipped message when no data');
 		});
+
+		test('shows answered message when answeredExternally but no data', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [
+					{ id: 'q1', type: 'text', title: 'Question 1' }
+				],
+				allowSkip: true,
+				isUsed: true,
+				answeredExternally: true
+			};
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container');
+			assert.ok(!summary?.querySelector('.chat-question-summary-skipped'), 'Should not show skipped message');
+			assert.ok(summary?.querySelector('.chat-question-summary-answered'), 'Should show answered message when answered externally');
+		});
 	});
 
 	suite('Description and Message', () => {

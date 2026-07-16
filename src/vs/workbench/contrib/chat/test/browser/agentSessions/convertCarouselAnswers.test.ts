@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputQuestionKind, SessionInputAnswerState, SessionInputAnswerValueKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { convertCarouselAnswers } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 
 suite('convertCarouselAnswers', () => {
@@ -38,6 +38,20 @@ suite('convertCarouselAnswers', () => {
 			'q1': {
 				state: SessionInputAnswerState.Submitted,
 				value: { kind: SessionInputAnswerValueKind.Selected, value: 'opt-1', freeformValues: ['custom'] }
+			}
+		});
+	});
+
+	test('converts boolean single-select answer', () => {
+		const result = convertCarouselAnswers({ 'q1': { selectedValue: 'false' } }, [{
+			kind: ChatInputQuestionKind.Boolean,
+			id: 'q1',
+			message: 'Enable the feature?',
+		}]);
+		assert.deepStrictEqual(result, {
+			'q1': {
+				state: SessionInputAnswerState.Submitted,
+				value: { kind: SessionInputAnswerValueKind.Boolean, value: false }
 			}
 		});
 	});

@@ -12,6 +12,7 @@ import { autorun, observableFromEvent } from '../../../util/vs/base/common/obser
 import { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
+import { getEditorVersionHeaders, IEnvService } from '../../env/common/envService';
 import { WireTypes } from '../../inlineEdits/common/dataTypes/inlineEditsModelsTypes';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
@@ -30,6 +31,7 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 		@ICAPIClientService private readonly _capiClient: ICAPIClientService,
 		@IFetcherService private readonly _fetchService: IFetcherService,
 		@ILogService private readonly _logService: ILogService,
+		@IEnvService private readonly _envService: IEnvService,
 	) {
 		super();
 
@@ -89,6 +91,7 @@ export class ProxyModelsService extends Disposable implements IProxyModelsServic
 			r = await this._fetchService.fetch(url, {
 				headers: {
 					'Authorization': `Bearer ${copilotToken.token}`,
+					...getEditorVersionHeaders(this._envService),
 				},
 				method: 'GET',
 				timeout: 10_000,

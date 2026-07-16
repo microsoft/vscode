@@ -1,0 +1,220 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: '[[PLAN]] Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the `exit_plan_mode` tool to ask me to approve it before writing any code.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: report_intent
+          input:
+            intent: Planning Python script
+        - type: tool_use
+          id: toolcall_1
+          name: create
+          input:
+            path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
+            file_text: |
+              # Plan
+
+              Create `hello.py` that prints "hello world" to stdout.
+        - type: tool_use
+          id: toolcall_2
+          name: sql
+          input:
+            description: Insert hello world todo
+            query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+      stopReason: tool_use
+      usage:
+        inputTokens: 3
+        outputTokens: 287
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: '[[PLAN]] Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the `exit_plan_mode` tool to ask me to approve it before writing any code.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: report_intent
+              input:
+                intent: Planning Python script
+            - type: tool_use
+              name: create
+              input:
+                path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
+                file_text: |
+                  # Plan
+
+                  Create `hello.py` that prints "hello world" to stdout.
+            - type: tool_use
+              name: sql
+              input:
+                description: Insert hello world todo
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Intent logged
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '1 row(s) inserted. Last inserted row ID: 1.'
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: exit_plan_mode
+          input:
+            summary: '- Create `hello.py` with `print("hello world")`'
+            actions:
+              - autopilot
+              - exit_only
+            recommendedAction: autopilot
+      stopReason: tool_use
+      usage:
+        inputTokens: 45
+        outputTokens: 116
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: '[[PLAN]] Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the `exit_plan_mode` tool to ask me to approve it before writing any code.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: report_intent
+              input:
+                intent: Planning Python script
+            - type: tool_use
+              name: create
+              input:
+                path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
+                file_text: |
+                  # Plan
+
+                  Create `hello.py` that prints "hello world" to stdout.
+            - type: tool_use
+              name: sql
+              input:
+                description: Insert hello world todo
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Intent logged
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '1 row(s) inserted. Last inserted row ID: 1.'
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exit_plan_mode
+              input:
+                summary: '- Create `hello.py` with `print("hello world")`'
+                actions:
+                  - autopilot
+                  - exit_only
+                recommendedAction: autopilot
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Plan approved! Exited plan mode.
+
+                You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
+    response:
+      content: Ready to implement when you say go.
+      stopReason: end_turn
+      usage:
+        inputTokens: 1
+        outputTokens: 11
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: '[[PLAN]] Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the `exit_plan_mode` tool to ask me to approve it before writing any code.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: report_intent
+              input:
+                intent: Planning Python script
+            - type: tool_use
+              name: create
+              input:
+                path: ${homedir}/.copilot/session-state/${uuid_0}/plan.md
+                file_text: |
+                  # Plan
+
+                  Create `hello.py` that prints "hello world" to stdout.
+            - type: tool_use
+              name: sql
+              input:
+                description: Insert hello world todo
+                query: INSERT INTO todos (id, title, description) VALUES ('create-hello-py', 'Creating hello.py script', 'Create hello.py with print("hello world")');
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Intent logged
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '1 row(s) inserted. Last inserted row ID: 1.'
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Created file ${homedir}/.copilot/session-state/${uuid_0}/plan.md with 63 characters
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exit_plan_mode
+              input:
+                summary: '- Create `hello.py` with `print("hello world")`'
+                actions:
+                  - autopilot
+                  - exit_only
+                recommendedAction: autopilot
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: |-
+                Plan approved! Exited plan mode.
+
+                You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
+        - role: assistant
+          content: Ready to implement when you say go.
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            Tools no longer available: exit_plan_mode
+
+            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
+            </tools_changed_notice>
+
+            What did the plan I just approved say to print? Reply with exactly "hello world".
+    response:
+      content: hello world
+      stopReason: end_turn
+      usage:
+        inputTokens: 3
+        outputTokens: 5

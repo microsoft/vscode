@@ -4,10 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../../base/common/async.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
+import { ChatTerminalThinkingCollapsibleWrapper } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
@@ -53,6 +62,69 @@ suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 		isExpanded = false;
 		userToggledOutput = false;
 		hasRealOutputValue = false;
+	});
+
+	suite('ChatTerminalThinkingCollapsibleWrapper', () => {
+		test('animates terminal content and keeps collapsed content inert', () => {
+			const context: IChatContentPartRenderContext = {
+				element: Object.assign(Object.create(null) as IChatResponseViewModel, {
+					id: 'response',
+					sessionResource: URI.parse('chat-session://test/session'),
+				}),
+				elementIndex: 0,
+				container: mainWindow.document.createElement('div'),
+				content: [],
+				contentIndex: 0,
+				inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+				editorPool: Object.create(EditorPool.prototype) as EditorPool,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const terminalContent = mainWindow.document.createElement('div');
+			terminalContent.textContent = 'terminal output';
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const part = store.add(instantiationService.createInstance(
+				ChatTerminalThinkingCollapsibleWrapper,
+				'echo test',
+				undefined,
+				false,
+				terminalContent,
+				context,
+				false,
+				true,
+				false,
+				false,
+				undefined,
+			));
+			mainWindow.document.body.appendChild(part.domNode);
+			store.add(toDisposable(() => part.domNode.remove()));
+
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button');
+			const animationContainer = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation');
+			const animationContent = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner');
+			assert.ok(button);
+			assert.ok(animationContainer);
+			assert.ok(animationContent);
+			const initiallyInert = animationContent.inert;
+			button.click();
+
+			assert.deepStrictEqual({
+				hasAnimationClass: part.domNode.classList.contains('chat-collapsible-content-animated'),
+				animationDisplay: mainWindow.getComputedStyle(animationContainer).display,
+				initiallyInert,
+				expandedInert: animationContent.inert,
+				containsTerminal: animationContent.contains(terminalContent),
+			}, {
+				hasAnimationClass: true,
+				animationDisplay: 'grid',
+				initiallyInert: true,
+				expandedInert: false,
+				containsTerminal: true,
+			});
+		});
 	});
 
 	test('fast command without data should not auto-expand (finishes before timeout)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

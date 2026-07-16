@@ -19,6 +19,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -111,6 +112,14 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 				override readonly onDidChangeAvailability = Event.None;
 				override readonly onDidChangeInProgress = Event.None;
 				override async resolveChatSessionItem() { return undefined; }
+			}());
+			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly speakingSession = observableValue<URI | undefined>('speakingSession', undefined);
+				override readonly lastPlayedVersion = observableValue<number>('lastPlayedVersion', 0);
+				override readonly pendingResponseVersion = observableValue<number>('pendingResponseVersion', 0);
+				override hasPendingResponse() { return false; }
+				override hasLastPlayed() { return false; }
+				override getLastPlayed() { return undefined; }
 			}());
 		},
 	});

@@ -883,13 +883,42 @@ function completeSingleLinePattern(token: marked.Tokens.Text | marked.Tokens.Par
 }
 
 function hasLinkTextAndStartOfLinkTarget(str: string): boolean {
-	// The `[` may be preceded by start-of-line, whitespace, or an emphasis/strikethrough marker
-	// (e.g. `**[text](htt`) so that links nested inside bold/italic/strikethrough are detected.
-	return !!str.match(/(^|\s|\*|_|~)\[.*\]\(\w*/);
+	// Allow links after opening parentheses and emphasis/strikethrough markers, such as `**[text](htt`.
+	return !!str.match(/(?:^|[\s(*_~])\[.*\]\(\w*/);
 }
 
 function hasStartOfLinkTargetAndNoLinkText(str: string): boolean {
 	return !!str.match(/^[^\[]*\]\([^\)]*$/);
+}
+
+function completeBlockquotePattern(blockquote: marked.Tokens.Blockquote, links: marked.Links): marked.Tokens.Blockquote | undefined {
+	let lastInterestingIndex = blockquote.tokens.length - 1;
+	while (lastInterestingIndex >= 0 && blockquote.tokens[lastInterestingIndex].type === 'space') {
+		lastInterestingIndex--;
+	}
+
+	const lastToken = blockquote.tokens[lastInterestingIndex];
+	if (lastToken?.type !== 'paragraph') {
+		return undefined;
+	}
+
+	const completedToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+	if (!completedToken) {
+		return undefined;
+	}
+
+	const completion = completedToken.raw.slice(lastToken.raw.trimEnd().length);
+	const trailingQuoteOnlyLines = blockquote.raw.match(/(?:\n[ \t]*>[ \t]*(?=\n|$))+\n?$/)?.[0] ?? '';
+	const insertionIndex = blockquote.raw.length - trailingQuoteOnlyLines.length;
+	const completedRaw = blockquote.raw.slice(0, insertionIndex) + completion + trailingQuoteOnlyLines;
+	const lexer = new marked.Lexer();
+	lexer.tokens.links = links;
+	const completedBlockquote = lexer.lex(completedRaw)[0];
+	if (completedBlockquote.type === 'blockquote') {
+		return completedBlockquote as marked.Tokens.Blockquote;
+	}
+
+	return undefined;
 }
 
 function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List | undefined {
@@ -1023,6 +1052,14 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		const newListToken = completeListItemPattern(lastInterestingToken as marked.Tokens.List);
 		if (newListToken) {
 			newTokens = [newListToken, ...trailingTokens];
+			i = lastInterestingIdx;
+		}
+	}
+
+	if (!newTokens && lastInterestingToken?.type === 'blockquote') {
+		const newBlockquoteToken = completeBlockquotePattern(lastInterestingToken as marked.Tokens.Blockquote, tokens.links);
+		if (newBlockquoteToken) {
+			newTokens = [newBlockquoteToken, ...trailingTokens];
 			i = lastInterestingIdx;
 		}
 	}

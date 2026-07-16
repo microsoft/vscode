@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { createPixelSpinner } from '../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
-import { SessionStatus } from '../services/sessions/common/session.js';
+import { isActiveSessionStatus, SessionStatus } from '../services/sessions/common/session.js';
 import { ISessionsListModelService } from '../services/sessions/browser/sessionsListModelService.js';
 
 const $ = DOM.$;
@@ -103,7 +103,7 @@ export class SessionStatusIcon extends Disposable {
 
 	private _render(inputs: ISessionStatusInputs): void {
 		const { status, isRead, isArchived, completedStateIcon } = inputs;
-		const isSpinner = (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) && !this._accessibilityService.isMotionReduced();
+		const isSpinner = isActiveSessionStatus(status) && !this._accessibilityService.isMotionReduced();
 
 		let cacheKey: string;
 		let color: string;

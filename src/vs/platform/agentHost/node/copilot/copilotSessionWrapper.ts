@@ -53,6 +53,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolComplete ??= this._sdkEvent('tool.execution_complete');
 	}
 
+	private _onPermissionRequested: Event<SessionEventPayload<'permission.requested'>> | undefined;
+	get onPermissionRequested(): Event<SessionEventPayload<'permission.requested'>> {
+		return this._onPermissionRequested ??= this._sdkEvent('permission.requested');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');
@@ -86,6 +91,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');
+	}
+
+	private _onAutoModeResolved: Event<SessionEventPayload<'session.auto_mode_resolved'>> | undefined;
+	get onAutoModeResolved(): Event<SessionEventPayload<'session.auto_mode_resolved'>> {
+		return this._onAutoModeResolved ??= this._sdkEvent('session.auto_mode_resolved');
 	}
 
 	private _onSessionHandoff: Event<SessionEventPayload<'session.handoff'>> | undefined;

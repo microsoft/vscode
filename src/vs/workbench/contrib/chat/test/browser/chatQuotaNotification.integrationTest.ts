@@ -153,9 +153,10 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		const eagerNotificationDescriptor = new SyncDescriptor(notificationDescriptor.ctor, notificationDescriptor.staticArguments);
 		const childInstantiationService = store.add(instantiationService.createChild(new ServiceCollection([IChatInputNotificationService, eagerNotificationDescriptor])));
 		const contribution = store.add(childInstantiationService.createInstance(ChatQuotaNotificationContribution));
-		store.add(childInstantiationService.get(IChatInputNotificationService) as IChatInputNotificationService & IDisposable);
+		const notificationService = childInstantiationService.get(IChatInputNotificationService);
+		store.add(notificationService as IChatInputNotificationService & IDisposable);
 
-		return { instantiationService: childInstantiationService, telemetryAppender, commandService, contribution, entitlementService };
+		return { instantiationService: childInstantiationService, telemetryAppender, commandService, contribution, entitlementService, notificationService };
 	}
 
 	function getNotificationTelemetryEvents(telemetryAppender: TestTelemetryAppender): ILoggedTelemetryEvent[] {
@@ -354,11 +355,13 @@ suite('ChatQuotaNotificationContribution integration', () => {
 	});
 
 	test('does not emit duplicate shown telemetry when the notification rerenders unchanged', () => {
-		const { instantiationService, telemetryAppender } = createHarness();
-		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		const { instantiationService, telemetryAppender, notificationService } = createHarness();
+		store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
 
-		widget.rerender();
-		widget.rerender();
+		const notification = notificationService.getActiveNotification();
+		assert.ok(notification);
+		notificationService.setNotification(notification);
+		notificationService.setNotification(notification);
 
 		assert.deepStrictEqual(getNotificationTelemetryEvents(telemetryAppender), [
 			{
@@ -371,7 +374,7 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		]);
 	});
 
-	test('emits existing action telemetry and generic dismissed telemetry from real DOM interaction', async () => {
+	test('emits existing action telemetry and dismisses from real DOM interaction', async () => {
 		const { instantiationService, telemetryAppender, commandService } = createHarness();
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
 
@@ -380,13 +383,9 @@ suite('ChatQuotaNotificationContribution integration', () => {
 		actionButton.click();
 		await timeout(0);
 
-		const dismissButton = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-dismiss');
-		assert.ok(dismissButton);
-		dismissButton.click();
-		await timeout(0);
-
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
 		assert.deepStrictEqual(commandService.executedCommands, ['workbench.action.chat.manageAdditionalSpend']);
-		assert.deepStrictEqual(telemetryAppender.events.filter(e => e.eventName === 'workbenchActionExecuted' || e.eventName === 'chatInputNotificationShown' || e.eventName === 'chatInputNotificationDismissed'), [
+		assert.deepStrictEqual(telemetryAppender.events.filter(e => e.eventName === 'workbenchActionExecuted' || e.eventName === 'chatInputNotificationShown'), [
 			{
 				eventName: 'chatInputNotificationShown',
 				data: {
@@ -399,6 +398,26 @@ suite('ChatQuotaNotificationContribution integration', () => {
 				data: {
 					id: 'workbench.action.chat.manageAdditionalSpend',
 					from: 'chatInputNotification',
+				},
+			},
+		]);
+	});
+
+	test('emits generic dismissed telemetry from real DOM interaction', async () => {
+		const { instantiationService, telemetryAppender } = createHarness();
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+
+		const dismissButton = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-dismiss');
+		assert.ok(dismissButton);
+		dismissButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryAppender.events.filter(e => e.eventName === 'chatInputNotificationShown' || e.eventName === 'chatInputNotificationDismissed'), [
+			{
+				eventName: 'chatInputNotificationShown',
+				data: {
+					id: 'copilot.quotaStatus',
+					telemetryId: 'quotaExhausted',
 				},
 			},
 			{

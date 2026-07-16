@@ -56,7 +56,8 @@ export function diffToChange(file: ChangesetFile, mapUri?: (uri: URI) => URI): I
 	// fetch the snapshot of the file *before* the session's edits.
 	const originalUri = normalized.beforeContentUri ? map(normalized.beforeContentUri) : undefined;
 
-	// Extract reviewed status from meta
+	// Extract reviewed status from meta. We
+	// do this for backward compatibility.
 	const meta = readChangesetFileMeta(file);
 
 	return {
@@ -65,7 +66,7 @@ export function diffToChange(file: ChangesetFile, mapUri?: (uri: URI) => URI): I
 		originalUri,
 		insertions: file.edit?.diff?.added ?? 0,
 		deletions: file.edit?.diff?.removed ?? 0,
-		reviewed: meta?.reviewed
+		reviewed: file.reviewed ?? meta?.reviewed
 	} satisfies IChatSessionFileChange2;
 }
 

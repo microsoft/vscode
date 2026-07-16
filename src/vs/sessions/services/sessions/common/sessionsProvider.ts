@@ -274,14 +274,14 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session.
 	 * @param mode The isolation mode to set.
 	 */
-	setIsolationMode?(sessionId: string, mode: string): void;
+	setIsolationMode?(sessionId: string, mode: string): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.
 	 * @param sessionId The ID of the session.
 	 * @param branch The branch name to set.
 	 */
-	setBranch?(sessionId: string, branch: string): void;
+	setBranch?(sessionId: string, branch: string): Promise<void>;
 
 	/**
 	 * Archive a session.
@@ -294,6 +294,15 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session to unarchive.
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
+
+	/**
+	 * Set the read/unread state of a session. The provider owns and persists
+	 * this state (e.g. via its backend protocol or chat model) and is expected
+	 * to reflect it through the session's {@link ISession.isRead} observable.
+	 * @param sessionId The ID of the session.
+	 * @param isRead `true` to mark the session read, `false` to mark it unread.
+	 */
+	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.

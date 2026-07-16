@@ -21,6 +21,7 @@ import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ActionList, ActionListItemKind, ActionListWidget, IActionListItem, IActionListOptions } from '../../browser/actionList.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 
 interface ITestActionItem {
 	readonly id: string;
@@ -108,7 +109,10 @@ function withWindowInnerHeight<T>(height: number, callback: () => T): T {
 	}
 }
 
-function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, items: readonly IActionListItem<ITestActionItem>[]): ActionList<ITestActionItem> {
+function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, items: readonly IActionListItem<ITestActionItem>[], options?: {
+	readonly listOptions?: Partial<IActionListOptions>;
+	readonly anchor?: { x: number; y: number; width: number; height: number };
+}): ActionList<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
 	instantiationService.set(IHoverService, NullHoverService);
@@ -139,8 +143,8 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 			onSelect: () => { },
 		},
 		undefined,
-		{ showFilter: true },
-		{ x: 10, y: 150, width: 20, height: 20 },
+		{ showFilter: true, ...options?.listOptions },
+		options?.anchor ?? { x: 10, y: 150, width: 20, height: 20 },
 	));
 
 	const widget = document.createElement('div');
@@ -243,6 +247,20 @@ suite('ActionListWidget', () => {
 		const availableSpaceAboveAnchor = 150;
 		const listHeight = parseFloat(list.domNode.style.height);
 		assert.ok(listHeight + filterHeight + actionWidgetVerticalChromeHeight <= availableSpaceAboveAnchor);
+	}));
+
+	test('forced above anchor position can clamp dynamic height without the default minimum floor', () => withWindowInnerHeight(300, () => {
+		const list = createActionList(disposables, Array.from({ length: 50 }, (_, i) => action(`item-${i}`)), {
+			listOptions: { anchorPosition: AnchorPosition.ABOVE },
+			anchor: { x: 10, y: 20, width: 20, height: 20 },
+		});
+
+		list.layout(200);
+
+		assert.deepStrictEqual(
+			{ anchorPosition: list.anchorPosition, listHeight: parseFloat(list.domNode.style.height) },
+			{ anchorPosition: AnchorPosition.ABOVE, listHeight: 0 },
+		);
 	}));
 
 	test('header dismiss removes the banner and requests a re-layout', () => {

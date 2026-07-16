@@ -4,28 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DocumentInfo, DocumentInfoWithOffset, SimilarFileInfo } from '../prompt';
+import { LRUCache } from '../../../../../../util/common/cache';
 import { CursorContextInfo } from './cursorContext';
 import { SnippetProviderType, SnippetSemantics, SnippetWithProviderInfo } from './snippets';
-
-class FifoCache<T> {
-	private keys: string[] = [];
-	private cache: { [key: string]: T } = {};
-	private size: number;
-	constructor(size: number) {
-		this.size = size;
-	}
-	put(key: string, value: T) {
-		this.cache[key] = value;
-		if (this.keys.length > this.size) {
-			this.keys.push(key);
-			const leavingKey = this.keys.shift() ?? '';
-			delete this.cache[leavingKey];
-		}
-	}
-	get(key: string): T | undefined {
-		return this.cache[key];
-	}
-}
 
 export interface ScoredSnippetMarker {
 	score: number;
@@ -68,7 +49,7 @@ class Tokenizer {
  * WINDOWED_TOKEN_SET_CACHE(doc)[0]
  * holds the tokens in the first 10 lines of the document.
  */
-const WINDOWED_TOKEN_SET_CACHE = new FifoCache<Set<string>[]>(20);
+const WINDOWED_TOKEN_SET_CACHE = new LRUCache<Set<string>[]>(20);
 
 /**
  * For a given document, extracts the best matching snippets from other documents

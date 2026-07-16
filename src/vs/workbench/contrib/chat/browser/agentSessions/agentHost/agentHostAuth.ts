@@ -162,6 +162,7 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 	readonly mcpServerId: string;
 	readonly mcpServerName: string;
 	readonly mcpServerUrl: string;
+	readonly scopes: readonly string[];
 	/**
 	 * Identifies the agent host backing this MCP server so remembered-auth
 	 * entries can be surfaced in their own section of the "Manage Trusted MCP
@@ -275,10 +276,10 @@ export async function resolveMcpServerAuthentication(
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
-	const scopes = protectedResource.scopes_supported ?? [];
+	const scopes = options.scopes;
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix);
+		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix, options.allowInteraction);
 		if (!providerId) {
 			continue;
 		}
@@ -316,10 +317,11 @@ async function getOrCreateProviderForMcpResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
+	allowCreation: boolean,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
 	const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
-	if (existing) {
+	if (existing || !allowCreation) {
 		return existing;
 	}
 

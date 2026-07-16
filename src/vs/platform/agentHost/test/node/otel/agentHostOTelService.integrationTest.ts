@@ -175,7 +175,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const di = store.add(new TestInstantiationService());
 			di.set(ILogService, new NullLogService());
 			di.set(INativeEnvironmentService, makeEnvService(tmp));
-			const svc = store.add(di.createInstance(AgentHostOTelService));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
 			di.set(IAgentHostOTelService, svc);
 
 			strictEqual(await svc.getSdkTelemetryConfig(), undefined);
@@ -199,7 +199,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const di = store.add(new TestInstantiationService());
 			di.set(ILogService, new NullLogService());
 			di.set(INativeEnvironmentService, makeEnvService(tmp));
-			const svc = store.add(di.createInstance(AgentHostOTelService));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
 
 			const cfg = await svc.getSdkTelemetryConfig();
 			ok(cfg, 'expected a TelemetryConfig');
@@ -222,7 +222,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const di = store.add(new TestInstantiationService());
 			di.set(ILogService, new NullLogService());
 			di.set(INativeEnvironmentService, makeEnvService(tmp));
-			const svc = store.add(di.createInstance(AgentHostOTelService));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
 
 			const cfg = await svc.getSdkTelemetryConfig();
 			ok(cfg, 'expected a TelemetryConfig');
@@ -284,7 +284,7 @@ suite('platform/agentHost - AgentHostOTelService (integration)', () => {
 			const di = store.add(new TestInstantiationService());
 			di.set(ILogService, new NullLogService());
 			di.set(INativeEnvironmentService, makeEnvService(tmp));
-			const svc = store.add(di.createInstance(AgentHostOTelService));
+			const svc = store.add(di.createInstance(AgentHostOTelService, undefined));
 
 			const cfg = await svc.getSdkTelemetryConfig();
 			ok(cfg!.otlpEndpoint?.startsWith('http://127.0.0.1:'));

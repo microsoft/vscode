@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -19,12 +20,26 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
+import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
+import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+
+class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
+	readonly domNode = mainWindow.document.createElement('div');
+	codeblocks = [];
+
+	constructor(toolInvocation: IChatToolInvocation, terminalData: IChatTerminalToolInvocationData) {
+		super(toolInvocation);
+		this.domNode.dataset.terminalToolSessionId = terminalData.terminalToolSessionId ?? '';
+	}
+}
 
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -177,6 +192,62 @@ suite('ChatToolProgressSubPart', () => {
 		];
 
 		assert.deepStrictEqual(cases, [true, true, false]);
+	});
+
+	test('rerenders when terminal metadata changes without changing data kind', () => {
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.Executing,
+			parameters: undefined,
+			confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			progress: observableValue('progress', { progress: undefined }),
+		});
+		let terminalData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			commandLine: { original: 'echo test' },
+			language: 'shellscript',
+		};
+		const invocation = {
+			...createToolInvocation(),
+			get toolSpecificData() { return terminalData; },
+			state,
+			toolSpecificDataKind: observableValue('kind', 'terminal'),
+		} as IChatToolInvocation;
+		const createInstanceStub = sinon.stub(instantiationService, 'createInstance').callsFake((_ctor, ...args) => {
+			return new TestToolInvocationSubPart(args[0] as IChatToolInvocation, args[1] as IChatTerminalToolInvocationData);
+		});
+		disposables.add(toDisposable(() => createInstanceStub.restore()));
+		const part = disposables.add(new ChatToolInvocationPart(
+			invocation,
+			createRenderContext(),
+			mockMarkdownRenderer,
+			{} as CollapsibleListPool,
+			mockEditorPool,
+			() => 500,
+			undefined,
+			0,
+			instantiationService,
+			{
+				_serviceBrand: undefined,
+				onDidUpdateTodos: Event.None,
+				getTodos: () => [],
+				setTodos() { },
+				migrateTodos() { },
+			} satisfies IChatTodoListService,
+		));
+		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
+
+		terminalData = { ...terminalData, terminalToolSessionId: 'terminal-session' };
+		state.set({ ...state.get() }, undefined);
+
+		assert.deepStrictEqual({
+			renderCount: createInstanceStub.callCount,
+			sessionIdBeforeUpdate,
+			sessionIdAfterUpdate: part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id'),
+		}, {
+			renderCount: 2,
+			sessionIdBeforeUpdate: '',
+			sessionIdAfterUpdate: 'terminal-session',
+		});
 	});
 
 	test('does not add shimmer styling for active MCP tool progress', () => {

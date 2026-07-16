@@ -1,4 +1,4 @@
-# Daily smoke-test flaky-detection pipeline.
+# Twice-daily smoke-test flaky-detection pipeline.
 #
 # Builds VS Code from source on Linux, Windows and macOS and runs ONLY the
 # Electron smoke tests, repeated 20 times per platform. Each repetition is its
@@ -16,12 +16,11 @@ pr: none
 trigger: none
 
 schedules:
-  # Once per day at 04:00 UTC (= 5am CET / 6am CEST) — a quiet window for the ADO
-  # org. `always: true` forces the run even when there are no new commits, since
-  # flaky behavior is environmental and worth sampling every day regardless of
-  # source changes.
-  - cron: "0 4 * * *"
-    displayName: Daily at 04:00 UTC / 5am CET (smoke flaky detection)
+  # Twice per day at 04:00 and 16:00 UTC. `always: true` forces the runs even when
+  # there are no new commits, since flaky behavior is environmental and worth
+  # sampling every 12 hours regardless of source changes.
+  - cron: "0 4,16 * * *"
+    displayName: Twice daily at 04:00 and 16:00 UTC (smoke flaky detection)
     branches:
       include:
         - main
@@ -77,7 +76,7 @@ variables:
   # The Copilot extension build patches its package.json version for pre-release
   # (non-stable) quality and requires a per-build counter (0-99, reset daily) to
   # keep versions unique. Mirrors product-build.yml. The counter resets each day
-  # per quality+branch, so this daily pipeline stays at a low value.
+  # per quality+branch, so this twice-daily pipeline stays at a low value.
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
     value: $[format('{0:yyyyMMdd}-{1}-{2}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
@@ -155,10 +154,10 @@ extends:
     stages:
       # The per-OS compile template unconditionally waits (up to 30 min) for a
       # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
-      # the build. This stage produces it — mirroring product-build.yml. It runs
-      # in parallel with the build stages (dependsOn: []); the download step polls
-      # the whole-run timeline for the artifact. Without it every build stage
-      # fails at "Download Copilot VSIX".
+      # the build. This stage produces it — mirroring product-build.yml. The
+      # platform stages depend on its artifact-published output so they are
+      # skipped when the artifact cannot be produced, but still run if later
+      # Copilot validation fails.
       - stage: Copilot
         dependsOn: []
         pool:
@@ -175,7 +174,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -187,7 +187,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -199,7 +200,8 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
         - stage: macOS
-          dependsOn: []
+          dependsOn: Copilot
+          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
           pool:
             name: AcesShared
             os: macOS

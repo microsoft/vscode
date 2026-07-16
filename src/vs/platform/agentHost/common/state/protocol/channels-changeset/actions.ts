@@ -57,6 +57,41 @@ export interface ChangesetFileRemovedAction {
 }
 
 /**
+ * Set the {@link ChangesetFile.reviewed} flag for one or more files — the
+ * GitHub-style "Viewed" toggle, applied in a single batch.
+ *
+ * Targets files by their {@link ChangesetFile.id}. Ids in {@link files} that
+ * do not match a file currently present in the changeset are ignored; if none
+ * match, the action is a no-op. Only the {@link ChangesetFile.reviewed} field
+ * of each matched file is affected; the files' {@link ChangesetFile.edit | edit}
+ * and {@link ChangesetFile._meta | _meta} are left untouched.
+ *
+ * Only meaningful on a changeset that advertises
+ * {@link ChangesetCapabilities.review}. Unlike every other `changeset/*` action
+ * this one is **client-dispatchable**: a reviewer toggles review state directly,
+ * applying it optimistically through the write-ahead reducer and letting the
+ * server echo it back on the normal `action` envelope stream. The server MAY
+ * also originate it (e.g. an agent marking its own output reviewed).
+ *
+ * There is no protocol-level content version, so review is not reset
+ * automatically when a file's contents change under a stable id. The server,
+ * which is the authority on what changed, resets review explicitly — either by
+ * re-emitting the file without `reviewed: true`, or by dispatching this action
+ * with `reviewed: false`.
+ *
+ * @category Changeset Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChangesetFilesReviewChangedAction {
+	type: ActionType.ChangesetFilesReviewChanged;
+	/** The {@link ChangesetFile.id | ids} of the files whose review state changed. */
+	files: string[];
+	/** New review state applied to every listed file: `true` once reviewed, `false` to clear it. */
+	reviewed: boolean;
+}
+
+/**
  * The changeset's full content changed. Full replacement semantics: `files`
  * replaces the previous file list, and `operations`, when present, replaces
  * the previous operation list.

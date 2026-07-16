@@ -48,9 +48,17 @@ import type { CommandDetectionCapability } from '../../../../../platform/termina
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
+import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
+}
+
+const enum TerminalScrollbarWidth {
+	/** Default xterm.js vertical scrollbar width. */
+	Default = 14,
+	/** Narrower scrollbar used when the Modern UI Update experiment is enabled. */
+	ModernUI = 10
 }
 
 const enum TextBlinkConstants {
@@ -112,6 +120,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private readonly _xtermAddonLoader: XtermAddonImporter;
 	private readonly _xtermColorProvider: IXtermColorProvider;
 	private readonly _capabilities: ITerminalCapabilityStore;
+	private readonly _disableOverviewRuler: boolean;
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -218,6 +227,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._xtermAddonLoader = options.xtermAddonImporter ?? new XtermAddonImporter();
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
+		this._disableOverviewRuler = options.disableOverviewRuler ?? false;
 
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
@@ -254,12 +264,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			scrollbar: options.disableOverviewRuler ? undefined : {
-				width: 14,
-				overviewRuler: {
-					showTopBorder: true,
-				},
-			},
+			scrollbar: this._getScrollbarOptions(),
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
 			vtExtensions: {
@@ -286,7 +291,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 					XtermTerminal._suggestedRendererType = undefined;
 				}
-				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier') || e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 					this.updateConfig();
 				}
 				if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
@@ -548,6 +553,32 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
 	}
 
+	/**
+	 * The width, in pixels, of the vertical scrollbar. Narrower under the Modern
+	 * UI Update experiment so it matches the modernized workbench scrollbars.
+	 */
+	get scrollbarWidth(): number {
+		return this._configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true
+			? TerminalScrollbarWidth.ModernUI
+			: TerminalScrollbarWidth.Default;
+	}
+
+	/**
+	 * Builds the xterm.js `scrollbar` option using {@link scrollbarWidth}. Returns
+	 * `undefined` when the overview ruler is disabled (e.g. detached terminals).
+	 */
+	private _getScrollbarOptions(): { width: number; overviewRuler: { showTopBorder: boolean } } | undefined {
+		if (this._disableOverviewRuler) {
+			return undefined;
+		}
+		return {
+			width: this.scrollbarWidth,
+			overviewRuler: {
+				showTopBorder: true,
+			},
+		};
+	}
+
 	updateConfig(): void {
 		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
@@ -568,6 +599,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.macOptionClickForcesSelection = config.macOptionClickForcesSelection;
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
+		this.raw.options.scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 		this.raw.options.allowTransparency = config.enableImages;

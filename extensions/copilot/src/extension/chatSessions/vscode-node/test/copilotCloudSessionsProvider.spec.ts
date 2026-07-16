@@ -12,9 +12,10 @@ import { TestLogService } from '../../../../platform/testing/common/testLogServi
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
-import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
+import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
+import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 
@@ -187,10 +188,10 @@ function userMessage(content: string): AgentTaskSessionEvent {
 	return evt('user.message', { content, transformedContent: `${content}\n\n<context>...</context>` });
 }
 
-function makeTask(sessions: Array<{ state: string; prompt?: string }> = []): AgentTaskGetResponse {
+function makeTask(sessions: Array<{ state: string; prompt?: string }> = [], taskState: string = 'completed'): AgentTaskGetResponse {
 	return {
 		id: 'task-1',
-		state: 'completed',
+		state: taskState,
 		created_at: '2026-03-27T00:00:00Z',
 		sessions: sessions.map((s, i) => ({
 			id: `s-${i}`,
@@ -317,6 +318,104 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		expect(history[0]).toBeInstanceOf(ChatRequestTurn2);
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
+	});
+
+	it('renders a stopped notice (not a progress spinner) when the task terminally failed but its latest session state is still active', async () => {
+		// "Failed to launch agent": the task ends in `failed` while its only session's state is
+		// stuck at `in_progress` and no renderable events were ever emitted. Keying off the task
+		// state must surface the stop instead of a perpetual "Session is in progress…" spinner.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'failed');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: an error occurred' }] },
+		]);
+	});
+
+	it('renders a cancellation reason (not an error) when the task was cancelled with no error event', async () => {
+		// A cancelled task emits no session.error/session.shutdown; the reason comes from the state.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+			userMessage('one more'),
+		];
+		const task = makeTask([{ state: 'cancelled', prompt: 'Do the thing' }], 'cancelled');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'one more' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: cancelled' }] },
+		]);
+	});
+
+	it('includes the concrete error detail from a bootstrap session.error in the stopped notice', async () => {
+		// A `session.error` emitted during bootstrap (before any user.message) is suppressed from
+		// the rendered turn, but its detail is still surfaced in the terminal-stopped notice.
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+			evt('session.error', { errorType: 'launch_failed', message: 'Failed to launch agent' }),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'failed');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'markdown', value: 'Copilot stopped: (launch_failed) Failed to launch agent' }] },
+		]);
+	});
+
+	it('still shows the in-progress spinner when the task is active with no renderable events yet', async () => {
+		const events: AgentTaskSessionEvent[] = [
+			evt('session.requested', {}),
+			evt('session.start', {}),
+		];
+		const task = makeTask([{ state: 'in_progress', prompt: 'Do the thing' }], 'in_progress');
+
+		const history = await newBuilder().buildTaskHistory(task, events, undefined, Promise.resolve([]));
+
+		expect(summarise(history)).toEqual([
+			{ kind: 'request', prompt: 'Do the thing' },
+			{ kind: 'response', parts: [{ type: 'ChatResponseProgressPart' }] },
+		]);
+	});
+});
+
+describe('extractTaskErrorDetail / formatTaskStoppedMessage', () => {
+	it('prefers the last session.error message, falls back to session.shutdown errorReason, else undefined', () => {
+		expect(extractTaskErrorDetail([
+			evt('session.error', { errorType: 'launch_failed', message: 'Failed to launch agent' }),
+		])).toBe('(launch_failed) Failed to launch agent');
+
+		expect(extractTaskErrorDetail([
+			evt('session.error', { message: 'boom' }),
+		])).toBe('boom');
+
+		expect(extractTaskErrorDetail([
+			evt('session.error', { errorType: 'x', message: 'first' }, { dismissed: true }),
+			evt('session.shutdown', { shutdownType: 'error', errorReason: 'agent crashed' }),
+		])).toBe('agent crashed');
+
+		expect(extractTaskErrorDetail([
+			evt('session.shutdown', { shutdownType: 'routine' }),
+			evt('session.start', {}),
+		])).toBeUndefined();
+	});
+
+	it('uses the detail when present, else a state-derived reason', () => {
+		expect(formatTaskStoppedMessage('failed', '(launch_failed) Failed to launch agent'))
+			.toBe('Copilot stopped: (launch_failed) Failed to launch agent');
+		expect(formatTaskStoppedMessage('cancelled', undefined)).toBe('Copilot stopped: cancelled');
+		expect(formatTaskStoppedMessage('timed_out', undefined)).toBe('Copilot stopped: timed out');
+		expect(formatTaskStoppedMessage('failed', undefined)).toBe('Copilot stopped: an error occurred');
 	});
 });
 
@@ -542,6 +641,42 @@ describe('taskStateToChatSessionStatus', () => {
 
 	it('falls back to InProgress for an unknown/forward-compat state instead of returning undefined', () => {
 		expect(taskStateToChatSessionStatus('some_new_server_state' as AgentTaskState)).toBe(vscode.ChatSessionStatus.InProgress);
+	});
+});
+
+describe('isActiveTaskState / isFailedTaskState', () => {
+	it('classifies each Task API lifecycle state and falls back to active for unknown states', () => {
+		const states: readonly AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'timed_out', 'cancelled'];
+		const active = Object.fromEntries(states.map(state => [state, isActiveTaskState(state)]));
+		const failed = Object.fromEntries(states.map(state => [state, isFailedTaskState(state)]));
+
+		expect({ active, failed }).toEqual({
+			active: {
+				queued: true,
+				in_progress: true,
+				idle: true,
+				waiting_for_user: true,
+				completed: false,
+				failed: false,
+				timed_out: false,
+				cancelled: false,
+			},
+			failed: {
+				queued: false,
+				in_progress: false,
+				idle: false,
+				waiting_for_user: false,
+				completed: false,
+				failed: true,
+				timed_out: true,
+				cancelled: true,
+			},
+		});
+	});
+
+	it('treats an unknown/forward-compat state as active (never undefined) so the streamer keeps polling', () => {
+		expect(isActiveTaskState('some_new_server_state' as AgentTaskState)).toBe(true);
+		expect(isFailedTaskState('some_new_server_state' as AgentTaskState)).toBe(false);
 	});
 });
 

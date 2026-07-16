@@ -5,7 +5,7 @@
 
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
@@ -41,6 +41,7 @@ export interface IContextViewDelegate {
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
+	closeAnimation?: IContextViewCloseAnimation;
 	focus?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;

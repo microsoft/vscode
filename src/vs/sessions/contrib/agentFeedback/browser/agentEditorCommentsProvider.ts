@@ -35,6 +35,10 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		this._register(bridge.registerProvider(this));
 	}
 
+	acceptsComments(resource: URI): boolean {
+		return !!this._agentFeedbackService.getSessionForFile(resource);
+	}
+
 	getComments(resource: URI): readonly IAgentEditorComment[] {
 		const session = this._agentFeedbackService.getSessionForFile(resource);
 		if (!session) {

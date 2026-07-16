@@ -143,6 +143,7 @@ suite('parseQuotas', () => {
 				resetAt: undefined,
 				entitlement: 0,
 				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			completions: {
 				percentRemaining: 100,
@@ -152,6 +153,7 @@ suite('parseQuotas', () => {
 				resetAt: undefined,
 				entitlement: 0,
 				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			premiumChat: {
 				percentRemaining: 97.4,
@@ -161,6 +163,7 @@ suite('parseQuotas', () => {
 				resetAt: undefined,
 				entitlement: 3900,
 				quotaRemaining: undefined,
+				creditsUsed: undefined,
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
@@ -411,6 +414,7 @@ suite('parseQuotas', () => {
 					overage_count: 0,
 					overage_entitlement: 0,
 					overage_permitted: false,
+					credits_used: 499,
 					percent_remaining: 7.5,
 					unlimited: false,
 					entitlement: '20000',
@@ -422,6 +426,7 @@ suite('parseQuotas', () => {
 		const quotas = parseQuotas(data);
 		assert.strictEqual(quotas.premiumChat?.quotaRemaining, 1501);
 		assert.strictEqual(quotas.premiumChat?.entitlement, 20000);
+		assert.strictEqual(quotas.premiumChat?.creditsUsed, 499);
 	});
 
 	test('quotaRemaining is undefined when not present in snapshot', () => {

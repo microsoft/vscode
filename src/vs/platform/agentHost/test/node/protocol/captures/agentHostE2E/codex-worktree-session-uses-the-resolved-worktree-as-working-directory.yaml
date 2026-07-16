@@ -1,0 +1,75 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+    response:
+      content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+      stopReason: end_turn
+      usage:
+        inputTokens: 8566
+        outputTokens: 72
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+        - role: assistant
+          content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+        - role: user
+          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+    response:
+      content:
+        - type: text
+          text: I will run `pwd` in the current session without any working-directory override and report its output.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: pwd
+            login: true
+      stopReason: tool_use
+      usage:
+        inputTokens: 8623
+        outputTokens: 73
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: What is your current working directory? Reply with just the absolute path and nothing else.
+        - role: assistant
+          content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+        - role: user
+          content: Run the shell command `pwd` in the session current working directory. Do not specify a working-directory override.
+        - role: assistant
+          content: I will run `pwd` in the current session without any working-directory override and report its output.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: pwd
+                login: true
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: e894eb
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 21
+                Output:
+                ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+    response:
+      content: ${workdir}/ahp-wt-test-n1CXl6.worktrees/what-is-your-current-working-directory-reply-wit
+      stopReason: end_turn
+      usage:
+        inputTokens: 8766
+        outputTokens: 30

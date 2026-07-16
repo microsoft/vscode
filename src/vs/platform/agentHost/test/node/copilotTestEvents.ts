@@ -25,6 +25,7 @@ export interface ISessionEventToolStart {
 		arguments?: unknown;
 		mcpServerName?: string;
 		mcpToolName?: string;
+		toolDescription?: unknown;
 		/** @deprecated Use the envelope-level {@link ISessionEventToolStart.agentId} instead. */
 		parentToolCallId?: string;
 	};
@@ -45,6 +46,9 @@ export interface ISessionEventToolComplete {
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;
 		toolTelemetry?: unknown;
+		mcpServerName?: string;
+		mcpToolName?: string;
+		toolDescription?: unknown;
 		/** @deprecated Use the envelope-level {@link ISessionEventToolComplete.agentId} instead. */
 		parentToolCallId?: string;
 	};
@@ -60,7 +64,7 @@ export interface ISessionEventMessage {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;

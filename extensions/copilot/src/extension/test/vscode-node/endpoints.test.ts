@@ -196,8 +196,20 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
 
-	test('no override configured — does not use a Copilot utility model when the selected main agent model is BYOK', async () => {
+	test('no override configured — uses the Copilot utility model when the selected main agent model is BYOK and a Copilot token is available', async () => {
 		setFetcher([makeChatModel('copilot-utility')]);
+		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
+
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+
+		assert.strictEqual(endpoint.model, 'copilot-utility');
+	});
+
+	test('no override configured — rejects when the selected main agent model is BYOK and no Copilot token is available (air-gapped)', async () => {
+		setFetcher([makeChatModel('copilot-utility')]);
+		// Simulate a signed-out / air-gapped BYOK session with no Copilot token source.
+		// @ts-expect-error — access the protected auth service to stub its token-source signal.
+		sandbox.stub(endpointProvider._authService, 'hasCopilotTokenSource').get(() => false);
 		await endpointProvider.getChatEndpoint(makeFakeLanguageModelChat({ vendor: 'anthropic' }));
 
 		await assert.rejects(

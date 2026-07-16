@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Raw } from '@vscode/prompt-tsx';
+import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
 
+import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
@@ -18,6 +19,7 @@ import { IEnvService } from '../../../env/common/envService';
 import { ILogService } from '../../../log/common/logService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
 import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
@@ -453,7 +455,7 @@ describe('ChatEndpoint - Image Count Validation', () => {
 	});
 });
 
-describe('ChatEndpoint - Kimi temperature and top_p override', () => {
+describe('ChatEndpoint - Kimi CAPI customization', () => {
 	let mockServices: ReturnType<typeof createMockServices>;
 
 	beforeEach(() => {
@@ -478,6 +480,50 @@ describe('ChatEndpoint - Kimi temperature and top_p override', () => {
 		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
 	});
 
+	const createAssistantToolCallMessage = (...toolCalls: { id: string; name: string }[]): Raw.ChatMessage => ({
+		role: Raw.ChatRole.Assistant,
+		content: [],
+		toolCalls: toolCalls.map(toolCall => ({
+			id: toolCall.id,
+			function: { name: toolCall.name, arguments: '{}' },
+			type: 'function'
+		}))
+	});
+
+	const createToolResultMessage = (toolCallId: string): Raw.ChatMessage => ({
+		role: Raw.ChatRole.Tool,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' }],
+		toolCallId
+	});
+
+	const createToolHistory = (): Raw.ChatMessage[] => [
+		createAssistantToolCallMessage(
+			{ id: 'toolu_read', name: 'read_file' },
+			{ id: 'call_edit', name: 'replace_string_in_file' }
+		),
+		createToolResultMessage('toolu_read'),
+		createToolResultMessage('call_edit'),
+		createAssistantToolCallMessage({ id: 'toolu_test', name: 'run_in_terminal' }),
+		createToolResultMessage('toolu_test'),
+		createToolResultMessage('unmatched_tool_call')
+	];
+
+	const getToolCallIds = (messages: CAPIChatMessage[]) => messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant) {
+			return {
+				role: message.role,
+				toolCallIds: message.tool_calls?.map(toolCall => toolCall.id)
+			};
+		}
+		if (message.role === OpenAI.ChatRole.Tool) {
+			return {
+				role: message.role,
+				toolCallId: message.tool_call_id
+			};
+		}
+		return { role: message.role };
+	});
+
 	const createOptionsWithPostOptions = (): ICreateEndpointBodyOptions => ({
 		...createTestOptions([createTextMessage()]),
 		postOptions: { temperature: 0, top_p: 1 }
@@ -490,10 +536,127 @@ describe('ChatEndpoint - Kimi temperature and top_p override', () => {
 		expect(body.top_p).toBe(0.95);
 	});
 
+	it.each(['kimi-k2.6', 'kimi-k2.7-code'])('should normalize tool call IDs for %s', family => {
+		const history = createToolHistory();
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata(family));
+		const body = endpoint.createRequestBody(createTestOptions(history));
+
+		expect({
+			body: getToolCallIds(body.messages as CAPIChatMessage[]),
+			history: history.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			body: [
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.read_file:0', 'functions.replace_string_in_file:1'] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.read_file:0' },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.replace_string_in_file:1' },
+				{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['functions.run_in_terminal:2'] },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: 'functions.run_in_terminal:2' },
+				{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
+			],
+			history: [
+				['toolu_read', 'call_edit'],
+				'toolu_read',
+				'call_edit',
+				['toolu_test'],
+				'toolu_test',
+				'unmatched_tool_call'
+			]
+		});
+	});
+
 	it('should not override temperature or top_p for non-Kimi models', () => {
 		const endpoint = createEndpoint(createNonAnthropicModelMetadata('gpt-4o'));
 		const body = endpoint.createRequestBody(createOptionsWithPostOptions());
 		expect(body.temperature).toBe(0);
 		expect(body.top_p).toBe(1);
+	});
+
+	it('should preserve tool call IDs for non-Kimi models', () => {
+		const endpoint = createEndpoint(createNonAnthropicModelMetadata('gpt-4o'));
+		const body = endpoint.createRequestBody(createTestOptions(createToolHistory()));
+
+		expect(getToolCallIds(body.messages as CAPIChatMessage[])).toEqual([
+			{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['toolu_read', 'call_edit'] },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'toolu_read' },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'call_edit' },
+			{ role: OpenAI.ChatRole.Assistant, toolCallIds: ['toolu_test'] },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'toolu_test' },
+			{ role: OpenAI.ChatRole.Tool, toolCallId: 'unmatched_tool_call' }
+		]);
+	});
+});
+
+describe('ChatEndpoint - CAPI reasoning effort', () => {
+	let mockServices: ReturnType<typeof createMockServices>;
+
+	beforeEach(() => {
+		mockServices = createMockServices();
+	});
+
+	const createEndpoint = (metadata: IChatModelInformation) =>
+		new ChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+
+	// A CAPI chat-completions model (no supported_endpoints) that optionally
+	// declares the reasoning effort levels it accepts, mirroring how Gemini
+	// models are hydrated from the CAPI `/models` response.
+	const createReasoningModelMetadata = (family: string, reasoningEffort?: string[]): IChatModelInformation => {
+		const base = createNonAnthropicModelMetadata(family);
+		return {
+			...base,
+			capabilities: {
+				...base.capabilities,
+				supports: {
+					...base.capabilities.supports,
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {})
+				}
+			}
+		};
+	};
+
+	const createTextMessage = (): Raw.ChatMessage => ({
+		role: Raw.ChatRole.User,
+		content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+	});
+
+	const createOptions = (reasoningEffort?: string): ICreateEndpointBodyOptions => ({
+		...createTestOptions([createTextMessage()]),
+		modelCapabilities: reasoningEffort ? { reasoningEffort } : undefined
+	});
+
+	it('applies the UI-selected reasoning effort for a CAPI model that declares support', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('high');
+	});
+
+	it('lets the ReasoningEffortOverride setting win over the UI selection', () => {
+		mockServices.configurationService.setConfig(ConfigKey.Advanced.ReasoningEffortOverride, 'low');
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBe('low');
+	});
+
+	it('ignores a selection the model does not declare', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro', ['low', 'medium', 'high']));
+		const body = endpoint.createRequestBody(createOptions('xhigh'));
+		expect(body.reasoning_effort).toBeUndefined();
+	});
+
+	it('does not set reasoning_effort when the model declares no levels', () => {
+		const endpoint = createEndpoint(createReasoningModelMetadata('gemini-2.5-pro'));
+		const body = endpoint.createRequestBody(createOptions('high'));
+		expect(body.reasoning_effort).toBeUndefined();
 	});
 });

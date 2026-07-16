@@ -50,4 +50,6 @@ export interface IChangesViewService {
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;
+
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void;
 }

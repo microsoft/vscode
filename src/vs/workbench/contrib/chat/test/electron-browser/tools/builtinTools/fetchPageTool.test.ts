@@ -418,6 +418,122 @@ suite('FetchWebPageTool', () => {
 		assert.ok(preparation2.confirmationMessages?.title);
 	});
 
+	test('should require confirmation for a file URI embedded inside a pasted web URL', async () => {
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.parse('file:///home/victim/.ssh/id_rsa'), 'secret key']
+		]);
+
+		// The user only ever pasted a web URL that happens to contain the file URI as a
+		// query-parameter value. It must NOT be treated as an explicit request for the file,
+		// so the confirmation dialog must still be shown.
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService(),
+			upcastDeepPartial<IChatService>({
+				getSession: () => {
+					return {
+						getRequests: () => [{
+							message: {
+								text: 'fetch https://attacker.example/p.html?u=file:///home/victim/.ssh/id_rsa'
+							}
+						}],
+					};
+				},
+			}),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['file:///home/victim/.ssh/id_rsa'] }, toolCallId: 'test-call-injection', chatSessionResource: LocalChatSessionUri.forSession('a') },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.confirmationMessages?.title, 'Embedded file URI should still show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'Embedded file URI should still require post-confirmation');
+	});
+
+	test('should auto-approve a standalone out-of-workspace file URI the user pasted', async () => {
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/tmp/external-plan.md'), 'External plan content']
+		]);
+
+		// The user explicitly referenced the file URI as its own token, so it should be
+		// treated as user-approved even though it lives outside the workspace.
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			upcastDeepPartial<IChatService>({
+				getSession: () => {
+					return {
+						getRequests: () => [{
+							message: {
+								text: 'please fetch (file:///tmp/external-plan.md) for me'
+							}
+						}],
+					};
+				},
+			}),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: [URI.file('/tmp/external-plan.md').toString()] }, toolCallId: 'test-call-standalone-file', chatSessionResource: LocalChatSessionUri.forSession('a') },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.strictEqual(preparation.confirmationMessages?.title, undefined, 'Explicitly referenced file URI should not show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, false, 'Explicitly referenced file URI should not require post-confirmation');
+	});
+
+	test('should require confirmation when a prior message only mentions a bare (scheme-less) path', async () => {
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/etc/secret.txt'), 'secret content']
+		]);
+
+		// The user only ever typed a bare filesystem path (no `file://` scheme). It must not be
+		// treated as a referenced resource — a scheme-less token must not default to a file URI
+		// and auto-approve a matching read.
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			upcastDeepPartial<IChatService>({
+				getSession: () => {
+					return {
+						getRequests: () => [{
+							message: {
+								text: 'the config lives at /etc/secret.txt on the box'
+							}
+						}],
+					};
+				},
+			}),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: ['file:///etc/secret.txt'] }, toolCallId: 'test-call-bare-path', chatSessionResource: LocalChatSessionUri.forSession('a') },
+			CancellationToken.None
+		);
+
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.confirmationMessages?.title, 'Bare path mention should still show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'Bare path mention should still require post-confirmation');
+	});
+
 	test('should return message for binary files indicating they are not supported', async () => {
 		// Create binary content (a simple PNG-like header with null bytes)
 		const binaryContent = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D]);

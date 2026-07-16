@@ -12,8 +12,8 @@ import { RootConfigState } from '../../../../../platform/agentHost/common/state/
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import {
-	AbstractAgentHostConfigFileSystemProvider,
-	AbstractAgentHostConfigSchemaRegistrar,
+	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
+	AbstractSessionsAgentHostConfigFileSystemProvider,
 	AgentHostConfigPropertyFilter,
 	buildAgentHostConfigJsonSchema,
 	IAgentHostConfigLike,
@@ -78,7 +78,7 @@ export function buildHostSettingsJsonSchema(config: RootConfigState): IJSONSchem
  * Filesystem provider serving synthetic JSONC documents representing the
  * root (agent host) configuration values of agent-host providers.
  */
-export class AgentHostSettingsFileSystemProvider extends AbstractAgentHostConfigFileSystemProvider<IAgentHostSettingsContext> {
+export class AgentHostSettingsFileSystemProvider extends AbstractSessionsAgentHostConfigFileSystemProvider<IAgentHostSettingsContext> {
 
 	protected readonly _schemeLabel = AGENT_HOST_SETTINGS_SCHEME;
 	protected readonly _traceTag = 'AgentHostSettings';
@@ -105,7 +105,7 @@ export class AgentHostSettingsFileSystemProvider extends AbstractAgentHostConfig
 	}
 
 	protected _ensureSchemaRegistered(provider: IAgentHostSessionsProvider): void {
-		this._schemaRegistrar.ensureRegistered(provider, provider);
+		this._schemaRegistrar.ensureRegistered(provider);
 	}
 
 	protected _hasConfig(provider: IAgentHostSessionsProvider): boolean {
@@ -125,7 +125,7 @@ export class AgentHostSettingsFileSystemProvider extends AbstractAgentHostConfig
  * Keeps per-provider JSON schemas registered so editors of the synthetic
  * `agent-host-settings://…` files get completions, hover, and validation.
  */
-export class AgentHostSettingsSchemaRegistrar extends AbstractAgentHostConfigSchemaRegistrar<IAgentHostSessionsProvider> {
+export class AgentHostSettingsSchemaRegistrar extends AbstractMultiProviderAgentHostConfigSchemaRegistrar<IAgentHostSessionsProvider> {
 
 	protected _propertyFilter(): AgentHostConfigPropertyFilter {
 		return hostSettingsPropertyFilter;
@@ -139,7 +139,7 @@ export class AgentHostSettingsSchemaRegistrar extends AbstractAgentHostConfigSch
 		return `vscode://schemas/agent-host-settings/${provider.id}.jsonc`;
 	}
 
-	protected _getConfig(_provider: IAgentHostSessionsProvider, target: IAgentHostSessionsProvider): IAgentHostConfigLike | undefined {
+	protected _getConfig(target: IAgentHostSessionsProvider): IAgentHostConfigLike | undefined {
 		return target.getRootConfig();
 	}
 

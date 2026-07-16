@@ -419,8 +419,29 @@
 		-webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 20px, black calc(100% - 20px), transparent 100%);
 	}
 
+	> .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
+		overflow: hidden;
+		height: auto;
+		opacity: 1;
+
+		> .scrollbar {
+			display: none;
+		}
+	}
+
+	&.chat-thinking-fixed-mode-animated > .monaco-scrollable-element {
+		transition:
+			max-height 180ms cubic-bezier(0.2, 0, 0, 1),
+			opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+	}
+
 	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
-		display: none;
+		display: block;
+		opacity: 0;
+
+		> .chat-used-context-list.chat-thinking-collapsible {
+			display: block;
+		}
 	}
 
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
@@ -475,7 +496,7 @@
 		display: block;
 	}
 
-	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
+	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element:has(.chat-thinking-streaming) {
 		overflow: visible;
 		height: auto;
 	}
@@ -492,6 +513,17 @@
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
+}
+
+.monaco-reduce-motion .chat-thinking-fixed-mode > .monaco-scrollable-element,
+.monaco-workbench.monaco-reduce-motion .chat-thinking-fixed-mode > .monaco-scrollable-element {
+	transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.chat-thinking-fixed-mode > .monaco-scrollable-element {
+		transition: none !important;
+	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box .chat-used-context-label code {

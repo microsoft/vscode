@@ -99,6 +99,10 @@ We use tabs, not spaces.
 - Use title-style capitalization for command labels, buttons and menu items (each word is capitalized).
 - Don't capitalize prepositions of four or fewer letters unless it's the first or last word (e.g. "in", "with", "for").
 
+### Designing UI
+- When creating, editing, or reviewing any visual surface, reason in **design terms, not pixels**: name the **feeling** (Calm, Focused, Consistent, Delightful), find the **principle** it breaks, then reach for the **move** (token/tier/ramp) that restores it. Describe a bug by its role/tier/ramp (e.g. "this overlay is rounded at the control tier"), not its number.
+- See the [`design-philosophy` skill](skills/design-philosophy/SKILL.md) for the full Values→Principles→Moves vocabulary, worked examples, and feedback guidance, and [design-tokens.instructions.md](instructions/design-tokens.instructions.md) for the token reference.
+
 ### Style
 
 - Use arrow functions `=>` over anonymous function expressions

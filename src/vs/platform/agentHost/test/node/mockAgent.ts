@@ -61,6 +61,7 @@ export class MockAgent implements IAgent {
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; chat?: URI }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection; chat?: URI }[] = [];
@@ -120,6 +121,12 @@ export class MockAgent implements IAgent {
 	/** Optional override for the working directory returned by createSession. */
 	resolvedWorkingDirectory: URI | undefined;
 
+	/**
+	 * When set, {@link sendMessage} rejects with this error after recording the
+	 * call — used to simulate a failed first-turn materialization (e.g. worktree
+	 * or branch setup throwing).
+	 */
+	sendMessageError: Error | undefined;
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
 		const rawId = AgentSession.id(session);
@@ -142,10 +149,18 @@ export class MockAgent implements IAgent {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
+		if (this.sendMessageError) {
+			throw this.sendMessageError;
+		}
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
+	}
+
+	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		this.onSessionConfigChangedCalls.push({ session, values });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -159,6 +174,12 @@ export class MockAgent implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		this.disposeSessionCalls.push(session);
 		this._sessions.delete(AgentSession.id(session));
+	}
+
+	async releaseSession(session: URI): Promise<void> {
+		// Non-destructive: record the call but keep the session in the catalog
+		// so a later restore/resume still finds its durable data.
+		this.releaseSessionCalls.push(session);
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -221,7 +242,7 @@ export class MockAgent implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.disposeChat(session, chat);
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId);
 		},
@@ -908,7 +929,7 @@ export class ScriptedMockAgent implements IAgent {
 		disposeChat: (_chat: URI): Promise<void> => {
 			return Promise.resolve();
 		},
-		sendMessage: (chatUri: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
+		sendMessage: (chatUri: URI, prompt: string, _workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> => {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this.sendMessage(session, chat, prompt, attachments, turnId);
 		},
@@ -1011,12 +1032,12 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.ChatTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatTurnComplete, turnId });
+	return _action(session, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 }
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */

@@ -7,17 +7,24 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { PROMPT_TIMELINE_ENABLED_SETTING } from '../common/promptTimeline.js';
+import { PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
 import { registerPromptTimelineActions } from './promptTimelineActions.js';
 import { PromptTimelineWidgetContrib } from './promptTimelineWidgetContrib.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
 	properties: {
-		[PROMPT_TIMELINE_ENABLED_SETTING]: {
+		[PROMPT_TIMELINE_RAIL_SETTING]: {
 			type: 'boolean',
 			default: false,
-			description: localize('sessions.promptTimeline.enabled', "Controls whether the prompt timeline rail is shown alongside the chat transcript in the Agents window. The rail lets you scan and jump between the prompts you have sent."),
+			description: localize('sessions.promptTimeline.rail', "Controls whether the prompt timeline is shown next to the chat transcript in the Agents window."),
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		[PROMPT_TIMELINE_STICKY_HEADER_SETTING]: {
+			type: 'boolean',
+			default: false,
+			description: localize('sessions.promptTimeline.stickyHeader', "Controls whether the current prompt is pinned to the top of the chat transcript while scrolling in the Agents window."),
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},

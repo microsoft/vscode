@@ -18,6 +18,7 @@ import { CompletionModel, LineContext } from '../../../../../editor/contrib/sugg
 import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { FuzzyScoreOptions } from '../../../../../base/common/filters.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 // CSS imports for the suggest widget
 import '../../../../../editor/contrib/suggest/browser/media/suggest.css';
@@ -32,6 +33,7 @@ interface SuggestFixtureOptions extends ComponentFixtureContext {
 	width?: string;
 	height?: string;
 	editorOptions?: IEditorOptions;
+	showDetails?: boolean;
 }
 
 function renderSuggestWidget(options: SuggestFixtureOptions): void {
@@ -39,6 +41,9 @@ function renderSuggestWidget(options: SuggestFixtureOptions): void {
 	container.style.width = options.width ?? '500px';
 	container.style.height = options.height ?? '300px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
+
+	const storageService = options.showDetails ? disposableStore.add(new InMemoryStorageService()) : undefined;
+	storageService?.store('expandSuggestionDocs', true, StorageScope.PROFILE, StorageTarget.USER);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
@@ -52,6 +57,9 @@ function renderSuggestWidget(options: SuggestFixtureOptions): void {
 					return { onDidChange: new Emitter<IMenuChangeEvent>().event, getActions: () => [], dispose: () => { } };
 				}
 			});
+			if (storageService) {
+				reg.defineInstance(IStorageService, storageService);
+			}
 		},
 	});
 
@@ -116,7 +124,7 @@ function renderSuggestWidget(options: SuggestFixtureOptions): void {
 
 const typescriptCompletions: CompletionList = {
 	suggestions: [
-		{ label: 'addEventListener', kind: CompletionItemKind.Method, insertText: 'addEventListener', range: { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 10 }, detail: '(method) addEventListener(type: string, listener: EventListener): void' },
+		{ label: 'addEventListener', kind: CompletionItemKind.Method, insertText: 'addEventListener', range: { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 10 }, detail: '(method) addEventListener(type: string, listener: EventListener): void', documentation: 'Registers an event listener on the element.' },
 		{ label: 'appendChild', kind: CompletionItemKind.Method, insertText: 'appendChild', range: { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 10 }, detail: '(method) appendChild(node: Node): Node' },
 		{ label: 'attributes', kind: CompletionItemKind.Property, insertText: 'attributes', range: { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 10 } },
 		{ label: 'blur', kind: CompletionItemKind.Method, insertText: 'blur', range: { startLineNumber: 3, startColumn: 10, endLineNumber: 3, endColumn: 10 }, detail: '(method) blur(): void' },
@@ -156,6 +164,23 @@ if (element) {
 			cursorLine: 3,
 			cursorColumn: 10,
 			completions: typescriptCompletions,
+		}),
+	}),
+
+	MethodCompletionsWithDetails: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderSuggestWidget({
+			...context,
+			width: '1000px',
+			height: '400px',
+			code: `const element = document.getElementById('app');
+if (element) {
+	element.
+}`,
+			cursorLine: 3,
+			cursorColumn: 10,
+			completions: typescriptCompletions,
+			showDetails: true,
 		}),
 	}),
 

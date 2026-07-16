@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ChatInputNotificationDto, MainContext, MainThreadChatInputNotificationShape } from '../common/extHost.protocol.js';
 
@@ -24,7 +24,7 @@ export class MainThreadChatInputNotification extends Disposable implements MainT
 			severity: notification.severity as number as ChatInputNotificationSeverity,
 			message: notification.message,
 			description: notification.description,
-			actions: notification.actions,
+			actions: notification.actions.map<IChatInputNotificationCommandAction>(action => ({ ...action, kind: ChatInputNotificationActionKind.Command })),
 			dismissible: notification.dismissible,
 			autoDismissOnMessage: notification.autoDismissOnMessage,
 		});

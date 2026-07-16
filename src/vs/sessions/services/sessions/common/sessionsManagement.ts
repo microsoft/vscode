@@ -6,6 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
 import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
@@ -373,7 +374,7 @@ export interface ISessionsManagementService {
 	 * service was disposed during the send. Rejects (after disposing the
 	 * stranded draft) if the send fails.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined>;
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -391,6 +392,21 @@ export interface ISessionsManagementService {
 
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
+	/**
+	 * Mark a session as read or unread through its provider, which owns and
+	 * persists the read state and reflects it on {@link ISession.isRead}.
+	 */
+	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
+
+	/** Mark a session as read through its provider. */
+	markRead(session: ISession): Promise<void>;
+
+	/** Mark a session as unread through its provider. */
+	markUnread(session: ISession): Promise<void>;
+
+	/** Mark all of the given sessions as read through their providers. */
+	markAllRead(sessions: readonly ISession[]): Promise<void>;
 
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;

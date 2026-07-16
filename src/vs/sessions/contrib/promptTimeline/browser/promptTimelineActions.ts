@@ -11,15 +11,18 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { PromptTimelineCommandId, PROMPT_TIMELINE_ENABLED_SETTING } from '../common/promptTimeline.js';
+import { PromptTimelineCommandId, PROMPT_TIMELINE_RAIL_SETTING, PROMPT_TIMELINE_STICKY_HEADER_SETTING } from '../common/promptTimeline.js';
 import { PromptTimelineWidgetContrib } from './promptTimelineWidgetContrib.js';
 
 const CATEGORY = localize2('promptTimeline.category', "Chat");
 
-/** True unless the prompt timeline setting is explicitly disabled. */
-const TIMELINE_ENABLED = ContextKeyExpr.notEquals(`config.${PROMPT_TIMELINE_ENABLED_SETTING}`, false);
+/** True when at least one prompt timeline surface (rail or sticky header) is enabled. */
+const TIMELINE_ENABLED = ContextKeyExpr.or(
+	ContextKeyExpr.equals(`config.${PROMPT_TIMELINE_RAIL_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${PROMPT_TIMELINE_STICKY_HEADER_SETTING}`, true),
+);
 
-/** Commands require AI features to be on and the prompt timeline setting to be enabled. */
+/** Commands require AI features to be on and at least one prompt timeline surface to be enabled. */
 const TIMELINE_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, TIMELINE_ENABLED);
 
 /** Resolves the prompt timeline contribution for the active session's chat widget. */

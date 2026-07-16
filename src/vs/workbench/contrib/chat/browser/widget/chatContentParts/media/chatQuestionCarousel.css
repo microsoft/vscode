@@ -548,7 +548,8 @@
 		overflow-wrap: break-word;
 	}
 
-	.chat-question-summary-skipped {
+	.chat-question-summary-skipped,
+	.chat-question-summary-answered {
 		color: var(--vscode-descriptionForeground);
 		font-style: italic;
 		font-size: var(--vscode-chat-font-size-body-s);

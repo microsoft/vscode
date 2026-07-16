@@ -34,6 +34,10 @@ export interface IAgentHostMcpServer {
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;
+	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
+	start(): Promise<void>;
+	/** Stops the server. Providers that cannot control lifecycle may no-op. */
+	stop(): Promise<void>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -165,9 +169,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/**
 	 * Returns the MCP servers exposed by the session as rich objects whose
-	 * {@link IAgentHostMcpServer.setEnabled} dispatches the appropriate
-	 * protocol-level toggle. Returns an empty array when the session is
-	 * unknown or exposes no MCP servers.
+	 * methods dispatch protocol-level toggle and lifecycle actions.
+	 * Returns an empty array when the session is unknown or exposes no MCP
+	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 

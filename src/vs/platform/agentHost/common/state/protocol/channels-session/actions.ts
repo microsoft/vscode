@@ -312,12 +312,16 @@ export interface SessionCustomizationsChangedAction {
 }
 
 /**
- * A client toggled a container customization on or off.
+ * A client toggled a customization on or off.
  *
- * Targets a top-level container (plugin or directory) by `id`. Only
- * containers have an `enabled` flag; children are always active when
- * their container is enabled. Is a no-op when no matching container is
- * found.
+ * Matches `id` against every top-level customization first — a plugin or
+ * directory container, or a bare top-level MCP server — then against the
+ * children inside each container (a skill, agent, or other entry), and
+ * sets the matched entry's `enabled` flag. Disabling a container still
+ * disables all of its children — the effective state of a child is
+ * `container.enabled && (child.enabled ?? true)` — so toggling a child
+ * only matters while its container is enabled. Is a no-op when no
+ * customization has the given `id`.
  *
  * @category Session Actions
  * @version 1
@@ -325,9 +329,9 @@ export interface SessionCustomizationsChangedAction {
  */
 export interface SessionCustomizationToggledAction {
 	type: ActionType.SessionCustomizationToggled;
-	/** The id of the container to toggle. */
+	/** The id of the container or child to toggle. */
 	id: string;
-	/** Whether to enable or disable the container. */
+	/** Whether to enable or disable the targeted customization. */
 	enabled: boolean;
 }
 
@@ -403,6 +407,58 @@ export interface SessionMcpServerStateChangedAction {
 	 * {@link McpServerStatus.Ready | `Ready`}).
 	 */
 	channel?: URI;
+}
+
+/**
+ * Requests that the host start or restart an existing
+ * {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Starting | `starting`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}; the host remains
+ * authoritative and SHOULD follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * once the server becomes ready, needs authentication, fails, or is
+ * rejected. Is a no-op when no matching `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStartRequestedAction {
+	type: ActionType.SessionMcpServerStartRequested;
+	/** The id of the {@link McpServerCustomization} to start. */
+	id: string;
+}
+
+/**
+ * Requests that the host stop an existing {@link McpServerCustomization}.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. The
+ * reducer optimistically moves the server to
+ * {@link McpServerStatus.Stopped | `stopped`} and clears any previous
+ * {@link McpServerCustomization.channel | `channel`}. Replacing an
+ * {@link McpServerStatus.AuthRequired | `authRequired`} lifecycle state with
+ * `stopped` unblocks the server from waiting on authentication. If the host
+ * also raised session-level input-needed state solely for that MCP server, it
+ * SHOULD remove that input-needed entry when accepting the stop.
+ *
+ * The host remains authoritative and MAY reject the action or follow with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * if the final lifecycle state differs. Is a no-op when no matching
+ * `McpServerCustomization` is found.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerStopRequestedAction {
+	type: ActionType.SessionMcpServerStopRequested;
+	/** The id of the {@link McpServerCustomization} to stop. */
+	id: string;
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

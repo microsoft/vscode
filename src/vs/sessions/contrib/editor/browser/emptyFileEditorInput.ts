@@ -10,11 +10,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 
-export class EmptyFileEditorInput extends EditorInput {
+export class EmptyFileEditorInput extends DockedEditorInput {
 
 	static readonly ID = 'workbench.editors.agentSessions.emptyFile';
 	static readonly EDITOR_ID = 'workbench.editor.agentSessions.emptyFile';
+	static readonly ICON = Codicon.files;
 
 	override get resource(): URI | undefined {
 		return undefined;
@@ -37,7 +39,7 @@ export class EmptyFileEditorInput extends EditorInput {
 	}
 
 	override getIcon(): ThemeIcon {
-		return Codicon.files;
+		return EmptyFileEditorInput.ICON;
 	}
 
 	override getTitle(_verbosity?: Verbosity): string {

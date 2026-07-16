@@ -122,6 +122,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	private _startPromise: Promise<void> | undefined;
 
 	constructor(
+		private readonly _fetchFn: typeof globalThis.fetch | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
@@ -250,6 +251,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 							headers: this._config.headers,
 						},
 						this._logService,
+						this._fetchFn,
 					));
 				}
 				break;

@@ -92,6 +92,7 @@ export class EditorTitleControl extends Themable {
 			showDecorationColors: false,
 			showPlaceholder: true,
 			dragEditor: false,
+			showEditorTypePicker: true,
 		}));
 
 		// Breadcrumbs enablement & visibility change have an impact on layout

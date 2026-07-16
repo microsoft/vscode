@@ -70,7 +70,7 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 			return;
 		}
 		const comments: IAgentEditorCommentDto[] = this._bridge.getComments(resource).map(comment => ({ id: comment.id, range: comment.range, body: comment.body }));
-		this._proxy.$acceptAgentEditorComments(handle, comments);
+		this._proxy.$acceptAgentEditorComments(handle, comments, this._bridge.acceptsComments(resource));
 	}
 
 	dispose(): void {

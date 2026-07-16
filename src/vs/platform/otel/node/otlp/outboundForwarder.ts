@@ -87,6 +87,7 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 	constructor(
 		private readonly _options: IOtlpHttpForwarderOptions,
 		private readonly _logService: ILogService,
+		private readonly _fetchFn?: typeof globalThis.fetch,
 	) {
 		super();
 		this._resolvedEndpoint = resolveOtlpTracesEndpoint(_options.endpoint);
@@ -108,6 +109,23 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 
 	private async _sendOnce(body: Buffer, contentType: string): Promise<void> {
 		try {
+			if (this._fetchFn) {
+				const response = await this._fetchFn(this._resolvedEndpoint, {
+					method: 'POST',
+					headers: {
+						'content-type': contentType,
+						'content-length': String(body.length),
+						...(this._options.headers ?? {}),
+					},
+					body: Uint8Array.from(body).buffer,
+					signal: AbortSignal.timeout(this._options.timeoutMs ?? 10_000),
+				});
+				await response.arrayBuffer();
+				if (!response.ok) {
+					throw new Error(`upstream returned HTTP ${response.status}`);
+				}
+				return;
+			}
 			const url = new URL(this._resolvedEndpoint);
 			const isHttps = url.protocol === 'https:';
 			const mod = isHttps ? await import('https') : await import('http');

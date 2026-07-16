@@ -54,6 +54,18 @@ class MockChatService extends Disposable {
 	/** When a query matches an entry here, sendRequest reports a rejection. */
 	readonly rejectQueries = new Set<string>();
 
+	/** In-progress state wired into every model created by startNewLocalSession. */
+	readonly newSessionInProgress = observableValue<boolean>('newSessionInProgress', false);
+
+	/** When set, sendRequest returns a completion promise resolved via resolveCompletion(). */
+	deferCompletion = false;
+	private readonly _completeResolvers: Array<() => void> = [];
+	resolveCompletion(): void {
+		for (const resolve of this._completeResolvers.splice(0)) {
+			resolve();
+		}
+	}
+
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
@@ -62,7 +74,7 @@ class MockChatService extends Disposable {
 
 	startNewLocalSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): IChatModelReference {
 		const resource = URI.parse(`vscode-local-chat://chat/${++this._counter}`);
-		const model = createMockModel(resource);
+		const model = createMockModel(resource, { requestInProgress: this.newSessionInProgress });
 		this._models.set(resource.toString(), model);
 		return { object: model, dispose: () => { } };
 	}
@@ -84,7 +96,10 @@ class MockChatService extends Disposable {
 		if (this.rejectQueries.has(query)) {
 			return { kind: 'rejected', reason: 'test-rejected' };
 		}
-		return { kind: 'sent', data: { responseCompletePromise: Promise.resolve(), responseCreatedPromise: Promise.resolve({}) } };
+		const responseCompletePromise = this.deferCompletion
+			? new Promise<void>(resolve => this._completeResolvers.push(resolve))
+			: Promise.resolve();
+		return { kind: 'sent', data: { responseCompletePromise, responseCreatedPromise: Promise.resolve({}) } };
 	}
 
 	async getLocalSessionHistory() { return []; }
@@ -295,6 +310,118 @@ suite('LocalChatSessionsProvider', () => {
 
 		inProgress.set(false, undefined);
 		assert.strictEqual(provider.getSessions()[0].status.get(), SessionStatus.Completed);
+	});
+
+	test('marks the session unread when a tracked turn completes', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+
+		const inProgress = observableValue<boolean>('inProgress', false);
+		chatService.registerModel(createMockModel(session.resource, { requestInProgress: inProgress }));
+		chatService.fireSubmitRequest(session.resource);
+
+		// A freshly-tracked, idle session is read; a completed turn flips it unread.
+		const readBefore = provider.getSessions()[0].isRead.get();
+		inProgress.set(true, undefined);
+		inProgress.set(false, undefined);
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: true,
+			readAfter: false,
+		});
+	});
+
+	test('does not mark unread when the model was never in progress', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+
+		const inProgress = observableValue<boolean>('inProgress', false);
+		chatService.registerModel(createMockModel(session.resource, { requestInProgress: inProgress }));
+		// Tracking starts (idle) — no in-progress → idle transition occurs.
+		chatService.fireSubmitRequest(session.resource);
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), true);
+	});
+
+	test('marks the session unread when the first turn completes after navigating away', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		// The first turn is still running when send resolves, and only completes
+		// later (deferred) — mimicking the user leaving mid-turn.
+		chatService.deferCompletion = true;
+		chatService.newSessionInProgress.set(true, undefined);
+		await commitNewSession(provider);
+
+		const readBefore = provider.getSessions()[0].isRead.get();
+		chatService.newSessionInProgress.set(false, undefined);
+		chatService.resolveCompletion();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: true,
+			readAfter: false,
+		});
+	});
+
+	test('setSessionReadState clears unread across every chat in the group', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+
+		// A completed turn on the child makes the whole group unread.
+		const childInProgress = observableValue<boolean>('childInProgress', false);
+		chatService.registerModel(createMockModel(childResource, { requestInProgress: childInProgress }));
+		chatService.fireSubmitRequest(childResource);
+		childInProgress.set(true, undefined);
+		childInProgress.set(false, undefined);
+
+		const readBefore = provider.getSessions()[0].isRead.get();
+		await provider.setSessionReadState(session.sessionId, true);
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: false,
+			readAfter: true,
+		});
+	});
+
+	test('a stored session persisted before isRead existed loads as unread', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, storage } = createFixture(store);
+
+		storage.store('sessions.localChat.migrated', true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(STORAGE_KEY_SESSIONS, JSON.stringify([{
+			uri: URI.parse('vscode-local-chat://chat/legacy').toJSON(),
+			title: 'Legacy',
+			createdAt: 1_000,
+			lastMessageDate: 2_000,
+			workingDirectory: TEST_FOLDER.toJSON(),
+		}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		await Event.toPromise(provider.onDidChangeSessions);
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
 	});
 
 	test('Event.None and exports remain stable', () => {

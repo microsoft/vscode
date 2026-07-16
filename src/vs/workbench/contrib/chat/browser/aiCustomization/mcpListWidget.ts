@@ -32,7 +32,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
-import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
+import { ConfigureModelAccessAction, getContextMenuActions, RestartServerAction, ShowSamplingRequestsAction, StartServerAction, StopServerAction } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -426,8 +426,40 @@ function getRuntimeServerMatchKeys(server: IMcpServer): string[] {
 	return getUniqueMcpMatchKeys([server.definition.id, server.definition.label]);
 }
 
-function getActiveSessionServerOptionsAction(commandService: ICommandService, sessionResource: URI, server: AgentHostMcpServer): Action {
-	return new Action(
+function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer): Action | undefined {
+	if (!server.enabled) {
+		return undefined;
+	}
+	return server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error
+		? new Action(
+			'mcpServer.activeSession.start',
+			localize('activeSessionMcpServerStart', "Start Server"),
+			undefined,
+			true,
+			() => server.start()
+		)
+		: new Action(
+			'mcpServer.activeSession.stop',
+			localize('activeSessionMcpServerStop', "Stop Server"),
+			undefined,
+			true,
+			() => server.stop()
+		);
+}
+
+function getActiveSessionServerOptionsActions(commandService: ICommandService, sessionResource: URI, server: AgentHostMcpServer): IAction[] {
+	const lifecycleAction = getActiveSessionServerLifecycleAction(server);
+	const enablementAction = new Action(
+		server.enabled ? 'mcpServer.activeSession.disable' : 'mcpServer.activeSession.enable',
+		server.enabled ? localize('activeSessionMcpServerDisable', "Disable Server") : localize('activeSessionMcpServerEnable', "Enable Server"),
+		undefined,
+		true,
+		() => {
+			server.setEnabled(!server.enabled);
+			return Promise.resolve();
+		}
+	);
+	const optionsAction = new Action(
 		'mcpServer.activeSession.options',
 		localize('activeSessionMcpServerOptions', "Server Options"),
 		undefined,
@@ -436,6 +468,15 @@ function getActiveSessionServerOptionsAction(commandService: ICommandService, se
 			await commandService.executeCommand(McpCommandIds.AgentHostServerOptions, sessionResource, server.id);
 		}
 	);
+	return lifecycleAction ? [lifecycleAction, enablementAction, optionsAction] : [enablementAction, optionsAction];
+}
+
+function shouldHideLocalActionForActiveSessionServer(action: IAction): boolean {
+	return action instanceof StartServerAction
+		|| action instanceof StopServerAction
+		|| action instanceof RestartServerAction
+		|| action instanceof ConfigureModelAccessAction
+		|| action instanceof ShowSamplingRequestsAction;
 }
 
 function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
@@ -1234,10 +1275,11 @@ export class McpListWidget extends Disposable {
 
 		if (e.element.type === 'session-server-item') {
 			const disposables = new DisposableStore();
-			const optionsAction = disposables.add(getActiveSessionServerOptionsAction(this.commandService, this.customizationHarnessService.activeSessionResource.get(), e.element.server));
+			const activeSessionActions = getActiveSessionServerOptionsActions(this.commandService, this.customizationHarnessService.activeSessionResource.get(), e.element.server);
+			activeSessionActions.forEach(action => isDisposable(action) && disposables.add(action));
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => [optionsAction],
+				getActions: () => activeSessionActions,
 				onHide: () => disposables.dispose(),
 			});
 			return;
@@ -1247,52 +1289,66 @@ export class McpListWidget extends Disposable {
 		if (e.element.type === 'builtin-item') {
 			const collectionId = e.element.collectionId;
 			const pluginUriStr = getPluginUriFromCollectionId(collectionId);
-			if (!pluginUriStr) {
+			if (!pluginUriStr && !e.element.activeSessionServer) {
 				return;
 			}
-			const plugin = this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr);
-			if (!plugin) {
+			const plugin = pluginUriStr ? this.agentPluginService.plugins.get().find(p => p.uri.toString() === pluginUriStr) : undefined;
+			if (!plugin && !e.element.activeSessionServer) {
 				return;
 			}
 
 			const disposables = new DisposableStore();
-			const showPluginAction = disposables.add(new Action(
-				'mcpServer.showPlugin',
-				localize('showPlugin', "Show Plugin"),
-				undefined,
-				true,
-				async () => {
-					const item = {
-						kind: AgentPluginItemKind.Installed as const,
-						name: plugin.label,
-						description: plugin.fromMarketplace?.description ?? '',
-						marketplace: plugin.fromMarketplace?.marketplace,
-						plugin,
-					};
-					this._onDidRequestShowPlugin.fire(item);
+			const actions: IAction[] = [];
+			const lifecycleAction = e.element.activeSessionServer ? getActiveSessionServerLifecycleAction(e.element.activeSessionServer) : undefined;
+			if (lifecycleAction) {
+				actions.push(disposables.add(lifecycleAction));
+			}
+			if (plugin) {
+				if (actions.length > 0) {
+					actions.push(new Separator());
 				}
-			));
-			const uninstallAction = disposables.add(new Action(
-				'mcpServer.uninstallPlugin',
-				localize('uninstallPlugin', "Uninstall Plugin"),
-				undefined,
-				true,
-				async () => {
-					const result = await this.dialogService.confirm({
-						message: localize('confirmUninstallPluginMcp', "This MCP server is provided by the plugin '{0}'", plugin.label),
-						detail: localize('confirmUninstallPluginMcpDetail', "Individual MCP servers from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
-						primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
-						type: 'question',
-					});
-					if (result.confirmed) {
-						plugin.remove?.();
+				actions.push(disposables.add(new Action(
+					'mcpServer.showPlugin',
+					localize('showPlugin', "Show Plugin"),
+					undefined,
+					true,
+					async () => {
+						const item = {
+							kind: AgentPluginItemKind.Installed as const,
+							name: plugin.label,
+							description: plugin.fromMarketplace?.description ?? '',
+							marketplace: plugin.fromMarketplace?.marketplace,
+							plugin,
+						};
+						this._onDidRequestShowPlugin.fire(item);
 					}
-				}
-			));
+				)));
+				actions.push(disposables.add(new Action(
+					'mcpServer.uninstallPlugin',
+					localize('uninstallPlugin', "Uninstall Plugin"),
+					undefined,
+					true,
+					async () => {
+						const result = await this.dialogService.confirm({
+							message: localize('confirmUninstallPluginMcp', "This MCP server is provided by the plugin '{0}'", plugin.label),
+							detail: localize('confirmUninstallPluginMcpDetail', "Individual MCP servers from a plugin cannot be removed separately. Would you like to uninstall the entire plugin?"),
+							primaryButton: localize('uninstallPluginBtn', "Uninstall Plugin"),
+							type: 'question',
+						});
+						if (result.confirmed) {
+							plugin.remove?.();
+						}
+					}
+				)));
+			}
+			if (actions.length === 0) {
+				disposables.dispose();
+				return;
+			}
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => [showPluginAction, uninstallAction],
+				getActions: () => actions,
 				onHide: () => disposables.dispose(),
 			});
 			return;
@@ -1309,14 +1365,26 @@ export class McpListWidget extends Disposable {
 		// Get context menu actions from the MCP module
 		const groups: IAction[][] = getContextMenuActions(mcpServer, false, this.instantiationService);
 		const actions: IAction[] = [];
+		const activeSessionLifecycleAction = serverEntry.activeSessionServer ? getActiveSessionServerLifecycleAction(serverEntry.activeSessionServer) : undefined;
+		if (activeSessionLifecycleAction) {
+			disposables.add(activeSessionLifecycleAction);
+			actions.push(activeSessionLifecycleAction, new Separator());
+		}
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
-				actions.push(menuAction);
 				if (isDisposable(menuAction)) {
 					disposables.add(menuAction);
 				}
 			}
-			actions.push(new Separator());
+			const visibleMenuActions = serverEntry.activeSessionServer
+				? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+				: menuActions;
+			for (const menuAction of visibleMenuActions) {
+				actions.push(menuAction);
+			}
+			if (visibleMenuActions.length > 0) {
+				actions.push(new Separator());
+			}
 		}
 		// Remove trailing separator
 		if (actions.length > 0 && actions[actions.length - 1] instanceof Separator) {

@@ -11,7 +11,7 @@ import {
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../../node/shared/copilotApiService.js';
-import { CodexProxyService } from '../../../node/codex/codexProxyService.js';
+import { CodexProxyService, remapCodexReviewerModel } from '../../../node/codex/codexProxyService.js';
 
 // #region Test fakes
 
@@ -139,6 +139,70 @@ suite('CodexProxyService', () => {
 				body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
 			});
 			assert.strictEqual(fake.responsesCalls.at(-1)?.options?.headers?.['User-Agent'], undefined);
+		});
+	});
+
+	test('remaps the unsupported auto-review reviewer model onto the last primary model', async () => {
+		await withProxy(async (handle, fake) => {
+			const headers = { 'Authorization': `Bearer ${handle.nonce}`, 'User-Agent': 'codex/1.0' };
+			// A normal turn establishes the session's primary model...
+			await postResponses(`${handle.baseUrl}/v1/responses`, {
+				headers,
+				body: JSON.stringify({ model: 'gpt-5.5', stream: true, input: [] }),
+			});
+			// ...then the auto-review reviewer fires with the unsupported model.
+			await postResponses(`${handle.baseUrl}/v1/responses`, {
+				headers,
+				body: JSON.stringify({ model: 'codex-auto-review', stream: true, input: [] }),
+			});
+			assert.deepStrictEqual(fake.responsesCalls.map(call => JSON.parse(call.body).model), ['gpt-5.5', 'gpt-5.5']);
+		});
+	});
+
+	test('forwards the auto-review reviewer model unchanged when no primary model has been seen', async () => {
+		await withProxy(async (handle, fake) => {
+			await postResponses(`${handle.baseUrl}/v1/responses`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}`, 'User-Agent': 'codex/1.0' },
+				body: JSON.stringify({ model: 'codex-auto-review', stream: true, input: [] }),
+			});
+			// Graceful degradation: nothing to remap onto, so the request is
+			// forwarded verbatim (and 400s upstream, exactly as before).
+			assert.strictEqual(JSON.parse(fake.responsesCalls.at(-1)!.body).model, 'codex-auto-review');
+		});
+	});
+
+	test('remaps the reviewer model onto the most recent primary model', async () => {
+		await withProxy(async (handle, fake) => {
+			const headers = { 'Authorization': `Bearer ${handle.nonce}`, 'User-Agent': 'codex/1.0' };
+			await postResponses(`${handle.baseUrl}/v1/responses`, { headers, body: JSON.stringify({ model: 'gpt-5.5', input: [] }) });
+			await postResponses(`${handle.baseUrl}/v1/responses`, { headers, body: JSON.stringify({ model: 'gpt-5-codex', input: [] }) });
+			await postResponses(`${handle.baseUrl}/v1/responses`, { headers, body: JSON.stringify({ model: 'codex-auto-review', input: [] }) });
+			assert.strictEqual(JSON.parse(fake.responsesCalls.at(-1)!.body).model, 'gpt-5-codex');
+		});
+	});
+
+	suite('remapCodexReviewerModel', () => {
+		test('records the primary model and leaves the body untouched', () => {
+			const state = { lastPrimaryModel: undefined as string | undefined };
+			const result = remapCodexReviewerModel(JSON.stringify({ model: 'gpt-5.5', input: [] }), state);
+			assert.deepStrictEqual({ remappedFrom: result.remappedFrom, lastPrimaryModel: state.lastPrimaryModel, model: JSON.parse(result.body).model }, { remappedFrom: undefined, lastPrimaryModel: 'gpt-5.5', model: 'gpt-5.5' });
+		});
+
+		test('remaps the reviewer model and reports the substitution', () => {
+			const state = { lastPrimaryModel: 'gpt-5.5' as string | undefined };
+			const result = remapCodexReviewerModel(JSON.stringify({ model: 'codex-auto-review', input: [] }), state);
+			assert.deepStrictEqual({ remappedFrom: result.remappedFrom, remappedTo: result.remappedTo, model: JSON.parse(result.body).model }, { remappedFrom: 'codex-auto-review', remappedTo: 'gpt-5.5', model: 'gpt-5.5' });
+		});
+
+		test('returns the original body for unparseable or model-less payloads', () => {
+			const state = { lastPrimaryModel: 'gpt-5.5' as string | undefined };
+			assert.deepStrictEqual({
+				unparseable: remapCodexReviewerModel('not json', state).body,
+				modelless: remapCodexReviewerModel(JSON.stringify({ input: [] }), state).body,
+			}, {
+				unparseable: 'not json',
+				modelless: JSON.stringify({ input: [] }),
+			});
 		});
 	});
 });

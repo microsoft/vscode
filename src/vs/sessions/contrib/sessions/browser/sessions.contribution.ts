@@ -12,9 +12,8 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
-import { NewSessionActionViewItemContribution } from './newSessionActionViewItem.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
-import { SessionConversationsMenuContribution, SessionNewChatActionViewItemContribution } from './sessionsActions.js';
+import { NewSessionActionViewItemContribution, SessionConversationsMenuContribution, SessionNewChatActionViewItemContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -62,7 +61,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: localize('sessions.list.showEmptyDefaultGroups', "Controls whether the default groups (Pinned, Chats) are shown in the sessions list even when they are empty."),
+			description: localize('sessions.list.showEmptyDefaultGroups', "Controls whether the Chats group is shown in the sessions list even when it is empty."),
 			default: true,
 			experiment: { mode: 'auto' }
 		},

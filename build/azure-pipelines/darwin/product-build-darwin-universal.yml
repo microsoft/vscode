@@ -1,7 +1,7 @@
 jobs:
   - job: macOSUniversal
     displayName: macOS (UNIVERSAL)
-    timeoutInMinutes: 90
+    timeoutInMinutes: 120
     variables:
       VSCODE_ARCH: universal
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/

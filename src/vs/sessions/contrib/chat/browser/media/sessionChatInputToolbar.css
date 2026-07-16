@@ -9,8 +9,11 @@
 
 .session-chat-input-toolbar {
 	display: flex;
+	align-items: center;
 	justify-content: center;
-	padding: 2px 0 6px 0;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	padding: var(--vscode-spacing-size20) 0 var(--vscode-spacing-size60) 0;
 }
 
 .session-chat-input-toolbar.hidden {

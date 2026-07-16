@@ -258,7 +258,6 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					range: replaceRange,
 					kind: CompletionItemKind.Text,
 					documentation: attachment.description,
-					detail: attachment.description,
 					command: {
 						id: ADD_REFERENCE_COMMAND,
 						title: '',

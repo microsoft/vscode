@@ -149,6 +149,54 @@ suite('AutomationService', () => {
 		assert.strictEqual(updated?.sessionResource, 'vscode-chat-session://copilot/sess-1');
 	});
 
+	test('recordRunStart updates lastRunAt and advances the next scheduled run', async () => {
+		const { service } = createService();
+		service.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
+		const automation = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			folderUri: FOLDER,
+		});
+
+		service.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
+		const run = await service.recordRunStart(automation.id, 'catch_up', 1);
+
+		assert.deepStrictEqual({
+			startedAt: run.startedAt,
+			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
+			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
+		}, {
+			startedAt: '2025-06-01T10:00:00.000Z',
+			lastRunAt: '2025-06-01T10:00:00.000Z',
+			nextRunAt: '2025-06-01T11:00:00.000Z',
+		});
+	});
+
+	test('recordRunStart leaves schedule timestamps unchanged for a manual run', async () => {
+		const { service } = createService();
+		service.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
+		const automation = await service.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			folderUri: FOLDER,
+		});
+
+		service.setClockForTesting(() => new Date('2025-06-01T00:30:00Z'));
+		const run = await service.recordRunStart(automation.id, 'manual', 1);
+
+		assert.deepStrictEqual({
+			startedAt: run.startedAt,
+			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
+			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
+		}, {
+			startedAt: '2025-06-01T00:30:00.000Z',
+			lastRunAt: undefined,
+			nextRunAt: automation.nextRunAt,
+		});
+	});
+
 	test('getActiveRunFor returns the first pending or running run for an automation', async () => {
 		const { service } = createService();
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
@@ -210,6 +258,36 @@ suite('AutomationService', () => {
 		assert.strictEqual(secondService.automations.get().length, 1);
 		assert.strictEqual(secondService.automations.get()[0].id, a.id);
 		assert.strictEqual(secondService.runs.get().length, 1);
+	});
+
+	test('round-trips and clears Worktree branch configuration', async () => {
+		const sharedStorage = teardown.add(new InMemoryStorageService());
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const created = await firstService.createAutomation({
+			name: 'A',
+			prompt: 'p',
+			schedule: dailySchedule(),
+			folderUri: FOLDER,
+			isolationMode: 'worktree',
+			branch: 'feature/saved',
+		});
+		firstService.dispose();
+
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const restored = secondService.getAutomation(created.id);
+		const updated = await secondService.updateAutomation(created.id, { isolationMode: 'workspace', branch: null });
+
+		assert.deepStrictEqual({
+			restoredIsolationMode: restored?.isolationMode,
+			restoredBranch: restored?.branch,
+			updatedIsolationMode: updated.isolationMode,
+			updatedBranch: updated.branch,
+		}, {
+			restoredIsolationMode: 'worktree',
+			restoredBranch: 'feature/saved',
+			updatedIsolationMode: 'workspace',
+			updatedBranch: undefined,
+		});
 	});
 
 	test('two services on the same storage stay in sync via onDidChangeValue', async () => {

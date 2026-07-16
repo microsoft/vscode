@@ -8,9 +8,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 
 function createMockAuthService(overrides: {
 	getOrActivateProviderIdForServer?: (serverUri: URI, resourceUri: URI) => Promise<string | undefined>;
@@ -189,6 +193,84 @@ suite('AgentHostAuthTokenCache', () => {
 		cache.clear();
 		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), true);
 		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', ['read'], 'tok2'), true);
+	});
+});
+
+suite('resolveMcpServerAuthentication', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses challenge scopes without replacing the protected resource scope catalog', async () => {
+		const requestedScopes: (readonly string[] | undefined)[] = [];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => {
+				requestedScopes.push(scopes);
+				return Promise.resolve([]);
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['repo', 'read:org', 'notifications'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'server-id',
+			mcpServerName: 'Example',
+			mcpServerUrl: 'https://mcp.example.com',
+			scopes: ['notifications'],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ result, requestedScopes }, {
+			result: false,
+			requestedScopes: [['notifications']],
+		});
+	});
+
+	test('does not attempt dynamic provider creation without user interaction', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+		instantiationService.stub(IAuthenticationMcpAccessService, {});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(ILogService, logService);
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.example.com',
+			authorization_servers: ['not-a-valid-authorization-server'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'server-id',
+			mcpServerName: 'Example',
+			mcpServerUrl: 'https://mcp.example.com',
+			scopes: [],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ result, warnings }, {
+			result: false,
+			warnings: [],
+		});
 	});
 });
 

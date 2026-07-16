@@ -1,0 +1,232 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { importedTurnsFromChatModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
+
+suite('importedTurnsFromChatModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function markdown(value: string): IChatProgressResponseContent {
+		return { kind: 'markdownContent', content: new MarkdownString(value) } as IChatProgressResponseContent;
+	}
+
+	function thinking(value: string): IChatProgressResponseContent {
+		return { kind: 'thinking', value } as IChatProgressResponseContent;
+	}
+
+	function inlineReference(uri: URI, name?: string): IChatProgressResponseContent {
+		return { kind: 'inlineReference', inlineReference: uri, name } as IChatProgressResponseContent;
+	}
+
+	/** Builds an inline reference from a non-URI shape (a `Location` or `IWorkspaceSymbol`). */
+	function inlineRef(reference: unknown, name?: string): IChatProgressResponseContent {
+		return { kind: 'inlineReference', inlineReference: reference, name } as IChatProgressResponseContent;
+	}
+
+	function subagentTool(toolCallId: string, agentName: string, description: string, result: string): IChatProgressResponseContent {
+		return {
+			kind: 'toolInvocationSerialized',
+			toolId: 'delegate',
+			toolCallId,
+			invocationMessage: 'Delegating',
+			pastTenseMessage: 'Delegated',
+			resultDetails: undefined,
+			toolSpecificData: { kind: 'subagent', agentName, description, prompt: 'go', result },
+		} as unknown as IChatProgressResponseContent;
+	}
+
+	function response(parts: IChatProgressResponseContent[], opts?: { canceled?: boolean; error?: { message: string; code?: string } }): IChatResponseModel {
+		return {
+			entireResponse: { value: parts },
+			isCanceled: !!opts?.canceled,
+			result: opts?.error ? { errorDetails: opts.error } : undefined,
+		} as unknown as IChatResponseModel;
+	}
+
+	function request(text: string, response?: IChatResponseModel, opts?: { systemInitiated?: boolean }): IChatRequestModel {
+		return { message: { text }, response, isSystemInitiated: opts?.systemInitiated } as unknown as IChatRequestModel;
+	}
+
+	function model(requests: IChatRequestModel[]): IChatModel {
+		return { getRequests: () => requests } as unknown as IChatModel;
+	}
+
+	function subagentOf(part: ResponsePart) {
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			return undefined;
+		}
+		const sub = (part.toolCall as ToolCallCompletedState).content?.find(c => c.type === ToolResultContentType.Subagent);
+		return sub && sub.type === ToolResultContentType.Subagent ? { agentName: sub.agentName, description: sub.description } : undefined;
+	}
+
+	function project(model: IChatModel) {
+		return importedTurnsFromChatModel(model).map(turn => ({
+			text: turn.message.text,
+			state: turn.state,
+			error: turn.error,
+			parts: turn.responseParts.map(part =>
+				part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
+					? { kind: part.kind, content: part.content }
+					: { kind: part.kind, subagent: subagentOf(part) }),
+		}));
+	}
+
+	test('maps markdown, reasoning and inline references in stream order', () => {
+		const result = project(model([request('q', response([
+			markdown('Found in '),
+			inlineReference(URI.file('/repo/a.ts')),
+			markdown(' — done'),
+			thinking('let me check'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Found in ' },
+				{ kind: ResponsePartKind.Markdown, content: `[a.ts](${URI.file('/repo/a.ts').toString()})` },
+				{ kind: ResponsePartKind.Markdown, content: ' — done' },
+				{ kind: ResponsePartKind.Reasoning, content: 'let me check' },
+			],
+		}]);
+	});
+
+	test('collapses a path-like inline reference label to the file basename', () => {
+		const uri = URI.file('/repo/src/common/appInsightsClientFactory.ts');
+		const result = project(model([request('q', response([
+			inlineReference(uri, 'src/common/appInsightsClientFactory.ts'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[appInsightsClientFactory.ts](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('keeps a short inline reference label (e.g. a symbol name) as-is', () => {
+		const uri = URI.file('/repo/src/common/appInsightsClientFactory.ts');
+		const result = project(model([request('q', response([
+			inlineReference(uri, 'logEvent'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[logEvent](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('maps a Location-shaped inline reference to its file basename', () => {
+		const uri = URI.file('/repo/src/common/baseTelemetrySender.ts');
+		const result = project(model([request('q', response([
+			inlineRef({ uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } }),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[baseTelemetrySender.ts](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('maps a workspace-symbol inline reference using its symbol name', () => {
+		const uri = URI.file('/repo/src/common/baseTelemetrySender.ts');
+		const result = project(model([request('q', response([
+			inlineRef({ name: 'logEvent', location: { uri } }),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: `[logEvent](${uri.toString()})` },
+			],
+		}]);
+	});
+
+	test('falls back to the plain label when an inline reference has no resolvable URI', () => {
+		const result = project(model([request('q', response([
+			inlineRef({ name: 'orphan' }, 'orphan'),
+		]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'orphan' },
+			],
+		}]);
+	});
+
+	test('maps a cancelled response to a cancelled turn', () => {
+		const result = project(model([request('q', response([markdown('partial')], { canceled: true }))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Cancelled,
+			error: undefined,
+			parts: [{ kind: ResponsePartKind.Markdown, content: 'partial' }],
+		}]);
+	});
+
+	test('maps an errored response to an error turn carrying the message and code', () => {
+		const result = project(model([request('q', response([], { error: { message: 'boom', code: 'E1' } }))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'q',
+			state: TurnState.Error,
+			error: { errorType: 'E1', message: 'boom' },
+			parts: [],
+		}]);
+	});
+
+	test('folds a system-initiated continuation into the previous turn and supersedes its outcome', () => {
+		const result = project(model([
+			request('real question', response([markdown('working')])),
+			request('[Terminal notification]', response([markdown('continued')], { canceled: true }), { systemInitiated: true }),
+		]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'real question',
+			state: TurnState.Cancelled,
+			error: undefined,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'working' },
+				{ kind: ResponsePartKind.Markdown, content: 'continued' },
+			],
+		}]);
+	});
+
+	test('maps a sub-agent tool invocation preserving its identity as structured content', () => {
+		const result = project(model([request('delegate', response([subagentTool('tc-1', 'explore', 'Explores the codebase', 'done')]))]));
+
+		assert.deepStrictEqual(result, [{
+			text: 'delegate',
+			state: TurnState.Complete,
+			error: undefined,
+			parts: [{ kind: ResponsePartKind.ToolCall, subagent: { agentName: 'explore', description: 'Explores the codebase' } }],
+		}]);
+	});
+});

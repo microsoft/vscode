@@ -46,7 +46,7 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 			...actionTemplate,
 			id: 'chat.permissions.default',
 			label: localize('permissions.default', "Default Approvals"),
-			detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+			detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 			icon: ThemeIcon.fromId(Codicon.shield.id),
 			checked: true,
 			inlineToggle: showToggle ? {
@@ -59,7 +59,7 @@ function buildItems(options: PermissionPickerListFixtureOptions): IActionListIte
 			...actionTemplate,
 			id: 'chat.permissions.autoApprove',
 			label: localize('permissions.autoApprove', "Bypass Approvals"),
-			detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+			detail: localize('permissions.autoApprove.subtext', "Runs tool calls without asking"),
 			icon: ThemeIcon.fromId(Codicon.warning.id),
 			checked: false,
 		}),

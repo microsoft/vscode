@@ -71,7 +71,7 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string;
+	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
 
 	/**
 	 * Display strings for {@link toolName} (one of this group's
@@ -134,7 +134,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string {
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);

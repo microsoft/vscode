@@ -25,7 +25,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { TitleBarLeadingActionsGroup, ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../browser/chat.js';
@@ -33,7 +33,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
-import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatConfiguration } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -53,8 +53,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 				order: 1,
 				when: OPEN_AGENTS_WINDOW_PRECONDITION,
 			}, {
-				id: MenuId.TitleBar,
-				group: TitleBarLeadingActionsGroup,
+				id: MenuId.TitleBarAdjacentCenter,
 				order: -1000,
 				when: ContextKeyExpr.and(
 					OPEN_AGENTS_WINDOW_PRECONDITION,
@@ -220,7 +219,7 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._register(actionViewItemService.register(MenuId.TitleBar, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, (action, options) => {
+		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, (action, options) => {
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
@@ -464,6 +463,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			description,
 			actions: [
 				{
+					kind: ChatInputNotificationActionKind.Command,
 					label: actionLabel,
 					commandId: AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID,
 					commandArgs,
@@ -493,4 +493,3 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		this._update();
 	}
 }
-

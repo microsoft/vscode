@@ -15,6 +15,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListDelta } from './agentHostSessionListStore.js';
 
@@ -50,6 +51,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 	) {
 		super();
 		void _connectionAuthority;
@@ -110,6 +112,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
 			}
+			// Carry any imported ("Continue in…") conversation snapshot from the
+			// untitled chat-input resource to the freshly-minted real resource so
+			// the provisional `getOrCreate` for the real resource seeds it.
+			this._importConversationStore.rename(request.untitledResource, item.resource);
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 
@@ -128,6 +134,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// the store directly (this also clears any local pending marker). If the notification does fire as well, the
 		// second call is a no-op.
 		this._sessionListStore.removeSession(this._provider, rawId);
+	}
+
+	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		this._sessionListStore.setSessionArchived(this._provider, AgentSession.id(resource), archived);
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {

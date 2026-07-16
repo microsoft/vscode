@@ -40,7 +40,7 @@ export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociation
 /**
  * Setting that controls whether the Markdown editor is the default editor for
  * `*.md` files in the Agents window. Gated behind an experiment so it can be
- * rolled out gradually. Defaults to off.
+ * rolled out gradually. Defaults to on.
  */
 export const markdownDefaultEditorAgentsWindowSettingId = 'workbench.editor.markdownDefaultEditorInAgentsWindow';
 
@@ -66,7 +66,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		[markdownDefaultEditorAgentsWindowSettingId]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('editor.markdownDefaultEditorInAgentsWindow', "Controls whether the Markdown editor is used as the default editor for Markdown files in the Agents window."),
@@ -201,11 +201,22 @@ export interface IEditorResolverService {
 	getAssociationsForResource(resource: URI): EditorAssociations;
 
 	/**
+	 * Returns the view type of the user-configured default editor for a resource, or `undefined` when
+	 * none is configured. When `forDiffEditor` is `true` the diff editor association setting
+	 * (`workbench.diffEditorAssociations`) is consulted instead of the general one.
+	 * @param resource The resource to match
+	 * @param forDiffEditor Whether to read the diff editor association setting
+	 */
+	getConfiguredDefaultEditor(resource: URI, forDiffEditor?: boolean): string | undefined;
+
+	/**
 	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
 	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
 	 * @param editorID The ID of the editor to make a user default
+	 * @param forDiffEditor When `true`, the diff editor association (`workbench.diffEditorAssociations`)
+	 * is updated instead of the general editor association (`workbench.editorAssociations`).
 	 */
-	updateUserAssociations(globPattern: string, editorID: string): void;
+	updateUserAssociations(globPattern: string, editorID: string, forDiffEditor?: boolean): void;
 
 	/**
 	 * Emitted when an editor is registered or unregistered.

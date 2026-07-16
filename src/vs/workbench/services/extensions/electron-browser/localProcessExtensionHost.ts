@@ -25,6 +25,7 @@ import { ILogService, ILoggerService } from '../../../../platform/log/common/log
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -34,7 +35,7 @@ import { IShellEnvironmentService } from '../../environment/electron-browser/she
 import { MessagePortExtHostConnection, writeExtHostConnection } from '../common/extensionHostEnv.js';
 import { createMessageOfType, IExtensionHostInitData, MessageType, NativeLogMarkers, UIKind, isMessageOfType } from '../common/extensionHostProtocol.js';
 import { LocalProcessRunningLocation } from '../common/extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo } from '../common/extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, resolveEnabledApiProposalsFallbackExperiment } from '../common/extensions.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
@@ -138,6 +139,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
 		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
 		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
+		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		const devOpts = parseExtensionDevOptions(this._environmentService);
@@ -520,12 +522,14 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		const initData = await this._initDataProvider.getInitData();
 		this.extensions = initData.extensions;
 		const workspace = this._contextService.getWorkspace();
+		const enabledApiProposalsFallback = await resolveEnabledApiProposalsFallbackExperiment(this._workbenchAssignmentService, this._productService.quality);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,
+			enabledApiProposalsFallback,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,

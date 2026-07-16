@@ -1417,7 +1417,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		const rowElementGroup = { rowElement, keyElement: valueElement, valueElement: checkbox.domNode };
 		this.addTooltipsToRow(rowElementGroup, item);
 
-		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
 				checkbox.checked = !checkbox.checked;
@@ -1449,7 +1449,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		checkbox.domNode.classList.add('setting-value-checkbox');
 		wrapper.appendChild(checkbox.domNode);
 
-		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
 			checkbox.checked = !checkbox.checked;
 			onValueChange(checkbox.checked);
 

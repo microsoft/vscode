@@ -191,9 +191,10 @@ Only these metrics trigger a regression failure (when they exceed the threshold 
 - `timeToFirstToken`, `timeToComplete` — user-perceived latency
 - `layoutDurationMs` — total layout time from the trace (the *real* layout cost)
 - `forcedReflowCount` — forced synchronous layouts are always bad
-- `longTaskCount`, `longAnimationFrameCount` — main thread jank
+- `longTaskCount` — main thread jank
 
 These are reported but **informational only** (won't fail CI):
+- `longAnimationFrameCount` — number of long animation frames; noisy and compositor-driven, so tracked for signal but does not gate. Real jank is gated via `longTaskCount` / `layoutDurationMs`.
 - `layoutCount` — number of layout ops; inflated by CSS animations (compositor-driven, cheap). A build can do *more but cheaper* layouts, so gate on `layoutDurationMs`, not this count.
 - `recalcStyleCount` — number of style recalcs; inflated by CSS animations (compositor-driven, cheap)
 - `timeToRenderComplete` — includes typewriter animation tail

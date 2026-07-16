@@ -18,7 +18,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SinglePaneDetailChangesOrFilesActiveContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -42,11 +42,12 @@ const enum DetailPanelTarget {
  * reveals/hides the auxiliary bar accordingly. A created single-pane session
  * defaults to the Changes editor with the detail closed; a Changes/file editor
  * becoming active never force-reveals a hidden detail (except restoring it after
- * a transient browser-tab hide).
+ * a transient browser-tab hide). Opening the empty Files placeholder (making it
+ * the active editor) reveals the Files detail, since its content lives there.
  */
 export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 
-	private _changesOrFilesActiveContext: IContextKey<boolean> | undefined;
+	private _hasDockedDetailsContext: IContextKey<boolean> | undefined;
 	private readonly _detailSequencer = new Sequencer();
 	private _detailGeneration = 0;
 	private _hiddenByBrowser = false;
@@ -63,7 +64,7 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 	) {
 		super(ctx);
 
-		this._changesOrFilesActiveContext = SinglePaneDetailChangesOrFilesActiveContext.bindTo(this._contextKeyService);
+		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(this._contextKeyService);
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => this._isMainPartEmpty());
 		const auxBarVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
@@ -72,11 +73,21 @@ export class SinglePaneDetailPanelStrategy extends SinglePaneLayoutStrategy {
 		this._register(autorun(reader => {
 			const activeEditor = activeEditorObs.read(reader);
 			const target = this._computeDetailTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs);
-			const isChangesOrFilesTarget = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
-			this._changesOrFilesActiveContext!.set(isChangesOrFilesTarget);
+			const hasDockedDetails = target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced || target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced;
+			this._hasDockedDetailsContext!.set(hasDockedDetails);
 			auxBarVisibleObs.read(reader);
 			const generation = ++this._detailGeneration;
 			void this._detailSequencer.queue(() => this._syncDetailTarget(target, generation)).catch(onUnexpectedError);
+		}));
+
+		// The empty Files placeholder's content (the Files tree) lives in the detail; keyed on active-editor so the inactive auto-ensured tab never reveals it.
+		this._register(this._editorService.onDidActiveEditorChange(() => {
+			if (this._editorService.activeEditor instanceof EmptyFileEditorInput
+				&& this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+				&& !this._ctx.isRestoringSessionLayout
+				&& !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			}
 		}));
 	}
 

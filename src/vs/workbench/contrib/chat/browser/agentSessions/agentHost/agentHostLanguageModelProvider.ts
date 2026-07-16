@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
@@ -77,6 +78,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
 					: undefined;
 				const modelGroup = AgentHostLanguageModelProvider._modelGroupFor(m);
+				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -103,12 +105,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost,
 						longContextOutputCost: pricing.longContextOutputCost,
 						priceCategory: pricing.priceCategory,
+						promo: pricing.promo,
 						targetChatSessionType: this._sessionType,
 						// Group agent-host models in the picker by their upstream provider
 						// (Copilot CLI, OpenAI, a 3p BYOK provider, …). All of a host's
 						// models share one vendor, so without this they'd render as a single
 						// undifferentiated bucket. Presentation-only; routing stays by vendor.
 						...(modelGroup ? { modelGroup } : {}),
+						...(byokModelIdentifier !== undefined && { byokModelIdentifier }),
 						capabilities: {
 							vision: m.supportsVision ?? false,
 							toolCalling: true,

@@ -100,6 +100,34 @@ export function isModelValidForSession(
 }
 
 /**
+ * Reconstructs the "Manage Models" identifier that an agent-host copy of an
+ * extension-provided BYOK model is toggled under, or `undefined` when the model
+ * is not such a copy. Re-exported from the shared `ILanguageModelChatMetadata`
+ * namespace (which also backs the `common` model-visibility layer) so picker and
+ * management code reconstruct the identifier the same way.
+ */
+export const getAgentHostByokManageModelsIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier;
+
+/**
+ * Whether a model should be hidden from the picker given the user's Manage Models
+ * visibility toggles. Matches the model by its own identifier and, for agent-host
+ * copies of extension BYOK models, additionally by the reconstructed original
+ * identifier (see {@link getAgentHostByokManageModelsIdentifier}) — which includes
+ * any user-configured provider group carried across the bridge — so a BYOK model
+ * hidden in Manage Models is also hidden in the agent-host picker.
+ */
+export function isModelHiddenInPicker(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	isModelHidden: (identifier: string) => boolean,
+): boolean {
+	if (isModelHidden(model.identifier)) {
+		return true;
+	}
+	const manageModelsIdentifier = getAgentHostByokManageModelsIdentifier(model.metadata);
+	return manageModelsIdentifier !== undefined && isModelHidden(manageModelsIdentifier);
+}
+
+/**
  * Whether the selected model carried by the shared, session-type-agnostic untitled draft
  * (`chat.untitledInputState`) must be dropped before the draft is applied to an empty session
  * that is being opened.
@@ -537,4 +565,21 @@ export function getModelPickerUnavailableReason(context: {
 		return ModelPickerUnavailableReason.SetupRequired;
 	}
 	return undefined;
+}
+
+/**
+ * Whether a picker should show the cache-break hint: suppressed when dismissed, when the cache is cold, or
+ * when there is nothing to switch to (#325185). `excludeAutoModel` also suppresses it under Auto (model picker only).
+ */
+export function shouldShowCacheBreakHint(context: {
+	readonly dismissed: boolean;
+	readonly cacheWarm: boolean;
+	readonly noModelsAvailable: boolean;
+	readonly excludeAutoModel: boolean;
+	readonly selectedModelIsAuto: boolean;
+}): boolean {
+	if (context.dismissed || !context.cacheWarm || context.noModelsAvailable) {
+		return false;
+	}
+	return !(context.excludeAutoModel && context.selectedModelIsAuto);
 }

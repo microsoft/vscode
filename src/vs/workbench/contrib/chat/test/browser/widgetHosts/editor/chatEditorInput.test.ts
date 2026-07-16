@@ -18,6 +18,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../../common/c
 import { ChatAgentLocation } from '../../../../common/constants.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 
 suite('ChatEditorInput', () => {
 
@@ -54,6 +55,7 @@ suite('ChatEditorInput', () => {
 			{} as IInstantiationService,
 			{} as IStorageService,
 			new NullLogService(),
+			new TestContextService(),
 		);
 
 		try {
@@ -107,6 +109,7 @@ suite('ChatEditorInput', () => {
 			{} as IInstantiationService,
 			{} as IStorageService,
 			new NullLogService(),
+			new TestContextService(),
 		);
 
 		try {

@@ -136,5 +136,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.agent-host-chat-input-picker-slot .action-label .codicon + .agent-host-chat-input-picker-label {
 	margin-left: 6px;
 }

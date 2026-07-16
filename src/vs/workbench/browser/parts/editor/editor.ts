@@ -277,6 +277,8 @@ export interface IEditorGroupMenuIds {
 	readonly editorActions?: MenuId;
 	/** Menu shown when right-clicking the empty tab-bar area. */
 	readonly tabsBarContext?: MenuId;
+	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
+	readonly tabsBarAddTab?: MenuId;
 }
 
 /**

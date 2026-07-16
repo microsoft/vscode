@@ -125,7 +125,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
 	});
 
-	test('fetchTurns returns completed turn history', async function () {
+	test('fetchTurns acknowledges completed turn history loading', async function () {
 		this.timeout(15_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns');
@@ -137,9 +137,13 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
 
-		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: sessionUri, limit: 10 });
-		assert.ok(result.turns.length >= 2);
-		assert.strictEqual(typeof result.hasMore, 'boolean');
+		const loadedPromise = client.waitForNotification(n => isActionNotification(n, 'chat/turnsLoaded'));
+		const result = await client.call<FetchTurnsResult>('fetchTurns', { channel: defaultChatChannel(sessionUri) });
+		assert.deepStrictEqual(result, {});
+		const loaded = await loadedPromise;
+		const action = getActionEnvelope(loaded).action as { type: string; turns: unknown[]; turnsNextCursor?: string };
+		assert.deepStrictEqual(action.turns, []);
+		assert.strictEqual(action.turnsNextCursor, undefined);
 	});
 
 	test('usage info is captured on completed turn', async function () {

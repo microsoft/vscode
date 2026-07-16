@@ -106,6 +106,134 @@ suite('rawMessagesToMessagesAPI', function () {
 		expect(toolResult!.cache_control).toBeUndefined();
 	});
 
+	test('sanitizes provider-specific tool call IDs for Anthropic', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'call_valid-1',
+						type: 'function',
+						function: { name: 'edit_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'contents' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_valid-1',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'edited' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_use', id: 'call_valid-1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'call_valid-1' },
+			],
+			history: [
+				['functions.read_file:0', 'call_valid-1'],
+				'functions.read_file:0',
+				'call_valid-1',
+			],
+		});
+	});
+
+	test('allocates unique IDs when sanitized tool call IDs collide', function () {
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{
+						id: 'functions.read_file:0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+					{
+						id: 'functions_read_file_0',
+						type: 'function',
+						function: { name: 'read_file', arguments: '{}' },
+					},
+				],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions.read_file:0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first result' }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'functions_read_file_0',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second result' }],
+			},
+		];
+
+		const result = rawMessagesToMessagesAPI(messages);
+		const ids: { type: 'tool_use' | 'tool_result'; id: string }[] = [];
+		for (const message of result.messages) {
+			const content = Array.isArray(message.content) ? message.content : [];
+			for (const block of content) {
+				if (block.type === 'tool_use') {
+					ids.push({ type: block.type, id: block.id });
+				}
+				if (block.type === 'tool_result') {
+					ids.push({ type: block.type, id: block.tool_use_id });
+				}
+			}
+		}
+
+		expect({
+			ids,
+			history: messages.map(message => message.role === Raw.ChatRole.Assistant
+				? message.toolCalls?.map(toolCall => toolCall.id)
+				: message.role === Raw.ChatRole.Tool ? message.toolCallId : undefined)
+		}).toEqual({
+			ids: [
+				{ type: 'tool_use', id: 'functions_read_file_0_1' },
+				{ type: 'tool_use', id: 'functions_read_file_0' },
+				{ type: 'tool_result', id: 'functions_read_file_0_1' },
+				{ type: 'tool_result', id: 'functions_read_file_0' },
+			],
+			history: [
+				['functions.read_file:0', 'functions_read_file_0'],
+				'functions.read_file:0',
+				'functions_read_file_0',
+			],
+		});
+	});
+
 	test('converts base64 data URL image to Anthropic base64 image source', function () {
 		const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk';
 		const messages: Raw.ChatMessage[] = [

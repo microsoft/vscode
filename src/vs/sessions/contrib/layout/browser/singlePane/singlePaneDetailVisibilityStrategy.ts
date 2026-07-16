@@ -133,6 +133,9 @@ export class SinglePaneDetailVisibilityStrategy extends SinglePaneLayoutStrategy
 			if (e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
+			if (e.source === 'resize') {
+				return;
+			}
 			// [D9] Toggling the whole side pane hides/shows the aux bar as a side
 			// effect, not as a per-session choice, so don't record it.
 			if (this._ctx.togglingSidePane) {

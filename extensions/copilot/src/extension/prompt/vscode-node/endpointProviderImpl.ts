@@ -193,8 +193,12 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 				case BYOKUtilityModelDefault.MainAgent:
 					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, this._mainAgentBYOKModel);
 				case BYOKUtilityModelDefault.None:
-					throw new Error(`No utility model is configured for '${family}' while the selected main agent model is BYOK.`);
+					throw this._createMissingUtilityModelError(family);
 				case BYOKUtilityModelDefault.Copilot:
+					// Copilot utility models require a Copilot token source (unavailable for air-gapped / signed-out BYOK).
+					if (!this._authService.hasCopilotTokenSource) {
+						throw this._createMissingUtilityModelError(family);
+					}
 					break;
 			}
 		}
@@ -207,11 +211,21 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		}
 	}
 
+	/** Creates an actionable error for when no usable utility model is available for a BYOK main agent model. */
+	private _createMissingUtilityModelError(family: 'copilot-utility' | 'copilot-utility-small'): Error {
+		const utilityModelSetting = family === 'copilot-utility' ? 'chat.utilityModel' : 'chat.utilitySmallModel';
+		// 'copilot' is only usable when a Copilot token is available; for
+		// air-gapped / signed-out BYOK it cannot be used, so don't offer it.
+		const defaultOptions = this._authService.hasCopilotTokenSource ? `'mainAgent' or 'copilot'` : `'mainAgent'`;
+		return new Error(`No utility model is configured for '${family}' while the selected main agent model is BYOK. Configure setting '${utilityModelSetting}' or set 'chat.byokUtilityModelDefault' to ${defaultOptions}.`);
+	}
+
 	private _getBYOKUtilityModelDefault(): BYOKUtilityModelDefault {
 		const value = this._configService.getNonExtensionConfig<unknown>(ProductionEndpointProvider.BYOK_UTILITY_MODEL_DEFAULT_CONFIG_KEY);
 		switch (value) {
 			case undefined:
-				return BYOKUtilityModelDefault.None;
+				// Preserve the Copilot default when running against a core that does not register this setting.
+				return BYOKUtilityModelDefault.Copilot;
 			case BYOKUtilityModelDefault.None:
 			case BYOKUtilityModelDefault.MainAgent:
 			case BYOKUtilityModelDefault.Copilot:

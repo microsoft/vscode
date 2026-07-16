@@ -12,13 +12,20 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
 
 /**
- * When the editor area is hidden (detail-only), closes the non-managed (real
- * file) editors so only the managed Changes and Files tabs remain, capturing
- * them so they are reopened when the editor area is shown again. Serializes on
- * the shared docked-tab sequencer so it never races the managed-tab sync.
+ * When the editor area is hidden **while the detail panel (aux bar) stays open**
+ * — a detail-only collapse — closes every non-docked editor so only the docked
+ * Changes and Files tabs remain. Editors that can be captured as a reopenable
+ * input are remembered and restored when the editor area is shown again;
+ * non-restorable ones (e.g. an untitled Search editor) are simply dropped.
+ *
+ * Closing the **whole side pane** (both the editor area and the aux bar) is *not*
+ * a collapse — the editors are left untouched so they are still there when the
+ * side pane is reopened. Serializes on the shared docked-tab sequencer so it
+ * never races the managed-tab sync.
  */
 export class SinglePaneEditorAreaCollapseStrategy extends SinglePaneLayoutStrategy {
 
@@ -54,7 +61,18 @@ export class SinglePaneEditorAreaCollapseStrategy extends SinglePaneLayoutStrate
 				return;
 			}
 
-			void this._coordinator.sequencer.queue(() => visible ? this._restoreCollapsedTabs() : this._collapseNonManagedTabs()).catch(onUnexpectedError);
+			if (visible) {
+				void this._coordinator.sequencer.queue(() => this._restoreCollapsedTabs()).catch(onUnexpectedError);
+				return;
+			}
+
+			// Only collapse on a **detail-only** hide (editor closed, detail kept).
+			// Closing the whole side pane hides the aux bar too (the toggle hides it
+			// *before* the editor, so it is already hidden here) — leave the editors
+			// open so they return when the side pane is reopened.
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				void this._coordinator.sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+			}
 		}));
 	}
 
@@ -67,26 +85,26 @@ export class SinglePaneEditorAreaCollapseStrategy extends SinglePaneLayoutStrate
 		const captured: { editor: IUntypedEditorInput; index: number }[] = [];
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
-			if (this._coordinator.isManagedEditor(editor) || editor.isDirty()) {
+			if (editor instanceof DockedEditorInput) {
 				return;
 			}
+			// Capture editors that can be reopened so they are restored when the
+			// editor area is shown again; the rest are still closed but not restored.
 			const untyped = editor.toUntyped();
 			if (untyped) {
 				captured.push({ editor: untyped, index });
-				toClose.push(editor);
 			}
+			toClose.push(editor);
 		});
 		if (toClose.length === 0) {
 			return;
 		}
 
 		this._coordinator.collapsedEditors = captured;
-		toClose.forEach(editor => this._coordinator.internallyClosingEditors.add(editor));
 		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
 			await this._editorService.closeEditors(toClose.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true });
 		} finally {
-			toClose.forEach(editor => this._coordinator.internallyClosingEditors.delete(editor));
 			suppressEditorPartAutoVisibility.dispose();
 		}
 	}

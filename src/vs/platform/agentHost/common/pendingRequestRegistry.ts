@@ -91,6 +91,11 @@ export class PendingRequestRegistry<T> {
 		}
 	}
 
+	/** Whether a result arrived before a request registered under `key`. */
+	hasBufferedResult(key: string): boolean {
+		return this._earlyResults.has(key);
+	}
+
 	/**
 	 * Resolve every parked deferred with `denyValue` and clear the registry.
 	 *

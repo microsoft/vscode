@@ -50,6 +50,10 @@
 	margin: 0 2px;
 }
 
+.monaco-pane-view .pane > .pane-header.expanded > .codicon:first-of-type {
+	transform: translateY(1px);
+}
+
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
 	margin: 2px;
 }

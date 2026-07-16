@@ -286,7 +286,7 @@ export function runGlobalBudgetCascade(
 			}
 			case 'languageContext': {
 				if (langCtx) {
-					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
+					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens);
 				}
 				break;
 			}

@@ -9,6 +9,14 @@ import { AutomationRunTrigger, IAutomation } from './automation.js';
 
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
+export interface IAutomationRunOperation {
+	/** Resolves after dispatch commits a session or ends without one. */
+	readonly whenDispatched: Promise<void>;
+
+	/** Resolves after lifecycle tracking reaches a terminal outcome. */
+	readonly whenCompleted: Promise<void>;
+}
+
 /**
  * Runs a single automation: claim the per-automation slot, record the run,
  * drive the chat session, report success/failure to {@link IAutomationService}.
@@ -26,5 +34,5 @@ export interface IAutomationRunner {
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token?: CancellationToken,
-	): Promise<void>;
+	): IAutomationRunOperation;
 }

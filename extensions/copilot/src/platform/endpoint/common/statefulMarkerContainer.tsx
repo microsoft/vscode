@@ -14,7 +14,16 @@ interface IStatefulMarkerContainer {
 	value: StatefulMarkerWithModel;
 }
 
-type StatefulMarkerWithModel = { modelId: string; marker: string };
+export type StatefulMarkerWithModel = {
+	modelId: string;
+	marker: string;
+	/**
+	 * The local summary generation included when an extension-contributed/BYOK
+	 * response created this marker. Used only to filter stale markers before
+	 * crossing the `vscode.lm` boundary; first-party state is managed separately.
+	 */
+	summarizedAtRoundId?: string;
+};
 
 export interface IStatefulMarkerContainerProps extends BasePromptElementProps {
 	statefulMarker: StatefulMarkerWithModel;

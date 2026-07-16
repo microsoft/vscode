@@ -12,7 +12,9 @@ import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	findDefaultModel,
+	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
+	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
@@ -28,6 +30,7 @@ import {
 	shouldRestoreLateArrivingModel,
 	shouldRestorePersistedModel,
 	shouldRestorePerTypeModelOnSessionSwitch,
+	shouldShowCacheBreakHint,
 	shouldSuppressModelPersistenceOnSessionSwitch,
 	shouldWaitForSessionModel,
 } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
@@ -1847,6 +1850,45 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
+	suite('shouldShowCacheBreakHint', () => {
+
+		function show(opts: { dismissed?: boolean; cacheWarm?: boolean; noModelsAvailable?: boolean; excludeAutoModel?: boolean; selectedModelIsAuto?: boolean }): boolean {
+			return shouldShowCacheBreakHint({
+				dismissed: opts.dismissed ?? false,
+				cacheWarm: opts.cacheWarm ?? true,
+				noModelsAvailable: opts.noModelsAvailable ?? false,
+				excludeAutoModel: opts.excludeAutoModel ?? true,
+				selectedModelIsAuto: opts.selectedModelIsAuto ?? false,
+			});
+		}
+
+		test('shown only for a warm cache with a real model to switch to', () => {
+			assert.deepStrictEqual(
+				{
+					default: show({}),
+					dismissed: show({ dismissed: true }),
+					coldCache: show({ cacheWarm: false }),
+					// Signed out / Restricted Mode / empty list: nothing to switch to.
+					noModels: show({ noModelsAvailable: true }),
+					autoInModelPicker: show({ selectedModelIsAuto: true }),
+					// The options picker: reasoning effort / context size reset the cache under Auto too.
+					autoInOptionsPicker: show({ selectedModelIsAuto: true, excludeAutoModel: false }),
+					// A suppressing condition still wins in the options picker.
+					noModelsInOptionsPicker: show({ noModelsAvailable: true, excludeAutoModel: false }),
+				},
+				{
+					default: true,
+					dismissed: false,
+					coldCache: false,
+					noModels: false,
+					autoInModelPicker: false,
+					autoInOptionsPicker: true,
+					noModelsInOptionsPicker: false,
+				}
+			);
+		});
+	});
+
 	/**
 	 * Regression coverage for the "new/reused agent-host chat editor reverts the model to the
 	 * pool default (Auto/Haiku) instead of the remembered per-harness model, AND corrupts the
@@ -2067,6 +2109,115 @@ suite('ChatModelSelectionLogic', () => {
 				// No session type at all.
 				assert.strictEqual(shouldWaitForSessionModel(agentHostOpus, undefined, []), false);
 			});
+		});
+	});
+
+	suite('BYOK agent-host visibility (isModelHiddenInPicker / getAgentHostByokManageModelsIdentifier)', () => {
+
+		// Mirrors the agent-host copy produced by `AgentHostLanguageModelProvider` after a
+		// BYOK model round-trips the bridge: it is surfaced under the agent-host vendor with
+		// `identifier = <agent-host-vendor>:<vendor>/<id>` and carries the original LM service
+		// identifier (`byokModelIdentifier`, the "Manage Models" visibility key) that the node
+		// agent host forwarded across the bridge via `_meta`.
+		function createAgentHostByokModel(vendor: string, modelId: string, manageModelsIdentifier: string): ILanguageModelChatMetadataAndIdentifier {
+			const sessionType = 'agent-host-copilotcli';
+			const appendedId = `${vendor}/${modelId}`;
+			return {
+				identifier: `${sessionType}:${appendedId}`,
+				metadata: {
+					extension: new ExtensionIdentifier('vscode.chat'),
+					id: appendedId,
+					name: modelId,
+					vendor: sessionType,
+					version: '1.0',
+					family: appendedId,
+					maxInputTokens: 128000,
+					maxOutputTokens: 4096,
+					isDefaultForLocation: {},
+					isUserSelectable: true,
+					targetChatSessionType: sessionType,
+					modelGroup: { id: vendor },
+					byokModelIdentifier: manageModelsIdentifier,
+					capabilities: { toolCalling: true, agentMode: true },
+				} as ILanguageModelChatMetadata,
+			};
+		}
+
+		// A native harness model (e.g. Copilot CLI's own model) carries no
+		// `byokModelIdentifier`; it is toggled under its own identifier.
+		function createNativeAgentHostModel(modelId: string): ILanguageModelChatMetadataAndIdentifier {
+			const sessionType = 'agent-host-copilotcli';
+			return {
+				identifier: `${sessionType}:${modelId}`,
+				metadata: {
+					extension: new ExtensionIdentifier('vscode.chat'),
+					id: modelId,
+					name: modelId,
+					vendor: sessionType,
+					version: '1.0',
+					family: modelId,
+					maxInputTokens: 128000,
+					maxOutputTokens: 4096,
+					isDefaultForLocation: {},
+					isUserSelectable: true,
+					targetChatSessionType: sessionType,
+					modelGroup: { id: 'copilotcli' },
+					capabilities: { toolCalling: true, agentMode: true },
+				} as ILanguageModelChatMetadata,
+			};
+		}
+
+		test('returns the carried Manage Models identifier for a groupless BYOK copy', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'anthropic/claude-sonnet-4');
+		});
+
+		test('returns the carried grouped identifier verbatim (group name + slashes preserved)', () => {
+			// OpenRouter under a user-configured group "OpenRouter 2"; the model id itself has a slash.
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+		});
+
+		test('returns undefined for native harness models (no carried identifier)', () => {
+			const model = createNativeAgentHostModel('claude-haiku-4.5');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+		});
+
+		test('returns undefined for non-agent-host models', () => {
+			const model = createModel('gpt-5', 'GPT-5');
+			assert.strictEqual(getAgentHostByokManageModelsIdentifier(model.metadata), undefined);
+		});
+
+		test('hides a grouped BYOK copy via its carried registered identifier', () => {
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			// The user hid the model in Manage Models, which stored the grouped identifier.
+			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('hides a groupless BYOK copy via its carried identifier', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hidden = new Set(['anthropic/claude-sonnet-4']);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('shows an agent-host BYOK copy when nothing is hidden', () => {
+			const model = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			assert.strictEqual(isModelHiddenInPicker(model, () => false), false);
+		});
+
+		test('also hides when the agent-host copy identifier itself is hidden', () => {
+			const model = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hidden = new Set([model.identifier]);
+			assert.strictEqual(isModelHiddenInPicker(model, id => hidden.has(id)), true);
+		});
+
+		test('filters out a hidden grouped BYOK model but keeps visible peers', () => {
+			const visible = createAgentHostByokModel('anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4');
+			const hiddenModel = createAgentHostByokModel('openrouter', 'ai21/jamba-large-1.7', 'openrouter/OpenRouter 2/ai21/jamba-large-1.7');
+			const hidden = new Set(['openrouter/OpenRouter 2/ai21/jamba-large-1.7']);
+			const result = [visible, hiddenModel].filter(m => !isModelHiddenInPicker(m, id => hidden.has(id)));
+			assert.deepStrictEqual(result.map(m => m.identifier), ['agent-host-copilotcli:anthropic/claude-sonnet-4']);
 		});
 	});
 });

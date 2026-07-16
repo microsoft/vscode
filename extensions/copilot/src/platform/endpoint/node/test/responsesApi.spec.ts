@@ -427,6 +427,7 @@ describe('createResponsesRequestBody', () => {
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
 
 		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [{
 				type: 'input_file',
@@ -461,6 +462,7 @@ describe('createResponsesRequestBody', () => {
 
 		expect(body.input?.[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_pdf', output: '' });
 		expect(body.input?.[2]).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'PDF associated with the above tool call:' },
@@ -535,6 +537,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_ws',
 		});
 		expect(webSocketBody.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -759,6 +762,7 @@ describe('createResponsesRequestBody', () => {
 			encrypted_content: 'enc_http',
 		});
 		expect(body.input).toContainEqual({
+			type: 'message',
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
 		});
@@ -980,6 +984,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		const body = buildBody(messages);
 
 		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'first' },
@@ -1001,6 +1006,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		const body = buildBody(messages);
 
 		expect(body.input?.[0]).toMatchObject({
+			type: 'message',
 			role: 'system',
 			content: [{ type: 'input_text', text: 'be concise', prompt_cache_breakpoint: expectedPromptCacheBreakpoint }],
 		});
@@ -1098,6 +1104,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 		const body = buildBody(messages);
 
 		expect(body.input?.at(-1)).toMatchObject({
+			type: 'message',
 			role: 'user',
 			content: [
 				{ type: 'input_text', text: 'Image associated with the above tool call:' },

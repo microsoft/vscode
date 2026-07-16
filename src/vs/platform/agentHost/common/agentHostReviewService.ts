@@ -38,6 +38,11 @@ export interface IAgentHostReviewService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Persists the review state for files in a local Branch Changes changeset.
+	 */
+	setReviewState(channel: ProtocolURI, resources: readonly ProtocolURI[], reviewed: boolean): Promise<void>;
+
+	/**
 	 * Marks a single file reviewed at its current working-tree content by
 	 * overlaying that content into the reviewed tree and advancing the
 	 * reviewed ref. No-op when the file is already reviewed at that content.
@@ -76,6 +81,7 @@ export interface IAgentHostReviewService {
  */
 export const NULL_REVIEW_SERVICE: IAgentHostReviewService = {
 	_serviceBrand: undefined,
+	setReviewState: async () => { },
 	markFileReviewed: async () => { },
 	markFileUnreviewed: async () => { },
 	getReviewedPaths: async () => new Set(),

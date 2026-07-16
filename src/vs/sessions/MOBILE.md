@@ -115,7 +115,8 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | File | Purpose |
 |------|---------|
 | `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
-| `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
+| `browser/media/phoneLayout.css` | Shared phone-layout CSS imported by the sessions workbench: touch behavior, quick picks, dialogs, notifications, modal editors, and panel/auxiliary-bar overlays. |
+| `mobileChatShell.css` | Phone chat-shell CSS: flex column layout, split-view positioning, card chrome removal, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, and chip row styling. |
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |
 | `mobileChipLaneScroll.ts` | Pointer-event-based horizontal scroll helper for the config chip row. Overcomes monaco's `Gesture.addTarget` eating `touchmove` by translating `pointermove` into `scrollLeft` updates. Phone-gated via `isPhoneLayout()` — no-ops on desktop. |

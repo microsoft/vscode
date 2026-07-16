@@ -119,8 +119,11 @@ suite('CopilotShellTools', () => {
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
+			onDidSessionConfigChange: Event.None,
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectory: () => undefined,
+			isWorkingDirectoryPending: () => false,
+			resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 			getSessionConfigValues: () => undefined,
 			updateSessionConfig: () => { /* no-op */ },
 			getRootValue: ((_schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getRootValue'],

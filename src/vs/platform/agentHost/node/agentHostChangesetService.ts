@@ -900,11 +900,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				continue;
 			}
 			if (reviewed) {
-				// Surface per-file review status for the Branch changeset. The
-				// file id is a `file:` URI under the repository root, so the
-				// repo-relative path keys into the reviewed-paths set.
 				const relPath = relativePath(reviewed.repoRoot, URI.parse(id));
-				files.push({ id, edit, _meta: { reviewed: relPath ? reviewed.paths.has(relPath) : false } });
+				files.push({
+					id, edit,
+					reviewed: relPath
+						? reviewed.paths.has(relPath)
+						: false
+				});
 			} else {
 				files.push({ id, edit });
 			}

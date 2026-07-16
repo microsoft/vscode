@@ -102,11 +102,19 @@ export interface IModelTokenPrices {
 	long_context?: IModelTokenPriceTier;
 }
 
+export interface IModelPromo {
+	id: string;
+	discount_percent: number;
+	ends_at: string;
+	message: string;
+}
+
 export interface IModelBilling {
 	is_premium?: boolean;
 	multiplier?: number;
 	restricted_to?: string[];
 	token_prices?: IModelTokenPrices;
+	promo?: IModelPromo;
 }
 
 export interface IModelAPIResponse {
@@ -138,9 +146,9 @@ export type IChatModelInformation = IModelAPIResponse & {
 	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
-	 * Chat Completions → top-level `reasoning_effort`).
+	 * Anthropic Messages API → `output_config.effort`, Chat Completions → top-level `reasoning_effort`).
 	 */
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {

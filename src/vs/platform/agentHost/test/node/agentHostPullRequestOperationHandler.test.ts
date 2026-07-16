@@ -61,6 +61,7 @@ class TestGitService implements IAgentHostGitService {
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
+	async copyWorktreeIncludeFiles(): Promise<void> { }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }

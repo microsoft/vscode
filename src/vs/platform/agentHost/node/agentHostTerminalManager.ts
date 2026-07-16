@@ -26,7 +26,7 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
-import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
+import { Osc633Event, Osc633EventType, Osc633ParseSegment, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
 const HEADLESS_TERMINAL_SCROLLBACK = 0;
@@ -591,38 +591,44 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Process raw PTY output: parse OSC 633 sequences, dispatch actions, track content. */
 	private _handlePtyData(managed: IManagedTerminal, rawData: string): void {
 		const tracker = managed.commandTracker;
-		let cleanedData: string;
 
-		if (tracker) {
-			const parseResult = tracker.parser.parse(rawData);
-			cleanedData = parseResult.cleanedData;
+		// Without command detection there are no OSC 633 sequences to
+		// interleave — the whole chunk is command output. With a tracker,
+		// process cleaned-data and events in stream order so that output which
+		// arrives before a CommandFinished marker (commonly in the same PTY
+		// read for fast commands) is appended to the command's output BEFORE the
+		// finished event snapshots it. Handling all events first would emit
+		// CommandFinished with the not-yet-appended output missing.
+		const segments: Osc633ParseSegment[] = tracker
+			? tracker.parser.parseSegments(rawData)
+			: (rawData.length > 0 ? [{ kind: 'data', data: rawData }] : []);
 
-			for (const event of parseResult.events) {
-				this._handleOsc633Event(managed, tracker, event);
+		let cleanedForClient = '';
+		for (const segment of segments) {
+			if (segment.kind === 'event') {
+				this._handleOsc633Event(managed, tracker!, segment.event);
+				continue;
 			}
-		} else {
-			cleanedData = rawData;
-		}
 
-		// Agent Host's server-side headless terminal answers CPR so terminals
-		// work without an attached client. Hide those queries from client xterms
-		// to avoid a second CPR response flowing back through AgentHostPty.input.
-		cleanedData = removeServerHandledTerminalQueries(cleanedData, managed.terminalQueryFilterState);
-
-		// Append to structured content
-		if (cleanedData.length > 0) {
-			this._appendToContent(managed, cleanedData);
+			// Agent Host's server-side headless terminal answers CPR so terminals
+			// work without an attached client. Hide those queries from client xterms
+			// to avoid a second CPR response flowing back through AgentHostPty.input.
+			const cleanedData = removeServerHandledTerminalQueries(segment.data, managed.terminalQueryFilterState);
+			if (cleanedData.length > 0) {
+				this._appendToContent(managed, cleanedData);
+				cleanedForClient += cleanedData;
+			}
 		}
 
 		// Trim content if too large
 		this._trimContent(managed);
 
 		// Fire data event and dispatch to protocol (cleaned, without OSC 633)
-		if (cleanedData.length > 0) {
-			managed.onDataEmitter.fire(cleanedData);
+		if (cleanedForClient.length > 0) {
+			managed.onDataEmitter.fire(cleanedForClient);
 			this._stateManager.dispatchServerAction(managed.uri, {
 				type: ActionType.TerminalData,
-				data: cleanedData,
+				data: cleanedForClient,
 			});
 		}
 	}

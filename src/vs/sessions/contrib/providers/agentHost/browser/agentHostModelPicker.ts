@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
 
 // -- Agent Host Model Helpers --
@@ -39,6 +41,23 @@ export function getAgentHostModels(
 
 export function agentHostModelPickerStorageKey(resourceScheme: string): string {
 	return `workbench.agentsession.agentHostModelPicker.${resourceScheme}.selectedModelId`;
+}
+
+/** Persists and applies a validated Agent Host model selection. */
+export function setAgentHostModelSelection(
+	session: Pick<ISession, 'resource' | 'sessionId'>,
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	modelIdentifier: string,
+	provider: Pick<ISessionsProvider, 'setModel'>,
+	storageService: Pick<IStorageService, 'store'>,
+): boolean {
+	const model = models.find(model => model.identifier === modelIdentifier);
+	if (!model) {
+		return false;
+	}
+	storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
+	provider.setModel(session.sessionId, model.identifier);
+	return true;
 }
 
 /**

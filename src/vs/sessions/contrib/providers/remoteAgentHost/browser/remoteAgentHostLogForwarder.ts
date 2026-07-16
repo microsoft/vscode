@@ -111,7 +111,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 			return;
 		}
 
-		const template = this._client.initializeResult?.telemetry?.logs;
+		const template = this._client.initializeResult.get()?.telemetry?.logs;
 		if (!template) {
 			return;
 		}

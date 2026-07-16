@@ -4,20 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
+import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
- * The server-tool groups contributed to every agent host session, in priority
- * order. This is the single source of truth wired into the
- * {@link AgentServerToolHost} at startup (see `agentService.ts`) and consulted
- * by each provider's display layer via {@link getServerToolDisplay}.
+ * Builds the server-tool groups contributed to every agent host session, in
+ * priority order. This is the single source of truth wired into the
+ * {@link AgentServerToolHost} at startup (see `agentService.ts`) and — via
+ * {@link getServerToolDisplay} — consulted by each provider's display layer.
  *
  * Adding a group here makes its tools available to all providers (Copilot,
  * Claude, Codex, …) and — if the group implements
  * {@link IServerToolGroup.getDisplay} — gives them nice display everywhere for
  * free.
+ *
+ * `sessionAccessor` is the runtime dependency of the session-management group
+ * (list/create/delete sessions); it is provided by the host at construction.
+ * When omitted (the pure display path) the session group's `execute` is inert,
+ * but its definitions and display remain available.
  */
-export const serverToolGroups: readonly IServerToolGroup[] = [feedbackServerToolGroup];
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor): readonly IServerToolGroup[] {
+	return [feedbackServerToolGroup, createSessionServerToolGroup(sessionAccessor)];
+}
+
+/**
+ * The groups used by the pure {@link getServerToolDisplay} path. Built without a
+ * session accessor since display never invokes `execute`.
+ */
+const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolGroups();
 
 /**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
@@ -35,7 +49,7 @@ function matchesServerToolName(toolName: string, bareName: string): boolean {
  * owns {@link toolName} or the owning group has no bespoke display, so each
  * provider's display layer can fall back to its generic behavior.
  *
- * Pure over {@link serverToolGroups} (it does not need the constructed
+ * Pure over the contributed groups (it does not need the constructed
  * {@link AgentServerToolHost}) so the providers' history-replay paths — which
  * build display from pure functions without a host instance — can call it too.
  *
@@ -44,7 +58,7 @@ function matchesServerToolName(toolName: string, bareName: string): boolean {
  * @param result The tool result, once it has completed; absent while running.
  */
 export function getServerToolDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
-	for (const group of serverToolGroups) {
+	for (const group of serverToolGroupsForDisplay) {
 		if (!group.getDisplay) {
 			continue;
 		}

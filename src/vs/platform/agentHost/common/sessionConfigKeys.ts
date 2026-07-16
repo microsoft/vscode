@@ -12,20 +12,25 @@
  * drives tool auto-approval) or that clients interpret via convention
  * (e.g. {@link SessionConfigKey.Branch}, {@link SessionConfigKey.Isolation}).
  *
- * Agents that opt into the corresponding behavior should use these exact
- * property names in their `resolveSessionConfig` response.
+ * Provider-owned platform properties use these names in an agent's
+ * `resolveSessionConfig` response. Worktree properties are owned and
+ * contributed by the host and are not passed to agents.
  */
 export const enum SessionConfigKey {
 	/** `'autoApprove'` — tool auto-approval level. */
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
-	/** `'isolation'` — `'folder'` or `'worktree'`. */
+	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
-	/** `'branch'` — base branch to work from. */
+	/** `'branch'` — host-owned base branch to work from. */
 	Branch = 'branch',
 	/** `'mode'` — agent execution mode (interactive / plan / autopilot). */
 	Mode = 'mode',
+	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */
+	WorktreeBranchPrefix = 'worktreeBranchPrefix',
+	/** `'worktreeIncludeFiles'` — host-owned glob patterns for files copied into a new worktree. */
+	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 }
 
 /**
@@ -34,12 +39,9 @@ export const enum SessionConfigKey {
  * session's schema is "well-known" (and therefore handled by the dedicated
  * permission picker rather than the generic per-property fallback).
  *
- * `default` is the required baseline level; `autoApprove` is the offered
- * elevated level. `assisted` and `autopilot` are retained here purely for
- * backward/forward compatibility so a session whose schema was resolved by an
- * older or newer agent host (advertising those values) still renders the
- * dedicated picker rather than disappearing. The picker itself only ever
- * *offers* `default` / `autoApprove` (see the delegate's `availableLevels`).
+ * `default` is the required baseline level; `assisted` and `autoApprove` are
+ * offered elevated levels. `autopilot` is retained for backward compatibility
+ * with sessions created before it moved onto the mode axis.
  */
 export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'assisted', 'autoApprove', 'autopilot']);
 

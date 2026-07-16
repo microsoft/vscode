@@ -268,7 +268,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			return this._applyConfiguredModelOptions(body, options);
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
-			return this._applyConfiguredModelOptions(super.createRequestBody(options), options);
+			const body = super.createRequestBody(options);
+			this._applyReasoningEffort(body, options);
+			return this._applyConfiguredModelOptions(body, options);
 		} else {
 			// Handle Chat Completions: provide callback for thinking data processing
 			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
@@ -320,7 +322,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 
 	/**
 	 * Forwards the per-request reasoning effort to the model body in the shape the endpoint expects.
-	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Chat Completions` \u2192 top-level `reasoning_effort`).
+	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Messages` \u2192 `output_config.effort`,
+	 * `Chat Completions` \u2192 top-level `reasoning_effort`).
 	 * `IChatModelInformation.reasoningEffortFormat` overrides the default so users hosting OpenAI-compatible servers
 	 * with diverging conventions (e.g. nested `reasoning.effort` on `/chat/completions`) can opt in deterministically.
 	 */
@@ -330,9 +333,9 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			return;
 		}
 		const format = this.modelMetadata.reasoningEffortFormat
-			?? (this.useResponsesApi ? 'responses' : 'chat-completions');
+			?? (this.useResponsesApi ? 'responses' : this.useMessagesApi ? 'messages' : 'chat-completions');
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
-		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort;
+		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort || body.output_config?.effort;
 		const effort = requested && supports.includes(requested) ? requested : undefined;
 		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
 		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
@@ -342,9 +345,16 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
 		}
 		body.reasoning_effort = undefined;
+		if (body.output_config) {
+			// Drop only the effort so other output_config fields (e.g. structured output format) survive
+			const { effort: _drop, ...rest } = body.output_config;
+			body.output_config = Object.keys(rest).length > 0 ? rest : undefined;
+		}
 		if (effort) {
 			if (format === 'responses') {
 				body.reasoning = { ...body.reasoning, effort };
+			} else if (format === 'messages') {
+				body.output_config = { ...body.output_config, effort };
 			} else {
 				body.reasoning_effort = effort;
 			}

@@ -274,10 +274,8 @@ export class WorkspacePicker extends Disposable {
 	 * Renders the project picker trigger button into the given container.
 	 * Returns the container element.
 	 *
-	 * This is the single-trigger entry point. Calling it again replaces the
-	 * trigger created by the previous {@link render} call. For multi-trigger
-	 * use (e.g. mirroring the same picker into two surfaces) call
-	 * {@link renderTrigger} instead.
+	 * Calling it again replaces the trigger created by the previous
+	 * {@link render} call.
 	 */
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
@@ -290,26 +288,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Adds an additional trigger anchored to {@link container}. Unlike
-	 * {@link render}, calling this does NOT remove triggers from earlier
-	 * calls. Each trigger is independent and disposed via its own returned
-	 * disposable. All live triggers share this picker's selection state and
-	 * receive label updates from {@link _updateTriggerLabel}.
-	 *
-	 * Clicking any trigger anchors the popup to that specific trigger.
-	 */
-	renderTrigger(container: HTMLElement): IDisposable {
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
-		const triggerDisposables = new DisposableStore();
-		triggerDisposables.add({ dispose: () => slot.remove() });
-		triggerDisposables.add(this._addTrigger(slot));
-		return triggerDisposables;
-	}
-
-	/**
-	 * Shared trigger-creation core for both {@link render} and
-	 * {@link renderTrigger}. Wires up the click / keyboard / touch handlers
-	 * and the per-trigger lifecycle.
+	 * Shared trigger-creation core for {@link render}. Wires up the click /
+	 * keyboard / touch handlers and the per-trigger lifecycle.
 	 */
 	private _addTrigger(slot: HTMLElement): IDisposable {
 		const triggerDisposables = new DisposableStore();

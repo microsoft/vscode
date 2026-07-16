@@ -83,7 +83,8 @@ export class DiffEditorOptions {
 			}))
 			.flatten()
 			.map(this, v => !!v);
-		this.inlineViewHideOriginalLineNumbers = this.compactMode;
+		this.inlineViewHideOriginalLineNumbers = derived(this, reader =>
+			this._options.read(reader).hideOriginalLineNumbers || this.compactMode.read(reader));
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
 	}
@@ -188,5 +189,6 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		useInlineViewWhenSpaceIsLimited: validateBooleanOption(options.useInlineViewWhenSpaceIsLimited, defaults.useInlineViewWhenSpaceIsLimited),
 		renderGutterMenu: validateBooleanOption(options.renderGutterMenu, defaults.renderGutterMenu),
 		compactMode: validateBooleanOption(options.compactMode, defaults.compactMode),
+		hideOriginalLineNumbers: validateBooleanOption(options.hideOriginalLineNumbers, defaults.hideOriginalLineNumbers),
 	};
 }

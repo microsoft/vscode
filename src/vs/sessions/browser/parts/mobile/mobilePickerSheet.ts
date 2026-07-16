@@ -14,6 +14,11 @@ import { localize } from '../../../../nls.js';
 
 const $ = DOM.$;
 
+/** Returns whether the target belongs to a mobile picker sheet mounted at the workbench root. */
+export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
+	return !!target.closest('.mobile-picker-sheet');
+}
+
 /**
  * One row in the {@link showMobilePickerSheet} bottom sheet.
  *

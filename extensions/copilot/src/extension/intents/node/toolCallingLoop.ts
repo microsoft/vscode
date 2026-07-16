@@ -1730,6 +1730,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					toolCalls,
 					toolInputRetry,
 					statefulMarker,
+					statefulMarkerSummarizedAtRoundId: statefulMarker && endpoint.isExtensionContributed ? summarizedAtRoundId : undefined,
 					thinking: thinkingItem,
 					phase,
 					modelId: endpoint.model,

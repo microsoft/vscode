@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -28,7 +30,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
 import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger } from '../../../common/automations/automation.js';
-import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
+import { IAutomationRunner, IAutomationRunOperation } from '../../../common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../common/automations/automationService.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../common/automations/automationDialogService.js';
 
@@ -154,17 +156,21 @@ class FakeAutomationService extends mock<IAutomationService>() {
 class RecordingRunner extends mock<IAutomationRunner>() {
 	readonly calls: { automationId: string; trigger: AutomationRunTrigger }[] = [];
 	error: Error | undefined;
+	whenDispatched: Promise<void> = Promise.resolve();
+	whenCompleted: Promise<void> = Promise.resolve();
 
-	override async runOnce(
+	override runOnce(
 		automation: IAutomation,
 		trigger: AutomationRunTrigger,
 		_leaderWindowId: number,
 		_token?: CancellationToken,
-	): Promise<void> {
+	): IAutomationRunOperation {
 		this.calls.push({ automationId: automation.id, trigger });
 		if (this.error) {
-			throw this.error;
+			const failure = Promise.reject(this.error);
+			return { whenDispatched: failure, whenCompleted: failure };
 		}
+		return { whenDispatched: this.whenDispatched, whenCompleted: this.whenCompleted };
 	}
 }
 
@@ -304,6 +310,31 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(runner.calls.length, 1);
 		assert.strictEqual(runner.calls[0].automationId, a.id);
 		assert.strictEqual(runner.calls[0].trigger, 'manual');
+	});
+
+	test('runNow announces start after dispatch before lifecycle completion', async () => {
+		const { widget, service, runner } = setup();
+		const dispatched = new DeferredPromise<void>();
+		const completed = new DeferredPromise<void>();
+		runner.whenDispatched = dispatched.p;
+		runner.whenCompleted = completed.p;
+		const ariaParent = document.createElement('div');
+		setARIAContainer(ariaParent);
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+
+		const runNowPromise = widget.runNow(automation);
+		const run = await service.recordRunStart(automation.id, 'manual', 0);
+		await service.updateRun(run.id, { status: 'running' });
+		await dispatched.complete(undefined);
+		await Promise.resolve();
+
+		assert.deepStrictEqual(
+			Array.from(ariaParent.querySelectorAll('.monaco-status')).map(element => element.textContent),
+			['Started automation A', ''],
+		);
+
+		await completed.complete(undefined);
+		await runNowPromise;
 	});
 
 	test('runNow clears inFlight when the runner fails', async () => {

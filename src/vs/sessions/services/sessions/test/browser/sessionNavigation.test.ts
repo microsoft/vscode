@@ -220,6 +220,10 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
+	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	markAllRead(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSessions(_sessions: readonly ISession[]): Promise<void> { throw new Error('not implemented'); }
 	deleteChat(_session: ISession, _chatUri: URI): Promise<void> { throw new Error('not implemented'); }
