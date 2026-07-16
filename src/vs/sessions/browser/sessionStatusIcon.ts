@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { createPixelSpinner } from '../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
-import { SessionStatus } from '../services/sessions/common/session.js';
+import { isActiveSessionStatus, SessionStatus } from '../services/sessions/common/session.js';
 import { ISessionsListModelService } from '../services/sessions/browser/sessionsListModelService.js';
 
 const $ = DOM.$;
@@ -33,7 +33,7 @@ interface ISessionStatusInputs {
 	readonly status: SessionStatus;
 	readonly isRead: boolean;
 	readonly isArchived: boolean;
-	readonly pullRequestIcon: ThemeIcon | undefined;
+	readonly completedStateIcon: ThemeIcon | undefined;
 }
 
 /**
@@ -84,8 +84,8 @@ export class SessionStatusIcon extends Disposable {
 	 * Updates the rendered status. Cross-fades when the glyph/variant changes
 	 * (after the first render); identical re-renders only refresh the color.
 	 */
-	setStatus(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): void {
-		const inputs: ISessionStatusInputs = { status, isRead, isArchived, pullRequestIcon };
+	setStatus(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): void {
+		const inputs: ISessionStatusInputs = { status, isRead, isArchived, completedStateIcon };
 		this._lastInputs = inputs;
 		this._render(inputs);
 	}
@@ -102,8 +102,8 @@ export class SessionStatusIcon extends Disposable {
 	}
 
 	private _render(inputs: ISessionStatusInputs): void {
-		const { status, isRead, isArchived, pullRequestIcon } = inputs;
-		const isSpinner = (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) && !this._accessibilityService.isMotionReduced();
+		const { status, isRead, isArchived, completedStateIcon } = inputs;
+		const isSpinner = isActiveSessionStatus(status) && !this._accessibilityService.isMotionReduced();
 
 		let cacheKey: string;
 		let color: string;
@@ -115,7 +115,7 @@ export class SessionStatusIcon extends Disposable {
 			color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
 			createIcon = () => createPixelSpinner(undefined, { variant });
 		} else {
-			const icon = this._sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
+			const icon = this._sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 			cacheKey = ThemeIcon.asCSSSelector(icon);
 			color = icon.color ? asCssVariable(icon.color.id) : '';
 			createIcon = () => $(`span${cacheKey}`);

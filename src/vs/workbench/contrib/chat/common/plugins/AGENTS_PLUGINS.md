@@ -9,6 +9,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 |------|------|
 | `agentPluginService.ts` | Core interfaces (`IAgentPlugin`, `IAgentPluginService`, `IAgentPluginDiscovery`) and the discovery registry singleton |
 | `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, format adapters (Copilot / Claude / Open Plugin) |
+| `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
 | `pluginInstallService.ts` | `IPluginInstallService` — install/update orchestration interface |
@@ -48,7 +49,7 @@ remove()         – Removes this plugin from its discovery source
 Main entry point consumed by the rest of the workbench:
 
 ```
-plugins          – IObservable<readonly IAgentPlugin[]>  (aggregate of all discoveries, deduped by URI)
+plugins          – IObservable<readonly IAgentPlugin[]>  (aggregate of all ready discoveries, sorted by URI)
 enablementModel  – Shared IEnablementModel for plugin enable/disable state
 ```
 
@@ -59,11 +60,11 @@ Registered as `InstantiationType.Delayed` — only instantiated when first injec
 Strategy for finding plugins from a particular source:
 
 ```
-plugins  – IObservable<readonly IAgentPlugin[]>
+plugins  – IObservable<readonly IAgentPlugin[] | undefined>
 start(enablementModel) – Begin watching the source
 ```
 
-Discoveries are registered into the global `agentPluginDiscoveryRegistry` singleton and instantiated by `AgentPluginService` on startup.
+Discoveries are registered into the global `agentPluginDiscoveryRegistry` singleton with a priority and instantiated by `AgentPluginService` on startup. A discovery reports `undefined` until its first scan completes; the service waits until every discovery has an initial result before exposing plugins.
 
 ## Discovery & Plugin Reading
 
@@ -124,7 +125,7 @@ Auto-detection logic: if a `.plugin/plugin.json` manifest exists, the Open Plugi
 
 Manages the catalog of available and installed plugins:
 
-- **Fetch** — reads `chat.pluginMarketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
+- **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
 - **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
 - **Auto-update** — checks for upstream changes approximately every 24 hours when `extensions.autoUpdate` is enabled; sets `hasUpdatesAvailable` observable.
@@ -143,6 +144,7 @@ Checked in order per repository:
 Orchestrates install and update workflows:
 
 - `installPlugin()` — checks marketplace trust, delegates to the appropriate source strategy to ensure files are locally available, and registers the plugin in installed storage.
+- `installPluginFromSource()` — installs from a source string: GitHub shorthand (`owner/repo`), a git clone URL, or a local folder path (`file://` URI, absolute path, or `~`-prefixed path). Local folders are inspected to decide whether they are a marketplace (registered under `chat.plugins.marketplaces`) or a standalone plugin (registered under `chat.pluginLocations`).
 - `updatePlugin()` / `updateAllPlugins()` — pulls latest changes for cloned repositories and re-runs package-manager installs where applicable.
 
 ### Plugin Source Strategies (IPluginSource)
@@ -185,8 +187,8 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 The entire system is built on `IObservable`:
 
 1. **Configuration observables** (`observableConfigValue`) — push changes when settings are modified.
-2. **Discovery observables** — each `IAgentPluginDiscovery` exposes an `IObservable<readonly IAgentPlugin[]>` updated on filesystem changes.
-3. **Service-level derived** — `AgentPluginService.plugins` is a `derived()` that aggregates all discovery observables, dedupes by URI, and sorts.
+2. **Discovery observables** — each `IAgentPluginDiscovery` exposes an `IObservable<readonly IAgentPlugin[] | undefined>` updated on filesystem changes after the first scan completes.
+3. **Service-level derived** — `AgentPluginService.plugins` is a `derived()` that waits for all discovery observables, aggregates their plugin lists, and sorts by URI.
 4. **Per-plugin observables** — each `IAgentPlugin` has observable properties for hooks, commands, skills, agents, and MCP definitions that update independently on file changes.
 5. **UI bindings** — views and editors use `autorun()` / `derived()` to reactively render plugin state.
 
@@ -200,8 +202,8 @@ The entire system is built on `IObservable`:
 ## Key Design Patterns
 
 - **Strategy pattern** — format adapters (`IAgentPluginFormatAdapter`) and source strategies (`IPluginSource`) allow the system to support multiple plugin formats and installation mechanisms without coupling.
-- **Discovery registry** — `agentPluginDiscoveryRegistry` decouples discovery implementations from the core service via `SyncDescriptor0<IAgentPluginDiscovery>` registration.
+- **Discovery registry** — `agentPluginDiscoveryRegistry` decouples discovery implementations from the core service via priority-ordered `SyncDescriptor0<IAgentPluginDiscovery>` registration.
 - **Disposable management** — plugin entries are tracked in a `Map` keyed by URI string, each with its own `DisposableStore` for file watchers. Removal or format changes dispose the store.
 - **Debounced refresh** — filesystem changes trigger a 200 ms `RunOnceScheduler` to batch rapid edits into a single re-read.
-- **Deduplication** — multiple discoveries may produce the same plugin URI; the service dedupes via `ResourceSet` and sorts by URI for stable ordering.
+- **Collision enablement** — multiple discoveries may produce equivalent plugins from different install roots; the service groups them by canonical identity so only the highest-priority copy is enabled by default, while enabling any copy disables the other copies in the same group.
 - **Lazy instantiation** — the service is registered as `InstantiationType.Delayed` and only created on first injection.

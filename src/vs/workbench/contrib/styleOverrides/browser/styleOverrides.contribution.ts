@@ -9,20 +9,32 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 
-// Bundle the CSS for every style-override module. Each file gates all of its
-// rules behind a `.style-override-<id>` ancestor class, so the styles are inert
-// until the matching class is toggled onto the workbench container(s) below.
+/** Reduced scrollbar size (px) applied when the style-override experiment is on. */
+const SCROLLBAR_OVERRIDE_SIZE = 8;
+
+/** Reduced collapsed notification row height (px) applied when the style-override experiment is on. */
+const NOTIFICATION_ROW_OVERRIDE_HEIGHT = 34;
+
+// Bundle the CSS for every style-override module. Every file gates all of its
+// rules behind the single `.style-override` ancestor class, so the styles are
+// inert until that class is toggled onto the workbench container(s) below.
 import './media/activityBar.css';
 import './media/commandCenter.css';
+import './media/editorBorder.css';
 import './media/fontRamp.css';
 import './media/keyboardFocusOnly.css';
+import './media/notificationsDialogs.css';
 import './media/padding.css';
 import './media/paneHeaders.css';
 import './media/roundedCorners.css';
-import './media/scrollShadows.css';
+import './media/sashHandles.css';
+import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
+import './media/titlebar.css';
 
 interface IStyleOverrideModule {
 	readonly id: string;
@@ -35,27 +47,38 @@ interface IStyleOverrideModule {
 }
 
 /**
+ * The single class toggled onto the workbench container(s) when the Modern UI
+ * Update experiment is enabled. Every style-override module's CSS is gated
+ * behind this class (`.style-override ...`), so all modules are applied together
+ * as a group.
+ */
+const STYLE_OVERRIDE_CLASS = 'style-override';
+
+/**
  * The fixed catalog of built-in style-override modules. The CSS for each module
- * ships with the product (imported above) and is gated behind the
- * `.style-override-<id>` class. All modules are enabled together as part of the
- * Modern UI Update experiment (`LayoutSettings.MODERN_UI`).
+ * ships with the product (imported above) and is gated behind the shared
+ * `.style-override` class. All modules are enabled together as part of the
+ * Modern UI Update experiment (`LayoutSettings.MODERN_UI`). This catalog is
+ * retained to track per-module metadata (e.g. whether a module is
+ * layout-affecting).
  */
 const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 	{ id: 'activityBar' },
 	{ id: 'commandCenter' },
+	{ id: 'editorBorder' },
 	{ id: 'fontRamp' },
 	{ id: 'keyboardFocusOnly' },
 	{ id: 'padding' },
 	{ id: 'paneHeaders', layoutAffecting: true },
 	{ id: 'roundedCorners' },
+	{ id: 'sashHandles' },
 	{ id: 'scrollShadows' },
+	{ id: 'shadows' },
 	{ id: 'statusBar' },
-	{ id: 'tabs' }
+	{ id: 'tabs' },
+	{ id: 'titlebar' },
+	{ id: 'notificationsDialogs' },
 ];
-
-function classNameFor(moduleId: string): string {
-	return `style-override-${moduleId}`;
-}
 
 /**
  * A contribution that toggles the built-in CSS style-override modules on or off
@@ -67,7 +90,6 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	static readonly ID = 'workbench.contrib.styleOverrides';
 
-	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
 	private readonly hasLayoutAffectingModule = STYLE_OVERRIDE_MODULES.some(m => m.layoutAffecting);
 
 	/** Whether a layout-affecting module was active at the last applied selection. */
@@ -125,21 +147,29 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		for (const container of this.layoutService.containers) {
 			this.applyTo(container, enabled);
 		}
+		this.applyScrollbarSize(enabled);
+		this.applyNotificationRowHeight(enabled);
 	}
 
 	private applyTo(container: HTMLElement, enabled: boolean): void {
-		for (const className of this.knownClassNames) {
-			container.classList.toggle(className, enabled);
-		}
+		container.classList.toggle(STYLE_OVERRIDE_CLASS, enabled);
+	}
+
+	private applyScrollbarSize(enabled: boolean): void {
+		setGlobalDefaultScrollbarSize(enabled ? SCROLLBAR_OVERRIDE_SIZE : DEFAULT_SCROLLBAR_SIZE);
+	}
+
+	private applyNotificationRowHeight(enabled: boolean): void {
+		setNotificationRowHeight(enabled ? NOTIFICATION_ROW_OVERRIDE_HEIGHT : DEFAULT_NOTIFICATION_ROW_HEIGHT);
 	}
 
 	override dispose(): void {
-		// Remove any classes this contribution added so it leaves no DOM state behind.
+		// Remove the class this contribution added so it leaves no DOM state behind.
 		for (const container of this.layoutService.containers) {
-			for (const className of this.knownClassNames) {
-				container.classList.remove(className);
-			}
+			container.classList.remove(STYLE_OVERRIDE_CLASS);
 		}
+		setGlobalDefaultScrollbarSize(DEFAULT_SCROLLBAR_SIZE);
+		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);
 		super.dispose();
 	}
 }

@@ -6,10 +6,12 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
 import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CustomizationType, SkillCustomization } from '../common/state/sessionState.js';
+import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
+import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
 
@@ -64,12 +66,12 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				attachment: {
 					type: MessageAttachmentKind.Simple,
 					label: '/' + skill.slashCommandName,
-					_meta: {
+					_meta: toSkillCompletionAttachmentMeta({
 						uri: skill.uri,
 						name: skill.name,
 						displayName: skill.slashCommandName,
-						...(skill.description !== undefined ? { description: skill.description } : {}),
-					},
+						description: skill.description,
+					}),
 				},
 			}));
 	}
@@ -86,18 +88,18 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			}
 			for (const child of c.children) {
 				if (child.type === CustomizationType.Skill) {
-					result.push(this._toSlashCommandCandidate(c.type === CustomizationType.Plugin ? c.name : undefined, child));
+					result.push(this._toSlashCommandCandidate(c, child));
 				}
 			}
 		}
 		return result;
 	}
 
-	private _toSlashCommandCandidate(pluginId: string | undefined, skill: SkillCustomization): SlashCommmandCandidate {
+	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): SlashCommmandCandidate {
 		// see getCanonicalPluginCommandId
 		let slashCommandName = skill.name;
-		if (pluginId && skill.name !== pluginId) {
-			slashCommandName = `${pluginId}:${skill.name}`;
+		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
+			slashCommandName = `${container.name}:${skill.name}`;
 		}
 		return {
 			slashCommandName: slashCommandName,
@@ -106,6 +108,10 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			uri: skill.uri,
 		};
 	}
+}
+
+function isSyncedCustomization(container: PluginCustomization): boolean {
+	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
 }
 
 interface SlashCommmandCandidate {

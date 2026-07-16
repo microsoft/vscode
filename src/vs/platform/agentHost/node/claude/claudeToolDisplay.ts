@@ -8,7 +8,9 @@ import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../
 import { basename } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { toToolCallMeta, type IToolCallMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import type { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 
 /**
  * Phase 7 S4 — pure tool-name → display/permission helpers for Claude.
@@ -37,6 +39,7 @@ export type ClaudePermissionKind =
 	| 'mcp'
 	| 'read'
 	| 'url'
+	| 'skill'
 	| 'custom-tool';
 
 /**
@@ -46,7 +49,7 @@ export type ClaudePermissionKind =
  * renderer). Mirror of
  * [`copilotToolDisplay.getToolKind`](../copilot/copilotToolDisplay.ts).
  */
-export type ClaudeToolKind = 'terminal' | 'subagent' | 'search';
+export type ClaudeToolKind = ToolKind;
 
 /**
  * Which field on the SDK's `tool_input` carries the path/url surfaced
@@ -120,6 +123,15 @@ const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
 	Agent: { permissionKind: 'custom-tool', toolKind: 'subagent' },
 	ExitPlanMode: { permissionKind: 'custom-tool', interactive: true },
 	AskUserQuestion: { permissionKind: 'custom-tool', interactive: true },
+
+	// skill + task-list family — host-routed custom tools that render in the
+	// generic tool renderer (no `toolKind`) but carry rich invocation /
+	// past-tense messages so their collapsed row is self-explanatory.
+	Skill: { permissionKind: 'skill' },
+	TaskCreate: { permissionKind: 'custom-tool' },
+	TaskUpdate: { permissionKind: 'custom-tool' },
+	TaskList: { permissionKind: 'custom-tool' },
+	TaskGet: { permissionKind: 'custom-tool' },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -146,6 +158,10 @@ export function getClaudePermissionKind(toolName: string): ClaudePermissionKind 
  * the server/tool pair.
  */
 export function getClaudeToolDisplayName(toolName: string): string {
+	const serverDisplay = getServerToolDisplay(toolName, undefined)?.displayName;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case 'Bash': return localize('claude.tool.bash', "Run shell command");
 		case 'BashOutput': return localize('claude.tool.bashOutput', "Read shell output");
@@ -165,6 +181,11 @@ export function getClaudeToolDisplayName(toolName: string): string {
 		case 'Agent': return localize('claude.tool.task', "Run subagent task");
 		case 'ExitPlanMode': return localize('claude.tool.exitPlanMode', "Ready to code?");
 		case 'AskUserQuestion': return localize('claude.tool.askUserQuestion', "Ask user a question");
+		case 'Skill': return localize('claude.tool.skill', "Run skill");
+		case 'TaskCreate': return localize('claude.tool.taskCreate', "Create task");
+		case 'TaskUpdate': return localize('claude.tool.taskUpdate', "Update task");
+		case 'TaskList': return localize('claude.tool.taskList', "List tasks");
+		case 'TaskGet': return localize('claude.tool.taskGet', "Read task");
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
 		return localize('claude.tool.mcp', "Run MCP tool {0}", toolName.slice(MCP_TOOL_PREFIX.length));
@@ -240,6 +261,8 @@ export function getClaudeConfirmationTitle(toolName: string): string {
 			return localize('claude.permission.read.title', "Read file?");
 		case 'url':
 			return localize('claude.permission.url.title', "Fetch URL?");
+		case 'skill':
+			return localize('claude.permission.skill.title', "Run skill?");
 		case 'mcp': {
 			const serverName = toolName.startsWith(MCP_TOOL_PREFIX)
 				? toolName.slice(MCP_TOOL_PREFIX.length).split('__')[0]
@@ -276,6 +299,17 @@ export function getClaudeToolKind(toolName: string): ClaudeToolKind | undefined 
  * single-write pattern.
  */
 export function buildClaudeToolMeta(toolName: string): Record<string, unknown> | undefined {
+	const meta = buildClaudeToolCallMeta(toolName);
+	return meta ? toToolCallMeta(meta) : undefined;
+}
+
+/**
+ * Typed variant of {@link buildClaudeToolMeta} that returns the
+ * {@link IToolCallMeta} directly, for callers that consume the typed view
+ * rather than the serialized `_meta` bag. Returns `undefined` for tools that
+ * have no `toolKind` hint.
+ */
+export function buildClaudeToolCallMeta(toolName: string): IToolCallMeta | undefined {
 	const row = TOOL_ROWS[toolName];
 	if (!row?.toolKind) {
 		return undefined;
@@ -314,6 +348,15 @@ function firstShellLine(input: unknown): string | undefined {
 }
 
 /**
+ * Narrows a `TaskUpdate` call's `status` to the values that change the rendered
+ * verb; any other or absent value yields `undefined` (generic "Updating" verb).
+ */
+function readTaskUpdateStatus(input: unknown): 'in_progress' | 'completed' | 'deleted' | undefined {
+	const status = readStringField(input, 'status');
+	return status === 'in_progress' || status === 'completed' || status === 'deleted' ? status : undefined;
+}
+
+/**
  * Phase 8.5 — rich invocation message for a `pending_confirmation`
  * card or a streaming `ChatToolCallStart` action. Reads the
  * SDK's `tool_use.input` defensively and falls back to the static
@@ -325,6 +368,10 @@ export function getClaudeInvocationMessage(
 	displayName: string,
 	input: unknown,
 ): StringOrMarkdown {
+	const serverDisplay = getServerToolDisplay(toolName, input)?.invocationMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
+	}
 	switch (toolName) {
 		case 'Bash': {
 			const firstLine = firstShellLine(input);
@@ -393,6 +440,31 @@ export function getClaudeInvocationMessage(
 			}
 			return displayName;
 		}
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolInvoke.skillNamed', "Running skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolInvoke.skill', "Running skill");
+		}
+		case 'TaskCreate': {
+			const subject = readStringField(input, 'subject');
+			if (subject) {
+				return localize('claude.toolInvoke.taskCreateNamed', "Creating task: {0}", truncate(subject, 80));
+			}
+			return localize('claude.toolInvoke.taskCreate', "Creating task");
+		}
+		case 'TaskUpdate':
+			switch (readTaskUpdateStatus(input)) {
+				case 'in_progress': return localize('claude.toolInvoke.taskStart', "Starting task");
+				case 'completed': return localize('claude.toolInvoke.taskComplete', "Completing task");
+				case 'deleted': return localize('claude.toolInvoke.taskDelete', "Deleting task");
+				default: return localize('claude.toolInvoke.taskUpdate', "Updating task");
+			}
+		case 'TaskList':
+			return localize('claude.toolInvoke.taskList', "Reading task list");
+		case 'TaskGet':
+			return localize('claude.toolInvoke.taskGet', "Reading task");
 		default:
 			return displayName;
 	}
@@ -410,9 +482,14 @@ export function getClaudePastTenseMessage(
 	displayName: string,
 	input: unknown,
 	success: boolean,
+	resultText?: string,
 ): StringOrMarkdown {
 	if (!success) {
 		return localize('claude.toolComplete.failed', "\"{0}\" failed", displayName);
+	}
+	const serverDisplay = getServerToolDisplay(toolName, input, { text: resultText, success })?.pastTenseMessage;
+	if (serverDisplay !== undefined) {
+		return serverDisplay;
 	}
 	switch (toolName) {
 		case 'Bash': {
@@ -477,8 +554,33 @@ export function getClaudePastTenseMessage(
 		case 'Task':
 		case 'Agent':
 			return localize('claude.toolComplete.task', "Ran subagent");
+		case 'Skill': {
+			const skill = readStringField(input, 'skill');
+			if (skill) {
+				return md(localize('claude.toolComplete.skillNamed', "Ran skill {0}", appendEscapedMarkdownInlineCode(truncate(skill, 80))));
+			}
+			return localize('claude.toolComplete.skill', "Ran skill");
+		}
+		case 'TaskCreate': {
+			const subject = readStringField(input, 'subject');
+			if (subject) {
+				return localize('claude.toolComplete.taskCreateNamed', "Created task: {0}", truncate(subject, 80));
+			}
+			return localize('claude.toolComplete.taskCreate', "Created task");
+		}
+		case 'TaskUpdate':
+			switch (readTaskUpdateStatus(input)) {
+				case 'in_progress': return localize('claude.toolComplete.taskStart', "Started task");
+				case 'completed': return localize('claude.toolComplete.taskComplete', "Completed task");
+				case 'deleted': return localize('claude.toolComplete.taskDelete', "Deleted task");
+				default: return localize('claude.toolComplete.taskUpdate', "Updated task");
+			}
+		case 'TaskList':
+			return localize('claude.toolComplete.taskList', "Read task list");
+		case 'TaskGet':
+			return localize('claude.toolComplete.taskGet', "Read task");
 		default:
-			return localize('claude.toolComplete.generic', "Used \"{0}\"", displayName);
+			return displayName;
 	}
 }
 

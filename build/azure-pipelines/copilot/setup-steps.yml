@@ -3,27 +3,14 @@ steps:
     inputs:
       versionSpec: "22.21.x"
 
-  - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
-
-  - pwsh: |
-      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
-    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Setup distro auth (Windows)
-
-  - script: |
-      mkdir -p .build
-      cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
-    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Setup distro auth (non-Windows)
+  # Check out the private microsoft/vscode-capi repository using the agent's
+  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
+  # repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: capi
+    path: s/.build/vscode-capi
+    fetchDepth: 1
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-capi
 
   - pwsh: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     workingDirectory: $(Build.SourcesDirectory)
@@ -40,7 +27,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"copilot_build_cache" | .build/packagelockhash'
+      key: '"copilot_build_cache" | .build/packagelockhash | .build/vscode-capi/package-lock.json'
       path: .build/node_modules_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore node_modules cache
@@ -57,7 +44,7 @@ steps:
       npm config set registry "$env:NPM_REGISTRY"
       $NpmrcPath = (npm config get userconfig)
       Write-Host "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
     displayName: Setup NPM (Windows)
 
   - script: |
@@ -67,13 +54,13 @@ steps:
       # which does not have their own .npmrc file
       npm config set registry "$NPM_REGISTRY"
       echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup NPM (non-Windows)
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: npm ci
@@ -91,10 +78,16 @@ steps:
     displayName: Install copilot dependencies
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
 
+  - script: npm ci
+    workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
+    displayName: Install vscode-capi dependencies
+    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
   - script: |
       set -e
       mkdir -p .build
       node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      echo .build/vscode-capi/node_modules >> .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))

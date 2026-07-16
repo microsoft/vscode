@@ -13,6 +13,105 @@
 	overflow: hidden;
 }
 
+@keyframes voiceTextPulse {
+	0%,
+	100% {
+		opacity: 0.9;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+@keyframes voiceListeningShimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
+.voice-transcript-overlay-scrollable {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 36px;
+	z-index: 10;
+	/* Let clicks pass through to the input editor unless there is scrollable transcript content */
+	pointer-events: none;
+	background: var(--vscode-input-background, transparent);
+	border-radius: inherit;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.voice-transcript-overlay-scrollable.has-transcript {
+	pointer-events: auto;
+}
+
+.voice-transcript-overlay {
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	font-size: var(--vscode-bodyFontSize);
+	line-height: 1.4;
+	word-break: break-word;
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
+.voice-transcript-overlay .committed {
+	color: var(--vscode-foreground);
+}
+
+.voice-transcript-overlay .partial {
+	color: var(--vscode-foreground);
+	opacity: 0.6;
+	font-style: italic;
+	animation: voiceTextPulse 1.5s ease-in-out infinite;
+}
+
+.voice-transcript-overlay .listening {
+	font-style: italic;
+	background: linear-gradient(90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: voiceListeningShimmer 2s linear infinite;
+	will-change: background-position;
+}
+
+/* Motion-sensitive users: keep the gradient text but stop the shimmer. */
+@media (prefers-reduced-motion: reduce) {
+	.voice-transcript-overlay .listening {
+		animation: none;
+	}
+}
+
+/* High-contrast / forced-colors: gradient-clipped transparent text is invisible, so fall back to a solid readable color and no animation. */
+@media (forced-colors: active) {
+	.voice-transcript-overlay .listening {
+		background: none;
+		-webkit-text-fill-color: currentColor;
+		animation: none;
+	}
+}
+
+.voice-transcript-overlay .assistant-text {
+	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
+}
+
 /* Overall styles */
 .chat-viewpane {
 	display: flex;

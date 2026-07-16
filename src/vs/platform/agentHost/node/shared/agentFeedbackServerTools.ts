@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { FEEDBACK_ANNOTATION_META_KEY, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
+import { localize } from '../../../../nls.js';
+import { FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, VIEW_UNREVIEWED_COMMENTS_TOOL_NAME, ADD_COMMENT_TOOL_NAME, type IFeedbackAnnotationMeta } from '../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import type { Annotation, AnnotationsState, StringOrMarkdown, TextRange, ToolDefinition } from '../../common/state/sessionState.js';
-import type { IServerToolGroup } from './agentServerToolHost.js';
+import { parseChatUri, type Annotation, type AnnotationsState, type StringOrMarkdown, type TextRange, type ToolDefinition } from '../../common/state/sessionState.js';
+import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 
 /**
  * Server-side implementation of the agent feedback ("comments") tools.
@@ -26,7 +27,7 @@ import type { IServerToolGroup } from './agentServerToolHost.js';
  * the actions) lives in the caller.
  */
 
-export const addCommentToolName = 'addComment';
+export const addCommentToolName = ADD_COMMENT_TOOL_NAME;
 export const listCommentsToolName = 'listComments';
 export const deleteCommentsToolName = 'deleteComments';
 export const resolveCommentsToolName = 'resolveComments';
@@ -249,7 +250,7 @@ function entryText(text: StringOrMarkdown): string {
 }
 
 function readMeta(annotation: Annotation): IFeedbackAnnotationMeta | undefined {
-	return annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	return readFeedbackAnnotationMeta(annotation);
 }
 
 interface ISerializedComment {
@@ -502,6 +503,81 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 }
 
 /**
+ * Parses the number of comments returned by the {@link listCommentsToolName}
+ * tool from its JSON result (`{ comments: [...] }`). Returns `undefined` when
+ * the result is missing or not in the expected shape, so the caller can fall
+ * back to a count-less message.
+ */
+function parseListedCommentCount(resultText: string | undefined): number | undefined {
+	if (!resultText) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(resultText) as { comments?: unknown };
+		return Array.isArray(parsed.comments) ? parsed.comments.length : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Display strings for the feedback ("comments") tools, authored here so every
+ * provider (Copilot, Claude, Codex, …) renders them identically instead of
+ * each provider's display layer re-deriving the strings from the tool name.
+ * Returns `undefined` for tools this group does not own, so the caller falls
+ * back to its generic display.
+ *
+ * {@link toolName} is the bare tool name (any transport prefix such as Claude's
+ * `mcp__<server>__` has already been stripped by the dispatcher).
+ */
+function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
+	switch (toolName) {
+		case addCommentToolName:
+			return {
+				displayName: localize('toolName.addComment', "Add Comment"),
+				invocationMessage: localize('toolInvoke.addComment', "Adding comment"),
+				pastTenseMessage: localize('toolComplete.addComment', "Added comment"),
+			};
+		case listCommentsToolName: {
+			let pastTenseMessage: StringOrMarkdown;
+			const count = result ? parseListedCommentCount(result.text) : undefined;
+			if (count === undefined) {
+				pastTenseMessage = localize('toolComplete.listComments', "Checked comments");
+			} else if (count === 1) {
+				pastTenseMessage = localize('toolComplete.listComments.one', "Checked 1 comment");
+			} else {
+				pastTenseMessage = localize('toolComplete.listComments.many', "Checked {0} comments", count);
+			}
+			return {
+				displayName: localize('toolName.listComments', "List Comments"),
+				invocationMessage: localize('toolInvoke.listComments', "Checking comments"),
+				pastTenseMessage,
+			};
+		}
+		case deleteCommentsToolName:
+			return {
+				displayName: localize('toolName.deleteComments', "Delete Comments"),
+				invocationMessage: localize('toolInvoke.deleteComments', "Deleting comments"),
+				pastTenseMessage: localize('toolComplete.deleteComments', "Deleted comments"),
+			};
+		case resolveCommentsToolName:
+			return {
+				displayName: localize('toolName.resolveComments', "Resolve Comments"),
+				invocationMessage: localize('toolInvoke.resolveComments', "Resolving comments"),
+				pastTenseMessage: localize('toolComplete.resolveComments', "Resolved comments"),
+			};
+		case viewUnreviewedCommentsToolName:
+			return {
+				displayName: localize('toolName.viewUnreviewedComments', "View Comments"),
+				invocationMessage: localize('toolInvoke.viewUnreviewedComments', "Viewing comments"),
+				pastTenseMessage: localize('toolComplete.viewUnreviewedComments', "Viewed comments"),
+			};
+		default:
+			return undefined;
+	}
+}
+
+/**
  * The feedback ("comments") server-tool group, contributed to the
  * {@link AgentServerToolHost} at startup (see `node/agentService.ts`). Wraps
  * the pure {@link applyFeedbackTool} executor with the annotations-channel I/O:
@@ -514,11 +590,19 @@ export const feedbackServerToolGroup: IServerToolGroup = {
 	requiresConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
-	execute(stateManager, sessionUri, toolName, rawArgs): string {
-		const annotationsUri = buildAnnotationsUri(sessionUri);
+	getDisplay(toolName, args, result): IServerToolDisplay | undefined {
+		return getFeedbackToolDisplay(toolName, args, result);
+	},
+	execute(stateManager, chatUri, toolName, rawArgs): string {
+		// A session can contain multiple chats, each addressed by its own
+		// `ahp-chat` URI but sharing the same context/workspace. Comments belong
+		// to the session as a whole, so always resolve a chat URI back to its
+		// owning session and operate on the main session's annotations channel.
+		const mainSessionUri = parseChatUri(chatUri)?.session ?? chatUri;
+		const annotationsUri = buildAnnotationsUri(mainSessionUri);
 		const snapshot = stateManager.getSnapshot(annotationsUri);
 		const state: AnnotationsState = (snapshot?.state as AnnotationsState | undefined) ?? { annotations: [] };
-		const outcome = applyFeedbackTool(state, sessionUri, toolName, rawArgs);
+		const outcome = applyFeedbackTool(state, mainSessionUri, toolName, rawArgs);
 		for (const action of outcome.actions) {
 			stateManager.dispatchServerAction(annotationsUri, action);
 		}

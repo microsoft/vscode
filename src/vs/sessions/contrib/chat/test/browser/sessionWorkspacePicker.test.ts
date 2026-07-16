@@ -98,6 +98,7 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
+		createQuickChat: () => { throw new Error('Not implemented'); },
 		deleteNewSession: () => { },
 		getSessionTypes: () => [],
 		renameChat: async () => { },
@@ -108,9 +109,12 @@ function createMockProvider(id: string, opts?: {
 		setModel: () => { },
 		archiveSession: async () => { },
 		unarchiveSession: async () => { },
+		setSessionReadState: async () => { },
 		deleteSession: async () => { },
-		deleteChat: async () => { },
+		deleteSessions: async () => { },
+		deleteChat: async () => true,
 		createNewChat: async () => { throw new Error('Not implemented'); },
+		forkChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {

@@ -40,31 +40,34 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	) {
 		super();
 
-		// Language model providers register asynchronously, so a model's schema
-		// defaults and profile-global configuration may not be available the first
-		// time `getModelConfiguration` is called (e.g. when the model picker or the
-		// context-usage widget reads it during initial layout). The empty snapshot
-		// resolved at that point would otherwise be memoized forever, pinning the
-		// model to its schema default while the request path — resolved later —
-		// uses the configured value. When the set of language models changes, drop
-		// only those poisoned snapshots so the next read recomputes against the
-		// now-available configuration, and notify consumers (picker, context-usage
-		// widget) so the stale value refreshes.
+		// Model providers register asynchronously, so a snapshot can be seeded before
+		// schema defaults (for example the default contextSize) are available. When
+		// models change, heal those pre-config-load snapshots while preserving every
+		// editor's own captured value.
 		//
-		// This event also fires for model-configuration changes (e.g. our own global
-		// mirror in `setModelConfiguration`), so we must NOT clear stable snapshots:
-		// an entry that resolved to a non-empty value, or that is backed by a scoped
-		// bucket entry, is the editor's intended value and clearing it would discard
-		// it and cause a duplicate refresh for a single user action. Only an entry
-		// that resolved empty with no bucket entry can be a pre-config-load artifact.
+		// This event ALSO fires for global model-configuration writes (e.g. another
+		// editor calling `setModelConfiguration`, which mirrors to the global service
+		// and re-emits this event — see languageModels.ts). So we must NOT re-read
+		// the shared bucket into a snapshot that already holds a captured value, or an
+		// open editor would silently adopt a different editor's choice, breaking the
+		// per-editor isolation contract documented on this class. Two cases:
+		//   - Empty snapshot: a pre-config-load artifact with no captured value, so
+		//     re-resolve it from the now-available bucket/global/schema.
+		//   - Non-empty snapshot: this editor's captured value. Only fill in
+		//     newly-available schema defaults for keys it does not already set; the
+		//     existing override always wins and the bucket is never re-read.
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._overrides.size === 0) {
 				return;
 			}
 			const bucket = this._readBucket();
 			for (const [modelId, override] of [...this._overrides]) {
-				if (Object.keys(override).length === 0 && bucket[modelId] === undefined) {
-					this._overrides.delete(modelId);
+				const schemaDefaults = this._schemaDefaults(modelId);
+				const nextOverride = Object.keys(override).length === 0
+					? resolveModelConfiguration(bucket[modelId], schemaDefaults, this.languageModelsService.getModelConfiguration(modelId))
+					: { ...schemaDefaults, ...override };
+				if (!equals(override, nextOverride)) {
+					this._overrides.set(modelId, nextOverride);
 					this._onDidChange.fire(modelId);
 				}
 			}
@@ -167,14 +170,25 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * the same resolution hierarchy as a user-made change — mirroring how the
 	 * restored model selection is persisted to its scoped storage key.
 	 *
-	 * The captured values are first filtered against the model's *current*
-	 * configuration schema so that a config saved against an older schema does
-	 * not re-pin removed properties or invalid values: unknown keys and values
-	 * that violate the schema's `enum` constraint are dropped and fall back to
-	 * the live default.
+	 * When the model is registered, the captured values are filtered against its
+	 * *current* configuration schema so that a config saved against an older
+	 * schema does not re-pin removed properties or invalid values: unknown keys
+	 * and values that violate the schema's `enum` constraint are dropped and fall
+	 * back to the live default.
+	 *
+	 * When the model is NOT yet registered (asynchronous provider registration),
+	 * its schema is unavailable. Filtering would then discard the *entire*
+	 * captured config, causing the restore to merge an empty value over whatever
+	 * the shared per-scope snapshot currently holds — re-pinning another
+	 * conversation's value (e.g. its context size). To preserve the reopened
+	 * session's own configuration in that race, the captured values are restored
+	 * as-is; a later sync re-validates them once the schema loads. See #320393.
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		const filtered = filterConfigurationToSchema(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
+		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+		const filtered = metadata
+			? filterConfigurationToSchema(values, metadata.configurationSchema)
+			: { ...values };
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
 		// change it must NOT write the profile-global value, since restoring a
 		// session is not an intentional reconfiguration and runs on every

@@ -120,14 +120,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	override onContainerCreated(container: HTMLElement): void {
 		this._container = container;
 
-		this._register(addDisposableListener(container, EventType.FOCUS, (event: FocusEvent) => {
-			// When the browser container gets focus, make sure the browser view also gets focused —
-			// but only if focus was already in the workbench (and not e.g. clicking back into the
-			// workbench from the browser view itself).
-			if (event.relatedTarget) {
-				this.tryFocus();
-			}
-		}));
+		this._register(addDisposableListener(container, EventType.FOCUS, () => this.tryFocus()));
 		this._register(addDisposableListener(container, EventType.BLUR, () => this._cancelFocusTimeout()));
 
 		// Cross-window focus logic uses this checker because the WCV lives
@@ -158,19 +151,25 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 	}
 
 	override tryFocus(): boolean {
-		if (!this._shouldShowPage()) {
+		if (!this.editor.input?.url) {
 			return false;
 		}
-		this.editor.ensureBrowserFocus();
+		this._container?.focus();
 		if (this._focusTimeout || !this._model) {
 			return true;
 		}
 		this._focusTimeout = setTimeout(() => {
 			this._focusTimeout = undefined;
-			if (this._model) {
-				void this._model.focus();
+			const doc = this._container?.ownerDocument;
+			if (!doc?.hasFocus() || doc.activeElement !== this._container) {
+				return;
 			}
-		}, 0);
+			if (this._model?.visible) {
+				void this._model.focus();
+			} else {
+				this.editor.ensureBrowserFocus();
+			}
+		}, 10);
 		return true;
 	}
 

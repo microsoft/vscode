@@ -356,6 +356,30 @@ export default defineConfig(
 			'local/code-no-in-operator': 'warn',
 		}
 	},
+	// Guard the agent host protocol `_meta` bag: no untyped field access or casts.
+	{
+		files: [
+			'src/vs/platform/agentHost/**/*.ts',
+			'src/vs/workbench/contrib/chat/browser/agentSessions/**/*.ts',
+			'src/vs/workbench/services/agentHost/**/*.ts',
+			'src/vs/sessions/**/*.ts',
+		],
+		ignores: [
+			// Tests assert on the raw `_meta` wire shape on purpose (verifying
+			// producers); routing them through readers would weaken them.
+			'**/test/**',
+			'**/*.test.ts',
+			'**/*.integrationTest.ts',
+			// Codex's own generated app-server protocol (not AHP `_meta`).
+			'src/vs/platform/agentHost/node/codex/protocol/**',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-untyped-meta-access': 'warn',
+		}
+	},
 	// Strict no explicit `any`
 	{
 		files: [
@@ -1527,6 +1551,7 @@ export default defineConfig(
 						'console',
 						'cookie',
 						'crypto',
+						'detect-libc',
 						'dns',
 						'events',
 						'fs',
@@ -1552,6 +1577,7 @@ export default defineConfig(
 						'undici',
 						'undici-types',
 						'url',
+						'module',
 						'util',
 						'vscode-regexpp',
 						'vscode-textmate',
@@ -1651,6 +1677,7 @@ export default defineConfig(
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/fs-copyfile', // used by agentHost for file copying after worktree creation
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests

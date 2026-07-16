@@ -53,6 +53,9 @@ parameters:
   - name: VSCODE_STEP_ON_IT
     type: boolean
     default: false
+  - name: VSCODE_USE_LEGACY_OSS_NOTICE
+    type: boolean
+    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -85,6 +88,16 @@ variables:
     value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  # Derived as an explicit lowercase string literal so downloadNotice.ts's
+  # case-sensitive JS check (process.env['VSCODE_OVERWRITE_TPN'] === 'false')
+  # works. ${{ eq(...) }} would emit 'True'/'False' (capitalized) and silently
+  # fail that comparison. Checkbox on => keep legacy notice ('false' = no
+  # overwrite); off => apply CG notice ('true').
+  - name: VSCODE_OVERWRITE_TPN
+    ${{ if eq(parameters.VSCODE_USE_LEGACY_OSS_NOTICE, true) }}:
+      value: 'false'
+    ${{ else }}:
+      value: 'true'
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME

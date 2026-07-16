@@ -727,4 +727,5 @@ export const codiconsLibrary = {
 	vscodeInsidersOutline: register('vscode-insiders-outline', 0xecc9),
 	vscodeOutline: register('vscode-outline', 0xecca),
 	voiceMode: register('voice-mode', 0xeccb),
+	voiceModeCompact: register('voice-mode-compact', 0xeccc),
 } as const;

@@ -225,9 +225,7 @@ suite('TerminalSandboxService - network domains', () => {
 				},
 				network: {
 					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
-					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
-					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
-					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+					...(policy.network ? { enforcementMode: 'capabilities' } : {}),
 				},
 				ui: {
 					disable: !(policy.ui?.allowWindows ?? false),
@@ -420,7 +418,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(configContent, 'Config file should be created');
 
 		const config = JSON.parse(configContent);
-		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false, allowUnixSockets: true });
 		strictEqual(config.allowPty, true, 'Non-network runtime settings should still be merged');
 	});
 
@@ -472,7 +470,10 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
-		strictEqual(Object.prototype.hasOwnProperty.call(chainedGitConfig.network, 'allowAllUnixSockets'), false, 'Chained Git commands should not allow all Unix sockets for the entire invocation');
+		strictEqual(chainedGitConfig.network.allowAllUnixSockets, true, 'Git commands chained with non-Docker commands should allow Unix sockets');
+
+		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedDockerConfig.network, 'allowAllUnixSockets'), false, 'Git commands chained with Docker commands should not allow all Unix sockets');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(npmConfig.network, 'allowAllUnixSockets'), false, 'Commands without a matching Unix socket runtime rule should not allow all Unix sockets');
@@ -484,14 +485,38 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(config, {}, 'Git GPG runtime values should not apply on Windows');
 	});
 
-	test('should skip unsafe command-specific runtime values for chained commands', () => {
-		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
+	test('should add GnuPG runtime values for chains without Docker commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+			{ keyword: 'git', args: ['rebase', 'main'] },
+			{ keyword: 'python', args: ['script.py'] },
+			{ keyword: 'echo', args: ['done'] },
+		]);
 
 		deepStrictEqual(config, {
+			network: {
+				allowAllUnixSockets: true
+			},
 			filesystem: {
-				allowWrite: ['~/.volta/']
+				allowRead: ['~/.gnupg'],
+				allowWrite: ['~/.gnupg']
 			}
 		});
+	});
+
+	test('should skip GnuPG runtime values for chains with Docker-related commands', () => {
+		for (const keyword of ['docker', 'docker-compose', 'dockerd']) {
+			const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [
+				{ keyword: 'git', args: ['rebase', 'main'] },
+				{ keyword, args: ['ps'] },
+				{ keyword: 'npm', args: ['install'] },
+			]);
+
+			deepStrictEqual(config, {
+				filesystem: {
+					allowWrite: ['~/.volta/']
+				}
+			});
+		}
 	});
 
 	test('should preserve user runtime settings over command-specific runtime values', async () => {
@@ -748,7 +773,11 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const chainedGitConfig = await getConfigAfterWrap('git rebase main && npm install', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'npm', args: ['install'] }]);
 		ok(chainedGitConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Chained Git commands should include GPG read allow-list paths');
-		ok(!chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Chained Git commands should not include GPG write allow-list paths');
+		ok(chainedGitConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with non-Docker commands should include GPG write allow-list paths');
+
+		const chainedDockerConfig = await getConfigAfterWrap('git rebase main && docker ps', [{ keyword: 'git', args: ['rebase', 'main'] }, { keyword: 'docker', args: ['ps'] }]);
+		ok(chainedDockerConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should retain Git-specific GPG read allow-list paths');
+		ok(!chainedDockerConfig.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Git commands chained with Docker commands should not include GPG write allow-list paths');
 
 		const npmConfig = await getConfigAfterWrap('npm install', [{ keyword: 'npm', args: ['install'] }]);
 		ok(!npmConfig.filesystem.allowRead.includes('/home/user/.gnupg'), 'Commands without a matching GPG rule should not include GPG read allow-list paths');
@@ -1414,7 +1443,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1439,10 +1469,9 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapped.isSandboxWrapped, true);
 		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.version, '0.6.0-alpha');
 		strictEqual(config.containment, 'process');
-		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
-		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
 		strictEqual(config.process.cwd, 'c:\\workspace-one');
 		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
 		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
@@ -1459,7 +1488,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting is enabled', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,

@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
+import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -35,6 +36,9 @@ export enum BrowserViewCommandId {
 
 	// History
 	ShowHistory = `${commandPrefix}.showHistory`,
+
+	// Permissions
+	ManagePermissions = `${commandPrefix}.managePermissions`,
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
@@ -119,6 +123,14 @@ export interface IBrowserViewWindowConfiguration {
 	 * workspace folder paths.
 	 */
 	readonly trustedFileRoots: readonly string[];
+	/**
+	 * Whether Workspace Trust is disabled entirely
+	 * (`security.workspace.trust.enabled: false`) for this window. When
+	 * `true`, every `file://` request is allowed regardless of
+	 * {@link trustedFileRoots} since there is no meaningful notion of an
+	 * untrusted folder to enforce.
+	 */
+	readonly trustAllFiles: boolean;
 }
 
 export interface IBrowserViewBounds {
@@ -214,6 +226,7 @@ export interface IBrowserViewCreateOptions {
 export interface IBrowserViewStorageKeys {
 	readonly history?: string;
 	readonly favicons?: string;
+	readonly permissions?: string;
 }
 
 export interface IBrowserViewState {
@@ -231,6 +244,7 @@ export interface IBrowserViewState {
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	storageKeys: IBrowserViewStorageKeys;
+	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
 	isRemoteSession: boolean;
@@ -299,6 +313,18 @@ export interface IBrowserViewTitleChangeEvent {
 
 export interface IBrowserViewFaviconChangeEvent {
 	favicon: string | undefined;
+}
+
+export interface IBrowserViewPermissionRequestEvent {
+	origin: string;
+	category: PermissionCategory;
+	device?: IBrowserViewDeviceRequest;
+}
+
+export interface IBrowserViewDeviceRequest {
+	requestId: string;
+	deviceType: BrowserDeviceType;
+	devices: IBrowserDeviceCandidate[];
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -381,6 +407,8 @@ export interface IBrowserViewService {
 	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
 	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
 	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
+	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
+	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -558,6 +586,32 @@ export interface IBrowserViewService {
 	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
 	 */
 	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
+
+	/**
+	 * Record permission decisions for an origin in this view's session. This is
+	 * the single write API for permissions: it is used both by the management UI
+	 * and to answer an outstanding {@link onDynamicDidRequestPermission} prompt.
+	 * Recording a decision for a category auto-resolves any pending request for
+	 * that (origin, category). The only values ever stored are `'allow'` and
+	 * `'deny'`; passing a `null` decision clears the saved choice, falling back
+	 * to the category default. Changes are persisted immediately.
+	 *
+	 * @param id The browser view identifier
+	 * @param origin The origin (URL or origin string) to record decisions for
+	 * @param grants The per-category decisions to record
+	 */
+	setPermissions(id: string, origin: string, grants: readonly IPermissionCategoryState[]): Promise<void>;
+
+	/**
+	 * Answer an in-progress hardware-device chooser raised via
+	 * {@link onDynamicDidRequestPermission} (its `device` payload). Pass the
+	 * chosen `deviceId`, or `null` to cancel the chooser.
+	 *
+	 * @param id The browser view identifier
+	 * @param requestId The device request to answer
+	 * @param deviceId The selected device id, or `null` to cancel
+	 */
+	selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void>;
 
 	/**
 	 * Get captured console logs for a browser view.

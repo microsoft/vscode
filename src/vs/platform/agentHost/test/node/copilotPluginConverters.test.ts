@@ -15,7 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin, IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -178,9 +178,17 @@ suite('copilotPluginConverters', () => {
 
 		test('parses YAML frontmatter for name, description, tools, and body', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/review.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: code-reviewer\ndescription: Reviews code for quality issues\ntools:\n  - read_file\n  - grep_search\n---\nYou are a meticulous code reviewer.\n`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: code-reviewer',
+				'description: Reviews code for quality issues',
+				'tools:',
+				'  - read_file',
+				'  - grep_search',
+				'---',
+				'You are a meticulous code reviewer.',
+				'',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'review' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -193,11 +201,77 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('parses skills and infer from frontmatter', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/skilled.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: skilled',
+				'skills:',
+				'  - baking-cake',
+				'  - cooking-pasta',
+				'infer: true',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'skilled' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'skilled',
+				tools: null,
+				skills: ['baking-cake', 'cooking-pasta'],
+				infer: true,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('infer defaults to false when disable-model-invocation is set', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-invoke.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: no-invoke',
+				'disable-model-invocation: true',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'no-invoke' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'no-invoke',
+				tools: null,
+				infer: false,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('omits skills and infer when frontmatter does not specify them', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/plain.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: plain',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'plain' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(Object.hasOwn(result[0], 'skills'), false);
+			assert.strictEqual(Object.hasOwn(result[0], 'infer'), false);
+		});
+
 		test('empty tools array becomes null (all tools)', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/empty-tools.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: free-for-all\ntools: []\n---\nBody.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: free-for-all',
+				'tools: []',
+				'---',
+				'Body.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'fallback' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -211,9 +285,12 @@ suite('copilotPluginConverters', () => {
 
 		test('falls back to resource name when frontmatter omits name', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-name.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\ndescription: Helper without an explicit name\n---\nBody only.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'description: Helper without an explicit name',
+				'---',
+				'Body only.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'resource-name' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -224,6 +301,72 @@ suite('copilotPluginConverters', () => {
 				tools: null,
 				prompt: 'Body only.',
 			}]);
+		});
+
+		test('trims whitespace from frontmatter name to match parsed agent name', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/padded.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: "  Inbox  "',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'padded' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(result[0].name, 'Inbox');
+		});
+	});
+
+	// ---- toSdkSessionCustomAgents ---------------------------------------
+
+	suite('toSdkSessionCustomAgents', () => {
+
+		test('includes agents from plugins without a file directory', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
+			const result = await toSdkSessionCustomAgents(plugins, undefined, fileService);
+
+			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
+		});
+
+		test('excludes file-dir plugin agents when none is selected', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Inbox agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [{
+				pluginDir: URI.file('/plugins/inbox'),
+				agents: [{ uri: agentUri, name: 'Inbox' }],
+			}];
+			const result = await toSdkSessionCustomAgents(plugins, undefined, fileService);
+
+			assert.deepStrictEqual(result, []);
+		});
+
+		test('forces the selected file-dir plugin agent into customAgents', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Inbox agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [{
+				pluginDir: URI.file('/plugins/inbox'),
+				agents: [{ uri: agentUri, name: 'Inbox' }],
+			}];
+			const result = await toSdkSessionCustomAgents(plugins, 'Inbox', fileService);
+
+			assert.deepStrictEqual(result, [{ name: 'Inbox', tools: null, prompt: 'Inbox agent' }]);
+		});
+
+		test('does not duplicate the selected agent when already present', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
+			const result = await toSdkSessionCustomAgents(plugins, 'helper', fileService);
+
+			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
 		});
 	});
 

@@ -9,7 +9,28 @@ import { constObservable, IObservable } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IGitHubInfo, ISessionWorkspace, sessionFileChangesEqual, sessionWorkspaceEqual } from '../../common/session.js';
+import { getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, sessionFileChangesEqual, SessionStatus, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('isActiveSessionStatus', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('treats in-progress and needs-input sessions as active', () => {
+		assert.deepStrictEqual([
+			SessionStatus.Untitled,
+			SessionStatus.InProgress,
+			SessionStatus.NeedsInput,
+			SessionStatus.Completed,
+			SessionStatus.Error,
+		].map(status => isActiveSessionStatus(status)), [
+			false,
+			true,
+			true,
+			false,
+			false,
+		]);
+	});
+});
 
 suite('sessionFileChangesEqual', () => {
 
@@ -137,5 +158,18 @@ suite('sessionWorkspaceEqual', () => {
 
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+});
+
+suite('getUntitledSessionTitle', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns "New Chat" for a quick chat', () => {
+		assert.strictEqual(getUntitledSessionTitle(true), 'New Chat');
+	});
+
+	test('returns "New Session" for a non-quick-chat session', () => {
+		assert.strictEqual(getUntitledSessionTitle(false), 'New Session');
 	});
 });

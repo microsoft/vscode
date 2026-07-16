@@ -8,7 +8,7 @@ import type { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ChangesetKind } from './changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
-import type { ChangesetOperation, ISessionGitState, URI } from './state/sessionState.js';
+import type { ChangesetOperation, ISessionGitHubState, ISessionGitState, URI } from './state/sessionState.js';
 
 export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
@@ -49,7 +49,9 @@ export interface IChangesetOperationContext {
 	/** Well-known changeset kind for {@link changesetUri}. */
 	readonly changesetKind: ChangesetKind;
 	/** Current git metadata for the session used to compute operation availability. */
-	readonly gitState: ISessionGitState;
+	readonly gitState?: ISessionGitState;
+	/** Current GitHub metadata for the session used to compute operation availability. */
+	readonly gitHubState?: ISessionGitHubState;
 }
 
 /**
@@ -112,7 +114,14 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 * session. If `gitState` is not provided, the current git state will
 	 * be used.
 	 */
-	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState): void;
+	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
+
+	/**
+	 * Returns the operations that should be advertised for the given changeset, or
+	 * `undefined` when no operations are available.
+	 */
+	getOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined;
+
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.

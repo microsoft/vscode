@@ -15,7 +15,6 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService } from '../
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatQuotaResumeState, ChatStatusBarEntry, computeQuotaResumeState } from '../../browser/chatStatus/chatStatusEntry.js';
 import { IChatStatusItemService } from '../../browser/chatStatus/chatStatusItemService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
 
 type Quotas = IChatEntitlementService['quotas'];
 
@@ -132,10 +131,6 @@ suite('ChatStatusBarEntry', () => {
 			snoozeTimeLeft: 0,
 			snooze: () => { },
 			cancelSnooze: () => { },
-		});
-		instantiationService.stub(IChatSessionsService, {
-			onDidChangeInProgress: Event.None,
-			getInProgress: () => [],
 		});
 		instantiationService.stub(IChatStatusItemService, {
 			_serviceBrand: undefined,

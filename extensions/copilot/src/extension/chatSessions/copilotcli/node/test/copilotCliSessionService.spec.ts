@@ -179,7 +179,7 @@ describe('CopilotCLISessionService', () => {
 						deleteSession: vi.fn(async () => { }),
 					};
 				}
-				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], false, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService()));
+				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], undefined, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService()));
 			}
 		} as unknown as IInstantiationService;
 		const configurationService = accessor.get(IConfigurationService);
@@ -203,44 +203,6 @@ describe('CopilotCLISessionService', () => {
 	});
 
 	// --- Tests ----------------------------------------------------------------------------------
-
-	it('falls back to a compatibility auto-mode manager when the SDK export is not constructable', async () => {
-		const sdk = {
-			getPackage: vi.fn(async () => ({
-				internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } },
-				LocalSession: MockLocalSession,
-				createLocalFeatureFlagServiceCreator,
-				AutoModeSessionManager: {} as never,
-				acquireAutoModeSession: vi.fn(async () => { throw new Error('unexpected auto-mode acquire'); }),
-				refreshAutoModeSession: vi.fn(async () => { throw new Error('unexpected auto-mode refresh'); }),
-				AutoModeUnavailableError: class extends Error { },
-				AutoModeUnsupportedError: class extends Error { },
-				isAutoModel: (model: string | undefined) => model === 'auto',
-				noopTelemetryBinder: {},
-			})),
-			getRequestId: vi.fn(() => undefined),
-		} as unknown as ICopilotCLISDK;
-
-		const services = disposables.add(createExtensionUnitTestingServices());
-		const accessor = services.createTestingAccessor();
-		const configurationService = accessor.get(IConfigurationService);
-		const authService = { getCopilotToken: vi.fn(async () => ({ token: 'test-token' })) } as unknown as IAuthenticationService;
-		const nullMcpServer = disposables.add(new NullMcpService());
-		const delegationService = new class extends mock<IChatDelegationSummaryService>() {
-			override extractPrompt(): { prompt: string; reference: never } | undefined { return undefined; }
-			override async summarize(): Promise<string | undefined> { return undefined; }
-		}();
-		const localService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), new NullCopilotCLIAgents(), new NullWorkspaceService(), new NullCustomSessionTitleService(), configurationService, new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), new NullCopilotCLIModels(), new NullExperimentationService()));
-
-		const localManager = await localService.getSessionManager() as unknown as MockCliSdkSessionManager & { opts: { autoModeManager: Record<string, unknown> } };
-
-		expect(localManager.opts.autoModeManager).toEqual(expect.objectContaining({
-			resolve: expect.any(Function),
-			clear: expect.any(Function),
-			handleModelChange: expect.any(Function),
-			subscribe: expect.any(Function),
-		}));
-	});
 
 	describe('CopilotCLISessionService.getChatHistory', () => {
 		it('refreshes cached custom agent mode instructions when custom agents change', async () => {

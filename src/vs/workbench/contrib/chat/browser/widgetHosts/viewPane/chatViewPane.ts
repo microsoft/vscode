@@ -8,12 +8,14 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { autorun, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -31,6 +33,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
@@ -48,7 +51,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isEditorLocalAgentEnabled } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -57,7 +60,7 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { ChatViewId } from '../../chat.js';
+import { ChatViewId, IChatWidgetService, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -70,7 +73,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { IAgentsVoiceWindowService } from '../../../../agentsVoice/common/agentsVoice.js';
+import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -105,9 +108,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
+	private _sessionsListSuppressionCount = 0;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
+	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
 		options: IViewPaneOptions,
@@ -138,10 +144,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -384,9 +391,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
-				if (text && this._widget?.viewModel) {
-					this._widget.acceptInput(text, { preserveFocus: true });
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget ?? this._widget;
+				if (text && widget?.viewModel) {
+					if (widget.viewModel.editing) {
+						// When editing an old message, populate the active input
+						// editor so the user can review before submitting.
+						widget.input.setValue(text, false);
+					} else {
+						widget.acceptInput(text, { preserveFocus: true });
+					}
 				}
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
@@ -410,23 +425,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _setupVoiceTranscriptOverlay(inputContainerEl: HTMLElement): void {
 		inputContainerEl.style.position = 'relative';
 		const transcriptOverlay = $('.voice-transcript-overlay');
-		// Leave bottom 36px for the toolbar (Agent, model picker, mic, send)
-		transcriptOverlay.style.cssText = 'display:none;position:absolute;top:0;left:0;right:0;bottom:36px;z-index:10;padding:8px 12px;font-size:13px;line-height:1.4;word-break:break-word;overflow:hidden;pointer-events:none;background:var(--vscode-input-background, transparent);border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0;';
-		inputContainerEl.append(transcriptOverlay);
-
-		const style = document.createElement('style');
-		style.textContent = `
-			@keyframes voiceTextPulse { 0%,100%{opacity:0.9} 50%{opacity:0.4} }
-			.voice-transcript-overlay .committed { color: var(--vscode-foreground); }
-			.voice-transcript-overlay .partial { color: var(--vscode-foreground); opacity:0.6; font-style:italic; animation: voiceTextPulse 1.5s ease-in-out infinite; }
-			.voice-transcript-overlay .assistant-text { color: var(--vscode-descriptionForeground); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-		`;
-		transcriptOverlay.append(style);
+		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		const transcriptOverlayNode = transcriptScrollable.getDomNode();
+		transcriptOverlayNode.classList.add('voice-transcript-overlay-scrollable');
+		transcriptOverlayNode.style.display = 'none';
+		inputContainerEl.append(transcriptOverlayNode);
 
 		// Dynamic audio-reactive glow animation (matches aux window behavior)
 		let animFrameId: number | undefined;
-		let glowDataArray: Uint8Array | undefined;
+		const glowDataArrayRef: { value: Uint8Array | undefined } = { value: undefined };
 		const win = getWindow(inputContainerEl);
+		let lastGlowTarget: HTMLElement | undefined;
+		// Lock the glow target to whichever widget was focused when voice connected.
+		// This prevents confirmations/programmatic focus shifts from moving the glow.
+		let lockedGlowWidget: HTMLElement | undefined;
+		const getActiveInputContainer = (): HTMLElement => {
+			if (lockedGlowWidget) {
+				return lockedGlowWidget;
+			}
+			const focused = this.chatWidgetService.lastFocusedWidget;
+			return focused?.input?.inputContainerElement ?? inputContainerEl;
+		};
 		const startGlowAnimation = () => {
 			if (animFrameId !== undefined) { return; }
 			const animate = () => {
@@ -434,11 +456,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
 				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+				const target = getActiveInputContainer();
+
+				// If the target changed, clear styling on the old one
+				if (lastGlowTarget && lastGlowTarget !== target) {
+					lastGlowTarget.style.borderColor = '';
+					lastGlowTarget.style.boxShadow = '';
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening');
+				}
+				lastGlowTarget = target;
 
 				if (!glowActive) {
-					inputContainerEl.style.borderColor = '';
-					inputContainerEl.style.boxShadow = '';
-					inputContainerEl.classList.remove('voice-active', 'voice-listening');
+					target.style.borderColor = '';
+					target.style.boxShadow = '';
+					target.classList.remove('voice-active', 'voice-listening');
 					return;
 				}
 
@@ -446,30 +477,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
-				let intensity: number;
-				if (!analyser) {
-					intensity = 0.3;
-				} else {
-					if (!glowDataArray || glowDataArray.length !== analyser.frequencyBinCount) {
-						glowDataArray = new Uint8Array(analyser.frequencyBinCount);
-					}
-					analyser.getByteFrequencyData(glowDataArray as Uint8Array<ArrayBuffer>);
-					let sum = 0;
-					for (let i = 0; i < glowDataArray.length; i++) {
-						sum += glowDataArray[i];
-					}
-					intensity = Math.min(1, (sum / glowDataArray.length) / 80);
-				}
+				const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-				// Blue when listening, purple when speaking
-				const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
-				const borderAlpha = 0.4 + intensity * 0.5;
-				const shadowSpread = 4 + intensity * 12;
-				const shadowAlpha = 0.15 + intensity * 0.35;
-				inputContainerEl.style.borderColor = `rgba(${rgb},${borderAlpha})`;
-				inputContainerEl.style.boxShadow = `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${rgb},${shadowAlpha * 0.3})`;
-				inputContainerEl.classList.add('voice-active');
-				inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
+				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
+				target.style.borderColor = borderColor;
+				target.style.boxShadow = boxShadow;
+				target.classList.add('voice-active');
+				target.classList.toggle('voice-listening', voiceState === 'listening');
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -478,10 +493,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				win.cancelAnimationFrame(animFrameId);
 				animFrameId = undefined;
 			}
-			inputContainerEl.style.borderColor = '';
-			inputContainerEl.style.boxShadow = '';
-			inputContainerEl.classList.remove('voice-active', 'voice-listening');
+			const target = lastGlowTarget ?? inputContainerEl;
+			target.style.borderColor = '';
+			target.style.boxShadow = '';
+			target.classList.remove('voice-active', 'voice-listening');
+			lastGlowTarget = undefined;
 		};
+
+		// Lock glow target on connect, unlock on disconnect
+		this._register(autorun(reader => {
+			const connected = this.voiceSessionController.isConnected.read(reader);
+			if (connected && !lockedGlowWidget) {
+				lockedGlowWidget = this.chatWidgetService.lastFocusedWidget?.input?.inputContainerElement ?? inputContainerEl;
+			} else if (!connected) {
+				lockedGlowWidget = undefined;
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
@@ -494,49 +521,99 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		this._register({ dispose: () => stopGlowAnimation() });
 
+		// Voice transcript is per-session. The transcript is "owned" by the
+		// session the user is dictating into (the explicit target session, or the
+		// focused session when dictation began) and is only shown in that
+		// session's view. Switching focus to a different session hides the
+		// transcript here; switching while actively dictating also stops
+		// transcription so it isn't misrouted to the newly focused session.
+		let listeningSession: URI | undefined;
+		let ownerSession: URI | undefined;
 		this._register(autorun(reader => {
 			const turns = this.voiceSessionController.transcriptTurns.read(reader);
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
+			const targetSession = this.voiceSessionController.targetSession.read(reader);
+			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = this.configurationService.getValue<boolean>('agents.voice.showTranscript') !== false;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 			if (!connected) {
-				transcriptOverlay.style.display = 'none';
+				listeningSession = undefined;
+				ownerSession = undefined;
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
-			// If aux window is open and voice is targeting a different session,
-			// don't show transcript in the chat input — it's shown in aux window instead.
-			const targetSession = this.voiceSessionController.targetSession.read(reader);
-			const currentSession = this._widget?.viewModel?.sessionResource;
-			if (this.agentsVoiceWindowService.isOpen && targetSession && currentSession && targetSession.toString() !== currentSession.toString()) {
-				transcriptOverlay.style.display = 'none';
+			// Capture / maintain the session the current transcript belongs to.
+			if (voiceState === 'listening') {
+				if (!listeningSession) {
+					listeningSession = targetSession ?? currentSession;
+					ownerSession = listeningSession;
+				} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
+					// User switched to a different session while listening. Only
+					// stop when there's dictation in progress, so it isn't
+					// misrouted to the newly focused session. If nothing has been
+					// recorded yet (e.g. clicking "New Chat" while idly listening
+					// hands-free), keep listening and just follow the new session.
+					const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
+					if (activelyDictating) {
+						this.voiceSessionController.stopListening();
+						listeningSession = undefined;
+					} else {
+						listeningSession = currentSession;
+						ownerSession = currentSession;
+					}
+				}
+			} else {
+				// Allow the next dictation to re-capture the owning session.
+				listeningSession = undefined;
+			}
+
+			// Don't show a transcript that belongs to a different session here.
+			const effectiveOwner = targetSession ?? ownerSession;
+			if (effectiveOwner && currentSession && !isEqual(effectiveOwner, currentSession)) {
+				transcriptOverlayNode.style.display = 'none';
+				transcriptOverlayNode.classList.remove('has-transcript');
 				return;
 			}
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript) {
-				if (voiceState === 'idle' && visible.length === 0) {
-					transcriptOverlay.style.display = '';
-					while (transcriptOverlay.childNodes.length > 1) {
-						transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-					}
+				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+				if (!showTranscript && voiceState === 'listening') {
+					// Transcript is disabled: surface a minimal "Listening..." overlay
+					// while listening so the user has feedback. Cleared in any other state.
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const listening = $('span.listening');
+					listening.textContent = localize('voiceMode.listening', "Listening...");
+					transcriptOverlay.append(listening);
+					transcriptScrollable.scanDomNode();
+				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
 					const hint = $('span.partial');
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
 						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-						: localize('voiceMode.clickMicHint', "Click mic to talk");
+						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 					transcriptOverlay.append(hint);
+					transcriptScrollable.scanDomNode();
 				} else {
-					transcriptOverlay.style.display = 'none';
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
 				}
 				return;
 			}
 
-			transcriptOverlay.style.display = '';
-			// Show only the latest turn: user question first, then assistant reply replaces it
+			transcriptOverlayNode.style.display = '';
+			transcriptOverlayNode.classList.add('has-transcript');
+			// Show only the latest visible turn
 			const lastTurn = visible[visible.length - 1];
 			const contentElements: HTMLElement[] = [];
 			if (lastTurn.speaker === 'user') {
@@ -562,13 +639,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				div.textContent = lastTurn.text;
 				contentElements.push(div);
 			}
-			// Keep the style element, replace content
-			while (transcriptOverlay.childNodes.length > 1) {
-				transcriptOverlay.removeChild(transcriptOverlay.lastChild!);
-			}
-			for (const el of contentElements) {
-				transcriptOverlay.append(el);
-			}
+			transcriptOverlay.replaceChildren(...contentElements);
+			transcriptScrollable.scanDomNode();
+			transcriptScrollable.setScrollPosition({ scrollTop: 0 });
 		}));
 	}
 
@@ -718,6 +791,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				newSessionsContainerVisible =
 					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
+					this._sessionsListSuppressionCount === 0 &&																			// not mid-transition (a slow session transiently shows an empty widget)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
 
@@ -740,6 +814,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
 			visible: newSessionsContainerVisible
 		};
+	}
+
+	private refreshSessionsControlVisibility(): void {
+		const { changed } = this.updateSessionsControlVisibility();
+		if (changed) {
+			this.relayout();
+		}
+	}
+
+	/**
+	 * Suppresses the sessions list until the returned disposable is disposed.
+	 * Used to span a whole session transition (e.g. a "Continue in…" migration:
+	 * load → materializing send → rebind) so the transiently-empty widget never
+	 * falls back to the list.
+	 */
+	beginSessionsListSuppression(): IDisposable {
+		this._sessionsListSuppressionCount++;
+		this.refreshSessionsControlVisibility();
+		return toDisposable(() => {
+			this._sessionsListSuppressionCount--;
+			this.refreshSessionsControlVisibility();
+		});
 	}
 
 	getFocusedSessions(): IAgentSession[] {
@@ -850,6 +946,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
+			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -972,11 +1069,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * Returns `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace);
 		if (defaultType === localChatSessionType) {
 			return undefined;
 		}
-		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService);
+		const resource = getDefaultNewChatSessionResource(this.configurationService, this.chatSessionsService, this.storageService, workspace);
 		try {
 			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
 		} catch (error) {
@@ -1005,17 +1103,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
-		const prefersAgentHostCopilot = this.configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) === false
+		const workspace = this.workspaceContextService.getWorkspace();
+		const defaultType = getComputedDefaultSessionType(this.configurationService, this.chatSessionsService, workspace);
+		const prefersAgentHostCopilot = !isEditorLocalAgentEnabled(this.configurationService, workspace)
 			&& this.configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh';
 		return (defaultType !== localChatSessionType || prefersAgentHostCopilot)
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false): Promise<IChatModel | undefined> {
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
+
+		// Baseline draft for preserving text typed during loading. `loadSession`
+		// opens its load window before calling us, so it passes its own baseline;
+		// otherwise this call's own await is the load window. See #325323.
+		const baselineInput = inputBeforeLoad ?? this._widget?.getInput() ?? '';
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
@@ -1051,7 +1155,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.viewState.sessionResource = model.sessionResource;
 		}
 
-		this._widget.setModel(model);
+		if (model) {
+			setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+		} else {
+			this._widget.setModel(model);
+		}
 
 		// Update title control
 		this.titleControl?.update(model);
@@ -1119,6 +1227,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
+		// Capture the input draft up front: the load window (clear + acquire below)
+		// opens before `showModel` binds, so text typed during loading must be
+		// baselined here to be preserved rather than erased. See #325323.
+		const inputBeforeLoad = this._widget?.getInput() ?? '';
+
 		// Cancel any in-flight loadSession call so the last one always wins
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
@@ -1161,7 +1274,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return undefined;
 				}
 
-				const result = await this.showModel(token, newModelRef);
+				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 				return result;
 			} catch (err) {
@@ -1177,7 +1290,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const result = await this.showModel(token, undefined);
+				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad);
 				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
 				return result;
 			} finally {
@@ -1213,6 +1326,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private layoutingBody = false;
 
 	private relayout(): void {
+		if (!this._widget?.visible) {
+			return;
+		}
+
 		if (this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
@@ -1471,4 +1588,5 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
+
 }

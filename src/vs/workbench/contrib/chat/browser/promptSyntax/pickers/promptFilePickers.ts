@@ -580,6 +580,9 @@ export class PromptFilePickers {
 			case PromptsStorage.plugin:
 				tooltip = promptFile.name;
 				break;
+			case PromptsStorage.builtIn:
+				tooltip = undefined;
+				break;
 			default:
 				assertNever(promptFile);
 		}
