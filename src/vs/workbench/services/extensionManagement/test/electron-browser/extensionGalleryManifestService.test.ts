@@ -313,6 +313,22 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.ok(!storageData.has('marketplace.cachedAccess'));
 	});
 
+	test('GitHub provider — entitlements 401/404 (null) → Unreachable, not a cached denial', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		// `entitlementsData: null` means the entitlements endpoint returned 401 (token
+		// expired/revoked) or 404 (the account lacks the scope to query it). Neither is a definitive
+		// "ineligible" verdict — re-authentication or a scope grant can recover — so it must resolve
+		// to `unknown` and surface a retryable Unreachable message rather than a durable, cached
+		// AccessDenied that would lock the user out until the cache is cleared.
+		defaultAccount = createDefaultAccount({ enterprise: false, entitlementsData: null });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Unreachable);
+		assert.ok(!storageData.has('marketplace.cachedAccess'));
+	});
+
 	test('GitHub provider — account with matching SKU → Available', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({

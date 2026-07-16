@@ -428,10 +428,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 			} else if (eligibility === 'unknown') {
 				// The account is signed in but we could NOT determine SKU eligibility — the
-				// entitlements endpoint was unreachable or returned an indeterminate response
-				// (distinct from a definitive 401/404, which resolves to `ineligible`). Never turn a
-				// transient outage into a cached denial, and never tear down a marketplace that is
-				// already Available; only surface a retryable "unreachable" message otherwise.
+				// entitlements endpoint was unreachable, returned an indeterminate response, or
+				// returned a 401/404 (token expired/revoked, or the account lacks the scope to query
+				// it). None of these is a definitive "ineligible" verdict. Never turn a
+				// transient/indeterminate condition into a cached denial, and never tear down a
+				// marketplace that is already Available; only surface a retryable "unreachable"
+				// message otherwise.
 				if (this.currentStatus !== ExtensionGalleryManifestStatus.Available) {
 					this.update(null, ExtensionGalleryManifestStatus.Unreachable);
 				}
@@ -577,11 +579,14 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			return 'eligible';
 		}
 		// entitlementsData tri-state (see IDefaultAccount): a resolved object carries the account's
-		// SKUs; `null` is a definitive negative (the entitlements endpoint returned 401/404); and
-		// `undefined` means the endpoint was unreachable or returned an indeterminate response, so we
-		// genuinely cannot decide eligibility. Only the last case is `unknown` — the caller must NOT
-		// turn a transient outage into a durable, cached denial.
-		if (account.entitlementsData === undefined) {
+		// SKUs. Both `null` and `undefined` are indeterminate, NOT a durable "ineligible" verdict:
+		// `null` means the entitlements endpoint returned 401 (token expired/revoked) or 404 (the
+		// account lacks the scope to query it — the service pretends the endpoint is absent), and
+		// `undefined` means the endpoint was unreachable or returned an otherwise indeterminate
+		// response. None of these can decide eligibility, so all resolve to `unknown` — the caller
+		// must NOT turn a transient/indeterminate condition into a durable, cached denial. Only a
+		// resolved object whose SKU is absent from `accessSKUs` is a definitive `ineligible`.
+		if (account.entitlementsData === undefined || account.entitlementsData === null) {
 			return 'unknown';
 		}
 		if (account.entitlementsData?.access_type_sku
