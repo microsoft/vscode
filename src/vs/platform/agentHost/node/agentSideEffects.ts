@@ -1229,11 +1229,6 @@ export class AgentSideEffects extends Disposable {
 				this._publishAllSessionCustomizations();
 				break;
 			}
-			case ActionType.SessionCustomizationToggled: {
-				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.id, action.enabled);
-				break;
-			}
 			case ActionType.SessionMcpServerStartRequested: {
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.startMcpServer?.(URI.parse(sessionChannel), action.id).catch(err => {

@@ -760,10 +760,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._metadataStore = instantiationService.createInstance(CodexSessionMetadataStore);
+		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 	}
 
 	// #region Auth
@@ -3432,26 +3432,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		sess?.pendingClientToolCalls.respondOrBuffer(toolCallId, result);
 	}
 
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		// Client-pushed plugin customizations are keyed by customization id; the
-		// AHP `SessionCustomizationToggled` action carries that id as `uri`.
-		// codex-discovered skills/hooks/MCP are read-only and not toggled here.
-		let changed = false;
-		for (const session of this._sessions.values()) {
-			if (session.disposed || !session.clientCustomizations.has(uri)) {
-				continue;
-			}
-			if (session.clientCustomizations.setEnabled(uri, enabled)) {
-				changed = true;
-				this._publishClientCustomizations(session);
-			}
-		}
-		if (changed) {
-			// Enabling/disabling a plugin changes the enabled skill-root union.
-			void this._refreshSkillExtraRoots();
-		}
-	}
-
 	// ---- Client-pushed plugin customizations -------------------------------
 
 	/**
@@ -3702,9 +3682,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _getOrCreateMcpController(session: ICodexSession): McpCustomizationController {
 		if (!session.mcpController) {
-			session.mcpController = new McpCustomizationController({
+			session.mcpController = this._instantiationService.createInstance(McpCustomizationController, {
 				providerId: this.id,
 				sessionId: session.sessionId,
+				sessionUri: session.sessionUri,
 				resolveChildId: () => undefined,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
