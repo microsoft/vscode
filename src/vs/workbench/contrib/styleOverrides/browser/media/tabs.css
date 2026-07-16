@@ -29,14 +29,12 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	background-clip: padding-box;
-	border-right: var(--vscode-spacing-size40) solid transparent !important;
+	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
-	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
+	margin-right: var(--vscode-spacing-size40) !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
 }
@@ -85,10 +83,10 @@
 }
 
 .style-override .part.editor .tabs-container > .tab.sticky-compact {
-	width: 32px !important;
-	min-width: 32px !important;
-	max-width: 32px !important;
-	flex: 0 0 32px !important;
+	width: 28px !important;
+	min-width: 28px !important;
+	max-width: 28px !important;
+	flex: 0 0 28px !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
