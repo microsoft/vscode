@@ -13,6 +13,36 @@
 	box-shadow: var(--vscode-shadow-xl);
 }
 
+/*
+ * Blocking input prompts (for example window.showInputBox for authentication,
+ * SSH passphrases or API keys) appear at the top of the window and are easy to
+ * miss while the user's attention is on the terminal, editor or elsewhere.
+ * Briefly pulse the widget when such a prompt appears so it is obvious that
+ * input is required. See https://github.com/microsoft/vscode/issues/325764.
+ */
+.quick-input-widget.quick-input-needs-attention {
+	animation: quick-input-attention-pulse 500ms ease-out 0s 2;
+}
+
+@keyframes quick-input-attention-pulse {
+	0% {
+		box-shadow: var(--vscode-shadow-xl), 0 0 0 0 var(--vscode-focusBorder);
+	}
+	50% {
+		box-shadow: var(--vscode-shadow-xl), 0 0 0 3px var(--vscode-focusBorder);
+	}
+	100% {
+		box-shadow: var(--vscode-shadow-xl), 0 0 0 0 var(--vscode-focusBorder);
+	}
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+	.quick-input-widget.quick-input-needs-attention {
+		animation: none;
+	}
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;
