@@ -14,6 +14,7 @@ build/azure-pipelines/common/installPlaywright.js
 build/azure-pipelines/github-check-run.js
 build/builtin/browser-main.js
 build/builtin/main.js
+build/npm/stubs/sharp/index.js
 build/codex/generate-protocol.mjs
 eslint.config.js
 extensions/copilot/.mocha-multi-reporters.js
