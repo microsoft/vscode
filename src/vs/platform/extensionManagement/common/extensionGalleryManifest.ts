@@ -257,9 +257,14 @@ export async function exchangeMarketplaceResourceToken(
 		};
 	};
 	try {
-		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, { fetch: fetcher });
+		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, { fetch: fetcher, validateIssuer: true });
 		const tokenEndpoint = metadata.token_endpoint;
 		if (!tokenEndpoint || !isSafeTarget(tokenEndpoint)) {
+			return undefined;
+		}
+		// A sign-out / account switch can occur while the AS-metadata GET above is in flight. If the
+		// caller cancelled since, do not POST the (now potentially revoked) subject token.
+		if (token.isCancellationRequested) {
 			return undefined;
 		}
 		const body = new URLSearchParams();

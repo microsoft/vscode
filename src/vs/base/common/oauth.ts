@@ -1296,6 +1296,14 @@ export interface IFetchAuthorizationServerMetadataOptions {
 	 * Optional custom fetch implementation (defaults to global fetch)
 	 */
 	fetch?: IFetcher;
+	/**
+	 * When `true`, enforce RFC 8414 §3: the `issuer` in the returned metadata must be identical to
+	 * the requested authorization server identifier. Defaults to `false` because multi-tenant
+	 * providers (e.g. Microsoft Entra `/common`) legitimately return a templated, per-tenant issuer
+	 * that differs from the requested identifier. Enable it only for callers that discover a single
+	 * concrete authorization server (e.g. a marketplace protected resource).
+	 */
+	validateIssuer?: boolean;
 }
 
 /** Helper to try parsing the response as authorization server metadata */
@@ -1351,21 +1359,14 @@ export async function fetchAuthorizationServerMetadata(
 ): Promise<{ metadata: IAuthorizationServerMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		additionalHeaders = {},
-		fetch: fetchImpl = fetch
+		fetch: fetchImpl = fetch,
+		validateIssuer = false
 	} = options;
 
 	const authorizationServerUrl = new URL(authorizationServer);
 	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 
 	const errors: Error[] = [];
-
-	// RFC 8414 §3: the `issuer` returned in the metadata MUST be identical to the authorization
-	// server identifier used to build the discovery URL. Enforcing this closes a mix-up / spoofing
-	// vector where a compromised or misconfigured well-known endpoint returns metadata (token and
-	// authorization endpoints) for a *different* issuer. A single trailing slash is tolerated, since
-	// some deployments normalize it, but any other divergence is rejected.
-	const stripTrailingSlash = (value: string): string => value.endsWith('/') ? value.slice(0, -1) : value;
-	const normalizedAuthorizationServer = stripTrailingSlash(authorizationServer);
 
 	const doFetch = async (url: string): Promise<IAuthorizationServerMetadata | undefined> => {
 		try {
@@ -1378,10 +1379,14 @@ export async function fetchAuthorizationServerMetadata(
 			});
 			const metadata = await tryParseAuthServerMetadata(rawResponse);
 			if (metadata) {
-				if (stripTrailingSlash(metadata.issuer) !== normalizedAuthorizationServer) {
-					// Fail closed: treat a mismatched issuer as if no metadata was found so the
-					// remaining discovery URLs are tried and, if none match, the caller sees an error
-					// rather than silently trusting endpoints bound to a different issuer.
+				// RFC 8414 §3: when opted in, the metadata `issuer` MUST be identical (exact match —
+				// no trailing-slash normalization) to the authorization server identifier used to
+				// build the discovery URL. This closes a mix-up / spoofing vector where a compromised
+				// or misconfigured well-known endpoint returns metadata (token and authorization
+				// endpoints) bound to a *different* issuer. Fail closed: treat a mismatch as if no
+				// metadata was found so the remaining discovery URLs are tried and, if none match,
+				// the caller sees an error rather than silently trusting them.
+				if (validateIssuer && metadata.issuer !== authorizationServer) {
 					errors.push(new Error(`Authorization server metadata issuer '${metadata.issuer}' does not match the requested authorization server '${authorizationServer}' (RFC 8414 §3)`));
 					return undefined;
 				}

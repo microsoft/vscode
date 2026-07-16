@@ -2275,7 +2275,7 @@ suite('OAuth', () => {
 			});
 
 			await assert.rejects(
-				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, validateIssuer: true }),
 				(error: any) => {
 					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
 					assert.ok(
@@ -2286,6 +2286,50 @@ suite('OAuth', () => {
 				}
 			);
 			// All three discovery URLs are attempted; none is trusted.
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('accepts a templated multi-tenant issuer by default (validateIssuer off)', async () => {
+			// Microsoft Entra `/common` returns a per-tenant issuer that does not match the requested
+			// `/common` identifier. Without opting in, discovery must NOT reject it — otherwise MCP,
+			// XAA, agentHost and mainThreadAuthentication break for multi-tenant sign-in.
+			const authorizationServer = 'https://login.microsoftonline.com/common/v2.0';
+			const tenantMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => tenantMetadata,
+				text: async () => JSON.stringify(tenantMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result.metadata, tenantMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('with validateIssuer, rejects an issuer that differs only by a trailing slash (exact match)', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const trailingSlashMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => trailingSlashMetadata,
+				text: async () => JSON.stringify(trailingSlashMetadata),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, validateIssuer: true }),
+				(error: any) => error instanceof AggregateError && error.errors.some((err: Error) => /does not match the requested authorization server/.test(err.message))
+			);
 			assert.strictEqual(fetchStub.callCount, 3);
 		});
 	});
