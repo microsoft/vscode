@@ -548,7 +548,7 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('archive skips removal when the worktree has uncommitted changes', async () => {
+	test('archive removes the worktree even when it has uncommitted changes', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		hasUncommittedChanges = true;
@@ -559,8 +559,8 @@ suite('WorktreeIsolation', () => {
 			removeCalls: removeCalls.length,
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
 		}, {
-			removeCalls: 0,
-			stillExists: true,
+			removeCalls: 1,
+			stillExists: false,
 		});
 	});
 
