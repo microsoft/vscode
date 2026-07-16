@@ -10,19 +10,20 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { localize } from '../../../../nls.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
+import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import './media/sessionChatInputToolbar.css';
 
 /** The per-turn data both pills reflect. */
@@ -76,14 +77,7 @@ function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
 	return diffStatsEqual(a.stats, b.stats) && previewFilesEqual(a.previewFiles, b.previewFiles);
 }
 
-/**
- * A floating toolbar shown above the chat input that surfaces the current turn's
- * chat status as clickable pills (see {@link ChatTurnPillsWidget}). Only shown
- * for agent host sessions while the viewed chat's turn is running or waiting for
- * input; once the turn completes the pills disappear here and reappear inside
- * the completed response. The pills are scoped to the viewed chat's last-turn
- * changes so they reflect only what that chat's most recent request produced.
- */
+/** A floating toolbar for the viewed chat's active-turn status and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
@@ -92,6 +86,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>('sessionOverride', 'unset');
 	/** The chat whose last-turn changes are reflected. */
 	private readonly _chat = observableValue<IChat | undefined>('chat', undefined);
+	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
+	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -108,18 +104,23 @@ export class SessionChatInputToolbar extends Disposable {
 
 	/** The current turn's diff stats and previewable files. */
 	private readonly _turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
+		const debugData = this._debugData.read(reader);
+		if (debugData) {
+			return {
+				stats: debugData.stats,
+				previewFiles: debugData.markdownFiles.map(name => ({
+					uri: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
+					kind: 'markdown',
+					created: true,
+				})),
+			};
+		}
 		const chat = this._chat.read(reader);
 		return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
 	});
 
 	private readonly _diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
 	private readonly _previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
-
-	/** The URL of the last browser tool call in the viewed chat's last turn, if any. */
-	private readonly _browserUrl = derived<string | undefined>(this, reader => {
-		const chat = this._chat.read(reader);
-		return chat?.lastTurnBrowserUrl?.read(reader);
-	});
 
 	/** Whether pills may show at all: an agent host session with an active turn. */
 	private readonly _active = derived(reader => {
@@ -144,25 +145,24 @@ export class SessionChatInputToolbar extends Disposable {
 
 		this.element = $('.session-chat-input-toolbar.hidden');
 
-		// Combine the active-turn gate with the per-pill visibility setting.
-		const pillsConfig = observeTurnStatusPillsConfig(this._configurationService);
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			previewFiles: this._previewFiles,
-			browserUrl: this._browserUrl,
-			changesEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).changes),
-			previewEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).preview),
-			browserEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).browser),
-			openChanges: () => this._openChanges(),
-			openPreviewFile: file => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
-			openBrowser: url => this._openBrowser(url),
+			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
+			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
+			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
+			openPreviewFile: file => this._debugData.get() ? undefined : openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
 		this.element.appendChild(pills.element);
 
+		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled));
+		this.element.appendChild(this._backgroundActivities.element);
+
 		this._register(autorun(reader => {
-			this.element.classList.toggle('hidden', !pills.isVisible.read(reader));
+			this.element.classList.toggle('hidden', !pills.isVisible.read(reader) && !this._backgroundActivities.isVisible.read(reader));
 		}));
 	}
 
@@ -172,6 +172,7 @@ export class SessionChatInputToolbar extends Disposable {
 	 * open-changes action. Clears any explicit {@link setSession} override.
 	 */
 	setChat(chat: IChat | undefined): void {
+		this.setDebugData(undefined);
 		this._sessionOverride.set('unset', undefined);
 		this._chat.set(chat, undefined);
 	}
@@ -182,8 +183,18 @@ export class SessionChatInputToolbar extends Disposable {
 	 * both.
 	 */
 	setSession(session: IActiveSession | undefined, chat: IChat | undefined): void {
+		this.setDebugData(undefined);
 		this._sessionOverride.set(session, undefined);
 		this._chat.set(chat, undefined);
+	}
+
+	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
+		this._debugData.set(data, undefined);
+		this._backgroundActivities.setDebugData(data);
+	}
+
+	getDebugData(): ISessionChatPillsDebugData | undefined {
+		return this._debugData.get();
 	}
 
 	private _findOwningSession(chatResource: URI, reader: IReader): IActiveSession | undefined {
@@ -212,16 +223,4 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 	}
 
-	/**
-	 * Open the integrated browser at the given URL, falling back to the default
-	 * opener when the browser command is unavailable (e.g. web).
-	 */
-	private async _openBrowser(url: string): Promise<void> {
-		try {
-			await this._commandService.executeCommand(BrowserViewCommandId.Open, url);
-		} catch (err) {
-			this._logService.trace('[SessionChatInputToolbar] Falling back to default opener for browser URL', err);
-			await this._openerService.open(url);
-		}
-	}
 }

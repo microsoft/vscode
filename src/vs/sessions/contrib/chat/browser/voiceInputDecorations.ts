@@ -132,7 +132,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 
 		if (visible.length === 0 || !showTranscript) {
-			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
+			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 			if (!showTranscript && voiceState === 'listening') {
 				// Transcript is disabled: surface a minimal "Listening..." overlay
 				// while listening so the user has feedback. Cleared in any other state.

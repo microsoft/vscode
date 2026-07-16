@@ -37,12 +37,22 @@ suite('AgentHostChatInputPicker - list options', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the compact wrapped layout for Codex approvals', () => {
-		assert.deepStrictEqual(getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset), {
-			className: 'codex-approvals-picker',
-			minWidth: 340,
-			maxWidth: 340,
-			detailItemHeight: 76,
+	test('uses picker-specific widths and layouts', () => {
+		assert.deepStrictEqual({
+			mode: getConfigPickerListOptions(SessionConfigKey.Mode),
+			approvals: getConfigPickerListOptions(SessionConfigKey.AutoApprove),
+			claudePermissions: getConfigPickerListOptions(ClaudeSessionConfigKey.PermissionMode),
+			codexApprovals: getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset),
+		}, {
+			mode: { minWidth: 260 },
+			approvals: { minWidth: 255 },
+			claudePermissions: undefined,
+			codexApprovals: {
+				className: 'codex-approvals-picker',
+				minWidth: 340,
+				maxWidth: 340,
+				detailItemHeight: 76,
+			},
 		});
 	});
 });

@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
@@ -20,6 +20,7 @@ export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	disposeSession(session: URI): Promise<void>;
+	dispatch(channel: string, action: SessionAction): void;
 }
 
 /**
@@ -118,6 +119,32 @@ export class AgentHostSessionListStore extends Disposable {
 
 	async disposeSession(provider: string, rawId: string): Promise<void> {
 		await this._connection.disposeSession(AgentSession.uri(provider, rawId));
+	}
+
+	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
+		const session = AgentSession.uri(provider, rawId);
+		const key = this._key(provider, rawId);
+		const cached = this._entries.get(key);
+		let updated: IAgentHostSessionListEntry | undefined;
+		if (cached) {
+			const status = archived
+				? cached.summary.status | SessionStatus.IsArchived
+				: cached.summary.status & ~SessionStatus.IsArchived;
+			if (status === cached.summary.status) {
+				return;
+			}
+			updated = { ...cached, summary: { ...cached.summary, status } };
+		}
+
+		this._mutationGeneration++;
+		this._connection.dispatch(session.toString(), {
+			type: ActionType.SessionIsArchivedChanged,
+			isArchived: archived,
+		});
+		if (updated) {
+			this._entries.set(key, updated);
+			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
+		}
 	}
 
 	removeSession(provider: string, rawId: string): void {

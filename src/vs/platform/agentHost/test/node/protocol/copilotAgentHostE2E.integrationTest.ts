@@ -90,6 +90,64 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
 	});
 
+	test('client tool disconnect before permission still completes the turn', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-disconnect-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-client-tool-disconnect';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Test Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		dispatchTurn(client, sessionUri, 'turn-client-tool-disconnect', 'Call the get_magic_word tool and then report whether it succeeded.', 2);
+
+		const toolStart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallStart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolName: string };
+			return action.toolName === 'get_magic_word';
+		}, 90_000);
+		const toolCallId = (getActionEnvelope(toolStart).action as { toolCallId: string }).toolCallId;
+
+		client.notify('unsubscribe', { channel: sessionUri });
+
+		const failedCompletion = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallComplete')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolCallId: string; result: { success: boolean } };
+			return action.toolCallId === toolCallId && !action.result.success;
+		}, 30_000);
+		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+
+		const staleReady = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as { toolCallId: string };
+			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
+		});
+		assert.deepStrictEqual(staleReady, []);
+	});
+
 	suiteTeardown(async function () {
 		this.timeout(60_000);
 		await lease.dispose();

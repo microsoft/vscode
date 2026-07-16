@@ -876,6 +876,10 @@ class ConversationHistorySummarizer {
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
+				// This request contains the full summarization snapshot. Keeping it
+				// outside the main Responses API chain prevents a compaction request and
+				// the next agent request from reusing the same previous_response_id.
+				ignoreStatefulMarker: endpoint.isExtensionContributed ? true : undefined,
 				finishedCb: undefined,
 				location: ChatLocation.Agent,
 				requestOptions: {
@@ -976,6 +980,9 @@ class ConversationHistorySummarizer {
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
+				// Compaction prompts are self-contained and should not consume or branch
+				// the main agent's stateful Responses API continuation.
+				ignoreStatefulMarker: endpoint.isExtensionContributed ? true : undefined,
 				finishedCb: undefined,
 				location: ChatLocation.Agent,
 				requestOptions: {

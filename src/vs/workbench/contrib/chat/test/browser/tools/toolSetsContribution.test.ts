@@ -26,24 +26,21 @@ suite('ToolSetsContribution', () => {
 		return store.add(instaService.createInstance(LanguageModelToolsService));
 	}
 
-	test('ClientToolSetsContribution omits VS Code API from Agent Host tools', () => {
+	test('ClientToolSetsContribution omits removed tools from vscode-general', () => {
 		const toolsService = createToolsService();
-		const toolSearch: IToolData = {
-			id: 'toolSearch',
-			modelDescription: 'Search for tools',
-			displayName: 'Tool Search',
-			toolReferenceName: 'toolSearch',
+		const makeTool = (name: string): IToolData => ({
+			id: name,
+			modelDescription: name,
+			displayName: name,
+			toolReferenceName: name,
 			source: ToolDataSource.Internal,
-		};
-		const vscodeAPI: IToolData = {
-			id: 'vscodeAPI',
-			modelDescription: 'Search VS Code API documentation',
-			displayName: 'VS Code API',
-			toolReferenceName: 'vscodeAPI',
-			source: ToolDataSource.Internal,
-		};
-		store.add(toolsService.registerToolData(toolSearch));
-		store.add(toolsService.registerToolData(vscodeAPI));
+		});
+		const toolSearch = makeTool('toolSearch');
+		const removed = ['extensions', 'installExtension', 'newWorkspace', 'runCommand', 'vscodeAPI'].map(makeTool);
+		for (const tool of [toolSearch, ...removed]) {
+			store.add(toolsService.registerToolData(tool));
+		}
+
 
 		const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
 			override readonly isSessionsWindow = true;

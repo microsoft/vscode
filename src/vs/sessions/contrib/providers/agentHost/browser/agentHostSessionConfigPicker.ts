@@ -981,6 +981,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 			const pickerOptions: IChatInputPickerOptions = {
 				compact: constObservable(true),
+				listOptions: { minWidth: 255 },
 			};
 			return instantiationService.createInstance(
 				AgentHostPermissionPickerActionItem,

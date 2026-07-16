@@ -420,6 +420,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
 	private chatGoalBannerContainer!: HTMLElement;
+	private persistentContentContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
@@ -433,6 +434,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get persistentContentContainerElement(): HTMLElement {
+		return this.persistentContentContainer;
 	}
 
 	get gettingStartedTipContainerElement(): HTMLElement {
@@ -3116,6 +3121,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
+				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h('.interactive-input-and-edit-session', [
 					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
@@ -3144,6 +3150,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		} else {
 			elements = dom.h('.interactive-input-part', [
+				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
@@ -3170,6 +3177,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		}
 		this.container = elements.root;
+		this.persistentContentContainer = elements.persistentContentContainer;
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
 		container.append(this.container);
 		this.container.append(this.chatInputOverlay);

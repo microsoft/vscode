@@ -1010,6 +1010,14 @@ export class AgentSideEffects extends Disposable {
 		const autoApproval = await this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
 		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		if (toolCall
+			&& toolCall.status !== ToolCallStatus.Streaming
+			&& toolCall.status !== ToolCallStatus.Running
+			&& toolCall.status !== ToolCallStatus.PendingConfirmation) {
+			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
+			this._logService.trace(`[AgentSideEffects] Dropping stale tool ready for ${e.state.toolCallId}: status=${toolCall.status}`);
+			return;
+		}
 		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
 		const clientShouldAutoApprove = autoApproval !== undefined

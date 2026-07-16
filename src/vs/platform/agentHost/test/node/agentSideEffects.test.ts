@@ -2351,6 +2351,65 @@ suite('AgentSideEffects', () => {
 				'tool call should advance to PendingConfirmation for permission-gated tool_ready');
 		});
 
+		test('tool_ready is dropped when the tool completes while permission lookup is pending', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-stale-ready', toolName: 'vscodeAPI', displayName: 'Get VS Code API References',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
+					_meta: { toolKind: undefined, language: undefined },
+				},
+			});
+			agent.fireProgress({
+				kind: 'pending_confirmation', chat: URI.parse(defaultChatUri),
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-stale-ready', toolName: 'vscodeAPI', displayName: 'Get VS Code API References',
+					invocationMessage: 'Get VS Code API References', toolInput: '{"query":"test"}',
+					confirmationTitle: 'Allow tool call?', edits: undefined,
+				},
+				permissionKind: 'custom-tool', permissionPath: undefined,
+			});
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-stale-ready',
+				invocationMessage: 'Get VS Code API References',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'tc-stale-ready',
+				result: {
+					success: false,
+					pastTenseMessage: 'Get VS Code API References failed',
+					error: { message: 'Client disconnected' },
+				},
+			});
+
+			await Promise.resolve();
+
+			const toolCall = stateManager.getSessionState(sessionUri.toString())?.activeTurn?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-stale-ready');
+			assert.deepStrictEqual({
+				status: toolCall?.kind === ResponsePartKind.ToolCall ? toolCall.toolCall.status : undefined,
+				readyActions: envelopes.filter(e => e.action.type === ActionType.ChatToolCallReady).length,
+			}, {
+				status: ToolCallStatus.Completed,
+				readyActions: 1,
+			});
+		});
+
 		test('tool_ready for an additional chat is emitted on that chat channel', async () => {
 			setupSession();
 			const chatUri = buildChatUri(sessionUri.toString(), 'peer');

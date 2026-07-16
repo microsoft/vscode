@@ -1923,6 +1923,15 @@ export class CopilotAgentSession extends Disposable {
 			const isShellRequest = request.kind === 'shell'
 				|| (request.kind === 'custom-tool' && typeof request.toolName === 'string' && isShellTool(request.toolName));
 
+			if (request.kind === 'custom-tool'
+				&& typeof request.toolName === 'string'
+				&& this._clientToolNames.has(request.toolName)
+				&& this._pendingClientToolCalls.hasBufferedResult(toolCallId)
+			) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving client tool ${request.toolName} because its result arrived before the permission request`);
+				return { kind: 'approve-once' };
+			}
+
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
 			const deferred = new DeferredPromise<boolean>();

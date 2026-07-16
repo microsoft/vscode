@@ -227,13 +227,6 @@ export interface IAgentHostE2EProviderConfig {
 	 */
 	readonly supportsSubagents: boolean;
 	/**
-	 * When set, this provider's shell tool call is not reproduced by its bundled
-	 * SDK on Windows during replay (e.g. Codex's `exec_command` yields no
-	 * tool-call notification there), so the shell-permission test runs only on
-	 * POSIX. macOS/Linux keep full coverage.
-	 */
-	readonly shellPermissionReplayUnstableOnWindows?: boolean;
-	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
 	 * on-disk `subagents/agent-*.jsonl` files — not reliably visible on Windows
@@ -886,11 +879,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			}
 		});
 
-		// Codex's `exec_command` shell tool call is not emitted by the bundled
-		// Codex CLI on Windows during replay (the turn streams text and completes
-		// with no tool call), so this shell-permission test is POSIX-only for such
-		// providers; Claude/Copilot still run it everywhere.
-		((isWindows && config.shellPermissionReplayUnstableOnWindows) ? test.skip : test)('tool call triggers permission request and can be approved', async function () {
+		test('tool call triggers permission request and can be approved', async function () {
 			this.timeout(120_000);
 
 			const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);

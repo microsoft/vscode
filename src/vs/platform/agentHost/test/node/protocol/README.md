@@ -220,7 +220,6 @@ To accept an AHP output change, run the affected test with `AGENT_HOST_UPDATE_AH
 | `supportsSubagents` | Gates the two subagent tests. |
 | `supportsWorktreeIsolation` | Gates the worktree test. |
 | `supportsPlanMode` | Gates the plan-mode test. |
-| `shellPermissionReplayUnstableOnWindows` | Skips the shell-permission test on **Windows** for that provider (e.g. Codex's `exec_command` tool call isn't emitted by the Codex CLI on Windows). |
 | `subagentReplayUnstableOnWindows` | Skips the subagent-reopen ("replay path") test on **Windows** for that provider (e.g. Claude rebuilds the transcript from the SDK's on-disk `subagents/*.jsonl`, not reliably visible there right after the turn). |
 | `RECORD` (env) | Set by `AGENT_HOST_REPLAY_RECORD=1` and internally during the first `AGENT_HOST_UPDATE_SNAPSHOTS=1` pass. The `can abort a running turn` test runs only for direct record mode, not bulk snapshot updates. |
 | `isWindows` | The worktree test is skipped on Windows (POSIX-shaped `.worktrees` paths + host-terminal `pwd`). |
@@ -262,9 +261,11 @@ The fixture was never recorded (or the test title changed and orphaned it). Reco
 
 Usually the *local execution* diverges by platform (the model replay is byte-identical everywhere). Windows shells, `pwd`, `git worktree` paths, and some SDK tool calls behave differently. Gate the test off that platform (`!isWindows` or a per-provider flag) — don't bump timeouts to mask it.
 
+Codex fixtures use its unified `exec_command` tool, so Codex record/replay servers explicitly enable `features.unified_exec` rather than inheriting an app-server configuration that advertises the incompatible legacy `shell_command` tool.
+
 ### A test passes on macOS/Linux but fails on Windows
 
-Same as above — it's platform-specific real execution, not the proxy. See `shellPermissionReplayUnstableOnWindows` and the worktree gate for the established pattern.
+Same as above — it's platform-specific real execution, not the proxy. See the worktree and subagent gates for established patterns.
 
 ### Fixture leaks a username / absolute path / token
 

@@ -15,7 +15,7 @@ import { ActionType, type ActionEnvelope } from '../../../common/state/sessionAc
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -400,6 +400,8 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
 			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
+			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`

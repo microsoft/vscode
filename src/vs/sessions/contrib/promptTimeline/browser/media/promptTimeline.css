@@ -22,9 +22,6 @@
 	--prompt-timeline-rail-width: 36px;
 	/* Minimum clear space guaranteed between the message content and the rail marks. */
 	--prompt-timeline-content-gap: 24px;
-	/* Gutter reserved for the transcript's native scrollbar (its ~10px width + a small gap) so the
-	 * marks sit to its left and it stays grabbable. */
-	--prompt-timeline-scrollbar-gutter: 16px;
 }
 
 /* Reserve room on the transcript's right edge so message content clears the rail's marks.
@@ -181,11 +178,81 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler. Marks sit in a gutter to the LEFT of the transcript's native scrollbar (via the right inset) so the pills never overlap the slider and the scrollbar stays grabbable. The gutter is set from the real scrollbar width by the contribution; the fallback covers the default 10px slider + a small gap. */
+/* Overview-ruler style: the session compressed into the rail height like the editor overview ruler.
+ * The marks column IS the scrollbar lane: it sits at the transcript's right edge over the (hidden)
+ * native slider, and the rail draws its own thumb below the marks. At rest the lane is a plain
+ * scrollbar (just the thumb); on engagement the thumb recedes and the marks fan in over the same
+ * column, so the scrollbar visually morphs into the fan. */
 .prompt-timeline-ruler-marks {
 	position: absolute;
-	inset: 0 var(--prompt-timeline-scrollbar-gutter, 16px) 0 0;
+	inset: 0 0 0 auto;
+	width: 22px;
+	/* The whole column is the hover/scrub surface: hovering blooms the fisheye "fan" and lets it
+	 * follow the cursor; dragging scrubs the transcript (see the rail's pointer handlers). */
+	pointer-events: auto;
+	/* The marks stay quiet (invisible) at rest and during gentle scrolling so the transcript reads
+	 * calm — only a deliberate gesture surfaces them: hovering the lane (`:hover`), the fisheye bloom
+	 * on a hard scroll (`.engaged`), a scrub drag (`.scrubbing`), or keyboard focus inside the rail
+	 * (`:focus-within`). */
+	opacity: 0;
+	transition: opacity 200ms ease;
+	z-index: 2;
+}
+
+/* Reveal the marks whenever the timeline is engaged: while scrolling + its linger (`.engaged`, which
+ * also covers reduced-motion where the fan is disabled), while hovering the lane, while scrubbing, or
+ * whenever keyboard focus is inside the rail (so tabbing to a mark and "Go to Prompt" always show it). */
+.prompt-timeline-rail.engaged .prompt-timeline-ruler-marks,
+.prompt-timeline-rail:hover .prompt-timeline-ruler-marks,
+.prompt-timeline-rail.scrubbing .prompt-timeline-ruler-marks,
+.prompt-timeline-rail:focus-within .prompt-timeline-ruler-marks {
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-marks {
+		transition: none;
+	}
+}
+
+/* The rail's own scrollbar thumb (the transcript's native slider is hidden while the rail is active).
+ * A plain, translucent scrollbar at rest; it fades out as the fan blooms — or stays put while you
+ * drag it to scrub — so the lane reads as one surface morphing scrollbar <-> fan. Non-interactive:
+ * the marks column above owns hover + scrub. */
+.prompt-timeline-ruler-thumb {
+	position: absolute;
+	right: 4px;
+	width: 9px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-scrollbarSlider-background);
 	pointer-events: none;
+	transition: opacity 160ms ease;
+	z-index: 1;
+}
+
+.prompt-timeline-ruler-thumb.hidden {
+	display: none;
+}
+
+/* The thumb recedes whenever the marks are revealed (engaged/hover/keyboard focus), but stays visible
+ * while scrubbing so dragging the lane feels like grabbing a scrollbar. */
+.prompt-timeline-rail.engaged:not(.scrubbing) .prompt-timeline-ruler-thumb,
+.prompt-timeline-rail:hover:not(.scrubbing) .prompt-timeline-ruler-thumb,
+.prompt-timeline-rail:focus-within:not(.scrubbing) .prompt-timeline-ruler-thumb {
+	opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-thumb {
+		transition: none;
+	}
+}
+
+/* The rail is the scrollbar while it is active, so hide the transcript's own vertical slider for a
+ * single lane. Scoped to the top-level transcript list via a direct-child chain (nested scrollables
+ * inside rows keep their sliders) and only while the rail is actually showing (`.prompt-timeline-active`). */
+.prompt-timeline-host.prompt-timeline-active .interactive-list > .monaco-list > .monaco-scrollable-element > .scrollbar.vertical {
+	display: none;
 }
 
 /* Each mark is a >=24px hit target positioned at its proportional scroll offset. */
@@ -227,7 +294,26 @@
 	height: 3px;
 	border-radius: 2px;
 	background-color: var(--vscode-scrollbarSlider-background);
-	transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+	/* `transform` is animated for the fisheye "fan" magnification; keep origin at the transcript
+	 * edge so the bar grows leftward, never across the scrollbar. */
+	transform-origin: right center;
+	transition: transform 90ms ease, width 80ms ease, height 80ms ease, background-color 80ms ease;
+}
+
+/* The mark button carries the fan's neighbour-spread (translateY); transition it so bloom and
+ * collapse both ease. `top` is only transitioned under `.glide` (drift), so this stays independent. */
+.prompt-timeline-ruler-mark {
+	transition: transform 90ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.prompt-timeline-ruler-bar {
+		transition: width 80ms ease, height 80ms ease, background-color 80ms ease;
+	}
+
+	.prompt-timeline-ruler-mark {
+		transition: none;
+	}
 }
 
 /* Two-tone edited signal: a green added segment and a red removed segment, sized by the turn's split. */

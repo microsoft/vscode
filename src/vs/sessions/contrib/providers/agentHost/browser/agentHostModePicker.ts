@@ -306,6 +306,10 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	protected readonly _pickerId = 'agentHostModePicker';
 	protected readonly _telemetryId = 'NewChatAgentHostModePicker';
 
+	protected override _getListOptions(): IActionListOptions {
+		return { minWidth: 260 };
+	}
+
 	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {
 		return isWellKnownModeSchema(schema);
 	}

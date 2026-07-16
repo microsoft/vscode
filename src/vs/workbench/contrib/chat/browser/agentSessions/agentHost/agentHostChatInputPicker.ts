@@ -178,9 +178,16 @@ function getPermissionsLearnMoreUrl(property: string): string | undefined {
 }
 
 export function getConfigPickerListOptions(property: string): IActionListOptions | undefined {
-	return property === CodexSessionConfigKey.PermissionsPreset
-		? getCodexApprovalsPickerListOptions()
-		: undefined;
+	switch (property) {
+		case SessionConfigKey.Mode:
+			return { minWidth: 260 };
+		case SessionConfigKey.AutoApprove:
+			return { minWidth: 255 };
+		case CodexSessionConfigKey.PermissionsPreset:
+			return getCodexApprovalsPickerListOptions();
+		default:
+			return undefined;
+	}
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {

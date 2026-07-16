@@ -72,10 +72,6 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 				'testFailure',
 				'rename',
 				'usages',
-				'extensions',
-				'installExtension',
-				'newWorkspace',
-				'runCommand',
 				'toolSearch',
 			],
 		}));

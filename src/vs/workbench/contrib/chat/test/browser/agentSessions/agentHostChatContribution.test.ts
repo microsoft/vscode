@@ -1871,6 +1871,156 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items[0].archived, true);
 		});
 
+		test('archive mutations dispatch through AHP and reconcile server summaries', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'archivable');
+			const baseStatus = SessionStatus.InProgress | SessionStatus.IsRead;
+			agentHostService.addSession({
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Archivable session',
+				status: baseStatus,
+			});
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+			agentHostService.dispatchedActions.length = 0;
+
+			const archivedEvents: boolean[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				for (const item of delta.addedOrUpdated ?? []) {
+					archivedEvents.push(Boolean(item.archived));
+				}
+			}));
+
+			const resource = listController.items[0].resource;
+			listController.setChatSessionItemArchived(resource, true);
+			listController.setChatSessionItemArchived(resource, true);
+			const archivedStatus = sessionListStore.getSessions('copilot')[0].summary.status;
+
+			listController.setChatSessionItemArchived(resource, false);
+			listController.setChatSessionItemArchived(resource, false);
+			const unarchivedStatus = sessionListStore.getSessions('copilot')[0].summary.status;
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: backendSession.toString(),
+				changes: { status: baseStatus | SessionStatus.IsArchived },
+			});
+
+			assert.deepStrictEqual({
+				actions: agentHostService.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+				archivedStatus,
+				unarchivedStatus,
+				reconciledArchived: listController.items[0].archived,
+				archivedEvents,
+			}, {
+				actions: [{
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				}, {
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				}],
+				archivedStatus: baseStatus | SessionStatus.IsArchived,
+				unarchivedStatus: baseStatus,
+				reconciledArchived: true,
+				archivedEvents: [true, false, true],
+			});
+		});
+
+		test('archive mutation ignores resources from another session type', () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			listController.setChatSessionItemArchived(URI.from({ scheme: 'agent-host-other', path: '/session' }), true);
+
+			assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		});
+
+		test('archive mutation prevents an in-flight stale refresh from overwriting optimistic state', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'archive-refresh-race');
+			const metadata: IAgentSessionMetadata = {
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Archive refresh race',
+			};
+			agentHostService.addSession(metadata);
+
+			const sessionListStore = createSessionListStore(disposables, instantiationService, agentHostService);
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', sessionListStore, undefined, 'local'));
+			await listController.refresh(CancellationToken.None);
+
+			let listCalls = 0;
+			const releaseListSessions = disposables.add(new Emitter<void>());
+			const released = Event.toPromise(releaseListSessions.event);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				if (listCalls === 1) {
+					await released;
+					return [metadata];
+				}
+				return [{ ...metadata, isArchived: true }];
+			};
+
+			sessionListStore.resetCache();
+			const refresh = listController.refresh(CancellationToken.None);
+			await timeout(0);
+			listController.setChatSessionItemArchived(listController.items[0].resource, true);
+			releaseListSessions.fire();
+			await refresh;
+
+			assert.deepStrictEqual({
+				listCalls,
+				archived: listController.items[0].archived,
+			}, {
+				listCalls: 2,
+				archived: true,
+			});
+		});
+
+		test('archive mutation invalidates an in-flight refresh before the session is cached', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const backendSession = AgentSession.uri('copilot', 'uncached-archive-refresh-race');
+			const metadata: IAgentSessionMetadata = {
+				session: backendSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Uncached archive refresh race',
+			};
+
+			let listCalls = 0;
+			const releaseListSessions = disposables.add(new Emitter<void>());
+			const released = Event.toPromise(releaseListSessions.event);
+			agentHostService.listSessions = async () => {
+				listCalls++;
+				if (listCalls === 1) {
+					await released;
+					return [metadata];
+				}
+				return [{ ...metadata, isArchived: true }];
+			};
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const refresh = listController.refresh(CancellationToken.None);
+			await timeout(0);
+			listController.setChatSessionItemArchived(URI.from({ scheme: 'agent-host-copilot', path: `/${AgentSession.id(backendSession)}` }), true);
+			releaseListSessions.fire();
+			await refresh;
+
+			assert.deepStrictEqual({
+				listCalls,
+				archived: listController.items[0].archived,
+			}, {
+				listCalls: 2,
+				archived: true,
+			});
+		});
+
 		test('refresh skips listSessions RPC after first successful call', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 

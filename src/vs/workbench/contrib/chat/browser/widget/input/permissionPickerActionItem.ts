@@ -106,7 +106,7 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 				id: 'chat.permissions.autoApprove',
 				label: localize('permissions.autoApprove', "Allow all"),
 				shortLabel: localize('permissions.autoApprove.label', "Allow all"),
-				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				detail: localize('permissions.autoApprove.subtext', "Runs tool calls without asking"),
 				icon: ThemeIcon.fromId(Codicon.warning.id),
 				description: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 				elevated: true,
@@ -127,7 +127,7 @@ function getPermissionLevelMeta(level: ChatPermissionLevel): IPermissionLevelMet
 				id: 'chat.permissions.default',
 				label: localize('permissions.default', "Default approvals"),
 				shortLabel: localize('permissions.default.label', "Default approvals"),
-				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				detail: localize('permissions.default.subtext', "Asks when approval settings don't apply"),
 				icon: ThemeIcon.fromId(Codicon.shield.id),
 				description: localize('permissions.default.description', "Use configured approval settings"),
 				elevated: false,
@@ -272,7 +272,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { minWidth: 255, detailItemHeight: 44 },
+			listOptions: { minWidth: 255, detailItemHeight: 44, ...pickerOptions.listOptions },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {

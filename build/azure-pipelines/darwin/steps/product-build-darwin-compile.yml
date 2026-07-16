@@ -200,6 +200,10 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
     displayName: Build server
 
+  - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+    - script: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)"
+      displayName: 🧪 Smoke test packaged Agent Host
+
   - script: |
       set -e
       npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci

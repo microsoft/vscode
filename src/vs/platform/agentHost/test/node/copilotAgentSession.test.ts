@@ -4463,7 +4463,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('permission request before client tool handler emits only confirmation ready', async () => {
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+			});
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-ready-data',
@@ -4611,6 +4614,53 @@ suite('CopilotAgentSession', () => {
 			const result = await invokeClientToolHandler(tools[0], 'tc-early');
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'buffered result');
+		});
+
+		test('completion arriving before the permission request unblocks the SDK', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('client-disconnected', snapshot.tools);
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-complete-before-permission',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			session.handleClientToolCallComplete('tc-complete-before-permission', {
+				success: false,
+				pastTenseMessage: 'my_tool failed',
+				error: { message: 'Client disconnected' },
+			});
+
+			const permissionPromise = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-complete-before-permission',
+				toolName: 'my_tool',
+			});
+			let permissionResult: Awaited<typeof permissionPromise> | undefined;
+			void permissionPromise.then(result => permissionResult = result);
+			await Promise.resolve();
+			if (!permissionResult) {
+				session.respondToPermissionRequest('tc-complete-before-permission', false);
+				await permissionPromise;
+			}
+
+			const toolResult = await invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-complete-before-permission');
+			assert.deepStrictEqual({
+				permissionResult,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+				toolResult,
+			}, {
+				permissionResult: { kind: 'approve-once' },
+				pendingConfirmations: 0,
+				toolResult: {
+					textResultForLlm: 'Client disconnected',
+					resultType: 'failure',
+					error: 'Client disconnected',
+					binaryResultsForLlm: undefined,
+				},
+			});
 		});
 	});
 

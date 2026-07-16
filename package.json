@@ -115,6 +115,7 @@
     "@vscode/fs-copyfile": "2.0.0",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
+    "@vscode/os-proxy-resolver": "^0.2.0",
     "@vscode/policy-watcher": "^1.4.0",
     "@vscode/proxy-agent": "^0.44.0",
     "@vscode/ripgrep-universal": "^1.18.0",

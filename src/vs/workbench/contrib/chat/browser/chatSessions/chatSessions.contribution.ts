@@ -452,6 +452,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return entry.controller.resolveChatSessionItem(resource, token);
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		return typeof this._getChatSessionItemController(sessionResource)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const controller = this._getChatSessionItemController(sessionResource)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];
@@ -1174,15 +1186,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
-		const sessionType = getChatSessionType(sessionResource);
-		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
-		const controllerData = this._itemControllers.get(resolvedType);
+		const controllerData = this._getChatSessionItemController(sessionResource);
 		if (!controllerData?.controller.deleteChatSessionItem) {
 			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
 		}
 
 		await controllerData.initialRefresh;
 		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
+	private _getChatSessionItemController(sessionResource: URI) {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		return this._itemControllers.get(resolvedType);
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {

@@ -11,7 +11,7 @@ import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta } from '../../browser
 suite('Copilot PermissionPicker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps the local harness permission options unchanged', () => {
+	test('uses descriptions aligned with the agent host permission picker', () => {
 		assert.deepStrictEqual(DEFAULT_PERMISSION_LEVELS.map(level => ({
 			level,
 			label: getPermissionLevelMeta(level).label,
@@ -20,12 +20,12 @@ suite('Copilot PermissionPicker', () => {
 			{
 				level: ChatPermissionLevel.Default,
 				label: 'Default approvals',
-				detail: 'Copilot uses your configured settings',
+				detail: 'Asks when approval settings don\'t apply',
 			},
 			{
 				level: ChatPermissionLevel.AutoApprove,
 				label: 'Allow all',
-				detail: 'All tool calls are auto-approved',
+				detail: 'Runs tool calls without asking',
 			},
 			{
 				level: ChatPermissionLevel.Autopilot,
