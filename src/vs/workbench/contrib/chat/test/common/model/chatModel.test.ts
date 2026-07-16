@@ -1423,6 +1423,34 @@ suite('ChatResponseModel', () => {
 		}
 	});
 
+	test('MCP tool authentication marks the response as needing input', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const response = request.response!;
+		const toolInvocation = {
+			kind: 'toolInvocation',
+			invocationMessage: 'calling tool',
+			state: observableValue<any>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				server: { id: 'server', name: 'GitHub MCP', resource: 'https://api.githubcopilot.com/mcp' },
+				cancel: () => { },
+			}),
+		} as Partial<IChatToolInvocation> as IChatToolInvocation;
+
+		model.acceptResponseProgress(request, toolInvocation);
+
+		assert.deepStrictEqual({
+			isInProgress: response.isInProgress.get(),
+			isIncomplete: response.isIncomplete.get(),
+			pending: response.isPendingConfirmation.get()?.detail,
+		}, {
+			isInProgress: false,
+			isIncomplete: true,
+			pending: 'Authenticate GitHub MCP to continue...',
+		});
+	});
+
 	test('isIncomplete becomes false on cancellation', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 

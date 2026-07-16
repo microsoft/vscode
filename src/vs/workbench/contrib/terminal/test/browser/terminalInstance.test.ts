@@ -230,6 +230,49 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, GeneralShellType.CommandCode);
 		});
 
+		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+
+			store.add(instance.onWillDispose(() => disposalOrder.push('onWillDispose')));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
+		});
+
+		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+			let addonDisposeCount = 0;
+
+			const addon = {
+				activate: () => { },
+				dispose: () => {
+					addonDisposeCount++;
+					disposalOrder.push('addon');
+				}
+			};
+			xterm!.raw.loadAddon(addon);
+			store.add(instance.onWillDispose(() => {
+				disposalOrder.push('onWillDispose');
+				addon.dispose();
+			}));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(
+				{ disposalOrder, addonDisposeCount },
+				{ disposalOrder: ['onWillDispose', 'addon', 'xterm', 'onDisposed'], addonDisposeCount: 1 }
+			);
+		});
+
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];

@@ -60,9 +60,8 @@ const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
-	// Codex's `exec_command` shell tool call is not emitted by the bundled Codex
-	// CLI on Windows during replay, so the shell-permission test is POSIX-only.
-	shellPermissionReplayUnstableOnWindows: true,
+	// Packaged Linux replay completes recorded exec_command turns without tool events.
+	shellToolReplayUnstableOnLinux: true,
 };
 
 defineAgentHostE2ETests(CODEX_CONFIG);

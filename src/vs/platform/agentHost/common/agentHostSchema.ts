@@ -262,7 +262,7 @@ function safeStringify(value: unknown): string {
 
 // ---- Platform-owned schema -------------------------------------------------
 
-export type AutoApproveLevel = 'default' | 'autoApprove';
+export type AutoApproveLevel = 'default' | 'assisted' | 'autoApprove';
 
 export type SessionMode = 'interactive' | 'plan' | 'autopilot';
 
@@ -310,14 +310,16 @@ export const platformSessionSchema = createSchema({
 		type: 'string',
 		title: localize('agentHost.sessionConfig.autoApprove', "Approvals"),
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
-		enum: ['default', 'autoApprove'],
+		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default Approvals"),
-			localize('agentHost.sessionConfig.autoApprove.bypass', "Bypass Approvals"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Default approvals"),
+			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
+			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
 		enumDescriptions: [
-			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Copilot uses your configured settings"),
-			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "All tool calls are auto-approved"),
+			localize('agentHost.sessionConfig.autoApprove.defaultDescription', "Asks when approval settings don't apply"),
+			localize('agentHost.sessionConfig.autoApprove.assistedDescription', "Evaluates risk before running tools"),
+			localize('agentHost.sessionConfig.autoApprove.bypassDescription', "Runs tool calls without asking"),
 		],
 		default: 'default',
 		sessionMutable: true,
@@ -418,7 +420,7 @@ export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.ena
  * `chat.tools.global.autoApprove` setting changes. When `true`, the global
  * auto-approve ("approve everything") setting is enabled and the agent host
  * treats every tool call as auto-approved — equivalent to a session running
- * with Bypass Approvals.
+ * with Allow all.
  */
 export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
 
@@ -678,7 +680,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostGlobalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.globalAutoApproveEnabled.title', "Global Auto Approve"),
-		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Bypass Approvals."),
+		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
 		default: false,
 	}),
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({

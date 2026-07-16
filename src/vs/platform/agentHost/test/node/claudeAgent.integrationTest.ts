@@ -51,7 +51,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType, type ClientPluginCustomization } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -778,22 +778,37 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		const sessionId = created.session.path.replace(/^\//, '');
 		sdk.queryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
+		const inputRequests: ChatInputRequest[] = [];
+		disposables.add(agent.onDidSessionProgress(s => {
+			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
+				inputRequests.push(s.action.request);
+			}
+		}));
+
 		await agent.chats.sendMessage(created.session, 'hi', undefined, undefined, 'turn-1');
 
 		const startup = sdk.capturedStartupOptions[0];
 		assert.ok(typeof startup.canUseTool === 'function', 'canUseTool was wired into Options');
 		assert.ok(typeof startup.onElicitation === 'function', 'onElicitation was wired into Options');
 
-		const elicitResult = await startup.onElicitation!(
-			{ serverName: 'mcp-test', message: 'pick a side', mode: 'form' },
+		// The closures survive materialize → SDK intact: driving `onElicitation`
+		// parks a `ChatInputRequested` action, and the user's answer round-trips
+		// back to the MCP server as an `accept` result (Phase 10.6).
+		const elicitPromise = startup.onElicitation!(
+			{ serverName: 'mcp-test', message: 'pick a side', mode: 'form', requestedSchema: { type: 'object', properties: { side: { type: 'string' } } } },
 			{ signal: new AbortController().signal },
 		);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const inputRequest = inputRequests.at(-1)!;
+		agent.respondToUserInputRequest(inputRequest.id, ChatInputResponseKind.Accept, {
+			side: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'left' } },
+		});
 
 		assert.deepStrictEqual({
-			elicitResult,
+			elicitResult: await elicitPromise,
 			permissionMode: startup.permissionMode,
 		}, {
-			elicitResult: { action: 'cancel' },
+			elicitResult: { action: 'accept', content: { side: 'left' } },
 			permissionMode: 'default',
 		});
 	});

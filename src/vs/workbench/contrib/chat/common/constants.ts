@@ -91,6 +91,7 @@ export enum ChatConfiguration {
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
+	AutoApprovalsEnabled = 'chat.experimental.autoApprovals.enabled',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
@@ -133,6 +134,8 @@ export enum ChatModeKind {
 export enum ChatPermissionLevel {
 	/** Use existing auto-approve settings */
 	Default = 'default',
+	/** Delegate approval decisions to a model */
+	Assisted = 'assisted',
 	/** Auto-approve all tool calls, auto-retry on error */
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
@@ -156,8 +159,8 @@ export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
-	/** Starting approval level: `default` / `autoApprove`. */
-	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.AutoApprove;
+	/** Starting approval level: `default` / `assisted` / `autoApprove`. */
+	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.Assisted | ChatPermissionLevel.AutoApprove;
 }
 
 /**

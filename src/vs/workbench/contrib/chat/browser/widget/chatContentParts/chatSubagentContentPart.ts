@@ -772,8 +772,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
 
-			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
-				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+				|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
 			const isWaitingForCarouselConfirmation = !!addToolToCarousel && shouldUseCarouselForTool?.(toolInvocation, state) === true;
 
 			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {

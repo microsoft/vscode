@@ -26,6 +26,8 @@ export interface IChatInputPickerOptions {
 	readonly actionContext?: IChatExecuteActionContext;
 
 	readonly compact: IObservable<boolean>;
+
+	readonly listOptions?: IActionListOptions;
 }
 
 export const CHAT_INPUT_PICKER_DROPDOWN_CLASS = 'chat-input-picker-dropdown';

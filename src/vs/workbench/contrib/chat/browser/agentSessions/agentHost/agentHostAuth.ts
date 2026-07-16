@@ -279,7 +279,7 @@ export async function resolveMcpServerAuthentication(
 	const scopes = options.scopes;
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix);
+		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix, options.allowInteraction);
 		if (!providerId) {
 			continue;
 		}
@@ -317,10 +317,11 @@ async function getOrCreateProviderForMcpResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	logPrefix: string,
+	allowCreation: boolean,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
 	const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
-	if (existing) {
+	if (existing || !allowCreation) {
 		return existing;
 	}
 

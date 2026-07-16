@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, ModelInfo, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, ModelInfo, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -73,10 +73,6 @@ import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryC
  */
 function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
-}
-
-function githubTokensBySdkSession(agent: CopilotAgent): Map<string, string> {
-	return (agent as unknown as { _githubTokensBySdkSession: Map<string, string> })._githubTokensBySdkSession;
 }
 
 function defaultChatUri(session: URI): URI {
@@ -402,6 +398,14 @@ interface IFakeAgentSession {
 
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
+	readonly rpc = {
+		options: {
+			update: async () => ({ success: true }),
+		},
+		permissions: {
+			setAllowAll: async ({ mode }: { mode: PermissionAllowAllMode }) => ({ success: true, mode }),
+		},
+	};
 	private readonly _handlers = new Set<SessionEventHandler>();
 	private readonly _typedHandlers = new Map<SessionEventType, Set<(event: SessionEventPayload<SessionEventType>) => void>>();
 
@@ -607,6 +611,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		const environmentService = {
 			_serviceBrand: undefined,
 			userHome: options?.userHome ?? URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
+			tmpDir: URI.from({ scheme: Schemas.inMemory, path: '/mock-tmp' }),
 		} as INativeEnvironmentService;
 		services.set(INativeEnvironmentService, environmentService);
 	}
@@ -743,7 +748,6 @@ suite('CopilotAgent', () => {
 				await Promise.resolve();
 			}
 			await agent.listSessions();
-			githubTokensBySdkSession(agent).set('session-1', 'restricted-token');
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
@@ -771,24 +775,23 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('routes exact targets with the originating session context across account changes and token refreshes', async () => {
+	test('routes exact targets using the current auth token and reflects token changes', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
-		const sessionContext: IRestrictedTelemetryContext = {
+		copilotApiService.restrictedTelemetryContexts.set('token-a', {
 			restrictedTelemetryEnabled: true,
-			trackingId: 'session-a-tid',
-			telemetryEndpoint: 'https://session-a.telemetry.example/',
+			trackingId: 'token-a-tid',
+			telemetryEndpoint: 'https://token-a.telemetry.example/',
 			isInternal: true,
-			userName: 'session-a-user',
+			userName: 'token-a-user',
 			isVscodeTeamMember: true,
-		};
-		copilotApiService.restrictedTelemetryContexts.set('session-a-token', sessionContext);
-		copilotApiService.restrictedTelemetryContexts.set('current-b-token', {
+		});
+		copilotApiService.restrictedTelemetryContexts.set('token-b', {
 			restrictedTelemetryEnabled: false,
-			trackingId: 'current-b-tid',
+			trackingId: 'token-b-tid',
 			telemetryEndpoint: undefined,
 			isInternal: false,
-			userName: 'current-b-user',
+			userName: 'token-b-user',
 			isVscodeTeamMember: false,
 		});
 		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
@@ -803,9 +806,8 @@ suite('CopilotAgent', () => {
 		}(NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService }) as TestableCopilotAgent;
 		try {
-			await agent.authenticate('https://api.github.com', 'current-b-token');
+			await agent.authenticate('https://api.github.com', 'token-a');
 			await agent.listSessions();
-			githubTokensBySdkSession(agent).set('session-a', 'session-a-token');
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
@@ -816,11 +818,8 @@ suite('CopilotAgent', () => {
 			};
 			await forward(notification);
 
-			copilotApiService.restrictedTelemetryContexts.set('session-a-token', {
-				...sessionContext,
-				restrictedTelemetryEnabled: false,
-				isInternal: false,
-			});
+			// Swapping the current auth token to opted-out token-b: later events resolve context from it and emit nothing.
+			await agent.authenticate('https://api.github.com', 'token-b');
 			await forward(notification);
 
 			assert.deepStrictEqual({
@@ -831,23 +830,21 @@ suite('CopilotAgent', () => {
 					userName: context.userName,
 					isVscodeTeamMember: context.isVscodeTeamMember,
 				})),
-				sessionContextCalls: copilotApiService.restrictedTelemetryContextCalls.filter(token => token === 'session-a-token'),
 			}, {
 				enhancedContexts: [{
 					restrictedTelemetryEnabled: true,
-					trackingId: 'session-a-tid',
-					telemetryEndpoint: 'https://session-a.telemetry.example/telemetry',
+					trackingId: 'token-a-tid',
+					telemetryEndpoint: 'https://token-a.telemetry.example/telemetry',
 					isInternal: true,
-					userName: 'session-a-user',
+					userName: 'token-a-user',
 					isVscodeTeamMember: true,
 				}],
 				internalContexts: [{
 					isInternal: true,
-					trackingId: 'session-a-tid',
-					userName: 'session-a-user',
+					trackingId: 'token-a-tid',
+					userName: 'token-a-user',
 					isVscodeTeamMember: true,
 				}],
-				sessionContextCalls: ['session-a-token', 'session-a-token'],
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -1498,7 +1495,6 @@ suite('CopilotAgent', () => {
 
 				let disposed = false;
 				setDefaultSessionStub(agent, 'active', { dispose() { disposed = true; } });
-				githubTokensBySdkSession(agent).set('active', 'token');
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
 				await Promise.resolve();
@@ -1506,11 +1502,9 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					stopCount: client.stopCount,
 					disposed,
-					telemetryToken: githubTokensBySdkSession(agent).get('active'),
 				}, {
 					stopCount: 1,
 					disposed: true,
-					telemetryToken: undefined,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -1966,6 +1960,163 @@ suite('CopilotAgent', () => {
 			}, {
 				permissionResult: { kind: 'approve-once' },
 				pendingEditContentExists: false,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('auto-approves one duplicate write permission request after approval', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService, fileService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		disposables.add(registerPendingEditContentProvider(fileService));
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+		const agentSession = disposables.add(createdSession.session);
+		let nextPendingPermission = new DeferredPromise<void>();
+		let pendingPermissionCount = 0;
+		disposables.add(agent.onDidSessionProgress(signal => {
+			if (signal.kind === 'pending_confirmation') {
+				pendingPermissionCount++;
+				nextPendingPermission.complete();
+			}
+		}));
+		try {
+			await agentSession.initializeSession();
+			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
+			assert.ok(onPermissionRequest);
+			const request: PermissionRequest = {
+				kind: 'write',
+				toolCallId: 'tool-1',
+				canOfferSessionApproval: true,
+				diff: '--- a/file.txt\n+++ b/file.txt\n@@ -0,0 +1 @@\n+after',
+				fileName: URI.file('/outside/file.txt').fsPath,
+				intention: 'write file',
+				newFileContents: 'after',
+			};
+
+			const firstResultPromise = onPermissionRequest(request, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', true);
+			const firstResult = await firstResultPromise;
+			const duplicateResult = await onPermissionRequest({ ...request }, { sessionId: 'test-session-1' });
+
+			nextPendingPermission = new DeferredPromise<void>();
+			const thirdResultPromise = onPermissionRequest({ ...request }, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', false);
+			const thirdResult = await thirdResultPromise;
+
+			assert.deepStrictEqual({
+				results: [firstResult, duplicateResult, thirdResult],
+				pendingPermissionCount,
+			}, {
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject' }],
+				pendingPermissionCount: 2,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('requires confirmation when a second write permission request differs', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService, fileService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		disposables.add(registerPendingEditContentProvider(fileService));
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+		const agentSession = disposables.add(createdSession.session);
+		let nextPendingPermission = new DeferredPromise<void>();
+		let pendingPermissionCount = 0;
+		disposables.add(agent.onDidSessionProgress(signal => {
+			if (signal.kind === 'pending_confirmation') {
+				pendingPermissionCount++;
+				nextPendingPermission.complete();
+			}
+		}));
+		try {
+			await agentSession.initializeSession();
+			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
+			assert.ok(onPermissionRequest);
+			const request: PermissionRequest = {
+				kind: 'write',
+				toolCallId: 'tool-1',
+				canOfferSessionApproval: true,
+				diff: '--- a/file.txt\n+++ b/file.txt\n@@ -0,0 +1 @@\n+first',
+				fileName: URI.file('/outside/file.txt').fsPath,
+				intention: 'write file',
+				newFileContents: 'first',
+			};
+
+			const firstResultPromise = onPermissionRequest(request, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', true);
+			const firstResult = await firstResultPromise;
+
+			nextPendingPermission = new DeferredPromise<void>();
+			const changedResultPromise = onPermissionRequest({
+				...request,
+				diff: '--- a/other.txt\n+++ b/other.txt\n@@ -0,0 +1 @@\n+second',
+				fileName: URI.file('/outside/other.txt').fsPath,
+				newFileContents: 'second',
+			}, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', false);
+			const changedResult = await changedResultPromise;
+
+			assert.deepStrictEqual({
+				results: [firstResult, changedResult],
+				pendingPermissionCount,
+			}, {
+				results: [{ kind: 'approve-once' }, { kind: 'reject' }],
+				pendingPermissionCount: 2,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('auto-approves one duplicate read permission request after approval', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService, fileService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+		disposables.add(registerPendingEditContentProvider(fileService));
+		const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+		const agentSession = disposables.add(createdSession.session);
+		let nextPendingPermission = new DeferredPromise<void>();
+		let pendingPermissionCount = 0;
+		disposables.add(agent.onDidSessionProgress(signal => {
+			if (signal.kind === 'pending_confirmation') {
+				pendingPermissionCount++;
+				nextPendingPermission.complete();
+			}
+		}));
+		try {
+			await agentSession.initializeSession();
+			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
+			assert.ok(onPermissionRequest);
+			const request: PermissionRequest = {
+				kind: 'read',
+				toolCallId: 'tool-1',
+				intention: 'read file',
+				path: URI.file('/outside/file.txt').fsPath,
+			};
+
+			const firstResultPromise = onPermissionRequest(request, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', true);
+			const firstResult = await firstResultPromise;
+			const duplicateResult = await onPermissionRequest({ ...request }, { sessionId: 'test-session-1' });
+
+			nextPendingPermission = new DeferredPromise<void>();
+			const thirdResultPromise = onPermissionRequest({ ...request }, { sessionId: 'test-session-1' });
+			await nextPendingPermission.p;
+			agentSession.respondToPermissionRequest('tool-1', false);
+			const thirdResult = await thirdResultPromise;
+
+			assert.deepStrictEqual({
+				results: [firstResult, duplicateResult, thirdResult],
+				pendingPermissionCount,
+			}, {
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject' }],
+				pendingPermissionCount: 2,
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -2777,11 +2928,9 @@ suite('CopilotAgent', () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
-			let telemetryTokenDuringCreate: string | undefined;
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 			client.createSession = async config => {
 				capturedConfig = config;
-				telemetryTokenDuringCreate = githubTokensBySdkSession(agent).get('session-level-token');
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
 
@@ -2798,22 +2947,15 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual({
 					configToken: capturedConfig?.gitHubToken,
-					telemetryTokenDuringCreate,
-					telemetryToken: githubTokensBySdkSession(agent).get('session-level-token'),
 				}, {
 					configToken: 'gh-token-abc',
-					telemetryTokenDuringCreate: 'gh-token-abc',
-					telemetryToken: 'gh-token-abc',
 				});
-
-				await agent.releaseSession(result.session);
-				assert.strictEqual(githubTokensBySdkSession(agent).get('session-level-token'), undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('failed materialization rolls back the SDK session telemetry token', async () => {
+		test('failed materialization surfaces the create error', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			client.createSession = async () => { throw new Error('create failed'); };
@@ -2826,7 +2968,6 @@ suite('CopilotAgent', () => {
 				});
 
 				await assert.rejects(agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined), /create failed/);
-				assert.strictEqual(githubTokensBySdkSession(agent).get('failed-session-token'), undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -3050,7 +3191,6 @@ suite('CopilotAgent', () => {
 				// Materialize the backing first, mirroring the orchestrator's
 				// restore handing back the persisted providerData.
 				await agent.materializeChat(chatUri, JSON.stringify({ sdkSessionId: 'sdk-a' }));
-				githubTokensBySdkSession(agent).set('sdk-a', 'token');
 
 				await agent.chats.disposeChat(chatUri);
 
@@ -3058,14 +3198,12 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					backingCleared: internals._chatBackings.has(chatUri.toString()),
 					deleted: client.deletedSessionIds,
-					telemetryToken: githubTokensBySdkSession(agent).get('sdk-a'),
 					// The agent no longer owns the durable catalog, so it leaves
 					// the legacy blob untouched (orchestrator drops the entry).
 					legacyUntouched: remaining ? JSON.parse(remaining) : {},
 				}, {
 					backingCleared: false,
 					deleted: ['sdk-a'],
-					telemetryToken: undefined,
 					legacyUntouched: { 'peer-a': { sdkSessionId: 'sdk-a' } },
 				});
 			} finally {
@@ -3164,7 +3302,6 @@ suite('CopilotAgent', () => {
 					kind: captured?.kind,
 					backing: internals._chatBackings.get(chatUri.toString()),
 					providerData: result ? JSON.parse(result.providerData!) : undefined,
-					telemetryToken: githubTokensBySdkSession(agent).get(captured!.sessionId),
 					// The orchestrator now owns the durable catalog; the agent no
 					// longer writes its private `copilot.chats` metadata.
 					legacyCatalogWritten: raw !== undefined,
@@ -3175,7 +3312,6 @@ suite('CopilotAgent', () => {
 					kind: 'create',
 					backing: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' } },
 					providerData: { sdkSessionId: captured!.sessionId, model: { id: 'gpt-x' } },
-					telemetryToken: 'token',
 					legacyCatalogWritten: false,
 				});
 			} finally {
@@ -3244,7 +3380,6 @@ suite('CopilotAgent', () => {
 					tracked: hasPeerChatStub(agent, chatUri),
 					backing: internals._chatBackings.get(chatUri.toString()),
 					providerData: result ? JSON.parse(result.providerData!) : undefined,
-					telemetryToken: githubTokensBySdkSession(agent).get('forked-sdk-id'),
 					legacyCatalogWritten: raw !== undefined,
 				}, {
 					sourceIsDefaultSession: true,
@@ -3254,7 +3389,6 @@ suite('CopilotAgent', () => {
 					tracked: true,
 					backing: { sdkSessionId: 'forked-sdk-id' },
 					providerData: { sdkSessionId: 'forked-sdk-id' },
-					telemetryToken: 'token',
 					legacyCatalogWritten: false,
 				});
 			} finally {
@@ -3990,7 +4124,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('shutdown during resume clears the SDK session telemetry token', async () => {
+		test('shutdown during resume cancels the in-flight resume', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-telemetry-shutdown-`);
 			const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
 			const deferredSession = new DeferredPromise<CopilotSession>();
@@ -4012,13 +4146,11 @@ suite('CopilotAgent', () => {
 					await timeout(0);
 				}
 				assert.strictEqual(resumeCalled, true);
-				assert.strictEqual(githubTokensBySdkSession(agent).get('s1'), 'token');
 
 				await agent.shutdown();
 				deferredSession.complete(new MockCopilotSession() as unknown as CopilotSession);
 
 				await assert.rejects(resumePromise, (error: unknown) => isCancellationError(error));
-				assert.strictEqual(githubTokensBySdkSession(agent).get('s1'), undefined);
 			} finally {
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);

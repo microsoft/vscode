@@ -170,13 +170,14 @@ const USER_API_VERSION = '2025-04-01';
  * so the agent host's shared CAPI client can talk to the mock LLM server; never
  * set in production, so normal per-token discovery is unchanged.
  *
- * The override is **restricted to loopback hosts** ({@link isLoopbackUrl}):
- * subsequent CAPI calls carry the user's GitHub bearer token in an
- * `Authorization` header, so honoring an arbitrary remote URL here would be a
- * token-exfiltration vector. A non-loopback or unparseable value is ignored
- * (with a warning) and normal discovery proceeds.
+ * The override is restricted to loopback hosts, plus the reserved
+ * `vscode-smoke.test` host when the smoke proxy marker is present. Subsequent
+ * CAPI calls carry the user's GitHub bearer token, so every other non-loopback
+ * or unparseable value is ignored to prevent token exfiltration.
  */
 const CAPI_URL_OVERRIDE_ENV = 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE';
+const CAPI_URL_OVERRIDE_SMOKE_TEST_HOST = 'vscode-smoke.test';
+const CAPI_URL_OVERRIDE_SMOKE_TEST_ENV = 'VSCODE_SMOKE_TEST_PROXY_HEADER';
 
 /** True iff `url` parses and its host is a loopback address (localhost / 127.0.0.0/8 / ::1). */
 function isLoopbackUrl(url: string): boolean {
@@ -189,6 +190,20 @@ function isLoopbackUrl(url: string): boolean {
 	// Strip IPv6 brackets if present (e.g. `[::1]`).
 	const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
 	return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
+function isAllowedCapiUrlOverride(url: string): boolean {
+	if (isLoopbackUrl(url)) {
+		return true;
+	}
+	if (!process.env[CAPI_URL_OVERRIDE_SMOKE_TEST_ENV]) {
+		return false;
+	}
+	try {
+		return new URL(url).hostname.toLowerCase() === CAPI_URL_OVERRIDE_SMOKE_TEST_HOST;
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -949,15 +964,12 @@ export class CopilotApiService implements ICopilotApiService {
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
 
-		// Test/debug override: when an explicit **loopback** CAPI base URL is
-		// provided, skip the api.github.com discovery (which needs a real GitHub
-		// token) and route CAPI straight at the override. Restricted to loopback
-		// hosts because subsequent CAPI calls carry the GitHub bearer token —
-		// honoring a remote URL would leak it. A non-loopback/invalid value is
-		// ignored and normal discovery proceeds. Only ever set by the smoke harness.
+		// Test/debug override: skip api.github.com discovery for an allowed local
+		// or smoke-proxy URL. Every other non-loopback value is ignored because
+		// subsequent CAPI calls carry the GitHub bearer token.
 		const overrideApi = process.env[CAPI_URL_OVERRIDE_ENV];
 		if (overrideApi) {
-			if (isLoopbackUrl(overrideApi)) {
+			if (isAllowedCapiUrlOverride(overrideApi)) {
 				this._logService.info(`[CopilotApiService] Using CAPI URL override ${overrideApi}; skipping endpoint discovery`);
 				capiClient.updateDomains({ endpoints: { api: overrideApi, proxy: overrideApi }, sku: '' }, undefined);
 				return {

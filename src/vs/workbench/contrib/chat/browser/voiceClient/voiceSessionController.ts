@@ -1710,10 +1710,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isHandsFreeEnabled(): boolean {
-		// Default-on: treat only an explicit `false` as disabled so an
-		// unresolved/undefined value still enables hands-free (matches the
-		// `handsFree` default and the window-service `!== false` check).
-		return this.configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
+		// Default-off: hands-free auto-listen is opt-in, so only an explicit
+		// `true` enables it. An unresolved/undefined value resolves to the
+		// `handsFree` default (`false`) and stays disabled.
+		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 	}
 
 	/**

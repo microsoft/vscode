@@ -3,16 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Codex "Approvals" preset picker.
- *
- * Each preset carries a fairly long description (e.g. "Codex can read and edit
- * files in the workspace and run routine local commands..."). By default the
- * action list keeps the detail on a single line, which stretches the popup far
- * wider than the chip. Paired with the `maxWidth`/`detailItemHeight` list
- * options in `agentHostCodexApprovalsPicker.ts`, these rules cap the popup
- * width and let the description wrap onto multiple lines within a compact box.
- */
 .action-widget .actionList.codex-approvals-picker .monaco-list .monaco-list-row.action .detail {
 	white-space: normal;
 	text-overflow: clip;

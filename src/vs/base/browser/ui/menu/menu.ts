@@ -321,10 +321,8 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
-		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
-		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
@@ -1024,7 +1022,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 .monaco-menu {
 	font-size: 13px;
 	border-radius: var(--vscode-cornerRadius-large);
-	border: 1px solid ${borderColor};
+	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
 }
 

@@ -8,7 +8,7 @@ import { IAction } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AgentSessionProviders, getAgentSessionProviderDescription, getAgentSessionProviderSource } from '../../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderDescription } from '../../../../browser/agentSessions/agentSessions.js';
 import { SessionTypeAvailability } from '../../../../browser/agentSessions/sessionTypeAvailability.js';
 import { createSessionTypePickerAction, ISessionTypeItem } from '../../../../browser/widget/input/sessionTargetPickerActionItem.js';
 
@@ -37,7 +37,7 @@ function getMarkdownValue(value: string | IMarkdownString | HTMLElement | undefi
 suite('SessionTypePickerActionItem', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('creates an available Codex extension action with source and hover context', () => {
+	test('creates an available Codex extension action with hover context', () => {
 		const item = createCodexItem(AgentSessionProviders.Codex);
 		const action = createSessionTypePickerAction(
 			baseAction,
@@ -46,7 +46,7 @@ suite('SessionTypePickerActionItem', () => {
 			SessionTypeAvailability.Available,
 			true,
 			{ label: 'Other', order: 2 },
-			getAgentSessionProviderSource(item.type),
+			undefined,
 			Codicon.openai,
 			() => { },
 		);
@@ -62,8 +62,8 @@ suite('SessionTypePickerActionItem', () => {
 			label: 'Codex',
 			checked: true,
 			enabled: true,
-			description: '(OpenAI Extension)',
-			ariaDescription: '(OpenAI Extension). Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
+			description: undefined,
+			ariaDescription: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
 			hover: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
 		});
 	});
@@ -77,7 +77,7 @@ suite('SessionTypePickerActionItem', () => {
 			SessionTypeAvailability.SignInRequired,
 			true,
 			{ label: 'Other', order: 2 },
-			getAgentSessionProviderSource(item.type),
+			undefined,
 			Codicon.openai,
 			() => { },
 		);

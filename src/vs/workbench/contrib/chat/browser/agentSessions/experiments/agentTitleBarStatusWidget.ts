@@ -888,7 +888,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			dropdownAction,
 			menuActions,
 			'agent-status-sparkle-dropdown',
-			{ skipTelemetry: true, menuClassName: WORKBENCH_MENU_MOTION_CLASS, closeAnimation: workbenchMenuCloseAnimation, getAnchor: () => sparkleContainer }
+			{ skipTelemetry: true, menuClassName: WORKBENCH_MENU_MOTION_CLASS, closeAnimation: workbenchMenuCloseAnimation }
 		);
 		sparkleDropdown.render(sparkleContainer);
 		disposables.add(sparkleDropdown);

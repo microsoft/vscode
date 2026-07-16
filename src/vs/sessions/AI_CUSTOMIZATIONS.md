@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── pluginListWidget.ts                         # Agent plugins section
 ├── aiCustomizationIcons.ts                     # Icons
 └── media/
-    └── aiCustomizationManagement.css
+    └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
 
 src/vs/workbench/contrib/chat/common/
 ├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
