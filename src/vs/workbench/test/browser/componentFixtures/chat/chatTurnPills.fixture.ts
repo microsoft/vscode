@@ -13,6 +13,7 @@ import { IChatResponseFileChangesService } from '../../../../contrib/chat/browse
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { ChatTurnStatusPillsSetting } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatTurnPillsPart } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -47,8 +48,7 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 
 interface IRenderTurnPillsOptions {
 	readonly diffs: readonly IEditSessionEntryDiff[];
-	/** Per-pill visibility, mirroring the `chat.turnStatusPills` setting. */
-	readonly config?: { readonly changes?: boolean; readonly preview?: boolean };
+	readonly setting?: ChatTurnStatusPillsSetting;
 	/** When `true`, the changed-files disclosure is expanded. */
 	readonly expanded?: boolean;
 }
@@ -66,11 +66,7 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 		},
 	});
 
-	// Both pills are off by default; enable the requested ones so the fixture renders.
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, {
-		changes: options.config?.changes ?? true,
-		preview: options.config?.preview ?? true,
-	});
+	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options.setting ?? true);
 
 	const content: IChatTurnPillsPart = {
 		kind: 'turnPills',
@@ -98,21 +94,17 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 // Fixtures
 // ============================================================================
 
-const CHANGES_ONLY = { changes: true, preview: false } as const;
-const PREVIEW_ONLY = { changes: false, preview: true } as const;
-
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	// --- Standalone content part in each of its states ---
 
 	part: defineThemedFixtureGroup({
 		ChangesOnly_SingleFile: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, { config: CHANGES_ONLY, diffs: [fileDiff('app.ts', 12, 5, false)] }),
+			render: (ctx) => renderTurnPills(ctx, { diffs: [fileDiff('app.ts', 12, 5, false)] }),
 		}),
 
 		ChangesOnly_MultipleFiles: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
-				config: CHANGES_ONLY,
 				diffs: [
 					fileDiff('app.ts', 42, 7, false),
 					fileDiff('util.ts', 118, 64, false),
@@ -123,7 +115,6 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 		ChangesOnly_Expanded: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
-				config: CHANGES_ONLY,
 				expanded: true,
 				diffs: [
 					fileDiff('app.ts', 42, 7, false),
@@ -168,9 +159,9 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
-		PreviewOnly: defineComponentFixture({
+		LegacyPreviewOptionEnablesAll: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
-				config: PREVIEW_ONLY,
+				setting: { preview: true },
 				diffs: [
 					fileDiff('README.md', 20, 0, true),
 					fileDiff('app.ts', 8, 3, false),
@@ -188,7 +179,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	inChat: defineThemedFixtureGroup({
 		Changes: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: { changes: true },
+				turnStatusPills: true,
 				messages: [
 					{
 						user: 'Refactor the fibonacci helper to be iterative',
@@ -206,7 +197,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 		ChangesAndPreview: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: { changes: true, preview: true },
+				turnStatusPills: true,
 				messages: [
 					{
 						user: 'Add a README describing the project',

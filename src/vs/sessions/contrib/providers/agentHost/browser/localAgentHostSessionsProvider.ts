@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentConnection, IAgentHostService, claudePreferAgentHostSettingId, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -42,7 +42,9 @@ const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
  * single machine-wide local agent host, so a fixed key (no per-authority
  * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
  */
-const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions';
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v2';
+// TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY = 'localAgentHost.cachedSessions';
 
 /**
  * Local-window sessions provider backed by the in-process
@@ -114,7 +116,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// local sessions immediately at startup, before the agent host has
 		// started and the first `listSessions()` round-trip (gated on
 		// authentication settling below) reconciles them.
-		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY);
+		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
 
 		this._attachConnectionListeners(this._agentHostService, this._store);
 
@@ -145,19 +147,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 			this._resumeNewSessionAfterAuthenticationSettles();
 		}));
 
-		// Re-sync session types when a preference that gates which agents this
-		// provider advertises changes:
-		//  - `LocalAgentHostDefaultProviderSettingId` flips the provider's
-		//    `order`, so re-fire `onDidChangeSessionTypes` to re-sort.
-		//  - the per-window Claude AH/EH preference flips whether the agent
-		//    host's Claude is surfaced here (see `_shouldAdvertiseAgent`), so
-		//    re-run the full sync to add/remove the Claude session type live.
-		const preferAgentHostClaudeSettingId = claudePreferAgentHostSettingId(this._isSessionsWindow);
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LocalAgentHostDefaultProviderSettingId)) {
 				this._onDidChangeSessionTypes.fire();
 			}
-			if (e.affectsConfiguration(preferAgentHostClaudeSettingId)) {
+			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				const current = this._agentHostService.rootState.value;
 				if (current && !(current instanceof Error)) {
 					this._syncSessionTypesFromRootState(current);
@@ -179,20 +173,6 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 
-	/**
-	 * Suppress the agent host's Claude when this window prefers the
-	 * extension-host Claude (provided by the GitHub Copilot Chat extension),
-	 * mirroring the gate {@link AgentHostContribution} applies to the chat
-	 * session contribution. Without this, the welcome picker's "Local Agent
-	 * Host" group would list Claude even though the running Claude session is
-	 * served by the extension host — surfacing it twice.
-	 *
-	 * TODO: Remove this override (and the gate it applies in `getSessions()`
-	 * plus the `preferAgentHost` re-fire in the constructor) once the
-	 * extension-host Claude implementation is retired. With the agent host as
-	 * the only Claude there is nothing to disambiguate, so the base default
-	 * (advertise everything) is correct. See {@link shouldSurfaceLocalAgentHostProvider}.
-	 */
 	protected override _shouldAdvertiseAgent(provider: string): boolean {
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}

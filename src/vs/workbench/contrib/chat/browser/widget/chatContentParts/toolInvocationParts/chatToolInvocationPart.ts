@@ -28,6 +28,7 @@ import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirm
 import { ChatAgentFeedbackReviewConfirmationSubPart } from './chatAgentFeedbackReviewConfirmationSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
+import { ChatToolAuthenticationSubPart } from './chatToolAuthenticationSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
@@ -121,12 +122,20 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		let appData: IObservable<IMcpAppRenderData | undefined> = constObservable(undefined);
 		if (toolInvocation.kind === 'toolInvocation') {
-			const initialState = toolInvocation.state.get().type;
-			const initialDataKind = toolInvocation.toolSpecificDataKind.get();
+			let previousState = toolInvocation.state.get();
+			let previousDataKind = toolInvocation.toolSpecificDataKind.get();
+			let previousToolSpecificData = toolInvocation.toolSpecificData;
 			this._register(autorun(reader => {
-				const stateChanged = toolInvocation.state.read(reader).type !== initialState;
-				const dataKindChanged = toolInvocation.toolSpecificDataKind.read(reader) !== initialDataKind;
-				if (stateChanged || dataKindChanged) {
+				const state = toolInvocation.state.read(reader);
+				const dataKind = toolInvocation.toolSpecificDataKind.read(reader);
+				const toolSpecificData = toolInvocation.toolSpecificData;
+				const stateChanged = state.type !== previousState.type;
+				const dataKindChanged = dataKind !== previousDataKind;
+				const dataChanged = state !== previousState && toolSpecificData !== previousToolSpecificData;
+				previousState = state;
+				previousDataKind = dataKind;
+				previousToolSpecificData = toolSpecificData;
+				if (stateChanged || dataKindChanged || dataChanged) {
 					render();
 				}
 			}));
@@ -152,6 +161,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
 				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
 			});
+		} else {
+			const data = this.getMcpAppRenderData();
+			if (data) {
+				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, undefined);
+				appData = constObservable(!!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined);
+			}
 		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
@@ -181,6 +196,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.subPart instanceof ChatModifiedFilesConfirmationSubPart ||
 				this.subPart instanceof ChatSandboxPrerequisiteConfirmationSubPart ||
 				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
+				this.subPart instanceof ChatToolAuthenticationSubPart ||
 				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
 			this.domNode.classList.toggle('has-confirmation', isConfirmation);
 
@@ -237,6 +253,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				}
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+				return this.instantiationService.createInstance(ChatToolAuthenticationSubPart, this.toolInvocation, this.context);
 			}
 			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context);

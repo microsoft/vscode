@@ -19,7 +19,7 @@ import { contrastBorder, activeContrastBorder } from '../../../../platform/theme
 import { EventHelper, addDisposableListener, EventType, clearNode, getWindow, isHTMLElement, $ } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN } from '../../../services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { equals } from '../../../../base/common/arrays.js';
@@ -122,11 +122,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	static readonly HEIGHT = 22;
 
 	/**
-	 * Bottom padding reserved below the main status bar under the floating panels
-	 * experiment so it floats off the window's bottom edge. The part grows by this
-	 * amount and the matching `padding-bottom` is applied in `part.css`.
+	 * Vertical padding reserved around the main status bar under the floating panels
+	 * experiment so its items remain centered. The part grows by this amount and
+	 * the matching padding is applied in `floatingPanels.css`.
 	 */
-	static readonly FLOATING_BOTTOM_PADDING = FLOATING_PANEL_MARGIN;
+	static readonly FLOATING_BOTTOM_PADDING = 10;
 
 	//#region IView
 

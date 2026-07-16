@@ -272,6 +272,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _slashCommandHandler: SlashCommandHandler | undefined;
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _newChatModelPickerService = new NewChatModelPickerService();
 	private readonly _compactModelPicker = observableValue(this, false);
 
 	// Input state
@@ -319,7 +320,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	) {
 		super();
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
-			[INewChatModelPickerService, new NewChatModelPickerService()],
+			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionContext, new SessionContext(this.options.session)],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -373,10 +374,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
 		const notificationWidget = this._register(this.instantiationService.createInstance(
 			ChatInputNotificationWidget,
-			() => this.sessionTypePicker.selectedPick?.sessionTypeId,
+			{
+				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
+				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
+				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
+			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);
-		this._register(this.sessionTypePicker.onDidSelectSessionType(() => notificationWidget.rerender()));
 
 		// Input area inside the input slot
 		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));

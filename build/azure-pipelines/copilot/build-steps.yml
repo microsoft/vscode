@@ -1,18 +1,6 @@
 steps:
-  # Check out the private microsoft/vscode-capi repository using the agent's
-  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
-  # repository resource is declared in the top-level pipeline (resources.repositories).
-  - checkout: capi
-    path: s/.build/vscode-capi
-    fetchDepth: 1
-    retryCountOnTaskFailure: 3
-    displayName: Checkout microsoft/vscode-capi
-
-  - script: |
-      set -e
-      cd $(Build.SourcesDirectory)/.build/vscode-capi
-      npm ci
-      BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+  - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+    workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
     displayName: Mixin vscode-capi
 
   - script: npm run build

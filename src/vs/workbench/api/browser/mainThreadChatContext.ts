@@ -10,11 +10,13 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostChatContextShape, ExtHostContext, IChatContextItemDto, ITabSelectorDto, MainContext, MainThreadChatContextShape } from '../common/extHost.protocol.js';
 import { IChatContextService } from '../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { URI } from '../../../base/common/uri.js';
+import { IconPath } from '../common/extHostTypeConverters.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 
 function reviveContextItem(item: IChatContextItemDto): IChatContextItem {
 	return {
 		...item,
+		iconPath: IconPath.to(item.iconPath),
 		resourceUri: item.resourceUri ? URI.revive(item.resourceUri) : undefined
 	};
 }

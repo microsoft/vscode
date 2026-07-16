@@ -43,7 +43,7 @@
  * Unify the surrounding chrome with the editor card: the floating side bar,
  * auxiliary bar and bottom panel cards (see `browser/media/floatingPanels.css`)
  * default to the `agentsPanel` border token. Re-point them at the same
- * `editorGroup-border` token the editor card uses above so every top-level card
+* `editorGroup-border` token the editor card uses above so every top-level card
  * shares one border color. Only the color is overridden; the width and radius
  * from floatingPanels.css are kept. The extra `.monaco-workbench` class (both
  * `.style-override` and `.floating-panels` sit on the workbench element) raises

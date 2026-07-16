@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.57.0",
+  "version": "0.58.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.129.0",
+    "vscode": "^1.130.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -7139,11 +7139,11 @@
     "compile": "node .esbuild.mts --dev",
     "watch": "npm-run-all -lp watch:esbuild watch:typecheck",
     "watch:esbuild": "node .esbuild.mts --watch --dev",
-    "watch:typecheck": "npx tsgo --noEmit --watch --preserveWatchOutput --project tsconfig.json",
-    "watch:typecheck-extension": "npx tsgo --noEmit --watch --project tsconfig.json",
-    "watch:typecheck-extension-web": "npx tsgo --noEmit --watch --project tsconfig.worker.json",
-    "watch:typecheck-simulation-workbench": "npx tsgo --noEmit --watch --project test/simulation/workbench/tsconfig.json",
-    "typecheck": "npx tsgo --noEmit --project tsconfig.json && npx tsgo --noEmit --project test/simulation/workbench/tsconfig.json && npx tsgo --noEmit --project tsconfig.worker.json && npx tsgo --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
+    "watch:typecheck": "tsc --noEmit --watch --preserveWatchOutput --project tsconfig.json",
+    "watch:typecheck-extension": "tsc --noEmit --watch --project tsconfig.json",
+    "watch:typecheck-extension-web": "tsc --noEmit --watch --project tsconfig.worker.json",
+    "watch:typecheck-simulation-workbench": "tsc --noEmit --watch --project test/simulation/workbench/tsconfig.json",
+    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project test/simulation/workbench/tsconfig.json && tsc --noEmit --project tsconfig.worker.json && tsc --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
     "lint": "npx eslint . --max-warnings=0",
     "lint-staged": "npx eslint --max-warnings=0",
     "tsfmt": "npx tsfmt -r --verify",
@@ -7204,7 +7204,7 @@
     "@typescript-eslint/eslint-plugin": "^8.35.0",
     "@typescript-eslint/parser": "^8.32.0",
     "@typescript-eslint/typescript-estree": "^8.26.1",
-    "@typescript/native-preview": "^7.0.0-dev.20260429",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.8",
     "@vitest/snapshot": "^1.5.0",
     "@vscode/debugadapter": "^1.68.0",
@@ -7247,7 +7247,7 @@
     "tar": "^7.5.16",
     "ts-dedent": "^2.2.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.8.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite-plugin-wasm": "^3.6.0",
     "vitest": "^4.1.8",
     "vscode-languageserver-protocol": "^3.17.5",
@@ -7320,5 +7320,14 @@
       "flags": "verified"
     },
     "publisherDisplayName": "GitHub"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "keytar@7.9.0": true,
+    "@playwright/browser-chromium@1.61.1": true,
+    "@vscode/vsce-sign@2.0.5": true,
+    "protobufjs": false,
+    "fsevents@2.3.3": true,
+    "fsevents@2.3.2": true
   }
 }

@@ -23,7 +23,7 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { CopilotBranchNameGenerator, ICopilotBranchNameGenerator } from './copilot/copilotBranchNameGenerator.js';
+import { WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
@@ -32,7 +32,8 @@ import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { ByokLmProxyService, IByokLmProxyService } from './copilot/byokLmProxyService.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { INetworkDiagnosticsService, NetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
@@ -134,7 +135,6 @@ async function startAgentHost(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
-	const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables });
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -143,7 +143,7 @@ async function startAgentHost(): Promise<void> {
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
 	let byokLmBridgeRegistry: ByokLmBridgeRegistry;
-	let proxyResolver: AgentHostProxyResolver | undefined;
+	let proxyResolver: IAgentHostProxyResolver | undefined;
 	// Gate BYOK *use* behind the opt-in `chat.agentHost.byokModels.enabled`
 	// setting, forwarded from the renderer as an env var. The proxy and bridge
 	// registry are always constructed below (so the session launcher can inject
@@ -152,19 +152,19 @@ async function startAgentHost(): Promise<void> {
 	// and the proxy never binds.
 	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
 	try {
-		// Build the DI container early so the git service can be created via
-		// `createInstance` (it needs IFileService + INativeEnvironmentService).
+		// Build the process DI container and network stack before telemetry so every
+		// outbound fetch, including restricted telemetry, uses the same proxy resolver.
 		const diServices = new ServiceCollection();
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
+		const networkServices = await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
+		proxyResolver = networkServices.proxyResolver;
+		const fetchFn = proxyResolver.fetch.bind(proxyResolver);
+		const telemetryService = await createAgentHostTelemetryService({ environmentService, productService, fileService, loggerService, logService, disposables, fetchFn, requestService: networkServices.requestService });
 		diServices.set(ITelemetryService, telemetryService);
-		// Wire `IPolicyService` + `IConfigurationService` + `IRequestService`
-		// — the trio that `IAgentSdkDownloader` depends on for proxy-aware
-		// downloads. Must run before any downstream service that injects them.
-		await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
 		instantiationService = new InstantiationService(diServices);
 		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
 		diServices.set(IAgentHostFileMonitorService, fileMonitorService);
@@ -193,13 +193,14 @@ async function startAgentHost(): Promise<void> {
 		// stays empty and the proxy never binds when the feature is off.
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		diServices.set(IByokLmBridgeRegistry, byokLmBridgeRegistry);
-		proxyResolver = instantiationService.createInstance(AgentHostProxyResolver);
-		diServices.set(IAgentHostProxyResolver, proxyResolver);
 		const byokLmProxyService = disposables.add(instantiationService.createInstance(ByokLmProxyService));
 		diServices.set(IByokLmProxyService, byokLmProxyService);
-		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService, undefined);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn);
+		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
+		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
+		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		diServices.set(IAgentService, agentService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
@@ -215,9 +216,12 @@ async function startAgentHost(): Promise<void> {
 		// CopilotApiService and the proxies that consume it are created AFTER the
 		// GitHub endpoint service is re-exported (above) so CAPI endpoint discovery
 		// can target a GitHub Enterprise host. Matches agentHostServerMain ordering.
-		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
 		diServices.set(ICopilotApiService, copilotApiService);
-		diServices.set(ICopilotBranchNameGenerator, instantiationService.createInstance(CopilotBranchNameGenerator));
+		// Host-owned worktree isolation controller: a single instance drives folder
+		// / worktree isolation for every agent, so providers stay unaware of it. It
+		// owns its branch-name generator, created from ICopilotApiService.
+		agentService.setWorktreeIsolation(disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined)));
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));

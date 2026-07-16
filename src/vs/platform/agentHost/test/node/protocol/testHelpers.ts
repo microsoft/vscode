@@ -15,15 +15,18 @@ import { ActionType, type ActionEnvelope } from '../../../common/state/sessionAc
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
 import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
 	type AhpNotification,
+	type JsonRpcNotification,
+	type JsonRpcRequest,
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
 	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
+import { AhpSnapshotRecorder } from './ahpSnapshot.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -34,12 +37,16 @@ interface IPendingCall {
 
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
+	private readonly _ahpSnapshot = new AhpSnapshotRecorder();
 	private _nextId = 1;
 	private readonly _pendingCalls = new Map<number, IPendingCall>();
 	private readonly _notifications: AhpNotification[] = [];
 	private readonly _notifWaiters: { predicate: (n: AhpNotification) => boolean; resolve: (n: AhpNotification) => void; reject: (err: Error) => void; dispose: () => void }[] = [];
 
-	constructor(port: number) {
+	constructor(
+		port: number,
+		private readonly _takeReplayError?: () => Error | undefined,
+	) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
 	}
 
@@ -48,7 +55,8 @@ export class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text);
+					const msg = JSON.parse(text) as ProtocolMessage;
+					this._ahpSnapshot.record('s2c', msg);
 					this._handleMessage(msg);
 				});
 				resolve();
@@ -78,7 +86,9 @@ export class TestProtocolClient {
 
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
-		this._ws.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+		const message: JsonRpcNotification = { jsonrpc: '2.0', method, params };
+		this._ahpSnapshot.record('c2s', message);
+		this._ws.send(JSON.stringify(message));
 	}
 
 	/**
@@ -97,7 +107,9 @@ export class TestProtocolClient {
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
 		const id = this._nextId++;
-		this._ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+		const message: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+		this._ahpSnapshot.record('c2s', message);
+		this._ws.send(JSON.stringify(message));
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this._pendingCalls.delete(id);
@@ -202,6 +214,22 @@ export class TestProtocolClient {
 
 	clearReceived(): void {
 		this._notifications.length = 0;
+	}
+
+	clearAhpSnapshot(): void {
+		this._ahpSnapshot.clear();
+	}
+
+	beginAhpSnapshotRound(): void {
+		this._ahpSnapshot.beginRound();
+	}
+
+	serializeAhpSnapshot(): string {
+		return this._ahpSnapshot.serialize();
+	}
+
+	takeReplayError(): Error | undefined {
+		return this._takeReplayError?.();
 	}
 }
 
@@ -321,7 +349,7 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the Copilot SDK agent with either a real or mocked LLM.
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly mockLlm?: boolean; readonly homeDir?: string; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean }; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -359,6 +387,9 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		if (options?.codexSdkRoot) {
 			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
+		if (options?.userDataDir) {
+			args.push('--user-data-dir', options.userDataDir);
+		}
 		const childEnv = {
 			...process.env,
 			...(options?.env ?? {}),
@@ -369,6 +400,8 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
 			...(options?.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: 'true' } : {}),
+			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
+			...(options?.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`
@@ -516,6 +549,7 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});

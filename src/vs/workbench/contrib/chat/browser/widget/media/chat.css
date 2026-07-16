@@ -2011,15 +2011,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.action-widget .action-list-filter-input.chat-model-picker-filter-input,
-.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input,
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter-input:focus {
 	outline: none;
 	box-shadow: none;
 	border-color: transparent;
 	background-color: transparent;
 }
 
-.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+.action-widget:has(.chat-model-picker-dropdown) .action-list-filter {
 	margin-bottom: 4px;
 }
 
@@ -2261,6 +2261,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 4px;
 	position: relative;
+}
+
+.interactive-session .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
+	display: contents;
+}
+
+.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content) {
+	display: none;
+}
+
+.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden))) {
+	display: none;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -3018,6 +3030,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Turn changes summary: reuses the compact checkpoint summary styling and adds an
 	inline resource-label action shown when the turn produced a previewable file. */
+
+/* In the pill part the +/- counts are themselves the "View All File Changes" button,
+	so reset the native button chrome and add the standard toolbar hover/focus affordances. */
+.interactive-session .chat-turn-pills-part .chat-file-changes-counts {
+	align-items: center;
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: inherit;
+	background: transparent;
+	font: inherit;
+	cursor: pointer;
+}
+
+.interactive-session .chat-turn-pills-part .chat-file-changes-counts:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-turn-pills-part .chat-file-changes-counts:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .interactive-session .chat-turn-pills-part .chat-turn-preview {
 	display: flex;
 	align-items: center;
@@ -3053,7 +3088,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: var(--vscode-spacing-size40);
 	min-width: 0;
 	max-width: 200px;
-	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size20);
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: inherit;
@@ -3077,6 +3112,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	min-width: 0;
 	align-items: center;
 	overflow: hidden;
+}
+
+.interactive-session .chat-turn-pills-part .chat-turn-preview-action .monaco-icon-label:before {
+	height: 18px;
+	width: 16px;
 }
 
 /* Per-row action bar in the changed-files list (e.g. the "Preview" action). The

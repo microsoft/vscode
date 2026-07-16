@@ -12,7 +12,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { getOrderedRepoInfosFromContext, IGitService, normalizeFetchUrl, RepoContext, ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
 import { Change, Repository } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
 import { IWorkspaceFileIndex } from '../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 
@@ -40,9 +40,15 @@ const STATUS_TO_STRING: Record<number, string> = {
 	18: 'BOTH_MODIFIED',
 };
 
-// Max telemetry payload size is 1MB, we add shared properties in further code and JSON structure overhead to that
-// so check our diff JSON size against 900KB to be conservative with space
-const MAX_DIFFS_JSON_SIZE = 900 * 1024;
+// The Application Insights SDK truncates any single custom string property at 8192 characters. When
+// the serialized diffs JSON exceeds that, `multiplexProperties` (see telemetry.ts) splits it across
+// up to 50 columns (`diffsJSON`, `diffsJSON_02`, `diffsJSON_03`, ...) so the full payload survives.
+// Two independent limits guard the diffs JSON, and it is dropped (`diffTooLarge`) if EITHER is exceeded:
+// - MAX_DIFFS_JSON_BYTES: conservative total-payload byte budget under the 1MB event limit.
+// - MAX_DIFFS_JSON_CHARS: the multiplex capacity in characters (UTF-16 code units), matching how
+//   `multiplexProperties` measures and slices, so nothing is silently dropped past the 50 columns.
+const MAX_DIFFS_JSON_BYTES = 900 * 1024;
+const MAX_DIFFS_JSON_CHARS = 50 * 8192;
 
 // Max changes to avoid degenerate cases like mass renames
 const MAX_CHANGES = 100;
@@ -236,9 +242,9 @@ export class RepoInfoTelemetry {
 
 			if (isInternal) {
 				const { headBranchName: _, fileRelativePaths: _2, ...msftProperties } = internalProperties;
-				this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', msftProperties, data.measurements);
+				this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', multiplexProperties(msftProperties), data.measurements);
 			}
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', internalProperties, data.measurements);
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', multiplexProperties(internalProperties), data.measurements);
 		}
 
 		return results;
@@ -452,12 +458,14 @@ export class RepoInfoTelemetry {
 
 			const diffsJSON = diffs.length > 0 ? JSON.stringify(diffs) : undefined;
 
-			// Check against our size limit to make sure our telemetry fits in the 1MB limit
+			// The total telemetry event payload is limited to 1MB, and each multiplexed column holds at
+			// most 8192 characters across 50 columns. Drop the diffs JSON if it exceeds either the byte
+			// budget or the multiplex character capacity so nothing is silently truncated.
 			if (diffsJSON) {
 				const diffSizeBytes = Buffer.byteLength(diffsJSON, 'utf8');
 				measurements.diffSizeBytes = diffSizeBytes;
 
-				if (diffSizeBytes > MAX_DIFFS_JSON_SIZE) {
+				if (diffSizeBytes > MAX_DIFFS_JSON_BYTES || diffsJSON.length > MAX_DIFFS_JSON_CHARS) {
 					return {
 						properties: { ...baseProperties, fileRelativePaths, diffsJSON: undefined, result: 'diffTooLarge' },
 						measurements

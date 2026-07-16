@@ -32,6 +32,13 @@ export interface IToolCallRound {
 	toolCalls: IToolCall[];
 	thinking?: ThinkingData;
 	statefulMarker?: string;
+	/**
+	 * The local summary generation included when an extension-contributed/BYOK
+	 * response created this marker. Used only at the `vscode.lm` boundary to
+	 * reject BYOK markers that still reference pre-summary server history;
+	 * first-party WebSocket summary compatibility remains manager-owned.
+	 */
+	statefulMarkerSummarizedAtRoundId?: string;
 	/** Compaction data from the Responses API, round-tripped in outgoing requests */
 	compaction?: OpenAIContextManagementResponse;
 	/** Epoch millis (`Date.now()`) when this round started. */

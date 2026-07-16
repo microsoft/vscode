@@ -83,6 +83,14 @@ interface ILiveEntry {
 	readonly topLevelId?: string;
 }
 
+export function buildMcpTopLevelCustomizationId(providerId: string, sessionId: string, serverName: string): string {
+	return `mcp-top-level:${providerId}:${sessionId}:${serverName}`;
+}
+
+export function buildMcpChannel(providerId: string, sessionId: string, serverName: string): string {
+	return `mcp://${providerId}/${encodeURIComponent(sessionId)}/${encodeURIComponent(serverName)}`;
+}
+
 /**
  * Translates a stream of SDK-reported MCP server states into AHP
  * customization actions:
@@ -342,14 +350,14 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	private _mintTopLevelId(serverName: string): string {
-		return `mcp-top-level:${this._options.providerId}:${this._options.sessionId}:${serverName}`;
+		return buildMcpTopLevelCustomizationId(this._options.providerId, this._options.sessionId, serverName);
 	}
 
 	private _buildChannel(serverName: string, state: McpServerState): string | undefined {
 		if (state.kind !== McpServerStatus.Ready) {
 			return undefined;
 		}
-		return `mcp://${this._options.providerId}/${encodeURIComponent(this._options.sessionId)}/${encodeURIComponent(serverName)}`;
+		return buildMcpChannel(this._options.providerId, this._options.sessionId, serverName);
 	}
 
 	private _buildTopLevel(id: string, serverName: string, state: McpServerState): McpServerCustomization {
