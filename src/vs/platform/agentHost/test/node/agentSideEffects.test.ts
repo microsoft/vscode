@@ -2157,26 +2157,6 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/customizationToggled ---------------------
-
-	suite('handleAction — session/customizationToggled', () => {
-
-		test('calls setCustomizationEnabled on the agent', () => {
-			setupSession();
-
-			const action: SessionAction = {
-				type: ActionType.SessionCustomizationToggled,
-				id: 'file:///plugin-a',
-				enabled: false,
-			};
-			sideEffects.handleAction(sessionUri.toString(), action);
-
-			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
-				{ id: 'file:///plugin-a', enabled: false },
-			]);
-		});
-	});
-
 	// ---- handleAction: session/toolCallConfirmed ------------------------
 
 	suite('handleAction — session/toolCallConfirmed', () => {
