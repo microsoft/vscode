@@ -1559,6 +1559,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const isPartial = event.status === 'partial';
+		// Live (word-by-word) transcripts are opt-in: when disabled, we don't
+		// render the interim streaming text as the user speaks and only act on
+		// the final transcript, so the user still sees what they said once the
+		// utterance settles.
+		if (isPartial && !this._isLiveTranscriptEnabled()) {
+			return;
+		}
 		this._updateUserTurn(event.text, event.committed ?? '', isPartial);
 		if (isPartial) {
 			return;
@@ -1773,6 +1780,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// `true` enables it. An unresolved/undefined value resolves to the
 		// `handsFree` default (`false`) and stays disabled.
 		return this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+	}
+
+	private _isLiveTranscriptEnabled(): boolean {
+		// Default-off: live word-by-word transcripts are opt-in, so only an
+		// explicit `true` enables the interim rendering. An unresolved/undefined
+		// value resolves to the `liveTranscript` default (`false`).
+		return this.configurationService.getValue<boolean>('agents.voice.liveTranscript') === true;
 	}
 
 	/**

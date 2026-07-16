@@ -11,6 +11,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
 import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -28,7 +29,8 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 suite('VoiceSessionController live transcription', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createController(): { controller: VoiceSessionController; persisted: IVoiceTranscriptTurn[] } {
+	function createController(options: { liveTranscript?: boolean } = {}): { controller: VoiceSessionController; persisted: IVoiceTranscriptTurn[] } {
+		const liveTranscript = options.liveTranscript ?? true;
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		const persisted: IVoiceTranscriptTurn[] = [];
 
@@ -71,9 +73,9 @@ suite('VoiceSessionController live transcription', () => {
 				persisted.push(turn);
 			},
 		});
-		instantiationService.stub(IConfigurationService, {
-			getValue: () => false,
-		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			'agents.voice.liveTranscript': liveTranscript,
+		}));
 		instantiationService.stub(IAccessibilitySignalService, {
 			playSignal: async () => { },
 		});
@@ -209,5 +211,23 @@ suite('VoiceSessionController live transcription', () => {
 		transcribe(controller, { text: 'after reconnect', status: 'final', turnId: reconnectTurnId, revision: 1 });
 
 		assert.deepStrictEqual(persisted, []);
+	});
+
+	test('skips live partials when live transcript is disabled but keeps the final', () => {
+		const { controller, persisted } = createController({ liveTranscript: false });
+		const turnId = beginTurn(controller);
+
+		transcribe(controller, { text: 'open', committed: 'op', status: 'partial', turnId, revision: 1 });
+		transcribe(controller, { text: 'open the file', committed: 'open ', status: 'partial', turnId, revision: 2 });
+		finishTurn(controller);
+		transcribe(controller, { text: 'open the file', status: 'final', turnId, revision: 3 });
+
+		assert.deepStrictEqual({
+			turns: controller.transcriptTurns.get(),
+			persisted: persisted.map(turn => turn.text),
+		}, {
+			turns: [{ speaker: 'user', text: 'open the file', committed: '', isPartial: false }],
+			persisted: ['open the file'],
+		});
 	});
 });
