@@ -1210,7 +1210,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		// the model call natively and never produces a JS span we could observe directly).
 		const modelTurnUsages: IModelTurnUsage[] = [];
 		const invokeAgentTraceContext = invokeAgentSpan.getSpanContext();
-		const editTracker = new ExternalEditTracker();
+		const editTracker = new ExternalEditTracker([], undefined, this.logService);
 		let sdkRequestId: string | undefined;
 		let isQuotaError = false;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();

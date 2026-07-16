@@ -258,7 +258,7 @@ export class ClaudeCodeSession extends Disposable {
 		});
 		// Initialize edit tracker with plan directory as ignored
 		const planDirUri = URI.joinPath(this.envService.userHome, '.claude', 'plans');
-		this._editTracker = new ExternalEditTracker([planDirUri]);
+		this._editTracker = new ExternalEditTracker([planDirUri], undefined, this.logService);
 		this._settingsChangeTracker = this._createSettingsChangeTracker();
 	}
 

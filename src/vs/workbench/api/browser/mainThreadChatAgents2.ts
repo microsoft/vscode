@@ -498,6 +498,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources), progress.undoStopId)
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
+				} else {
+					// The edit proceeds on the extension side without attribution here; log why so a
+					// missing acknowledgment can be distinguished from a stalled one (see #320292).
+					this._logService.warn(`MainThreadChatAgents2#$handleProgressChunk: dropping externalEdits ${progress.start ? 'start' : 'stop'} chunk for request ${requestId} (editingSession=${!!chatSession?.editingSession}, operation=${responsePartHandle}, response=${!!response})`);
 				}
 				continue;
 			}

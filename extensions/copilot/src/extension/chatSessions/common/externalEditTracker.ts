@@ -8,6 +8,7 @@ import { DeferredPromise, raceTimeout } from '../../../util/vs/base/common/async
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
+import { ILogger } from '../../../platform/log/common/logService';
 
 /**
  * Maximum time to wait for VS Code core to acknowledge an external edit before proceeding anyway.
@@ -32,10 +33,12 @@ export class ExternalEditTracker {
 	 * Creates a new ExternalEditTracker.
 	 * @param ignoreDirectories Optional list of directory URIs to ignore when tracking edits
 	 * @param acknowledgmentTimeoutMs Maximum time to wait for core to acknowledge an external edit before proceeding anyway
+	 * @param logService Optional logger used to diagnose lost/missing core acknowledgments
 	 */
 	constructor(
 		private readonly ignoreDirectories: URI[] = [],
 		private readonly acknowledgmentTimeoutMs: number = EXTERNAL_EDIT_ACK_TIMEOUT_MS,
+		private readonly logService?: ILogger,
 	) { }
 
 	/**
@@ -65,13 +68,21 @@ export class ExternalEditTracker {
 
 		return new Promise<void>(proceedWithEdit => {
 			const deferred = new DeferredPromise<void>();
+			const startTime = Date.now();
+			this.logService?.trace(`[ExternalEditTracker] Awaiting core acknowledgment for edit ${editKey} (${filteredUris.length} file(s)), timeout ${this.acknowledgmentTimeoutMs}ms: ${filteredUris.map(uri => (URI.isUri(uri) ? uri : URI.from(uri)).toString()).join(', ')}`);
 
 			// The permission response is gated on this promise resolving. It must never wait forever
 			// on core acknowledging the external edit, so we proceed on whichever happens first: core
 			// acknowledges, the request is cancelled, or the safety timeout elapses. Only the timeout
 			// is tied to this permission gate — the cancellation listener must outlive it (see below).
 			let settled = false;
-			const timer = setTimeout(() => settle(), this.acknowledgmentTimeoutMs);
+			const timer = setTimeout(() => {
+				// The timeout firing means core never invoked the externalEdit proceed callback within
+				// the deadline (see https://github.com/microsoft/vscode/issues/320292). Log an error with
+				// enough detail to correlate with the core-side externalEdit trace next time it happens.
+				this.logService?.error(`[ExternalEditTracker] Core did not acknowledge external edit ${editKey} (${filteredUris.length} file(s)) within ${this.acknowledgmentTimeoutMs}ms; proceeding without attribution`);
+				settle();
+			}, this.acknowledgmentTimeoutMs);
 			const settle = () => {
 				if (settled) {
 					return;
@@ -88,6 +99,7 @@ export class ExternalEditTracker {
 			// externalEdit callback awaits — otherwise both leak forever. It is disposed when it fires
 			// or by completeEdit.
 			const cancellationListener = token?.onCancellationRequested(() => {
+				this.logService?.trace(`[ExternalEditTracker] Edit ${editKey} cancelled after ${Date.now() - startTime}ms`);
 				this._ongoingEdits.delete(editKey);
 				cancellationListener?.dispose();
 				deferred.complete();
@@ -95,6 +107,9 @@ export class ExternalEditTracker {
 			});
 
 			const onDidComplete = stream.externalEdit(filteredUris, async () => {
+				if (!settled) {
+					this.logService?.trace(`[ExternalEditTracker] Core acknowledged external edit ${editKey} after ${Date.now() - startTime}ms`);
+				}
 				settle();
 				await deferred.p;
 			});
@@ -119,7 +134,14 @@ export class ExternalEditTracker {
 			ongoingEdit.dispose();
 			ongoingEdit.complete();
 			// Bound the wait so a stalled core acknowledgment cannot block request finalization.
-			return await raceTimeout(Promise.resolve(ongoingEdit.onDidComplete), this.acknowledgmentTimeoutMs);
+			const startTime = Date.now();
+			const result = await raceTimeout(Promise.resolve(ongoingEdit.onDidComplete), this.acknowledgmentTimeoutMs);
+			if (result === undefined) {
+				this.logService?.warn(`[ExternalEditTracker] Core did not confirm completion of external edit ${editKey} within ${this.acknowledgmentTimeoutMs}ms`);
+			} else {
+				this.logService?.trace(`[ExternalEditTracker] External edit ${editKey} completed after ${Date.now() - startTime}ms`);
+			}
+			return result;
 		}
 	}
 }

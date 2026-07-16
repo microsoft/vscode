@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, ITask, Sequencer, SequencerByKey, disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
@@ -59,6 +59,14 @@ const enum NotExistBehavior {
 	Create,
 	Abort,
 }
+
+/**
+ * How long {@link ChatEditingSession.startExternalEdits} may run before a warning is logged naming
+ * the stuck phase. Fires before the extension-side ack timeout so the core breadcrumb is written
+ * first (see https://github.com/microsoft/vscode/issues/320292).
+ */
+const EXTERNAL_EDIT_START_WATCHDOG_MS = 5_000;
+
 
 type ChatEditingSessionInfoEvent = {
 	editSessionId: string;
@@ -673,75 +681,109 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const progress: IChatProgress[] = [];
 		const telemetryInfo = this._getTelemetryInfoForModel(responseModel);
 
-		await chatEditingSessionIsReady(this);
+		// Must fire before the extension-side ack timeout so the stalled phase/resource is logged before the agent turn hangs.
+		const startTime = Date.now();
+		let phase = 'awaiting-session-ready';
+		const resourcePhases = new Map<string, string>();
+		const watchdog = disposableTimeout(() => {
+			const pending = Array.from(resourcePhases.entries()).filter(([, resourcePhase]) => resourcePhase !== 'acquired').map(([uri, resourcePhase]) => `${uri} (${resourcePhase})`);
+			const detail = pending.length ? `; unfinished resources: ${pending.join(', ')}` : '';
+			this._logService.warn(`[ChatEditingSession] startExternalEdits operation ${operationId} still pending after ${Date.now() - startTime}ms in phase '${phase}' for ${resources.length} resource(s) (undoStop ${undoStopId})${detail}`);
+		}, EXTERNAL_EDIT_START_WATCHDOG_MS);
 
-		// Acquire locks for each resource and take snapshots
-		for (let i = 0; i < resources.length; i++) {
-			const resource = resources[i];
-			const contentSource = contentFor?.[i];
-			const releaseLock = new DeferredPromise<void>();
-			releaseLockPromises.push(releaseLock);
+		try {
+			await chatEditingSessionIsReady(this);
+			phase = 'acquiring-locks';
 
-			const acquiredLock = new DeferredPromise<void>();
-			acquiredLockPromises.push(acquiredLock);
+			// Acquire locks for each resource and take snapshots
+			for (let i = 0; i < resources.length; i++) {
+				const resource = resources[i];
+				const contentSource = contentFor?.[i];
+				const releaseLock = new DeferredPromise<void>();
+				releaseLockPromises.push(releaseLock);
 
-			this._streamingEditLocks.queue(resource.toString(), async () => {
-				if (this.isDisposed) {
-					acquiredLock.complete();
-					return;
-				}
+				const acquiredLock = new DeferredPromise<void>();
+				acquiredLockPromises.push(acquiredLock);
 
-				let initialContent: string | undefined;
-				if (contentSource) {
-					// Read the before-content from the provided URI instead of disk
+				resourcePhases.set(resource.toString(), 'waiting-lock');
+				this._streamingEditLocks.queue(resource.toString(), async () => {
 					try {
-						const data = await this._fileService.readFile(contentSource);
-						initialContent = data.value.toString();
-					} catch {
-						initialContent = '';
+						if (this.isDisposed) {
+							resourcePhases.set(resource.toString(), 'acquired');
+							acquiredLock.complete();
+							return;
+						}
+
+						resourcePhases.set(resource.toString(), 'reading-content');
+						let initialContent: string | undefined;
+						if (contentSource) {
+							// Read the before-content from the provided URI instead of disk
+							try {
+								const data = await this._fileService.readFile(contentSource);
+								initialContent = data.value.toString();
+							} catch {
+								initialContent = '';
+							}
+						}
+
+						resourcePhases.set(resource.toString(), 'creating-entry');
+						const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
+						if (entry) {
+							await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
+						}
+
+						const notebookUri = CellUri.parse(resource)?.notebook || resource;
+						progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
+
+						resourcePhases.set(resource.toString(), 'snapshotting');
+						if (initialContent !== undefined) {
+							if (entry) {
+								entry.initialContent = initialContent;
+								await entry.resetEditTrackerToInitialContent(); // in case it's reused
+							}
+							snapshots.set(resource, initialContent);
+						} else {
+							// Save to disk to ensure disk state is current before external edits
+							await entry?.save();
+							// Take snapshot of current state
+							snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
+						}
+						entry?.startExternalEdit();
+						resourcePhases.set(resource.toString(), 'acquired');
+						acquiredLock.complete();
+
+						// Wait for the lock to be released by stopExternalEdits
+						return releaseLock.p;
+					} catch (error) {
+						// This task is fire-and-forget, so a rejection before acquiredLock resolves would leave
+						// Promise.all(acquiredLockPromises) pending forever and hang the agent turn. Release the
+						// gate and record the failure for the watchdog instead of leaking.
+						resourcePhases.set(resource.toString(), 'failed');
+						this._logService.error(`[ChatEditingSession] startExternalEdits operation ${operationId} failed acquiring lock for ${resource.toString()}`, error);
+						if (!acquiredLock.isSettled) {
+							acquiredLock.complete();
+						}
+						return;
 					}
-				}
+				});
+			}
 
-				const entry = await this._getOrCreateModifiedFileEntry(resource, NotExistBehavior.Abort, telemetryInfo, initialContent);
-				if (entry) {
-					await this._acceptStreamingEditsStart(responseModel, undoStopId, resource);
-				}
+			await Promise.all(acquiredLockPromises.map(p => p.p));
+			phase = 'creating-session-snapshot';
+			this.createSnapshot(responseModel.requestId, undoStopId);
 
-				const notebookUri = CellUri.parse(resource)?.notebook || resource;
-				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
-
-				if (initialContent !== undefined) {
-					if (entry) {
-						entry.initialContent = initialContent;
-						await entry.resetEditTrackerToInitialContent(); // in case it's reused
-					}
-					snapshots.set(resource, initialContent);
-				} else {
-					// Save to disk to ensure disk state is current before external edits
-					await entry?.save();
-					// Take snapshot of current state
-					snapshots.set(resource, entry && this._getCurrentTextOrNotebookSnapshot(entry));
-				}
-				entry?.startExternalEdit();
-				acquiredLock.complete();
-
-				// Wait for the lock to be released by stopExternalEdits
-				return releaseLock.p;
+			// Store the operation state
+			this._externalEditOperations.set(operationId, {
+				responseModel,
+				snapshots,
+				undoStopId,
+				releaseLocks: () => releaseLockPromises.forEach(p => p.complete())
 			});
+
+			return progress;
+		} finally {
+			watchdog.dispose();
 		}
-
-		await Promise.all(acquiredLockPromises.map(p => p.p));
-		this.createSnapshot(responseModel.requestId, undoStopId);
-
-		// Store the operation state
-		this._externalEditOperations.set(operationId, {
-			responseModel,
-			snapshots,
-			undoStopId,
-			releaseLocks: () => releaseLockPromises.forEach(p => p.complete())
-		});
-
-		return progress;
 	}
 
 	async stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]> {
