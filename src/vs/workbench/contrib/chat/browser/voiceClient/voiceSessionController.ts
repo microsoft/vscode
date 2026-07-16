@@ -507,6 +507,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
 
+	/**
+	 * The confirmation detail text last actually HEARD (final audio arrived) per
+	 * canonical session key. Confirmations are deliberately excluded from
+	 * {@link _lastNarratedText} (a tool can legitimately re-raise the identical
+	 * prompt), so this is the per-occurrence "already spoken" marker that stops a
+	 * still-pending confirmation from being re-narrated on every refocus (see
+	 * {@link _activateShownSession}). Recorded only once its audio finalizes (in
+	 * {@link _markNarrationHeard}), so a confirmation that was deferred/dropped and
+	 * never heard is still retried on focus. Cleared when the session leaves
+	 * `waiting_for_confirmation` (in the autorun) so a genuinely new confirmation -
+	 * even with identical text - narrates again.
+	 */
+	private readonly _narratedConfirmation = new Map<string, string>();
+
 	// --- Telemetry tracking ---
 	private _telemetrySessionIndex = 0;
 	private _telemetrySessionStart: number | undefined;
@@ -1103,6 +1117,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							// "transition" that looks like a fresh reply.
 							const rememberedSummary = normalizedSummary || this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
 							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '', lastResponseSummary: rememberedSummary });
+							// Leaving waiting_for_confirmation releases the per-occurrence
+							// narration marker, so the next confirmation - even with
+							// identical text - is narrated afresh on focus.
+							if (currentState !== 'waiting_for_confirmation') {
+								this._narratedConfirmation.delete(this._sessionKey(sessionId));
+							}
 						}
 
 						if (currentState === 'waiting_for_confirmation') {
@@ -1176,6 +1196,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								// (a later reload of the same summary must not look new).
 								const rememberedSummary = this._lastResponseSummaryById.get(sessionId) || prev?.lastResponseSummary || '';
 								this._prevSessionStates.set(sessionId, { state: currentState, detail: '', lastResponseSummary: rememberedSummary });
+								// Mirror the resident path: drop the confirmation-occurrence
+								// marker once this session is no longer awaiting confirmation.
+								if (currentState !== 'waiting_for_confirmation') {
+									this._narratedConfirmation.delete(this._sessionKey(sessionId));
+								}
 							}
 							if (currentState === 'waiting_for_confirmation') {
 								waitingForConfirmationSessions.push({ sessionId, label: s.label || 'Untitled session', detail: undefined, transition: isStateTransition });
@@ -1695,6 +1720,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		for (const s of this._pendingSolicitedNarrations.values()) { clearTimeout(s.timer); }
 		this._pendingSolicitedNarrations.clear();
 		this._deferredNarrations.clear();
+		this._narratedConfirmation.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
 		this._pendingPriorTimeline = [];
@@ -1775,6 +1801,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._solicitedNarrationIds.clear();
 		this._pendingNarrationRetries.clear();
 		this._deferredNarrations.clear();
+		this._narratedConfirmation.clear();
 		transaction(tx => {
 			this._isConnecting.set(false, tx);
 			this._isReconnecting.set(false, tx);
@@ -2607,6 +2634,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		rekeyMap(this._lastResponseSummaryById);
 		rekeyMap(this._pendingNarrationRetries);
 		rekeyMap(this._deferredNarrations);
+		rekeyMap(this._narratedConfirmation);
 		rekeySet(this._confirmationPendingSessions);
 		rekeySet(this._liveReplyKeys);
 		rekeySet(this._sessionsAwaitingResponseSummary);
@@ -2778,7 +2806,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// responses on focus are narrated exactly like confirmations.
 				const alreadyNarrated = narratable.kind === 'response'
 					&& this._getLastNarratedText(key) === narratable.text;
-				this._narrate(key, narratable.kind, narratable.text);
+				// A still-pending confirmation we already spoke must not be
+				// re-narrated on a mere refocus. _narratedConfirmation records the
+				// text only once its audio finalized, so a confirmation that was
+				// deferred/dropped (never heard) still retries here, while one the
+				// user already heard stays silent until it changes or resolves.
+				const confirmationAlreadyHeard = narratable.kind === 'confirmation'
+					&& this._narratedConfirmation.get(sessionKey) === narratable.text;
+				if (confirmationAlreadyHeard) {
+					this.logService.trace(`[voice] activate skip: confirmation already heard for ${key.slice(-32)}`);
+				} else {
+					this._narrate(key, narratable.kind, narratable.text);
+				}
 				if (narratable.kind === 'response') {
 					// A request being SENT is not the reply being heard: keep the
 					// pending indicator until its audio finalizes (_markNarrationHeard
@@ -2888,10 +2927,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Only responses populate the persistent text dedup (and own the pending
 		// indicator). A confirmation is transient actionable state that must be
 		// re-narratable, so heard confirmations leave _lastNarratedText untouched.
+		const sessionKey = this._sessionKey(solicited.sessionId);
 		if (solicited.kind === 'response') {
-			const sessionKey = this._sessionKey(solicited.sessionId);
 			this._lastNarratedText.set(sessionKey, solicited.text);
 			this._clearPendingResponse(sessionKey);
+		} else {
+			// Confirmation heard: mark THIS occurrence spoken so a mere refocus
+			// while it is still pending doesn't re-narrate it (see
+			// _activateShownSession). Cleared when the session leaves
+			// waiting_for_confirmation (autorun), so a genuinely new confirmation -
+			// even with identical text - narrates again.
+			this._narratedConfirmation.set(sessionKey, solicited.text);
+			this.logService.trace(`[voice] confirmation heard for ${sessionKey.slice(-32)}; marking occurrence spoken`);
 		}
 	}
 
@@ -2961,6 +3008,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _retryDeferredNarration(sessionKey: string): void {
 		const deferred = this._deferredNarrations.get(sessionKey);
 		if (!deferred) {
+			this.logService.trace(`[voice] narration_unblocked for ${sessionKey.slice(-32)} but nothing deferred; nothing to retry`);
 			return;
 		}
 		let resource: URI | undefined;
