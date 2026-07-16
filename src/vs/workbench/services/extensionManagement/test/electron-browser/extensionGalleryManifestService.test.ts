@@ -138,18 +138,22 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let microsoftSessions: AuthenticationSession[];
 	let microsoftResourceSessions: AuthenticationSession[] | undefined;
 	let githubSessions: AuthenticationSession[];
+	let githubEnterpriseSessions: AuthenticationSession[];
 	let configurationService: TestConfigurationService;
 	let storageData: Map<string, string>;
 	let entraAuthEnabled: boolean;
+	let channelCalls: Array<{ command: string; args: unknown }>;
 
 	setup(() => {
 		defaultAccount = null;
 		microsoftSessions = [];
 		microsoftResourceSessions = undefined;
 		githubSessions = [];
+		githubEnterpriseSessions = [];
 		requestHandler = () => mockResponse(200, createGalleryManifest());
 		storageData = new Map();
 		entraAuthEnabled = true;
+		channelCalls = [];
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -199,7 +203,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
 			override getChannel(_channelName: string): any {
 				return {
-					call: () => Promise.resolve(),
+					call: (command: string, args?: unknown) => { channelCalls.push({ command, args }); return Promise.resolve(); },
 					listen: () => Event.None,
 				};
 			}
@@ -242,6 +246,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				}
 				if (providerId === 'github') {
 					return githubSessions;
+				}
+				if (providerId === 'github-enterprise') {
+					return githubEnterpriseSessions;
 				}
 				return [];
 			}
@@ -938,6 +945,52 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 
 		assert.strictEqual(await service.getAccessToken(), 'gh-resource-token-2');
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+	});
+
+	test('GitHub Enterprise provider — auth-enabled: a session refresh while Available re-mints the token in place and propagates it over the channel', async () => {
+		// The default account can be backed by the 'github-enterprise' provider, not just 'github'.
+		// A GHE session refresh must trigger the same in-place re-mint (finding #4c) AND push the
+		// fresh token to the shared process over the channel so its protected requests keep working
+		// once the previous token expires (finding #3).
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ authenticationProvider: { id: 'github-enterprise', name: 'GHE', enterprise: true }, enterprise: true });
+		githubEnterpriseSessions = [createGitHubSession('ghe-subject-token')];
+		let exchanges = 0;
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				// Each negotiation mints a distinct token so the re-mint is observable.
+				return mockResponse(200, { access_token: `ghe-resource-token-${++exchanges}`, token_type: 'Bearer' });
+			}
+			// The gated index only yields the manifest once a negotiated token is presented; the
+			// anonymous probe 401s (no WWW-Authenticate header needed — discovery falls back to
+			// well-known PRM).
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(await service.getAccessToken(), 'ghe-resource-token-1');
+
+		// A routine GHE token refresh fires onDidChangeSessions('github-enterprise') while Available.
+		onDidChangeSessions.fire({ providerId: 'github-enterprise', label: 'GHE', event: { added: [], removed: [], changed: [] } });
+		for (let i = 0; i < 50 && await service.getAccessToken() === 'ghe-resource-token-1'; i++) {
+			await new Promise(resolve => setTimeout(resolve, 0));
+		}
+
+		assert.strictEqual(await service.getAccessToken(), 'ghe-resource-token-2');
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		// The re-minted token was pushed to the shared process WITHOUT republishing the manifest.
+		assert.ok(channelCalls.some(c => c.command === 'setAccessToken' && (c.args as unknown[])?.[0] === 'ghe-resource-token-2'), 'expected setAccessToken channel call carrying the re-minted token');
 	});
 
 	test('GitHub provider — auth-enabled: a failed token refresh while Available keeps the working marketplace', async () => {

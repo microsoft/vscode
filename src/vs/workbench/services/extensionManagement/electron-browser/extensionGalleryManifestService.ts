@@ -9,6 +9,7 @@ import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHeaders } from '../../../../base/parts/request/common/request.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -151,6 +152,12 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// token can never survive a sign-out, account switch, or config change.
 	private negotiatedAccessToken: string | undefined;
 
+	// IPC channels to the shared process and (optionally) the remote server. The manifest and the
+	// negotiated resource token are pushed over these so those processes — which never negotiate a
+	// token themselves — can authenticate the protected marketplace requests they initiate
+	// (extension getManifest, VSIX download).
+	private readonly channels: IChannel[] = [];
+
 	constructor(
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -188,6 +195,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		if (remoteConnection) {
 			channels.push(remoteConnection.getChannel('extensionGalleryManifest'));
 		}
+		this.channels.push(...channels);
 		const updateChannels = (manifest: IExtensionGalleryManifest | null) => {
 			this.logService.trace(`[Marketplace] Updating channels with manifest ${manifest ? 'available' : 'unavailable'}`);
 			// Push the negotiated resource token alongside the manifest so the shared process and
@@ -196,7 +204,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// token is coherent with the manifest here: it is set before the eligible→Available
 			// transition and cleared on every non-Available transition, so a null manifest always
 			// carries an undefined token.
-			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest, this.negotiatedAccessToken]));
+			this.channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest, this.negotiatedAccessToken]));
 		};
 		// Defer the initial manifest bootstrap to a microtask so this service is fully
 		// constructed and cached in the DI container before it runs. The Entra (microsoft)
@@ -217,6 +225,19 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// failure here already results in an appropriate manifest status, so just log.
 			this.logService.error('[Marketplace] Error during initial gallery manifest bootstrap', error);
 		});
+	}
+
+	/**
+	 * Pushes a freshly re-negotiated resource token to the shared process and remote server WITHOUT
+	 * republishing the (unchanged) manifest. Used by the in-place background refreshes — GitHub
+	 * session rotation and proactive pre-expiry refresh — where the manifest itself does not change
+	 * but those processes must still receive the new token so their protected marketplace requests
+	 * keep succeeding once the previous token expires. The window's own getAccessToken() reads
+	 * this.negotiatedAccessToken directly, so it needs no channel round-trip.
+	 */
+	private updateNegotiatedAccessToken(token: string | undefined): void {
+		this.negotiatedAccessToken = token;
+		this.channels.forEach(channel => channel.call('setAccessToken', [token]));
 	}
 
 	// Lazily resolved to break a service dependency cycle: eager construction of this
@@ -358,12 +379,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			validate();
 		}));
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			if (e.providerId !== 'github') {
+			if (e.providerId !== 'github' && e.providerId !== 'github-enterprise') {
 				return;
 			}
 			// Auth-enabled GitHub scheme: the marketplace resource token is minted (RFC 8693) from
 			// the GitHub session token, so a session change (refresh, re-consent, sign-out/in) can
-			// leave the previously negotiated token stale.
+			// leave the previously negotiated token stale. Both the default 'github' provider and the
+			// 'github-enterprise' provider back the default account, so listen to either.
 			if (this.currentStatus === ExtensionGalleryManifestStatus.Available && this.negotiatedAccessToken) {
 				// The marketplace is already live on a gated index. Re-mint the resource token IN
 				// PLACE so a rotated GitHub session token doesn't leave us stuck on a stale token
@@ -539,7 +561,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// to refresh. A failed refresh throws and is swallowed below, leaving the current token
 			// intact.
 			if (negotiated.negotiated && negotiated.token) {
-				this.negotiatedAccessToken = negotiated.token;
+				this.updateNegotiatedAccessToken(negotiated.token);
 			}
 		} catch (error) {
 			// A failed background token refresh must NOT break a working marketplace — keep the
@@ -715,7 +737,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		if (matchedVerdict) {
 			if (matchedVerdict.eligible) {
 				if (indexWasNegotiated) {
-					this.negotiatedAccessToken = indexToken;
+					this.updateNegotiatedAccessToken(indexToken);
 				}
 				this.applyEligibilityResult({ eligible: true }, manifest);
 			} else {

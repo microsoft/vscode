@@ -41,6 +41,7 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
 					case 'setExtensionGalleryManifest': return Promise.resolve(this.setExtensionGalleryManifest(args[0], args[1]));
+					case 'setAccessToken': return Promise.resolve(this.setAccessToken(args[0]));
 				}
 				throw new Error('Invalid call');
 			}
@@ -75,6 +76,19 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);
 		this.barrier.open();
+	}
+
+	/**
+	 * Updates only the negotiated bearer token in place, without touching the manifest or firing
+	 * its change events. The window process calls this when it re-negotiates the resource-scoped
+	 * token for an already-Available marketplace (e.g. a GitHub session refresh or a proactive
+	 * pre-expiry refresh): the manifest itself is unchanged, so republishing it would be wrong, but
+	 * this process (shared process / remote server) must still receive the fresh token so its
+	 * protected requests — extension `getManifest`, VSIX download — keep succeeding instead of
+	 * failing with 401 once the previous token expires.
+	 */
+	private setAccessToken(accessToken: string | undefined): void {
+		this._accessToken = accessToken;
 	}
 
 }
