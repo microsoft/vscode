@@ -1747,6 +1747,47 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.pttUp();
 	}
 
+	/**
+	 * Hands-free barge-in listen: open a passive PTT streaming turn WITHOUT
+	 * interrupting the assistant's playback, so the backend's server-VAD keeps
+	 * receiving mic audio and can detect the user talking over the assistant.
+	 *
+	 * Unlike `pttDown()` (a user-driven interrupt) this does NOT stop playback,
+	 * clear the audio queue, or suppress incoming audio. The backend decides
+	 * when a real interruption happened and emits `speech_started` / `barge_in`
+	 * (already wired to cut off TTS). If the user stays silent the turn simply
+	 * stays open and becomes the next listening turn once playback ends
+	 * (`onPlaybackStopped` sees `_pttHeld` and stays in 'listening').
+	 *
+	 * Reuses the warm mic left by the previous turn's `abortPtt`, so no
+	 * `getUserMedia` re-acquisition occurs. Idempotent: a no-op while a turn is
+	 * already held.
+	 */
+	private _startBargeInListen(): void {
+		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+			return;
+		}
+		this._clearAutoListenTimer();
+		this._pttCurrentTurnId = generateUuid();
+		this._pttHeld = true;
+		// Toggle mode so the turn stays open until the backend ends it
+		// (`turn_auto_ended`) or the user taps to stop — it must not auto-finish.
+		this._pttToggleMode = true;
+		// NOTE: this marks the turn start at playback time, not when the user
+		// actually starts speaking, so voice latency/hold telemetry in
+		// hands-free mode includes playback duration. Accepted known limitation
+		// (the backend latches `user_is_speaking` on `ptt_start`); a precise
+		// measure would key off the backend's first speech/transcription signal.
+		this._telemetryPttDownMs = Date.now();
+		this.micCaptureService.isMuted = false;
+		this.micCaptureService.suppressUntil(0);
+		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch(err => {
+			this.logService.warn('[voice] barge-in listen failed to start', err);
+			this._pttHeld = false;
+			this._pttToggleMode = false;
+		});
+	}
+
 	/** Debounced re-listen after assistant stops speaking. */
 	private _scheduleAutoListen(): void {
 		this._clearAutoListenTimer();
@@ -2849,10 +2890,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._currentPlaybackSessionId = sessionId;
 			this._clearAutoListenTimer();
 			this._replyPlayedSinceSend = true;
-			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+			if (this._isHandsFreeEnabled()) {
+				// Hands-free: keep the mic streaming while the assistant speaks so
+				// the backend's server-VAD can hear the user barge in over it. The
+				// backend signals a real interruption via `speech_started` / `barge_in`
+				// (already wired to stop playback); until then this is a passive,
+				// non-interrupting listen that becomes the next listening turn if the
+				// user stays silent.
+				this._startBargeInListen();
+			} else {
+				this.micCaptureService.suppressUntil(Date.now() + 800);
+			}
 		} else if (!speakResponsesEnabled) {
 			this._replyPlayedSinceSend = true;
 			if (isFinal) {
