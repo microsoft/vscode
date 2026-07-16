@@ -20,6 +20,7 @@ import {
 } from '../languageModelToolsService.js';
 import { IChatArtifact, IChatArtifactsService } from '../chatArtifactsService.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IChatService } from '../../chatService/chatService.js';
 
 export const SetArtifactsToolId = 'setArtifacts';
 
@@ -73,6 +74,7 @@ export class SetArtifactsTool implements IToolImpl {
 	constructor(
 		@IChatArtifactsService private readonly _chatArtifactsService: IChatArtifactsService,
 		@IFileService private readonly _fileService: IFileService,
+		@IChatService private readonly _chatService: IChatService,
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -110,10 +112,39 @@ export class SetArtifactsTool implements IToolImpl {
 			artifacts.push({ label: a.label, uri, type: a.type });
 		}
 
-		this._chatArtifactsService.getArtifacts(chatSessionResource).set(artifacts);
+		const chatArtifacts = this._chatArtifactsService.getArtifacts(chatSessionResource);
+		const subAgentInvocationId = invocation.subAgentInvocationId;
+
+		if (subAgentInvocationId) {
+			const agentName = this._resolveSubagentName(chatSessionResource, subAgentInvocationId);
+			chatArtifacts.setSubagentArtifacts(subAgentInvocationId, agentName, artifacts);
+		} else {
+			chatArtifacts.setAgentArtifacts(artifacts);
+		}
 
 		return {
 			content: [{ kind: 'text', value: localize('tool.setArtifacts.success', "Set {0} artifact(s)", artifacts.length) }]
 		};
+	}
+
+	private _resolveSubagentName(sessionResource: URI, subAgentInvocationId: string): string | undefined {
+		const model = this._chatService.getSession(sessionResource);
+		if (!model) {
+			return undefined;
+		}
+		for (const request of model.getRequests()) {
+			const response = request.response;
+			if (!response) {
+				continue;
+			}
+			for (const part of response.response.value) {
+				if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') &&
+					part.toolCallId === subAgentInvocationId &&
+					part.toolSpecificData?.kind === 'subagent') {
+					return part.toolSpecificData.agentName;
+				}
+			}
+		}
+		return undefined;
 	}
 }

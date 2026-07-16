@@ -3,54 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
-import { ITextModel } from '../../../../common/model.js';
-import { TextModel } from '../../../../common/model/textModel.js';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, InlineCompletionsProvider, IState, TokenizationRegistry } from '../../../../common/languages.js';
 import { MetadataConsts } from '../../../../common/encodedTokenAttributes.js';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, InlineCompletionsProvider, IState, TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../../common/languages/nullTokenize.js';
-import { ILanguageService } from '../../../../common/languages/language.js';
+import { ITextModel } from '../../../../common/model.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { createTestCodeEditor, ITestCodeEditor, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { InlineCompletionsController } from '../../../inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { InlineSuggestionsView } from '../../../inlineCompletions/browser/view/inlineSuggestionsView.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
 import { SuggestController } from '../../browser/suggestController.js';
 import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
 import { LineContext, SuggestModel } from '../../browser/suggestModel.js';
 import { ISelectedSuggestion } from '../../browser/suggestWidget.js';
-import { createTestCodeEditor, ITestCodeEditor, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
-import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { InlineCompletionsController } from '../../../inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { InlineSuggestionsView } from '../../../inlineCompletions/browser/view/inlineSuggestionsView.js';
-import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IMenuService, IMenu } from '../../../../../platform/actions/common/actions.js';
-import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -1544,6 +1544,46 @@ suite('SuggestModel - offWhenInlineCompletions with InlineCompletionsController'
 
 			sub.dispose();
 			assert.strictEqual(didSuggest, true, 'Quick suggestions should have been triggered when inlineSuggest is disabled');
+		});
+	});
+
+	test('does not trigger after the inline model is disposed mid-wait (e.g., readonly toggled)', async function () {
+		// Provider that only resolves when its cancellation token fires. This keeps the
+		// wait in the loading state until either the inline model is disposed
+		// (cancelling the token) or the 750ms timeout fires.
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: (_model, _pos, _ctx, token) => new Promise(resolve => {
+				const d = token.onCancellationRequested(() => {
+					d.dispose();
+					resolve({ items: [] });
+				});
+			}),
+			disposeInlineCompletions: () => { }
+		};
+
+		await withSuggestModelAndInlineCompletions('abc def', inlineProvider, async (suggestModel, editor) => {
+			let didSuggest = false;
+			const sub = suggestModel.onDidSuggest(() => { didSuggest = true; });
+
+			editor.setPosition({ lineNumber: 1, column: 4 });
+			editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			// Let _waitForInlineCompletionsAndTrigger be scheduled and set up.
+			await timeout(50);
+
+			// Toggling readonly causes the controller's `model` derivedDisposable to
+			// recompute and dispose the InlineCompletionsModel. SuggestModel does NOT
+			// cancel on configuration change, so without binding the wait to the
+			// model's lifetime, the 750ms timeout would still fire and call
+			// `this.trigger({ auto: true })` (and `stop()` on the disposed model).
+			editor.updateOptions({ readOnly: true });
+
+			// Advance past the 750ms timeout window.
+			await timeout(1000);
+
+			sub.dispose();
+			assert.strictEqual(didSuggest, false,
+				'Quick suggest should not fire after the inline model is disposed mid-wait');
 		});
 	});
 });

@@ -770,6 +770,7 @@ const createRunTestDecoration = (
 		glyphMarginClassName: `${ThemeIcon.asClassName(primaryIcon)} ${glyphMarginClassName}`,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 10000,
+		overviewRuler: isFailedState(computedState) ? { color: themeColorFromId(overviewRulerError), position: OverviewRulerLane.Center } : undefined,
 	};
 
 	const alternateOptions: IModelDecorationOptions = {
@@ -1287,7 +1288,8 @@ class TestMessageDecoration implements ITestDecoration {
 		const message = testMessage.message;
 
 		const options = editorService.resolveDecorationOptions(TestMessageDecoration.decorationId, true);
-		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
+		const hoverText = renderTestMessageAsText(message);
+		options.hoverMessage = new MarkdownString().appendText(hoverText);
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
 		options.className = `testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;

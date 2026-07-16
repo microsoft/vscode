@@ -1,0 +1,8 @@
+{
+	"name": "agent-sdk-codex",
+	"private": true,
+	"comment": "Pinned dependency set for the build/agent-sdk codex tarball. The package-lock.json alongside is the source of truth for transitive deps — produce.ts runs `npm ci` against this directory to get byte-deterministic output across pipeline runs.",
+	"dependencies": {
+		"@openai/codex": "0.142.0"
+	}
+}

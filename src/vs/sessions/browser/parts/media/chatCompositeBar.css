@@ -1,0 +1,532 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-composite-bar {
+	display: flex;
+	flex-direction: column;
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+/* Header host: title row + meta row, with the top padding for the whole bar area */
+.chat-composite-bar.session-header-bar {
+	padding: 6px 10px 0;
+	box-sizing: border-box;
+}
+
+/* Tabs host: the chat tab strip, shown only when the session has multiple chats.
+	It lives in the same centered session-view content host as the header.
+	The left padding adds the header's status-icon column (icon + gap) on top of
+	the shared 10px so the first tab aligns under the title/meta main column
+	rather than under the status icon. */
+.chat-composite-bar.session-chat-tabs-bar {
+	padding: 0 10px 0 calc(10px + var(--vscode-codiconFontSize, 16px) + 6px);
+	box-sizing: border-box;
+	container-type: inline-size;
+
+	/* Tab width cap: 200px, but never more than 40% of the tab strip width
+		(cqi = container-query inline-size unit, enabled by container-type). */
+	--chat-tab-max-width: min(200px, 40cqi);
+}
+
+/* Header: a status icon column next to a main column (title row + meta row).
+	Mirrors the sessions list so the meta row aligns under the title. */
+.chat-composite-bar-header {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 6px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
+}
+
+/* Main column stacks the title row and the meta row */
+.chat-composite-bar-header-main {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Title row: title + actions */
+.chat-composite-bar-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+}
+
+/* Status icon column — sits beside the main column, centered on the title line.
+	The compound selector (with .session-header-bar) raises specificity above the
+	base `.codicon { display: inline-block }` rule so the flex centering wins. */
+.session-header-bar .chat-composite-bar-session-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	height: 26px;
+	font-size: var(--vscode-codiconFontSize, 16px);
+	color: var(--session-view-foreground);
+}
+
+.chat-composite-bar-session-title {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	display: flex;
+	align-items: center;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-heading3, 13px);
+	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
+	border-radius: var(--vscode-cornerRadius-small);
+	min-height: 22px;
+	/* Match the input's inner padding so the rendered text and the rename
+		input's text occupy the same horizontal position. */
+	padding: 0 4px;
+	margin: 0 -4px;
+}
+
+.chat-composite-bar-session-title-text {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Hover feedback: only when the title can actually be renamed and we aren't
+	currently editing it. */
+.chat-composite-bar-session-title.editable {
+	cursor: text;
+}
+
+.chat-composite-bar-session-title.editable:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-composite-bar-session-title.editing {
+	flex: 1 1 auto;
+	cursor: default;
+	background-color: transparent;
+	/* Remove the read-mode padding; the input has its own border + padding that
+		together match the read-mode padding so the text doesn't shift. */
+	padding: 0;
+}
+
+/* Inline rename input. Sized and styled to closely match the rendered title
+	so swapping in/out doesn't shift the row's layout. */
+.chat-composite-bar-session-title-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	line-height: inherit;
+	color: var(--vscode-input-foreground, inherit);
+	background-color: var(--vscode-input-background, transparent);
+	border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: 0 4px;
+	margin: 0;
+	outline: none;
+	min-height: 22px;
+}
+
+.chat-composite-bar-session-title-input::selection {
+	background-color: var(--vscode-selection-background, var(--vscode-editor-selectionBackground));
+}
+
+.chat-composite-bar-title-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+/* Meta row: workspace + contributed changes / pull request buttons.
+	No `overflow: hidden` here — it would clip the meta buttons' focus ring at the
+	row's 22px height. The workspace label self-truncates via its own containers. */
+.chat-composite-bar-meta-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-weight: var(--vscode-agents-fontWeight-regular, 400);
+	line-height: 18px;
+	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
+	white-space: nowrap;
+}
+
+/* Session header meta toolbar: contributed actions render as compact secondary buttons. */
+.chat-composite-bar-meta-toolbar,
+.chat-composite-bar-meta-toolbar .monaco-action-bar,
+.chat-composite-bar-meta-toolbar .actions-container {
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+	min-width: 0;
+	max-width: 100%;
+}
+
+/* Spacing between the contributed meta buttons (e.g. changes · pull request). */
+.chat-composite-bar-meta-toolbar .actions-container {
+	gap: 6px;
+}
+
+.chat-composite-bar-meta-item {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.chat-composite-bar-meta-item.chat-composite-bar-meta-workspace-item {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Inline, auto-width layout only — the secondary-button sizing/colors come from the standard
+	`.monaco-text-button.small.secondary` styles. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+	display: inline-flex;
+	width: auto;
+	gap: 4px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-workspace-button {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.chat-composite-bar-meta-workspace-button .chat-composite-bar-meta-item-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Tighten the focus ring on these compact pills. The base `.monaco-text-button`
+	uses `outline-offset: 2px`, which on a small pill reads as a bloated ring
+	detached from the border — hug the border instead. */
+.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button:focus {
+	outline-offset: 0 !important;
+}
+
+.monaco-workbench .chat-composite-bar-meta-item-icon.codicon[class*='codicon-'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact, 12px);
+	height: var(--vscode-codiconFontSize-compact, 12px);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	flex-shrink: 0;
+}
+
+.chat-composite-bar-meta-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.chat-composite-bar-meta-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Tabs row */
+.chat-composite-bar-tabs-row {
+	display: flex;
+	align-items: center;
+	height: 35px;
+	overflow: hidden;
+}
+
+/* The ScrollableElement wrapper holding the tabs is the shrinkable flex item */
+.chat-composite-bar-tabs-row > .monaco-scrollable-element {
+	flex: 0 1 auto;
+	min-width: 0;
+	height: 100%;
+}
+
+.chat-composite-bar-tabs {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	gap: 4px;
+}
+
+/* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-tabs-row > .chat-composite-bar-new-chat.hidden {
+	display: none;
+}
+
+.chat-composite-bar-new-chat .action-item .action-label {
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-new-chat .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Chat tab bar action menu (e.g. the Conversations dropdown) grouped with the
+	New Chat button right after the tab strip. */
+.chat-composite-bar-tabs-row > .chat-composite-bar-action-menu {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-action-menu .action-item .action-label {
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-action-menu .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
+
+.chat-composite-bar-action-menu .action-item .action-label:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-composite-bar-toolbar {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+/* Keep header toolbar buttons from dictating the row height */
+.chat-composite-bar-title-actions .action-item .action-label {
+	height: 20px;
+	line-height: 20px;
+	padding: 0 2px;
+}
+
+.chat-composite-bar-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+/* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
+.chat-composite-bar.chat-composite-bar-toolbar-floating {
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	height: 35px;
+	flex-direction: row;
+	align-items: center;
+	padding: 0 4px;
+	border-bottom: none;
+	background: transparent;
+	container-type: unset;
+}
+
+/* Base tab: preserve chat title casing while keeping the same pill treatment */
+.chat-composite-bar-tab {
+	display: flex;
+	align-items: center;
+	position: relative;
+	padding: 0 8px;
+	cursor: pointer;
+	color: var(--chat-tab-inactive-foreground);
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	line-height: 22px;
+	height: 26px;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 4%, transparent);
+	user-select: none;
+	flex-shrink: 0;
+	max-width: var(--chat-tab-max-width);
+}
+
+.chat-composite-bar-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+/* Lock icon for read-only (non-interactive) chats, shown before the label.
+	The element carries the `codicon` class, whose base rule
+	`.codicon[class*='codicon-'] { display: inline-block }` has specificity (0,2,0),
+	so these hide/show rules are scoped to the tab to win on specificity —
+	otherwise the lock would show on every tab regardless of read-only state. */
+.chat-composite-bar-tab .chat-composite-bar-tab-lock.codicon {
+	display: none;
+	flex-shrink: 0;
+	align-items: center;
+	margin-right: 4px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-composite-bar-tab.read-only .chat-composite-bar-tab-lock.codicon {
+	display: inline-flex;
+}
+
+/* While editing, the tab expands to its max width. */
+.chat-composite-bar-tab.editing {
+	cursor: default;
+	padding: 0 2px;
+	width: var(--chat-tab-max-width);
+	max-width: var(--chat-tab-max-width);
+}
+
+/* Hide the label and adornments so the input fills the tab while editing. */
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-lock,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
+.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
+	display: none;
+}
+
+.chat-composite-bar-tab-input-container {
+	display: none;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-composite-bar-tab.editing .chat-composite-bar-tab-input-container {
+	display: flex;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 22px;
+}
+
+.chat-composite-bar-tab-input.monaco-inputbox .input {
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	padding: 0 4px;
+}
+
+.chat-composite-bar-tab:hover {
+	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 8%, transparent);
+}
+
+/* Active state: background container instead of underline — mirrors auxiliarybar checked */
+.session-view .chat-composite-bar-tab.active {
+	color: var(--chat-tab-active-foreground);
+}
+
+.session-view.is-active .chat-composite-bar-tab.active {
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 10%, transparent);
+}
+
+/* Reduce right padding when close button is present to avoid excess spacing */
+.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
+	padding-right: 2px;
+}
+
+/* Indicator: rendered inline between the label and the close action.
+	Shows a small blue dot for unread, a yellow dot when input is needed,
+	or a spinner for in-progress.
+	Only one mode is set on the element at a time (mutually exclusive in JS). */
+.chat-composite-bar-tab-indicator {
+	display: none;
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	flex-shrink: 0;
+	margin-left: 4px;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator {
+	display: flex;
+}
+
+.chat-composite-bar-tab-indicator-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before,
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before {
+	background-color: var(--vscode-textLink-foreground);
+}
+
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
+	background-color: var(--vscode-list-warningForeground);
+}
+
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+.chat-composite-bar-tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Close action — always visible, like the status indicator */
+.chat-composite-bar-tab-actions {
+	display: flex;
+	margin-left: 2px;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label {
+	width: 16px;
+	height: 16px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}

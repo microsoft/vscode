@@ -103,6 +103,19 @@ export interface ITerminalInstanceService {
 }
 
 /**
+ * A lightweight command detection source for terminals connected via the Agent Host Protocol.
+ * Provides a subset of {@link ICommandDetectionCapability} driven by AHP protocol actions
+ * (`terminal/commandExecuted`, `terminal/commandFinished`) rather than local shell integration.
+ */
+export interface IAhpTerminalCommandSource extends IDisposable {
+	readonly commands: readonly ITerminalCommand[];
+	readonly executingCommandObject: ITerminalCommand | undefined;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
+	readonly onCommandFinished: Event<ITerminalCommand>;
+	getCommandById(id: string): ITerminalCommand | undefined;
+}
+
+/**
  * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
  * Acts as a communication mechanism for chat-related terminal features.
  */
@@ -111,6 +124,8 @@ export interface IChatTerminalToolProgressPart {
 	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
+	toggleOutputFromAction(): Promise<void>;
+	continueInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
@@ -136,6 +151,19 @@ export interface ITerminalChatService {
 	 * If no tool session ID is provided, we do nothing.
 	 */
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
+
+	/**
+	 * Associate a terminal execution id (the per-invocation id used by `RunInTerminalTool`)
+	 * with a terminal instance. The association is automatically cleared when the instance is
+	 * disposed or when the returned disposable is disposed.
+	 */
+	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable;
+
+	/**
+	 * Resolve a terminal instance by its execution id (the per-invocation id used by
+	 * `RunInTerminalTool`). Returns undefined if no active execution exists for the id.
+	 */
+	getTerminalInstanceByExecutionId(terminalExecutionId: string): ITerminalInstance | undefined;
 
 	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
@@ -244,6 +272,22 @@ export interface ITerminalChatService {
 	 * Event fired when a terminal tool invocation should continue in the background.
 	 */
 	readonly onDidContinueInBackground: Event<string>;
+
+	/**
+	 * Register an AHP command source for a tool session. The source provides command detection
+	 * events for terminals connected via the Agent Host Protocol.
+	 * @param terminalToolSessionId The tool session ID to associate with the source
+	 * @param source The AHP command source
+	 * @returns A disposable that unregisters the source when disposed
+	 */
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource, promisedTerminal: Promise<ITerminalInstance>): IDisposable;
+
+	/**
+	 * Retrieve the AHP command source for a given tool session.
+	 * @param terminalToolSessionId The tool session ID to look up
+	 * @returns The AHP command source if registered, undefined otherwise
+	 */
+	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined;
 }
 
 /**
@@ -601,6 +645,13 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+
+	/**
+	 * Whether a particular command should skip the shell and go to be handled like a regular
+	 * keybinding instead.
+	 * @param commandId The command ID to check.
+	 */
+	shouldCommandSkipShell(commandId: string): boolean;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
@@ -622,7 +673,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance>;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
@@ -923,7 +974,16 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly onIconChanged: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fires just before the terminal instance is disposed, while `xterm.js` and
+	 * other instance-owned resources are still alive. Subscribe here if you need to clean up
+	 * state that depends on those resources (e.g. xterm.js addons). For "the instance is gone"
+	 * notifications, use {@link onDisposed} instead.
+	 */
+	readonly onWillDispose: Event<ITerminalInstance>;
+
+	/**
+	 * An event that fires when the terminal instance is disposed, after `xterm.js` has been
+	 * disposed.
 	 */
 	readonly onDisposed: Event<ITerminalInstance>;
 
@@ -1154,7 +1214,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean, commandLineForMetadata?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -1506,6 +1566,21 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * and resetting cursor position to the origin.
 	 */
 	reset(): void;
+
+	/**
+	 * Updates the terminal configuration from current settings.
+	 */
+	updateConfig(): void;
+
+	/**
+	 * Updates the terminal theme from the current color theme.
+	 */
+	updateTheme(): void;
+
+	/**
+	 * Updates the xterm log level to match the given VS Code log level.
+	 */
+	updateLogLevel(): void;
 
 	/**
 	 * Access to the terminal buffer for reading cursor position and content.

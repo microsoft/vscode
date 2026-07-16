@@ -151,6 +151,10 @@ export class ChatTipContentPart extends Disposable {
 	}
 
 	private _shouldTriggerSetup(): boolean {
+		if (this._chatEntitlementService.hasByokModels) {
+			return false;
+		}
+
 		const sentiment = this._chatEntitlementService.sentiment;
 		if (!sentiment?.completed) {
 			return true;

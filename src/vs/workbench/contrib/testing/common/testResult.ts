@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { language } from '../../../../base/common/platform.js';
 import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -357,7 +358,8 @@ export class LiveTestResult extends Disposable implements ITestResult {
 	 * Appends output that occurred during the test run.
 	 */
 	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
-		const preview = output.byteLength > 100 ? output.slice(0, 100).toString() + '…' : output.toString();
+		const rawPreview = output.byteLength > 100 ? output.slice(0, 100).toString() + '…' : output.toString();
+		const preview = removeAnsiEscapeCodes(rawPreview);
 		let marker: number | undefined;
 
 		// currently, the UI only exposes jump-to-message from tests or locations,

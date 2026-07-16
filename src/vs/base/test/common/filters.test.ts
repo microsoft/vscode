@@ -254,6 +254,25 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'foo:bar', 'foo:bar');
 	});
 
+	test('matchesWords performance (#309582)', function () {
+		// Searching for a term containing a word separator (e.g. `.`) against
+		// command-id-like targets used to cause catastrophic backtracking and
+		// freeze the Keyboard Shortcuts editor. Without the fix this loop
+		// exceeds Mocha's default test timeout.
+		const targets = [
+			'workbench.action.terminal.focusNextLine',
+			'editor.action.clipboardCopyAction',
+			'workbench.action.editor.changeLanguageMode',
+			'editor.action.smartSelect.expand',
+			'workbench.action.files.saveAll',
+		];
+		for (let i = 0; i < 1000; i++) {
+			for (const t of targets) {
+				matchesWords('editor.action', t);
+			}
+		}
+	});
+
 	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number; wordPos?: number; firstMatchCanBeWeak?: boolean } = {}) {
 		const r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, { firstMatchCanBeWeak: opts.firstMatchCanBeWeak ?? false, boostFullMatch: true });
 		assert.ok(!decoratedWord === !r);

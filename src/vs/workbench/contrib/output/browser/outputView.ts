@@ -265,6 +265,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
+		options.colorDecorators = false;
 		options.padding = undefined;
 		options.readOnly = true;
 		options.domReadOnly = true;

@@ -86,7 +86,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 						referenceName,
 						{
 							icon: Codicon.mcp,
-							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
+							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label),
+							deprecated: true,
 						}
 					));
 
@@ -252,6 +253,7 @@ class McpToolImplementation implements IToolImpl {
 				kind: 'input',
 				rawInput: context.parameters,
 				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					kind: 'local',
 					resourceUri: tool.uiResourceUri,
 					serverDefinitionId: server.definition.id,
 					collectionId: server.collection.id,
@@ -266,7 +268,12 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionResource: invocation.context?.sessionResource }, token);
+		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, {
+			chatRequestId: invocation.chatRequestId,
+			chatSessionResource: invocation.context?.sessionResource,
+			traceparent: invocation.traceparent,
+			tracestate: invocation.tracestate,
+		}, token);
 		const details: Mutable<IToolResultInputOutputDetails> = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
@@ -372,7 +379,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.chatStreamToolCallId || invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}

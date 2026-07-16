@@ -5,12 +5,13 @@
 
 import { binarySearch } from '../../../base/common/arrays.js';
 import { errorHandler, ErrorNoTelemetry, PendingMigrationError } from '../../../base/common/errors.js';
+import { ListenerLeakError } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { safeStringify } from '../../../base/common/objects.js';
 import { FileOperationError } from '../../files/common/files.js';
 import { ITelemetryService } from './telemetry.js';
 
-type ErrorEventFragment = {
+export type ErrorEventFragment = {
 	owner: 'lramos15, sbatten';
 	comment: 'Whenever an error in VS Code is thrown.';
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
@@ -22,6 +23,20 @@ type ErrorEventFragment = {
 	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught this is just msg but for uncaught errors.' };
 	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'How many times this error has been thrown' };
 };
+
+type ListenerLeakDiagEvent = {
+	kind?: string;
+	listenerCount?: number;
+};
+
+type ListenerLeakDiagFragment = {
+	kind?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the leak is dominated by a single subscriber or popular among many.' };
+	listenerCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of listeners on the emitter when the leak was detected.' };
+};
+
+type UnhandledErrorEvent = ErrorEvent & ListenerLeakDiagEvent;
+type UnhandledErrorClassification = ErrorEventFragment & ListenerLeakDiagFragment;
+
 export interface ErrorEvent {
 	callstack: string;
 	msg?: string;
@@ -119,7 +134,15 @@ export default abstract class BaseErrorTelemetry {
 			return;
 		}
 
-		this._enqueue({ msg, callstack });
+		const errorEvent: ErrorEvent = { msg, callstack };
+
+		// enrich with listener leak diagnostic fields
+		if (ListenerLeakError.is(err)) {
+			(errorEvent as UnhandledErrorEvent).kind = err.kind;
+			(errorEvent as UnhandledErrorEvent).listenerCount = err.listenerCount;
+		}
+
+		this._enqueue(errorEvent);
 	}
 
 	protected _enqueue(e: ErrorEvent): void {
@@ -145,8 +168,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (const error of this._buffer) {
-			type UnhandledErrorClassification = {} & ErrorEventFragment;
-			this._telemetryService.publicLogError2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error);
+			this._telemetryService.publicLogError2<UnhandledErrorEvent, UnhandledErrorClassification>('UnhandledError', error as UnhandledErrorEvent);
 		}
 		this._buffer.length = 0;
 	}
