@@ -6507,6 +6507,26 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.turnActions.length, 0);
 		}));
 
+		test('handler cancellation during eager-state hydration does not create a fallback session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agentHostService, chatAgentService } = createContribution(disposables);
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const sessionUri = AgentSession.uri('copilot', 'new-cancel-eager-hydration');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-cancel-eager-hydration' });
+			agentHostService.makePendingErrorSub(sessionUri.toString());
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'cancel eager hydration', sessionResource }),
+				() => { }, [], cancellation.token,
+			);
+			await timeout(10);
+			cancellation.cancel();
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+			assert.strictEqual(agentHostService.turnActions.length, 0);
+		}));
+
 		test('handler forwards request session config via SessionConfigChanged on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 

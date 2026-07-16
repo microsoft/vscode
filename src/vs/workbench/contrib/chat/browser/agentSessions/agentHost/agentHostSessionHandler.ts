@@ -1217,6 +1217,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
 			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
+				return {};
+			}
 
 			if (!existingState) {
 				// Eager-create did not produce server-side state (e.g. no
