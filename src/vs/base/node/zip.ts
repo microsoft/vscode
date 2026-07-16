@@ -95,10 +95,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 			istream.once('close', () => c());
 			istream.once('error', e);
 			stream.once('error', err => {
-				// `stream.pipe()` does not destroy the destination when the
-				// source errors, so close the target file handle explicitly to
-				// avoid leaking it (mirrors the cancellation path above).
-				istream.destroy();
+				istream.destroy(); // pipe() doesn't destroy the sink on source error; close it so the fd isn't leaked
 				e(err);
 			});
 			stream.pipe(istream);
