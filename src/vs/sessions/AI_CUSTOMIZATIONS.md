@@ -222,7 +222,7 @@ AHP Remote Server ────────────────────�
 
 ### MCP server list active-session controls
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Other VS Code-owned actions such as enable/disable, configuration, and install/uninstall stay on the local MCP row; model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Session customization enablement is desired state: providers with live MCP lifecycle support (currently Copilot and Claude) reconcile their observed SDK runtime against that state before each turn, and replay it after runtime rebinds. Codex does not yet expose a live per-thread MCP enable/disable API, so its runtime cannot reconcile this state without recreating the thread. Other VS Code-owned actions such as enable/disable, configuration, and install/uninstall stay on a matching local MCP row; model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
 
 ### Structured Detail Preview
 

@@ -798,6 +798,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 		onDidChange: Event.None,
 		get: () => undefined,
+		getInitialSessionConfig: () => undefined,
 		waitForPending: async () => undefined,
 		getOrCreate: async () => undefined,
 		tryRebind: async () => undefined,
@@ -6697,7 +6698,13 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('handler forwards request session config to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(
+				disposables,
+				undefined,
+				undefined,
+				undefined,
+				{ getInitialSessionConfig: () => ({ isolation: 'folder' }) },
+			);
 
 			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -6716,6 +6723,142 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, config);
+		}));
+
+		test('handler applies editor-window defaults when direct creation has no request config', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(
+				disposables,
+				undefined,
+				undefined,
+				undefined,
+				{ getInitialSessionConfig: () => ({ isolation: 'folder' }) },
+			);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'default-config-test',
+				sessionType: 'default-config-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startDynamicAgentTurn(chatAgentService, agentHostService, 'default-config-test');
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { isolation: 'folder' });
+		}));
+
+		test('handler waits for an in-flight provisional before falling back to direct creation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const pending = new DeferredPromise<URI | undefined>();
+			const backendSession = AgentSession.uri('copilot', 'new-pending-config');
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(
+				disposables,
+				{ resolve: () => undefined, isNewSession: () => true },
+				undefined,
+				undefined,
+				{
+					get: () => pending.value,
+					getInitialSessionConfig: () => ({ isolation: 'folder' }),
+					waitForPending: async () => pending.p,
+				},
+			);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'pending-config-test',
+				sessionType: 'pending-config-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const sessionResource = URI.from({ scheme: 'pending-config-test', path: '/new-pending-config' });
+			const registered = chatAgentService.registeredAgents.get('pending-config-test')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'wait for provisional', sessionResource, agentId: 'pending-config-test' }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+			pending.complete(backendSession);
+			await timeout(10);
+
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+		}));
+
+		test('handler cancellation interrupts an in-flight provisional wait', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const pending = new DeferredPromise<URI | undefined>();
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(
+				disposables,
+				{ resolve: () => undefined, isNewSession: () => true },
+				undefined,
+				undefined,
+				{
+					getInitialSessionConfig: () => ({ isolation: 'folder' }),
+					waitForPending: async () => pending.p,
+				},
+			);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'cancel-pending-config-test',
+				sessionType: 'cancel-pending-config-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const sessionResource = URI.from({ scheme: 'cancel-pending-config-test', path: '/new-cancel-pending-config' });
+			const registered = chatAgentService.registeredAgents.get('cancel-pending-config-test')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'cancel provisional wait', sessionResource, agentId: 'cancel-pending-config-test' }),
+				() => { }, [], cancellation.token,
+			);
+			await timeout(10);
+			cancellation.cancel();
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+			assert.strictEqual(agentHostService.turnActions.length, 0);
+		}));
+
+		test('handler cancellation during eager-state hydration does not create a fallback session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agentHostService, chatAgentService } = createContribution(disposables);
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const sessionUri = AgentSession.uri('copilot', 'new-cancel-eager-hydration');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-cancel-eager-hydration' });
+			agentHostService.makePendingErrorSub(sessionUri.toString());
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'cancel eager hydration', sessionResource }),
+				() => { }, [], cancellation.token,
+			);
+			await timeout(10);
+			cancellation.cancel();
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+			assert.strictEqual(agentHostService.turnActions.length, 0);
 		}));
 
 		test('handler forwards request session config via SessionConfigChanged on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

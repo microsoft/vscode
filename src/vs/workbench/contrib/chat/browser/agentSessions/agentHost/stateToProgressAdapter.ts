@@ -77,19 +77,9 @@ function getSubagentAgentName(tc: ToolCallState): string | undefined {
 	return v && v.length > 0 ? v : undefined;
 }
 
-/**
- * The subagent chat resource for a subagent-spawning tool call: the discovery
- * content block's resource when present, else the deterministic child chat URI
- * derived from the session + tool call id (matching the host's
- * {@link buildSubagentChatUri}, and how {@link _observeSubagentSession}
- * subscribes). Deriving it from the tool call id alone keeps the inline subagent
- * pill linkable even when the discovery content block never reaches this chat —
- * e.g. a background subagent whose `subagent_started` arrives after its spawning
- * tool call has already completed, so the running-only content update is dropped
- * by the reducer.
- */
+/** The subagent chat resource for a subagent-spawning tool call: prefer the host-stamped `_meta.subagentChatUri`, then a discovery block, then a derived fallback. */
 function getSubagentChatResource(tc: ToolCallState, subagentContent: ToolResultSubagentContent | undefined, sessionResource: URI): string {
-	return subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
+	return readToolCallMeta(tc).subagentChatUri ?? subagentContent?.resource ?? buildSubagentChatUri(sessionResource.toString(), tc.toolCallId);
 }
 
 /**

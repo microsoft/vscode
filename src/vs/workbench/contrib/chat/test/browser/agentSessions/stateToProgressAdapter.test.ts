@@ -997,6 +997,25 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
+		test('prefers the host-stamped _meta.subagentChatUri over a discovery content block resource', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentChatUri: 'ahp-chat://subagent/stamped/tc-1' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'ahp-chat://subagent/discovery/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.chatResource, 'ahp-chat://subagent/stamped/tc-1');
+			}
+		});
+
 		test('passes subAgentInvocationId to ChatToolInvocation', () => {
 			const tc = createToolCallState({});
 

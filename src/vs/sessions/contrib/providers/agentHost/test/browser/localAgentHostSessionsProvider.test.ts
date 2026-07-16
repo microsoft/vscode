@@ -339,7 +339,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -366,7 +366,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		openSession: async () => options?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => options?.languageModelIds ?? [],
 		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
+		hasResolvedVendor: () => true,
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -1272,6 +1274,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Notif Model Session');
 		assert.strictEqual(session?.modelId.get(), undefined);
+	});
+
+	test('getModels returns only models targeting the session resource scheme', () => {
+		const matchingModel = { ...createTestLanguageModel('matching'), targetChatSessionType: 'agent-host-copilotcli' };
+		const otherModel = { ...createTestLanguageModel('other'), targetChatSessionType: 'agent-host-other' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['matching', 'other', 'missing'],
+			lookupLanguageModel: id => id === 'matching' ? matchingModel : id === 'other' ? otherModel : undefined,
+		});
+		fireSessionAdded(agentHost, 'model-catalog', { title: 'Model Catalog Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Model Catalog Session');
+		assert.ok(session);
+
+		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
 	});
 
 	test('setModel updates existing session model and lets draft debounce persist it', () => {

@@ -3161,13 +3161,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		/* __GDPR__
 			"languageModelToolInvoked" : {
 				"owner": "roblourens",
-				"comment": "Provides insight into the usage of language model tools (Copilot CLI agent).",
+				"comment": "Provides insight into the usage of language model tools invoked by agent SDKs.",
 				"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 				"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
-				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The CLI/SDK tool name (e.g. bash, str_replace_editor, apply_patch)." },
-				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for CLI." },
-				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "copilotCli | mcp" },
-				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool.execution_start and tool.execution_complete (includes any permission wait)." }
+				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The tool name reported by the agent SDK." },
+				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for agent SDK tools." },
+				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The source of the tool invocation." },
+				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The duration of the tool invocation in milliseconds." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {

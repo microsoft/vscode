@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, disposableTimeout } from '../../../../../../base/common/async.js';
+import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -1213,6 +1213,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// In that case the agent already has the session + the user's chip
 			// selections in `state.config.values`; ensure we hold a refcounted
 			// subscription on it so the rest of the handler observes those.
+			await raceCancellation(this._provisionalService.waitForPending(request.sessionResource), cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
+				return {};
+			}
 			const provisionalBackend = this._provisionalService.get(request.sessionResource);
 			if (provisionalBackend) {
 				this._ensureSessionSubscription(sessionKey);
@@ -1224,6 +1228,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// without taking a fresh subscription, which would trigger a
 			// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
 			const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
+			if (cancellationToken.isCancellationRequested) {
+				return {};
+			}
 
 			if (!existingState) {
 				// Eager-create did not produce server-side state (e.g. no
@@ -1243,7 +1250,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}, 500);
 				}
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-				await this._createAndSubscribe(request.sessionResource, model, undefined, request.agentHostSessionConfig, imported ? { turns: imported.turns, model: imported.model } : undefined);
+				const initialConfig = {
+					...this._provisionalService.getInitialSessionConfig(),
+					...request.agentHostSessionConfig,
+				};
+				await this._createAndSubscribe(
+					request.sessionResource,
+					model,
+					undefined,
+					Object.keys(initialConfig).length > 0 ? initialConfig : undefined,
+					imported ? { turns: imported.turns, model: imported.model } : undefined,
+				);
 			} else {
 				// Eager-created session: take a refcounted subscription so the
 				// handler observes state changes for the duration of the chat
@@ -2522,7 +2539,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// renderer nests the whole tree under one container; for the
 			// top-level subagent the root is this tool call itself.
 			const rootInvocationId = subAgentInvocationId ?? toolCallId;
-			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, rootInvocationId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
+			const childChatUri = (invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.chatResource)
+				|| buildSubagentChatUri(opts.backendSession.toString(), toolCallId);
+			this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
 		};
 
 		// Initial confirmation hookup. The autorun below only handles
@@ -3452,6 +3471,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		sessionResource: URI,
 		parentSession: URI,
 		parentToolCallId: string,
+		childChatUri: string,
 		rootInvocationId: string,
 		parentInvocation: ChatToolInvocation,
 		emitProgress: (parts: IChatProgress[]) => void,
@@ -3461,7 +3481,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		perInvocationModel: ISettableObservable<string | undefined>,
 	): void {
 		const parentSessionUri = parentSession.toString();
-		const childChatUri = buildSubagentChatUri(parentSessionUri, parentToolCallId);
 
 		const cts = new CancellationTokenSource();
 		disposables.add(toDisposable(() => cts.dispose(true)));
