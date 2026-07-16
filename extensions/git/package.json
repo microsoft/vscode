@@ -4397,8 +4397,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
-  },
-  "allowScripts": {
-    "@vscode/fs-copyfile@2.0.0": true
   }
 }

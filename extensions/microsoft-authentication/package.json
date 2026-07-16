@@ -154,9 +154,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
-  },
-  "allowScripts": {
-    "@azure/msal-node-runtime@0.20.1": true,
-    "@azure/msal-node-extensions@5.3.2": true
   }
 }
