@@ -17,7 +17,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -63,6 +63,14 @@ export interface ITranscriptTurn {
 	readonly committed: string;
 	/** True while the user is still speaking (live recognition). */
 	readonly isPartial: boolean;
+}
+
+type TranscriptionTurnPhase = 'active' | 'pending' | 'final';
+
+interface ITranscriptionTurnState {
+	readonly turnId: string;
+	highestRevision: number | undefined;
+	phase: TranscriptionTurnPhase;
 }
 
 export interface IVoiceSessionController {
@@ -175,6 +183,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 *  enter listening once the backend acks the session. */
 	private _enterListenOnSessionInit = false;
 	private _pttCurrentTurnId = '';
+	private _transcriptionTurnState: ITranscriptionTurnState | undefined;
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
@@ -1136,9 +1145,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}));
 
-		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => {
-			this._interruptAssistantPlayback();
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => this._handleBargeIn()));
 
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
@@ -1166,12 +1173,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Treat it like a local ptt_end — stop capture, move to processing — but
 		// do NOT send our own ptt_end. Guard against double-ending: ignore if we
 		// already released locally, or if the id is for a different turn.
-		this._voiceEventDisposables.add(this.voiceClientService.onTurnAutoEnded(e => {
-			if (!this._pttHeld) { return; }
-			if (e.turnId && e.turnId !== this._pttCurrentTurnId) { return; }
-			this._pttToggleMode = false;
-			this._finishPtt('auto');
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onTurnAutoEnded(e => this._handleTurnAutoEnded(e)));
 
 		// Transcription — mutate the current user turn at the tail of the buffer.
 		// We DO NOT send the transcript to chat here. The backend voice LLM
@@ -1180,24 +1182,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// (→ replies in speech, nothing sent to chat). Sending directly on
 		// transcription would bypass that routing decision and leak chit-chat
 		// utterances into the active chat session.
-		this._voiceEventDisposables.add(this.voiceClientService.onTranscription(e => {
-			// Track time-to-first-transcription for latency telemetry
-			if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
-				this._telemetryFirstTranscriptionMs = Date.now();
-			}
-
-			const text = e.text;
-
-			this._updateUserTurn(text, e.committed ?? '', e.status === 'partial');
-			if (e.status !== 'partial') {
-				if (!this._pttHeld) {
-					this._voiceState.set('processing', undefined);
-					this._statusText.set('Processing...', undefined);
-				}
-				// Persist the user's final transcript (local-only, no backend coordination).
-				this._persistTurn('user', text);
-			}
-		}));
+		this._voiceEventDisposables.add(this.voiceClientService.onTranscription(e => this._handleTranscription(e)));
 
 		// Audio response → fade transcript, queue for sequential playback
 		this._voiceEventDisposables.add(this.voiceClientService.onAudioResponse(e => {
@@ -1419,6 +1404,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.voiceClientService.disconnect();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._pttCurrentTurnId = '';
+		this._resetTranscriptionTurn();
 		this._isConnected.set(false, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
@@ -1511,10 +1498,80 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.ttsPlaybackService.closeContext();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._pttCurrentTurnId = '';
+		this._resetTranscriptionTurn();
 		this._isConnected.set(false, undefined);
 		this._isReconnecting.set(true, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Reconnecting...', undefined);
+	}
+
+	private _beginTranscriptionTurn(turnId: string): void {
+		this._transcriptionTurnState = {
+			turnId,
+			highestRevision: undefined,
+			phase: 'active',
+		};
+	}
+
+	private _markTranscriptionTurnPending(): void {
+		if (this._transcriptionTurnState?.turnId === this._pttCurrentTurnId && this._transcriptionTurnState.phase === 'active') {
+			this._transcriptionTurnState.phase = 'pending';
+		}
+	}
+
+	private _resetTranscriptionTurn(): void {
+		this._transcriptionTurnState = undefined;
+	}
+
+	private _handleTurnAutoEnded(event: IVoiceTurnAutoEnded): void {
+		if (!this._pttHeld) {
+			return;
+		}
+		if (event.turnId && event.turnId !== this._pttCurrentTurnId) {
+			return;
+		}
+		this._pttToggleMode = false;
+		this._finishPtt('auto');
+	}
+
+	private _handleBargeIn(): void {
+		this._resetTranscriptionTurn();
+		this._interruptAssistantPlayback();
+	}
+
+	private _handleTranscription(event: IVoiceTranscription): void {
+		const state = this._transcriptionTurnState;
+		if (event.turnId) {
+			if (!state || state.turnId !== event.turnId || state.phase === 'final') {
+				return;
+			}
+			if (event.revision !== undefined) {
+				if (state.highestRevision !== undefined && event.revision <= state.highestRevision) {
+					return;
+				}
+				state.highestRevision = event.revision;
+			}
+		}
+
+		if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
+			this._telemetryFirstTranscriptionMs = Date.now();
+		}
+
+		const isPartial = event.status === 'partial';
+		this._updateUserTurn(event.text, event.committed ?? '', isPartial);
+		if (isPartial) {
+			return;
+		}
+
+		if (!this._pttHeld) {
+			this._voiceState.set('processing', undefined);
+			this._statusText.set('Processing...', undefined);
+		}
+		this._persistTurn('user', event.text);
+		if (event.turnId && state) {
+			state.phase = 'final';
+		}
 	}
 
 	pttDown(): void {
@@ -1533,6 +1590,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._autoListenSuppressed = false;
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
+		this._beginTranscriptionTurn(this._pttCurrentTurnId);
 		this._pttWaitingForPlayback = false;
 		this._telemetryPttDownMs = Date.now();
 		this._telemetryFirstTranscriptionMs = undefined;
@@ -1665,6 +1723,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._replyPlayedSinceSend = false;
 		this._clearAwaitingReply();
 		this._suppressIncomingAudio = false;
+		this._markTranscriptionTurnPending();
 		if (reason === 'auto') {
 			// Backend already ended the turn — stop capturing without draining
 			// more audio and without emitting our own ptt_end.

@@ -33,6 +33,23 @@ const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
 
+function asOptionalString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function asOptionalNonEmptyString(value: unknown): string | undefined {
+	const result = asOptionalString(value);
+	return result && result.length > 0 ? result : undefined;
+}
+
+function asTranscriptionStatus(value: unknown): IVoiceTranscription['status'] | undefined {
+	return value === 'partial' || value === 'final' ? value : undefined;
+}
+
+function asTranscriptionRevision(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+}
+
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
 
@@ -220,7 +237,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			let msg: {
 				type: string;
 				session_id?: string;
-				text?: string;
+				text?: unknown;
 				audio?: string;
 				is_first_chunk?: boolean;
 				is_final?: boolean;
@@ -230,10 +247,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				name?: string;
 				call_id?: string;
 				args?: Record<string, string>;
-				status?: string;
-				committed?: string;
+				status?: unknown;
+				committed?: unknown;
 				reason?: string;
-				turn_id?: string;
+				turn_id?: unknown;
+				revision?: unknown;
 				interrupted_turn_id?: string;
 			};
 			try {
@@ -261,13 +279,26 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					break;
 				case 'barge_in':
 					this._onBargeIn.fire({
-						turnId: msg.turn_id ?? '',
+						turnId: asOptionalString(msg.turn_id) ?? '',
 						interruptedTurnId: msg.interrupted_turn_id ?? '',
 					});
 					break;
-				case 'transcription':
-					this._onTranscription.fire({ text: msg.text ?? '', status: (msg.status as 'partial' | 'final') ?? 'final', committed: msg.committed as string ?? '' });
+				case 'transcription': {
+					const status = msg.status === undefined ? 'final' : asTranscriptionStatus(msg.status);
+					const turnId = msg.turn_id === undefined ? undefined : asOptionalNonEmptyString(msg.turn_id);
+					const revision = msg.revision === undefined ? undefined : asTranscriptionRevision(msg.revision);
+					if (!status || (msg.turn_id !== undefined && !turnId) || (msg.revision !== undefined && revision === undefined)) {
+						break;
+					}
+					this._onTranscription.fire({
+						text: asOptionalString(msg.text) ?? '',
+						status,
+						committed: asOptionalString(msg.committed) ?? '',
+						turnId,
+						revision,
+					});
 					break;
+				}
 				case 'audio_response':
 					// Old pre-streaming server (pre PR #44076) doesn't send
 					// `is_first_chunk` at all. Treat missing field as TRUE so
@@ -294,7 +325,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					// consumer stop capture for that turn; it must not send its
 					// own ptt_end.
 					const reason: IVoiceTurnAutoEndReason = msg.reason === 'stop_phrase' ? 'stop_phrase' : 'vad_silence';
-					this._onTurnAutoEnded.fire({ reason, turnId: msg.turn_id ?? '' });
+					this._onTurnAutoEnded.fire({ reason, turnId: asOptionalString(msg.turn_id) ?? '' });
 					break;
 				}
 				case 'error':
