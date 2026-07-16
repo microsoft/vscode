@@ -132,7 +132,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	// leaving the token to expire silently.
 	private static readonly GITHUB_TOKEN_REFRESH_FRACTION = 0.75;
 	private static readonly GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS = 3600;
-	private static readonly GITHUB_TOKEN_MIN_REFRESH_MS = 60_000;
+	// Small hot-loop floor for the proactive re-mint delay. It is NOT a "typical" refresh interval:
+	// a genuinely short advertised lifetime (e.g. `expires_in: 30`) must refresh at a fraction of
+	// THAT lifetime (before it expires), not be clamped up past the expiry. The floor only stops a
+	// pathological near-zero lifetime from busy-spinning the exchange.
+	private static readonly GITHUB_TOKEN_MIN_REFRESH_MS = 5_000;
 	private static readonly GITHUB_TOKEN_MAX_REFRESH_MS = 6 * 60 * 60 * 1000;
 	// Capped exponential backoff used when a proactive re-mint fails: rather than giving up (which
 	// would wedge the marketplace until a window reload), we keep retrying so the token self-heals
@@ -660,17 +664,37 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	 */
 	private scheduleGitHubTokenRefresh(configuredServiceUrl: string, expiresInSeconds: number | undefined): void {
 		this.gitHubTokenRefreshBackoffMs = 0;
-		const lifetimeSeconds = expiresInSeconds && expiresInSeconds > 0
-			? expiresInSeconds
-			: WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS;
-		const delay = Math.min(
+		this.armGitHubTokenRefresh(configuredServiceUrl, WorkbenchExtensionGalleryManifestService.computeRefreshDelay(expiresInSeconds));
+	}
+
+	/**
+	 * Computes the proactive re-mint delay from the token's advertised lifetime, distinguishing an
+	 * ABSENT lifetime from a PRESENT-but-invalid one:
+	 * - `expires_in` omitted (`undefined`) → the server didn't say; assume a conservative default
+	 *   lifetime and refresh at {@link GITHUB_TOKEN_REFRESH_FRACTION} of it.
+	 * - `expires_in` present and a finite positive number → refresh at that fraction of it (a short
+	 *   lifetime therefore refreshes SOON, before it expires — it is not clamped up past expiry).
+	 * - `expires_in` present but non-positive or non-finite → the advertised token is already
+	 *   expired/bogus; refresh almost immediately (the small hot-loop floor) rather than trusting a
+	 *   full default hour.
+	 * The result is clamped to [{@link GITHUB_TOKEN_MIN_REFRESH_MS}, {@link GITHUB_TOKEN_MAX_REFRESH_MS}].
+	 */
+	private static computeRefreshDelay(expiresInSeconds: number | undefined): number {
+		let lifetimeMs: number;
+		if (expiresInSeconds === undefined) {
+			lifetimeMs = WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_DEFAULT_LIFETIME_SECONDS * 1000;
+		} else if (Number.isFinite(expiresInSeconds) && expiresInSeconds > 0) {
+			lifetimeMs = expiresInSeconds * 1000;
+		} else {
+			lifetimeMs = 0;
+		}
+		return Math.min(
 			WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MAX_REFRESH_MS,
 			Math.max(
 				WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_MIN_REFRESH_MS,
-				Math.floor(lifetimeSeconds * 1000 * WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_REFRESH_FRACTION),
+				Math.floor(lifetimeMs * WorkbenchExtensionGalleryManifestService.GITHUB_TOKEN_REFRESH_FRACTION),
 			),
 		);
-		this.armGitHubTokenRefresh(configuredServiceUrl, delay);
 	}
 
 	/**

@@ -1119,6 +1119,64 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [1_350_000]);
 	});
 
+	test('GitHub provider — auth-enabled: a short advertised token lifetime refreshes before it expires (not clamped to a coarse floor)', async () => {
+		// A genuinely short `expires_in` must schedule the re-mint at a fraction of THAT lifetime
+		// (before the token expires), not be clamped up to a coarse minimum that would fire after
+		// the token has already died. 30s * 0.75 = 22.5s.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer', expires_in: 30 });
+			}
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [22_500]);
+	});
+
+	test('GitHub provider — auth-enabled: a present-but-invalid expires_in refreshes almost immediately, not after a default hour', async () => {
+		// `expires_in: 0` (or negative / non-finite) is an ALREADY-expired advertisement, distinct
+		// from an OMITTED `expires_in`. It must re-mint on the small hot-loop floor (5s), never treat
+		// the token as if it lived the conservative default hour (which would schedule ~45m out).
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		githubSessions = [createGitHubSession('gh-subject-token')];
+		requestHandler = (options) => {
+			if (isProtectedResourceMetadataRequest(options.url)) {
+				return mockResponse(200, createGitHubProtectedResourceMetadata());
+			}
+			if (isAuthorizationServerMetadataRequest(options.url)) {
+				return mockResponse(200, createAuthorizationServerMetadata());
+			}
+			if (isTokenExchangeRequest(options.url)) {
+				return mockResponse(200, { access_token: 'gh-resource-token', token_type: 'Bearer', expires_in: 0 });
+			}
+			if (options.headers?.['Authorization']) {
+				return mockResponse(200, createGalleryManifest());
+			}
+			return mockResponse(401, { message: 'auth required' });
+		};
+
+		const service = disposableStore.add(instantiationService.createInstance(TestableGalleryManifestService));
+		await service.getExtensionGalleryManifest();
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.deepStrictEqual(service.pendingRefreshes.map(r => r.delayMs), [5_000]);
+	});
+
 	test('GitHub provider — auth-enabled: a failed proactive re-mint keeps access and retries on a capped backoff', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });
