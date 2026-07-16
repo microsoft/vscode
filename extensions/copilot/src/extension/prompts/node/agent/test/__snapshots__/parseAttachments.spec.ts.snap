@@ -1,0 +1,2580 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > Folders are attached with just references 1`] = `
+"list files in #file:folder
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:folder" folderPath="/workspace/folder" />
+</attachments>
+<userRequest>
+list files in #file:folder
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > Folders are attached with just references 2`] = `
+[
+  {
+    "displayName": "file:folder",
+    "path": "/workspace/folder",
+    "type": "directory",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > Folders are attached with just references 3`] = `
+[
+  {
+    "id": "file:folder",
+    "name": "file:folder",
+    "range": [
+      14,
+      25,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/folder/",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > aggregates multiple errors across same and different files 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/workspace/file.py" line=5 code="E002" severity="error">
+MsgB
+</error>
+<error path="/workspace/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/workspace/file.py" line=2 code="E004" severity="hint">
+MsgD
+</error>
+<error path="/workspace/sample.py" line=21 code="W001" severity="warning">
+Msg2
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > aggregates multiple errors across same and different files 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > aggregates multiple errors across same and different files 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:error:5:1",
+    "name": "MsgB",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:hint:2:1",
+    "name": "MsgD",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/sample.py:warning:21:1",
+    "name": "Msg2",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/sample.py",
+            "path": "/workspace/sample.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "W001",
+              "message": "Msg2",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > extract Git Commit 1`] = `
+[
+  {
+    "id": "4efd36fb61d83bf0c99008648ca633ad688d4ab9",
+    "name": "$(repo) select-impala $(git-commit) 4efd36f",
+    "value": {
+      "$mid": 1,
+      "path": "/Users/donjayamanne/Development/vsc/vscode-jupyter.worktrees/select-impala",
+      "query": "{"repositoryId":"scm10","historyItemId":"4efd36fb61d83bf0c99008648ca633ad688d4ab9","historyItemParentId":"b67ca34030530fdb75e326293e2c023d59f24fc8","historyItemDisplayId":"4efd36f"}",
+      "scheme": "scm-history-item",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > extract GitHub PR/Issues 1`] = `
+[
+  {
+    "id": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "name": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "range": undefined,
+    "value": "{"issueNumber":17143,"owner":"microsoft","repo":"vscode-jupyter","title":"Kernel interrupt_mode \\"message\\" sends interrupt_request on shell channel instead of control channel","body":"### Applies To\\n\\n- [x] Notebooks (.ipynb files)\\n- [ ] Interactive Window and\\\\/or Cell Scripts (.py files with \\\\#%% markers)\\n\\n### What happened?\\n\\n  **Description**\\n\\n  When a kernel has interrupt_mode set to 'message', the extension incorrectly sends the interrupt_request message on the shell channel instead of the control channel as specified by the Jupyter protocol.\\n\\n  **Expected Behavior**\\n\\n  According to the Jupyter [kernel spec documentation](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370):\\n\\n> In case a kernel can not catch operating system interrupt signals (e.g. the used runtime handles signals and does not allow a user program to define a callback), a kernel can choose to be notified using a message instead. For this to work, the kernels kernelspec must set \`interrupt_mode\` to \`message\`. An interruption will then result in the following message on the \`control\` channel:\\n\\n  The interrupt request should:\\n  1. Be created with channel: 'control'\\n  2. Be sent via sendControlMessage()\\n\\n  **Actual Behavior**\\n\\n  The current implementation ([rawKernelConnection.node.ts](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370)):\\n  1. Creates message with channel: 'shell'\\n  2. Sends via sendShellMessage()\\n\\n  This causes two problems:\\n  1. The interrupt is queued behind other shell messages - The shell channel processes messages sequentially, so if there are pending execution requests or other shell messages, the interrupt will wait in the queue instead of being processed immediately. This defeats the purpose of interrupting, as the kernel continues executing while the interrupt waits.\\n  2. Interrupt may fail entirely - Kernels expect interrupt_request on the control channel and may ignore or reject it on the shell channel.\\n\\n### VS Code Version\\n\\n1.105.1\\n\\n### Jupyter Extension Version\\n\\n2025.9.1\\n\\n### Jupyter logs\\n\\n\`\`\`shell\\n\\n\`\`\`\\n\\n### Coding Language and Runtime Version\\n\\n_No response_\\n\\n### Language Extension Version (if applicable)\\n\\n_No response_\\n\\n### Anaconda Version (if applicable)\\n\\n_No response_\\n\\n### Running Jupyter locally or remotely?\\n\\nNone","comments":[]}",
+  },
+  {
+    "id": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "name": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "range": undefined,
+    "value": "{"prNumber":17131,"owner":"microsoft","repo":"vscode-jupyter","title":"Bump ipywidgets from 7.7.2 to 8.1.8","body":"Bumps [ipywidgets](https://github.com/jupyter-widgets/ipywidgets) from 7.7.2 to 8.1.8.\\n<details>\\n<summary>Release notes</summary>\\n<p><em>Sourced from <a href=\\"https://github.com/jupyter-widgets/ipywidgets/releases\\">ipywidgets's releases</a>.</em></p>\\n<blockquote>\\n<h2>8.1.8</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Add JupyterCon banner and jupyter colors by <a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n<li>Fix badge formatting in README.md by <a href=\\"https://github.com/Carreau\\"><code>@​Carreau</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4000\\">jupyter-widgets/ipywidgets#4000</a></li>\\n<li>Add Plausible web stats by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4003\\">jupyter-widgets/ipywidgets#4003</a></li>\\n<li>Update jupyterlab_widgets metadata to indicate it works with JupyterLab 4 by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4004\\">jupyter-widgets/ipywidgets#4004</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8</a></p>\\n<h2>8.1.7</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix CI + remove Python 3.8 by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3989\\">jupyter-widgets/ipywidgets#3989</a></li>\\n<li>Dynamic widgets registry by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3988\\">jupyter-widgets/ipywidgets#3988</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7</a></p>\\n<h2>8.1.6</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix lumino and lab packages pinning by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3958\\">jupyter-widgets/ipywidgets#3958</a></li>\\n<li>Typo fix by <a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li>Update lables even without MatJax/TypeSetter by <a href=\\"https://github.com/DonJayamanne\\"><code>@​DonJayamanne</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3962\\">jupyter-widgets/ipywidgets#3962</a></li>\\n<li>Update github actions and fix readthedocs by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li>Fix the new line when pressing enter in textarea widget by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3982\\">jupyter-widgets/ipywidgets#3982</a></li>\\n<li>Backward compatibility on processPhosphorMessage by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3945\\">jupyter-widgets/ipywidgets#3945</a></li>\\n<li>Include sourcemaps in npm tarballs by <a href=\\"https://github.com/manzt\\"><code>@​manzt</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3978\\">jupyter-widgets/ipywidgets#3978</a></li>\\n<li>Fix deprecation warning when importing the backend_inline by <a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li><a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li><a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6</a></p>\\n<h2>8.1.5</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>More Phosphor backward compatibility by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3942\\">jupyter-widgets/ipywidgets#3942</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5</a></p>\\n<h2>8.1.4</h2>\\n<h2>What's Changed</h2>\\n<h3>New features</h3>\\n<!-- raw HTML omitted -->\\n</blockquote>\\n<p>... (truncated)</p>\\n</details>\\n<details>\\n<summary>Commits</summary>\\n<ul>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/3171b1c746643a3893987190dc505661c5562877\\"><code>3171b1c</code></a> Update Output Widget.ipynb (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3881\\">#3881</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cd817839ab8b6ef80c8e2b7a94c8f1df1de29734\\"><code>cd81783</code></a> update image processing example notebok imports and function call (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3896\\">#3896</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cecd2b0d0314a92b71dce364e3db7a06af8cf64a\\"><code>cecd2b0</code></a> specify Jupyterlab (version 3.x or above) (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3880\\">#3880</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/0aa1efb563edeb3564f5738dfbee630fd6e4ed6f\\"><code>0aa1efb</code></a> Allow <code>interact</code> to use basic type hint annotations (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3908\\">#3908</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/2e15cfc030b8f6c319114be23b4f95efb537fd4d\\"><code>2e15cfc</code></a> Update Widget List.ipynb</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/06ed868181a3192067ffcff0ed94815f72a1f7bf\\"><code>06ed868</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3793\\">#3793</a> from ferdnyc/mappings-work-again</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/31259ca8ba33c44a29ba8ffede9de0eece61fb44\\"><code>31259ca</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3801\\">#3801</a> from warrickball/patch-2</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/dd250bfacd875561ad05f692d39c41f350a56b42\\"><code>dd250bf</code></a> Handle Notebook 7 in dev install script</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/a1282ec692b35d91e0b3062016962634c7a8012e\\"><code>a1282ec</code></a> Fix link to &quot;Output widget examples&quot;</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/b6b3051e0b89c1086ea79327d3e957af7da957fd\\"><code>b6b3051</code></a> Revert &quot;Add note on removal of mapping types in documentation&quot;</li>\\n<li>Additional commits viewable in <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/7.7.2...8.1.8\\">compare view</a></li>\\n</ul>\\n</details>\\n<br />\\n\\n\\n[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=ipywidgets&package-manager=pip&previous-version=7.7.2&new-version=8.1.8)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)\\n\\nDependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting \`@dependabot rebase\`.\\n\\n[//]: # (dependabot-automerge-start)\\n[//]: # (dependabot-automerge-end)\\n\\n---\\n\\n<details>\\n<summary>Dependabot commands and options</summary>\\n<br />\\n\\nYou can trigger Dependabot actions by commenting on this PR:\\n- \`@dependabot rebase\` will rebase this PR\\n- \`@dependabot recreate\` will recreate this PR, overwriting any edits that have been made to it\\n- \`@dependabot merge\` will merge this PR after your CI passes on it\\n- \`@dependabot squash and merge\` will squash and merge this PR after your CI passes on it\\n- \`@dependabot cancel merge\` will cancel a previously requested merge and block automerging\\n- \`@dependabot reopen\` will reopen this PR if it is closed\\n- \`@dependabot close\` will close this PR and stop Dependabot recreating it. You can achieve the same result by closing it manually\\n- \`@dependabot show <dependency name> ignore conditions\` will show all of the ignore conditions of the specified dependency\\n- \`@dependabot ignore this major version\` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this minor version\` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this dependency\` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)\\n\\n\\n</details>","comments":[],"threads":[],"changes":["@@ -5,7 +5,7 @@ pandas\\n jupyter\\n # List of requirements for conda environments that cannot be installed using conda\\n # Pinned per ipywidget 8 support: https://github.com/microsoft/vscode-jupyter/issues/11598\\n-ipywidgets==7.7.2\\n+ipywidgets==8.1.8\\n anywidget\\n matplotlib\\n ipympl"]}",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > files are attached as just references without content 1`] = `
+"explain contents of #file:file.ts and other files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:file.ts" filePath="/workspace/file.ts" />
+<attachment id="sample.py" filePath="/workspace/sample.py" />
+</attachments>
+<userRequest>
+explain contents of #file:file.ts and other files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > files are attached as just references without content 2`] = `
+[
+  {
+    "displayName": "file:file.ts",
+    "path": "/workspace/file.ts",
+    "type": "file",
+  },
+  {
+    "displayName": "sample.py",
+    "path": "/workspace/sample.py",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > files are attached as just references without content 3`] = `
+[
+  {
+    "id": "file:file.ts",
+    "name": "file:file.ts",
+    "range": [
+      20,
+      32,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/file.ts",
+      "scheme": "file",
+    },
+  },
+  {
+    "id": "sample.py",
+    "name": "sample.py",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/sample.py",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > groups diagnostics based on same range 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/workspace/file.py" line=2 code="E002" severity="error">
+MsgB
+</error>
+<error path="/workspace/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/workspace/file.py" line=7 code="E004" severity="hint">
+MsgD
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > groups diagnostics based on same range 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > groups diagnostics based on same range 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of regular prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:doit.prompt.md
+</reminder>
+<attachments>
+<attachment id="prompt:doit.prompt.md">
+// filepath: /doit.prompt.md
+This is a prompt file
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of regular prompt files 2`] = `
+[
+  {
+    "displayName": "prompt:doit.prompt.md",
+    "path": "/doit.prompt.md",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of regular prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__file:///doit.prompt.md",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:doit.prompt.md",
+    "value": {
+      "$mid": 1,
+      "external": "file:///doit.prompt.md",
+      "path": "/doit.prompt.md",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled file 1`] = `
+"Process these files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:untitled-1">
+// filepath: untitled:untitled-1
+function example() {
+	console.log("This is an example");
+}
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled file 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled file 3`] = `
+[
+  {
+    "id": "untitled:untitled-1",
+    "name": "file:untitled-1",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:Untitled-2
+</reminder>
+<attachments>
+<attachment id="prompt:Untitled-2">
+// filepath: untitled:untitled-1
+This is a prompt file
+</attachment>
+<attachment id="regular.ts" filePath="/workspace/regular.ts" />
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled prompt files 2`] = `
+[
+  {
+    "displayName": "regular.ts",
+    "path": "/workspace/regular.ts",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > includes contents of untitled prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__untitled:untitled-1",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:Untitled-2",
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+  {
+    "id": "regular.ts",
+    "name": "regular.ts",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/regular.ts",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > just the prompt without anything else 1`] = `"hello world"`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > just the prompt without anything else 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > just the prompt without anything else 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses locations including files with spaces 1`] = `
+"base
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:file.ts">
+Excerpt from file.ts, lines 5 to 5:
+\`\`\`plaintext
+// filepath: /workspace/file.ts
+function sub
+\`\`\`
+</attachment>
+<attachment id="file:sample.ts">
+Excerpt from sample.ts, lines 5 to 5:
+\`\`\`plaintext
+// filepath: /workspace/hello world/sample.ts
+
+\`\`\`
+</attachment>
+<attachment id="file:sample.py">
+Excerpt from sample.py, lines 4 to 4:
+\`\`\`plaintext
+// filepath: /workspace/sample.py
+def subtract
+\`\`\`
+</attachment>
+
+</attachments>
+<userRequest>
+base
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses locations including files with spaces 2`] = `
+[
+  {
+    "displayName": "file:file.ts",
+    "filePath": "/workspace/file.ts",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 5,
+      },
+      "start": {
+        "character": 1,
+        "line": 5,
+      },
+    },
+    "text": "			function sub",
+    "type": "selection",
+  },
+  {
+    "displayName": "file:sample.ts",
+    "filePath": "/workspace/hello world/sample.ts",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 5,
+      },
+      "start": {
+        "character": 1,
+        "line": 5,
+      },
+    },
+    "text": "",
+    "type": "selection",
+  },
+  {
+    "displayName": "file:sample.py",
+    "filePath": "/workspace/sample.py",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 4,
+      },
+      "start": {
+        "character": 1,
+        "line": 4,
+      },
+    },
+    "text": "			def subtract",
+    "type": "selection",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses locations including files with spaces 3`] = `
+[
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/file.ts","scheme":"file"},"range":[{"line":4,"character":0},{"line":4,"character":0}]}",
+    "name": "file:file.ts",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 4,
+        },
+        {
+          "character": 0,
+          "line": 4,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/file.ts",
+        "scheme": "file",
+      },
+    },
+  },
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/hello world/sample.ts","scheme":"file"},"range":[{"line":4,"character":0},{"line":4,"character":0}]}",
+    "name": "file:sample.ts",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 4,
+        },
+        {
+          "character": 0,
+          "line": 4,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/hello world/sample.ts",
+        "scheme": "file",
+      },
+    },
+  },
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/sample.py","scheme":"file"},"range":[{"line":3,"character":0},{"line":3,"character":0}]}",
+    "name": "file:sample.py",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 3,
+        },
+        {
+          "character": 0,
+          "line": 3,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/sample.py",
+        "scheme": "file",
+      },
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses single error diagnostic 1`] = `
+"Fix this error
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=13 code="E001" severity="error">
+Unterminated string
+</error>
+
+</attachments>
+<userRequest>
+Fix this error
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses single error diagnostic 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > parses single error diagnostic 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:error:13:1",
+    "name": "Unterminated string",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Unterminated string",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns original prompt unchanged for slash command 1`] = `"/help something"`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns original prompt unchanged for slash command 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns original prompt unchanged for slash command 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns overridden prompt instead of using the request prompt 1`] = `"What is 1+2"`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns overridden prompt instead of using the request prompt 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > returns overridden prompt instead of using the request prompt 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > uses attachment id attribute for name/id 1`] = `
+"explain #sym:add
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="sym:add">
+Excerpt from add.py, lines 2 to 4:
+\`\`\`plaintext
+// filepath: /workspace/add.py
+def add(a, b):
+				return a + b
+			}
+\`\`\`
+</attachment>
+
+</attachments>
+<userRequest>
+explain #sym:add
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > uses attachment id attribute for name/id 2`] = `
+[
+  {
+    "displayName": "sym:add",
+    "filePath": "/workspace/add.py",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 4,
+      },
+      "start": {
+        "character": 1,
+        "line": 2,
+      },
+    },
+    "text": "			def add(a, b):
+				return a + b
+			}",
+    "type": "selection",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > emptyWorkspace > uses attachment id attribute for name/id 3`] = `
+[
+  {
+    "id": "vscode.symbol/{"uri":{"$mid":1,"path":"/workspace/add.py","scheme":"file"},"range":[{"line":1,"character":0},{"line":3,"character":0}]}",
+    "name": "sym:add",
+    "range": [
+      8,
+      15,
+    ],
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 1,
+        },
+        {
+          "character": 0,
+          "line": 3,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/add.py",
+        "scheme": "file",
+      },
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > Folders are attached with just references 1`] = `
+"list files in #file:folder
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:folder" folderPath="/workspace/folder" />
+</attachments>
+<userRequest>
+list files in #file:folder
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > Folders are attached with just references 2`] = `
+[
+  {
+    "displayName": "file:folder",
+    "path": "/workspace/folder",
+    "type": "directory",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > Folders are attached with just references 3`] = `
+[
+  {
+    "id": "file:folder",
+    "name": "file:folder",
+    "range": [
+      14,
+      25,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/folder/",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > aggregates multiple errors across same and different files 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/workspace/file.py" line=5 code="E002" severity="error">
+MsgB
+</error>
+<error path="/workspace/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/workspace/file.py" line=2 code="E004" severity="hint">
+MsgD
+</error>
+<error path="/workspace/sample.py" line=21 code="W001" severity="warning">
+Msg2
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > aggregates multiple errors across same and different files 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > aggregates multiple errors across same and different files 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:error:5:1",
+    "name": "MsgB",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:hint:2:1",
+    "name": "MsgD",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/sample.py:warning:21:1",
+    "name": "Msg2",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/sample.py",
+            "path": "/workspace/sample.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "W001",
+              "message": "Msg2",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > extract Git Commit 1`] = `
+[
+  {
+    "id": "4efd36fb61d83bf0c99008648ca633ad688d4ab9",
+    "name": "$(repo) select-impala $(git-commit) 4efd36f",
+    "value": {
+      "$mid": 1,
+      "path": "/Users/donjayamanne/Development/vsc/vscode-jupyter.worktrees/select-impala",
+      "query": "{"repositoryId":"scm10","historyItemId":"4efd36fb61d83bf0c99008648ca633ad688d4ab9","historyItemParentId":"b67ca34030530fdb75e326293e2c023d59f24fc8","historyItemDisplayId":"4efd36f"}",
+      "scheme": "scm-history-item",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > extract GitHub PR/Issues 1`] = `
+[
+  {
+    "id": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "name": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "range": undefined,
+    "value": "{"issueNumber":17143,"owner":"microsoft","repo":"vscode-jupyter","title":"Kernel interrupt_mode \\"message\\" sends interrupt_request on shell channel instead of control channel","body":"### Applies To\\n\\n- [x] Notebooks (.ipynb files)\\n- [ ] Interactive Window and\\\\/or Cell Scripts (.py files with \\\\#%% markers)\\n\\n### What happened?\\n\\n  **Description**\\n\\n  When a kernel has interrupt_mode set to 'message', the extension incorrectly sends the interrupt_request message on the shell channel instead of the control channel as specified by the Jupyter protocol.\\n\\n  **Expected Behavior**\\n\\n  According to the Jupyter [kernel spec documentation](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370):\\n\\n> In case a kernel can not catch operating system interrupt signals (e.g. the used runtime handles signals and does not allow a user program to define a callback), a kernel can choose to be notified using a message instead. For this to work, the kernels kernelspec must set \`interrupt_mode\` to \`message\`. An interruption will then result in the following message on the \`control\` channel:\\n\\n  The interrupt request should:\\n  1. Be created with channel: 'control'\\n  2. Be sent via sendControlMessage()\\n\\n  **Actual Behavior**\\n\\n  The current implementation ([rawKernelConnection.node.ts](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370)):\\n  1. Creates message with channel: 'shell'\\n  2. Sends via sendShellMessage()\\n\\n  This causes two problems:\\n  1. The interrupt is queued behind other shell messages - The shell channel processes messages sequentially, so if there are pending execution requests or other shell messages, the interrupt will wait in the queue instead of being processed immediately. This defeats the purpose of interrupting, as the kernel continues executing while the interrupt waits.\\n  2. Interrupt may fail entirely - Kernels expect interrupt_request on the control channel and may ignore or reject it on the shell channel.\\n\\n### VS Code Version\\n\\n1.105.1\\n\\n### Jupyter Extension Version\\n\\n2025.9.1\\n\\n### Jupyter logs\\n\\n\`\`\`shell\\n\\n\`\`\`\\n\\n### Coding Language and Runtime Version\\n\\n_No response_\\n\\n### Language Extension Version (if applicable)\\n\\n_No response_\\n\\n### Anaconda Version (if applicable)\\n\\n_No response_\\n\\n### Running Jupyter locally or remotely?\\n\\nNone","comments":[]}",
+  },
+  {
+    "id": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "name": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "range": undefined,
+    "value": "{"prNumber":17131,"owner":"microsoft","repo":"vscode-jupyter","title":"Bump ipywidgets from 7.7.2 to 8.1.8","body":"Bumps [ipywidgets](https://github.com/jupyter-widgets/ipywidgets) from 7.7.2 to 8.1.8.\\n<details>\\n<summary>Release notes</summary>\\n<p><em>Sourced from <a href=\\"https://github.com/jupyter-widgets/ipywidgets/releases\\">ipywidgets's releases</a>.</em></p>\\n<blockquote>\\n<h2>8.1.8</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Add JupyterCon banner and jupyter colors by <a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n<li>Fix badge formatting in README.md by <a href=\\"https://github.com/Carreau\\"><code>@​Carreau</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4000\\">jupyter-widgets/ipywidgets#4000</a></li>\\n<li>Add Plausible web stats by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4003\\">jupyter-widgets/ipywidgets#4003</a></li>\\n<li>Update jupyterlab_widgets metadata to indicate it works with JupyterLab 4 by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4004\\">jupyter-widgets/ipywidgets#4004</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8</a></p>\\n<h2>8.1.7</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix CI + remove Python 3.8 by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3989\\">jupyter-widgets/ipywidgets#3989</a></li>\\n<li>Dynamic widgets registry by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3988\\">jupyter-widgets/ipywidgets#3988</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7</a></p>\\n<h2>8.1.6</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix lumino and lab packages pinning by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3958\\">jupyter-widgets/ipywidgets#3958</a></li>\\n<li>Typo fix by <a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li>Update lables even without MatJax/TypeSetter by <a href=\\"https://github.com/DonJayamanne\\"><code>@​DonJayamanne</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3962\\">jupyter-widgets/ipywidgets#3962</a></li>\\n<li>Update github actions and fix readthedocs by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li>Fix the new line when pressing enter in textarea widget by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3982\\">jupyter-widgets/ipywidgets#3982</a></li>\\n<li>Backward compatibility on processPhosphorMessage by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3945\\">jupyter-widgets/ipywidgets#3945</a></li>\\n<li>Include sourcemaps in npm tarballs by <a href=\\"https://github.com/manzt\\"><code>@​manzt</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3978\\">jupyter-widgets/ipywidgets#3978</a></li>\\n<li>Fix deprecation warning when importing the backend_inline by <a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li><a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li><a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6</a></p>\\n<h2>8.1.5</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>More Phosphor backward compatibility by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3942\\">jupyter-widgets/ipywidgets#3942</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5</a></p>\\n<h2>8.1.4</h2>\\n<h2>What's Changed</h2>\\n<h3>New features</h3>\\n<!-- raw HTML omitted -->\\n</blockquote>\\n<p>... (truncated)</p>\\n</details>\\n<details>\\n<summary>Commits</summary>\\n<ul>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/3171b1c746643a3893987190dc505661c5562877\\"><code>3171b1c</code></a> Update Output Widget.ipynb (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3881\\">#3881</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cd817839ab8b6ef80c8e2b7a94c8f1df1de29734\\"><code>cd81783</code></a> update image processing example notebok imports and function call (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3896\\">#3896</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cecd2b0d0314a92b71dce364e3db7a06af8cf64a\\"><code>cecd2b0</code></a> specify Jupyterlab (version 3.x or above) (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3880\\">#3880</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/0aa1efb563edeb3564f5738dfbee630fd6e4ed6f\\"><code>0aa1efb</code></a> Allow <code>interact</code> to use basic type hint annotations (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3908\\">#3908</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/2e15cfc030b8f6c319114be23b4f95efb537fd4d\\"><code>2e15cfc</code></a> Update Widget List.ipynb</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/06ed868181a3192067ffcff0ed94815f72a1f7bf\\"><code>06ed868</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3793\\">#3793</a> from ferdnyc/mappings-work-again</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/31259ca8ba33c44a29ba8ffede9de0eece61fb44\\"><code>31259ca</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3801\\">#3801</a> from warrickball/patch-2</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/dd250bfacd875561ad05f692d39c41f350a56b42\\"><code>dd250bf</code></a> Handle Notebook 7 in dev install script</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/a1282ec692b35d91e0b3062016962634c7a8012e\\"><code>a1282ec</code></a> Fix link to &quot;Output widget examples&quot;</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/b6b3051e0b89c1086ea79327d3e957af7da957fd\\"><code>b6b3051</code></a> Revert &quot;Add note on removal of mapping types in documentation&quot;</li>\\n<li>Additional commits viewable in <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/7.7.2...8.1.8\\">compare view</a></li>\\n</ul>\\n</details>\\n<br />\\n\\n\\n[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=ipywidgets&package-manager=pip&previous-version=7.7.2&new-version=8.1.8)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)\\n\\nDependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting \`@dependabot rebase\`.\\n\\n[//]: # (dependabot-automerge-start)\\n[//]: # (dependabot-automerge-end)\\n\\n---\\n\\n<details>\\n<summary>Dependabot commands and options</summary>\\n<br />\\n\\nYou can trigger Dependabot actions by commenting on this PR:\\n- \`@dependabot rebase\` will rebase this PR\\n- \`@dependabot recreate\` will recreate this PR, overwriting any edits that have been made to it\\n- \`@dependabot merge\` will merge this PR after your CI passes on it\\n- \`@dependabot squash and merge\` will squash and merge this PR after your CI passes on it\\n- \`@dependabot cancel merge\` will cancel a previously requested merge and block automerging\\n- \`@dependabot reopen\` will reopen this PR if it is closed\\n- \`@dependabot close\` will close this PR and stop Dependabot recreating it. You can achieve the same result by closing it manually\\n- \`@dependabot show <dependency name> ignore conditions\` will show all of the ignore conditions of the specified dependency\\n- \`@dependabot ignore this major version\` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this minor version\` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this dependency\` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)\\n\\n\\n</details>","comments":[],"threads":[],"changes":["@@ -5,7 +5,7 @@ pandas\\n jupyter\\n # List of requirements for conda environments that cannot be installed using conda\\n # Pinned per ipywidget 8 support: https://github.com/microsoft/vscode-jupyter/issues/11598\\n-ipywidgets==7.7.2\\n+ipywidgets==8.1.8\\n anywidget\\n matplotlib\\n ipympl"]}",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > files are attached as just references without content 1`] = `
+"explain contents of #file:file.ts and other files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:file.ts" filePath="/workspace/file.ts" />
+<attachment id="sample.py" filePath="/workspace/sample.py" />
+</attachments>
+<userRequest>
+explain contents of #file:file.ts and other files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > files are attached as just references without content 2`] = `
+[
+  {
+    "displayName": "file:file.ts",
+    "path": "/workspace/file.ts",
+    "type": "file",
+  },
+  {
+    "displayName": "sample.py",
+    "path": "/workspace/sample.py",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > files are attached as just references without content 3`] = `
+[
+  {
+    "id": "file:file.ts",
+    "name": "file:file.ts",
+    "range": [
+      20,
+      32,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/file.ts",
+      "scheme": "file",
+    },
+  },
+  {
+    "id": "sample.py",
+    "name": "sample.py",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/sample.py",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > groups diagnostics based on same range 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/workspace/file.py" line=2 code="E002" severity="error">
+MsgB
+</error>
+<error path="/workspace/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/workspace/file.py" line=7 code="E004" severity="hint">
+MsgD
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > groups diagnostics based on same range 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > groups diagnostics based on same range 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///workspace/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of regular prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:doit.prompt.md
+</reminder>
+<attachments>
+<attachment id="prompt:doit.prompt.md">
+// filepath: /doit.prompt.md
+This is a prompt file
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of regular prompt files 2`] = `
+[
+  {
+    "displayName": "prompt:doit.prompt.md",
+    "path": "/doit.prompt.md",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of regular prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__file:///doit.prompt.md",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:doit.prompt.md",
+    "value": {
+      "$mid": 1,
+      "external": "file:///doit.prompt.md",
+      "path": "/doit.prompt.md",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled file 1`] = `
+"Process these files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:untitled-1">
+// filepath: untitled:untitled-1
+function example() {
+	console.log("This is an example");
+}
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled file 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled file 3`] = `
+[
+  {
+    "id": "untitled:untitled-1",
+    "name": "file:untitled-1",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:Untitled-2
+</reminder>
+<attachments>
+<attachment id="prompt:Untitled-2">
+// filepath: untitled:untitled-1
+This is a prompt file
+</attachment>
+<attachment id="regular.ts" filePath="/workspace/regular.ts" />
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled prompt files 2`] = `
+[
+  {
+    "displayName": "regular.ts",
+    "path": "/workspace/regular.ts",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > includes contents of untitled prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__untitled:untitled-1",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:Untitled-2",
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+  {
+    "id": "regular.ts",
+    "name": "regular.ts",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/workspace/regular.ts",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > just the prompt without anything else 1`] = `"hello world"`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > just the prompt without anything else 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > just the prompt without anything else 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses locations including files with spaces 1`] = `
+"base
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:file.ts">
+Excerpt from file.ts, lines 5 to 5:
+\`\`\`plaintext
+// filepath: /workspace/file.ts
+function sub
+\`\`\`
+</attachment>
+<attachment id="file:sample.ts">
+Excerpt from sample.ts, lines 5 to 5:
+\`\`\`plaintext
+// filepath: /workspace/hello world/sample.ts
+
+\`\`\`
+</attachment>
+<attachment id="file:sample.py">
+Excerpt from sample.py, lines 4 to 4:
+\`\`\`plaintext
+// filepath: /workspace/sample.py
+def subtract
+\`\`\`
+</attachment>
+
+</attachments>
+<userRequest>
+base
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses locations including files with spaces 2`] = `
+[
+  {
+    "displayName": "file:file.ts",
+    "filePath": "/workspace/file.ts",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 5,
+      },
+      "start": {
+        "character": 1,
+        "line": 5,
+      },
+    },
+    "text": "			function sub",
+    "type": "selection",
+  },
+  {
+    "displayName": "file:sample.ts",
+    "filePath": "/workspace/hello world/sample.ts",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 5,
+      },
+      "start": {
+        "character": 1,
+        "line": 5,
+      },
+    },
+    "text": "",
+    "type": "selection",
+  },
+  {
+    "displayName": "file:sample.py",
+    "filePath": "/workspace/sample.py",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 4,
+      },
+      "start": {
+        "character": 1,
+        "line": 4,
+      },
+    },
+    "text": "			def subtract",
+    "type": "selection",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses locations including files with spaces 3`] = `
+[
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/file.ts","scheme":"file"},"range":[{"line":4,"character":0},{"line":4,"character":0}]}",
+    "name": "file:file.ts",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 4,
+        },
+        {
+          "character": 0,
+          "line": 4,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/file.ts",
+        "scheme": "file",
+      },
+    },
+  },
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/hello world/sample.ts","scheme":"file"},"range":[{"line":4,"character":0},{"line":4,"character":0}]}",
+    "name": "file:sample.ts",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 4,
+        },
+        {
+          "character": 0,
+          "line": 4,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/hello world/sample.ts",
+        "scheme": "file",
+      },
+    },
+  },
+  {
+    "id": "{"uri":{"$mid":1,"path":"/workspace/sample.py","scheme":"file"},"range":[{"line":3,"character":0},{"line":3,"character":0}]}",
+    "name": "file:sample.py",
+    "range": undefined,
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 3,
+        },
+        {
+          "character": 0,
+          "line": 3,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/sample.py",
+        "scheme": "file",
+      },
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses single error diagnostic 1`] = `
+"Fix this error
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/workspace/file.py" line=13 code="E001" severity="error">
+Unterminated string
+</error>
+
+</attachments>
+<userRequest>
+Fix this error
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses single error diagnostic 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > parses single error diagnostic 3`] = `
+[
+  {
+    "id": "file:///workspace/file.py:error:13:1",
+    "name": "Unterminated string",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///workspace/file.py",
+            "path": "/workspace/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Unterminated string",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns original prompt unchanged for slash command 1`] = `"/help something"`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns original prompt unchanged for slash command 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns original prompt unchanged for slash command 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns overridden prompt instead of using the request prompt 1`] = `"What is 1+2"`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns overridden prompt instead of using the request prompt 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > returns overridden prompt instead of using the request prompt 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > uses attachment id attribute for name/id 1`] = `
+"explain #sym:add
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="sym:add">
+Excerpt from add.py, lines 2 to 4:
+\`\`\`plaintext
+// filepath: /workspace/add.py
+def add(a, b):
+				return a + b
+			}
+\`\`\`
+</attachment>
+
+</attachments>
+<userRequest>
+explain #sym:add
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > uses attachment id attribute for name/id 2`] = `
+[
+  {
+    "displayName": "sym:add",
+    "filePath": "/workspace/add.py",
+    "selection": {
+      "end": {
+        "character": 16,
+        "line": 4,
+      },
+      "start": {
+        "character": 1,
+        "line": 2,
+      },
+    },
+    "text": "			def add(a, b):
+				return a + b
+			}",
+    "type": "selection",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > workspace > uses attachment id attribute for name/id 3`] = `
+[
+  {
+    "id": "vscode.symbol/{"uri":{"$mid":1,"path":"/workspace/add.py","scheme":"file"},"range":[{"line":1,"character":0},{"line":3,"character":0}]}",
+    "name": "sym:add",
+    "range": [
+      8,
+      15,
+    ],
+    "value": {
+      "range": [
+        {
+          "character": 0,
+          "line": 1,
+        },
+        {
+          "character": 0,
+          "line": 3,
+        },
+      ],
+      "uri": {
+        "$mid": 1,
+        "path": "/workspace/add.py",
+        "scheme": "file",
+      },
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > Folders are attached with just references 1`] = `
+"list files in #file:folder
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:folder" folderPath="/worktree/folder" />
+</attachments>
+<userRequest>
+list files in #file:folder
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > Folders are attached with just references 2`] = `
+[
+  {
+    "displayName": "file:folder",
+    "path": "/worktree/folder",
+    "type": "directory",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > Folders are attached with just references 3`] = `
+[
+  {
+    "id": "file:folder",
+    "name": "file:folder",
+    "range": [
+      14,
+      25,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/worktree/folder/",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > aggregates multiple errors across same and different files 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/worktree/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/worktree/file.py" line=5 code="E002" severity="error">
+MsgB
+</error>
+<error path="/worktree/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/worktree/file.py" line=2 code="E004" severity="hint">
+MsgD
+</error>
+<error path="/worktree/sample.py" line=21 code="W001" severity="warning">
+Msg2
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > aggregates multiple errors across same and different files 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > aggregates multiple errors across same and different files 3`] = `
+[
+  {
+    "id": "file:///worktree/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///worktree/file.py:error:5:1",
+    "name": "MsgB",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+                {
+                  "character": 0,
+                  "line": 4,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///worktree/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///worktree/file.py:hint:2:1",
+    "name": "MsgD",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///worktree/sample.py:warning:21:1",
+    "name": "Msg2",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/sample.py",
+            "path": "/worktree/sample.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "W001",
+              "message": "Msg2",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+                {
+                  "character": 0,
+                  "line": 20,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > extract Git Commit 1`] = `
+[
+  {
+    "id": "4efd36fb61d83bf0c99008648ca633ad688d4ab9",
+    "name": "$(repo) select-impala $(git-commit) 4efd36f",
+    "value": {
+      "$mid": 1,
+      "path": "/Users/donjayamanne/Development/vsc/vscode-jupyter.worktrees/select-impala",
+      "query": "{"repositoryId":"scm10","historyItemId":"4efd36fb61d83bf0c99008648ca633ad688d4ab9","historyItemParentId":"b67ca34030530fdb75e326293e2c023d59f24fc8","historyItemDisplayId":"4efd36f"}",
+      "scheme": "scm-history-item",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > extract GitHub PR/Issues 1`] = `
+[
+  {
+    "id": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "name": "#17143 Kernel interrupt_mode "message" sends interrupt_request on shell channel instead of control channel",
+    "range": undefined,
+    "value": "{"issueNumber":17143,"owner":"microsoft","repo":"vscode-jupyter","title":"Kernel interrupt_mode \\"message\\" sends interrupt_request on shell channel instead of control channel","body":"### Applies To\\n\\n- [x] Notebooks (.ipynb files)\\n- [ ] Interactive Window and\\\\/or Cell Scripts (.py files with \\\\#%% markers)\\n\\n### What happened?\\n\\n  **Description**\\n\\n  When a kernel has interrupt_mode set to 'message', the extension incorrectly sends the interrupt_request message on the shell channel instead of the control channel as specified by the Jupyter protocol.\\n\\n  **Expected Behavior**\\n\\n  According to the Jupyter [kernel spec documentation](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370):\\n\\n> In case a kernel can not catch operating system interrupt signals (e.g. the used runtime handles signals and does not allow a user program to define a callback), a kernel can choose to be notified using a message instead. For this to work, the kernels kernelspec must set \`interrupt_mode\` to \`message\`. An interruption will then result in the following message on the \`control\` channel:\\n\\n  The interrupt request should:\\n  1. Be created with channel: 'control'\\n  2. Be sent via sendControlMessage()\\n\\n  **Actual Behavior**\\n\\n  The current implementation ([rawKernelConnection.node.ts](https://github.com/microsoft/vscode-jupyter/blob/4efd36fb61d83bf0c99008648ca633ad688d4ab9/src/kernels/raw/session/rawKernelConnection.node.ts#L361-L370)):\\n  1. Creates message with channel: 'shell'\\n  2. Sends via sendShellMessage()\\n\\n  This causes two problems:\\n  1. The interrupt is queued behind other shell messages - The shell channel processes messages sequentially, so if there are pending execution requests or other shell messages, the interrupt will wait in the queue instead of being processed immediately. This defeats the purpose of interrupting, as the kernel continues executing while the interrupt waits.\\n  2. Interrupt may fail entirely - Kernels expect interrupt_request on the control channel and may ignore or reject it on the shell channel.\\n\\n### VS Code Version\\n\\n1.105.1\\n\\n### Jupyter Extension Version\\n\\n2025.9.1\\n\\n### Jupyter logs\\n\\n\`\`\`shell\\n\\n\`\`\`\\n\\n### Coding Language and Runtime Version\\n\\n_No response_\\n\\n### Language Extension Version (if applicable)\\n\\n_No response_\\n\\n### Anaconda Version (if applicable)\\n\\n_No response_\\n\\n### Running Jupyter locally or remotely?\\n\\nNone","comments":[]}",
+  },
+  {
+    "id": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "name": "#17131 Bump ipywidgets from 7.7.2 to 8.1.8",
+    "range": undefined,
+    "value": "{"prNumber":17131,"owner":"microsoft","repo":"vscode-jupyter","title":"Bump ipywidgets from 7.7.2 to 8.1.8","body":"Bumps [ipywidgets](https://github.com/jupyter-widgets/ipywidgets) from 7.7.2 to 8.1.8.\\n<details>\\n<summary>Release notes</summary>\\n<p><em>Sourced from <a href=\\"https://github.com/jupyter-widgets/ipywidgets/releases\\">ipywidgets's releases</a>.</em></p>\\n<blockquote>\\n<h2>8.1.8</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Add JupyterCon banner and jupyter colors by <a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n<li>Fix badge formatting in README.md by <a href=\\"https://github.com/Carreau\\"><code>@​Carreau</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4000\\">jupyter-widgets/ipywidgets#4000</a></li>\\n<li>Add Plausible web stats by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4003\\">jupyter-widgets/ipywidgets#4003</a></li>\\n<li>Update jupyterlab_widgets metadata to indicate it works with JupyterLab 4 by <a href=\\"https://github.com/jasongrout\\"><code>@​jasongrout</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/4004\\">jupyter-widgets/ipywidgets#4004</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/choldgraf\\"><code>@​choldgraf</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3998\\">jupyter-widgets/ipywidgets#3998</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.7...8.1.8</a></p>\\n<h2>8.1.7</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix CI + remove Python 3.8 by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3989\\">jupyter-widgets/ipywidgets#3989</a></li>\\n<li>Dynamic widgets registry by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3988\\">jupyter-widgets/ipywidgets#3988</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.6...8.1.7</a></p>\\n<h2>8.1.6</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>Fix lumino and lab packages pinning by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3958\\">jupyter-widgets/ipywidgets#3958</a></li>\\n<li>Typo fix by <a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li>Update lables even without MatJax/TypeSetter by <a href=\\"https://github.com/DonJayamanne\\"><code>@​DonJayamanne</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3962\\">jupyter-widgets/ipywidgets#3962</a></li>\\n<li>Update github actions and fix readthedocs by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li>Fix the new line when pressing enter in textarea widget by <a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3982\\">jupyter-widgets/ipywidgets#3982</a></li>\\n<li>Backward compatibility on processPhosphorMessage by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3945\\">jupyter-widgets/ipywidgets#3945</a></li>\\n<li>Include sourcemaps in npm tarballs by <a href=\\"https://github.com/manzt\\"><code>@​manzt</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3978\\">jupyter-widgets/ipywidgets#3978</a></li>\\n<li>Fix deprecation warning when importing the backend_inline by <a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<h2>New Contributors</h2>\\n<ul>\\n<li><a href=\\"https://github.com/david4096\\"><code>@​david4096</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3960\\">jupyter-widgets/ipywidgets#3960</a></li>\\n<li><a href=\\"https://github.com/brichet\\"><code>@​brichet</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3983\\">jupyter-widgets/ipywidgets#3983</a></li>\\n<li><a href=\\"https://github.com/emolinlu\\"><code>@​emolinlu</code></a> made their first contribution in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3984\\">jupyter-widgets/ipywidgets#3984</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.5...8.1.6</a></p>\\n<h2>8.1.5</h2>\\n<h2>What's Changed</h2>\\n<ul>\\n<li>More Phosphor backward compatibility by <a href=\\"https://github.com/martinRenou\\"><code>@​martinRenou</code></a> in <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/pull/3942\\">jupyter-widgets/ipywidgets#3942</a></li>\\n</ul>\\n<p><strong>Full Changelog</strong>: <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5\\">https://github.com/jupyter-widgets/ipywidgets/compare/8.1.4...8.1.5</a></p>\\n<h2>8.1.4</h2>\\n<h2>What's Changed</h2>\\n<h3>New features</h3>\\n<!-- raw HTML omitted -->\\n</blockquote>\\n<p>... (truncated)</p>\\n</details>\\n<details>\\n<summary>Commits</summary>\\n<ul>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/3171b1c746643a3893987190dc505661c5562877\\"><code>3171b1c</code></a> Update Output Widget.ipynb (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3881\\">#3881</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cd817839ab8b6ef80c8e2b7a94c8f1df1de29734\\"><code>cd81783</code></a> update image processing example notebok imports and function call (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3896\\">#3896</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/cecd2b0d0314a92b71dce364e3db7a06af8cf64a\\"><code>cecd2b0</code></a> specify Jupyterlab (version 3.x or above) (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3880\\">#3880</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/0aa1efb563edeb3564f5738dfbee630fd6e4ed6f\\"><code>0aa1efb</code></a> Allow <code>interact</code> to use basic type hint annotations (<a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3908\\">#3908</a>)</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/2e15cfc030b8f6c319114be23b4f95efb537fd4d\\"><code>2e15cfc</code></a> Update Widget List.ipynb</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/06ed868181a3192067ffcff0ed94815f72a1f7bf\\"><code>06ed868</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3793\\">#3793</a> from ferdnyc/mappings-work-again</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/31259ca8ba33c44a29ba8ffede9de0eece61fb44\\"><code>31259ca</code></a> Merge pull request <a href=\\"https://redirect.github.com/jupyter-widgets/ipywidgets/issues/3801\\">#3801</a> from warrickball/patch-2</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/dd250bfacd875561ad05f692d39c41f350a56b42\\"><code>dd250bf</code></a> Handle Notebook 7 in dev install script</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/a1282ec692b35d91e0b3062016962634c7a8012e\\"><code>a1282ec</code></a> Fix link to &quot;Output widget examples&quot;</li>\\n<li><a href=\\"https://github.com/jupyter-widgets/ipywidgets/commit/b6b3051e0b89c1086ea79327d3e957af7da957fd\\"><code>b6b3051</code></a> Revert &quot;Add note on removal of mapping types in documentation&quot;</li>\\n<li>Additional commits viewable in <a href=\\"https://github.com/jupyter-widgets/ipywidgets/compare/7.7.2...8.1.8\\">compare view</a></li>\\n</ul>\\n</details>\\n<br />\\n\\n\\n[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=ipywidgets&package-manager=pip&previous-version=7.7.2&new-version=8.1.8)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)\\n\\nDependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting \`@dependabot rebase\`.\\n\\n[//]: # (dependabot-automerge-start)\\n[//]: # (dependabot-automerge-end)\\n\\n---\\n\\n<details>\\n<summary>Dependabot commands and options</summary>\\n<br />\\n\\nYou can trigger Dependabot actions by commenting on this PR:\\n- \`@dependabot rebase\` will rebase this PR\\n- \`@dependabot recreate\` will recreate this PR, overwriting any edits that have been made to it\\n- \`@dependabot merge\` will merge this PR after your CI passes on it\\n- \`@dependabot squash and merge\` will squash and merge this PR after your CI passes on it\\n- \`@dependabot cancel merge\` will cancel a previously requested merge and block automerging\\n- \`@dependabot reopen\` will reopen this PR if it is closed\\n- \`@dependabot close\` will close this PR and stop Dependabot recreating it. You can achieve the same result by closing it manually\\n- \`@dependabot show <dependency name> ignore conditions\` will show all of the ignore conditions of the specified dependency\\n- \`@dependabot ignore this major version\` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this minor version\` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)\\n- \`@dependabot ignore this dependency\` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)\\n\\n\\n</details>","comments":[],"threads":[],"changes":["@@ -5,7 +5,7 @@ pandas\\n jupyter\\n # List of requirements for conda environments that cannot be installed using conda\\n # Pinned per ipywidget 8 support: https://github.com/microsoft/vscode-jupyter/issues/11598\\n-ipywidgets==7.7.2\\n+ipywidgets==8.1.8\\n anywidget\\n matplotlib\\n ipympl"]}",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > files are attached as just references without content 1`] = `
+"explain contents of #file:file.ts and other files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:file.ts" filePath="/worktree/file.ts" />
+<attachment id="sample.py" filePath="/worktree/sample.py" />
+</attachments>
+<userRequest>
+explain contents of #file:file.ts and other files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > files are attached as just references without content 2`] = `
+[
+  {
+    "displayName": "file:file.ts",
+    "path": "/worktree/file.ts",
+    "type": "file",
+  },
+  {
+    "displayName": "sample.py",
+    "path": "/worktree/sample.py",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > files are attached as just references without content 3`] = `
+[
+  {
+    "id": "file:file.ts",
+    "name": "file:file.ts",
+    "range": [
+      20,
+      32,
+    ],
+    "value": {
+      "$mid": 1,
+      "path": "/worktree/file.ts",
+      "scheme": "file",
+    },
+  },
+  {
+    "id": "sample.py",
+    "name": "sample.py",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/worktree/sample.py",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > groups diagnostics based on same range 1`] = `
+"Fix these errors
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/worktree/file.py" line=2 code="E001" severity="warning">
+Msg1
+</error>
+<error path="/worktree/file.py" line=2 code="E002" severity="error">
+MsgB
+</error>
+<error path="/worktree/file.py" line=7 code="E003" severity="info">
+MsgC
+</error>
+<error path="/worktree/file.py" line=7 code="E004" severity="hint">
+MsgD
+</error>
+
+</attachments>
+<userRequest>
+Fix these errors
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > groups diagnostics based on same range 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > groups diagnostics based on same range 3`] = `
+[
+  {
+    "id": "file:///worktree/file.py:warning:2:1",
+    "name": "Msg1",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Msg1",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Warning",
+              "source": undefined,
+            },
+            {
+              "code": "E002",
+              "message": "MsgB",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+                {
+                  "character": 0,
+                  "line": 1,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+  {
+    "id": "file:///worktree/file.py:info:7:1",
+    "name": "MsgC",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E003",
+              "message": "MsgC",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Information",
+              "source": undefined,
+            },
+            {
+              "code": "E004",
+              "message": "MsgD",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+                {
+                  "character": 0,
+                  "line": 6,
+                },
+              ],
+              "severity": "Hint",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of regular prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:doit.prompt.md
+</reminder>
+<attachments>
+<attachment id="prompt:doit.prompt.md">
+// filepath: /doit.prompt.md
+This is a prompt file
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of regular prompt files 2`] = `
+[
+  {
+    "displayName": "prompt:doit.prompt.md",
+    "path": "/doit.prompt.md",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of regular prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__file:///doit.prompt.md",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:doit.prompt.md",
+    "value": {
+      "$mid": 1,
+      "external": "file:///doit.prompt.md",
+      "path": "/doit.prompt.md",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled file 1`] = `
+"Process these files
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<attachment id="file:untitled-1">
+// filepath: untitled:untitled-1
+function example() {
+	console.log("This is an example");
+}
+</attachment>
+
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled file 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled file 3`] = `
+[
+  {
+    "id": "untitled:untitled-1",
+    "name": "file:untitled-1",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled prompt files 1`] = `
+"Process these files
+ <reminder>
+Follow instructions in #prompt:Untitled-2
+</reminder>
+<attachments>
+<attachment id="prompt:Untitled-2">
+// filepath: untitled:untitled-1
+This is a prompt file
+</attachment>
+<attachment id="regular.ts" filePath="/worktree/regular.ts" />
+</attachments>
+<userRequest>
+Process these files
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled prompt files 2`] = `
+[
+  {
+    "displayName": "regular.ts",
+    "path": "/worktree/regular.ts",
+    "type": "file",
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > includes contents of untitled prompt files 3`] = `
+[
+  {
+    "id": "vscode.prompt.file__untitled:untitled-1",
+    "modelDescription": "Prompt instruction file",
+    "name": "prompt:Untitled-2",
+    "value": {
+      "$mid": 1,
+      "external": "untitled:untitled-1",
+      "path": "untitled-1",
+      "scheme": "untitled",
+    },
+  },
+  {
+    "id": "regular.ts",
+    "name": "regular.ts",
+    "range": undefined,
+    "value": {
+      "$mid": 1,
+      "path": "/worktree/regular.ts",
+      "scheme": "file",
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > just the prompt without anything else 1`] = `"hello world"`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > just the prompt without anything else 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > just the prompt without anything else 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses locations including files with spaces 1`] = `
+"base
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+
+</attachments>
+<userRequest>
+base
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses locations including files with spaces 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses locations including files with spaces 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses single error diagnostic 1`] = `
+"Fix this error
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+<error path="/worktree/file.py" line=13 code="E001" severity="error">
+Unterminated string
+</error>
+
+</attachments>
+<userRequest>
+Fix this error
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses single error diagnostic 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > parses single error diagnostic 3`] = `
+[
+  {
+    "id": "file:///worktree/file.py:error:13:1",
+    "name": "Unterminated string",
+    "range": undefined,
+    "value": ChatReferenceDiagnostic {
+      "diagnostics": [
+        [
+          {
+            "$mid": 1,
+            "external": "file:///worktree/file.py",
+            "path": "/worktree/file.py",
+            "scheme": "file",
+          },
+          [
+            {
+              "code": "E001",
+              "message": "Unterminated string",
+              "range": [
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+                {
+                  "character": 0,
+                  "line": 12,
+                },
+              ],
+              "severity": "Error",
+              "source": undefined,
+            },
+          ],
+        ],
+      ],
+    },
+  },
+]
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns original prompt unchanged for slash command 1`] = `"/help something"`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns original prompt unchanged for slash command 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns original prompt unchanged for slash command 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns overridden prompt instead of using the request prompt 1`] = `"What is 1+2"`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns overridden prompt instead of using the request prompt 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > returns overridden prompt instead of using the request prompt 3`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > uses attachment id attribute for name/id 1`] = `
+"explain #sym:add
+ <reminder>
+IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task
+</reminder>
+<attachments>
+
+</attachments>
+<userRequest>
+explain #sym:add
+</userRequest>
+"
+`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > uses attachment id attribute for name/id 2`] = `[]`;
+
+exports[`CopilotCLI Generate & parse prompts > worktree > uses attachment id attribute for name/id 3`] = `[]`;

@@ -55,6 +55,72 @@ function setupCurrentWorkingDirectory(): void {
 setupCurrentWorkingDirectory();
 
 /**
+ * Add ASAR support to Node's CommonJS module resolution.
+ *
+ * Production builds bundle our `node_modules` into a `node_modules.asar`
+ * archive that sits next to the (now mostly empty) `node_modules` folder.
+ * Node does not look into `.asar` archives on its own, so we splice the
+ * archive into the lookup paths right before the real `node_modules` folder.
+ *
+ * The archive keeps the same top-level layout as `node_modules`
+ * (`node_modules.asar/<module>`), so bare `require('<module>')` calls resolve
+ * exactly like they did before ASAR was introduced. This keeps extensions and
+ * tooling that reach into `${appRoot}/node_modules.asar/<module>` working.
+ *
+ * Note: only applies to the packaged app running on Electron (incl.
+ * `ELECTRON_RUN_AS_NODE` forks), never when running out of sources.
+ */
+function enableASARSupport(): void {
+	if (!process.env['ELECTRON_RUN_AS_NODE'] && !process.versions['electron']) {
+		return; // only on Electron / Electron-as-node
+	}
+
+	if (process.env['VSCODE_DEV']) {
+		return; // no ASAR when running out of sources
+	}
+
+	// Normalize the drive letter to lower-case for comparison. On Windows the
+	// path derived from `import.meta.dirname` (a file URL) can use a different
+	// drive-letter case than the paths Node computes for a `require` parent, so
+	// an exact string comparison would miss the insertion point (breaking e.g.
+	// `require('mkdirp')` from a module inside the archive).
+	const normalizeDriveLetter = (p: string): string => {
+		if (isWindows && p.length >= 2 && p.charCodeAt(1) === 58 /* : */) {
+			const code = p.charCodeAt(0);
+			if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+				return p[0].toLowerCase() + p.slice(1);
+			}
+		}
+		return p;
+	};
+
+	const NODE_MODULES_PATH = normalizeDriveLetter(path.join(import.meta.dirname, '../node_modules'));
+
+	const Module = require('node:module') as typeof import('node:module') & {
+		_resolveLookupPaths: (request: string, parent: unknown) => string[] | null;
+	};
+
+	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	Module._resolveLookupPaths = function (request: string, parent: unknown): string[] | null {
+		const paths = originalResolveLookupPaths(request, parent);
+		if (Array.isArray(paths)) {
+			for (let i = 0, len = paths.length; i < len; i++) {
+				if (normalizeDriveLetter(paths[i]) === NODE_MODULES_PATH) {
+					// Derive the archive path from the matched entry so drive-letter
+					// case and path separators are preserved exactly.
+					paths.splice(i, 0, `${paths[i]}.asar`);
+					break;
+				}
+			}
+		}
+
+		return paths;
+	};
+}
+
+enableASARSupport();
+
+/**
  * Add support for redirecting the loading of node modules
  *
  * Note: only applies when running out of sources.

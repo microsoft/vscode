@@ -196,7 +196,7 @@ export class PortsAttributes extends Disposable {
 	private static HOST_AND_PORT = /^([a-z0-9\-]+):(\d{1,5})$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
-	private _onDidChangeAttributes = new Emitter<void>();
+	private _onDidChangeAttributes = this._register(new Emitter<void>());
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
 	constructor(private readonly configurationService: IConfigurationService) {
@@ -402,26 +402,26 @@ export class TunnelModel extends Disposable {
 	private readonly inProgress: Map<string, true> = new Map();
 	readonly detected: Map<string, Tunnel>;
 	private remoteTunnels: Map<string, RemoteTunnel>;
-	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
-	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
-	private _onClosePort: Emitter<{ host: string; port: number }> = new Emitter();
-	public onClosePort: Event<{ host: string; port: number }> = this._onClosePort.event;
-	private _onPortName: Emitter<{ host: string; port: number }> = new Emitter();
-	public onPortName: Event<{ host: string; port: number }> = this._onPortName.event;
+	private _onForwardPort = this._register(new Emitter<Tunnel | void>());
+	public onForwardPort = this._onForwardPort.event;
+	private _onClosePort = this._register(new Emitter<{ host: string; port: number }>());
+	public onClosePort = this._onClosePort.event;
+	private _onPortName = this._register(new Emitter<{ host: string; port: number }>());
+	public onPortName = this._onPortName.event;
 	private _candidates: Map<string, CandidatePort> | undefined;
-	private _onCandidatesChanged: Emitter<Map<string, { host: string; port: number }>> = new Emitter();
+	private _onCandidatesChanged = this._register(new Emitter<Map<string, { host: string; port: number }>>());
 	// onCandidateChanged returns the removed candidates
-	public onCandidatesChanged: Event<Map<string, { host: string; port: number }>> = this._onCandidatesChanged.event;
+	public onCandidatesChanged = this._onCandidatesChanged.event;
 	private _candidateFilter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined;
 	private tunnelRestoreValue: Promise<string | undefined>;
-	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
-	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
+	private _onEnvironmentTunnelsSet = this._register(new Emitter<void>());
+	public onEnvironmentTunnelsSet = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
 	private restoreComplete = false;
-	private onRestoreComplete: Emitter<void> = new Emitter();
+	private onRestoreComplete = this._register(new Emitter<void>());
 	private unrestoredExtensionTunnels: Map<string, RestorableTunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 

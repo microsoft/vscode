@@ -8,7 +8,8 @@ import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, Fil
 import { Repository, Resource } from './repository';
 import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
-import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
+import type { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref } from './api/git';
+import { RefType } from './api/git.constants';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
@@ -309,7 +310,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					processHoverRemoteCommands(remoteHoverCommands, commit.hash)
 				];
 
-				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands, commit.coAuthors);
 
 				historyItems.push({
 					id: commit.hash,

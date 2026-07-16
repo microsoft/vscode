@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -15,9 +17,10 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
@@ -40,10 +43,27 @@ function createMockChatModel(sessionResource: URI, options?: { customTitle?: str
 	return model as unknown as ChatModel;
 }
 
+class MockWorkspaceEditingService extends Disposable implements Partial<IWorkspaceEditingService> {
+	private readonly _onDidEnterWorkspace = this._register(new Emitter<IDidEnterWorkspaceEvent>());
+	readonly onDidEnterWorkspace = this._onDidEnterWorkspace.event;
+
+	fireWorkspaceTransition(oldWorkspace: IAnyWorkspaceIdentifier, newWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+		const promises: Promise<void>[] = [];
+		const event: IDidEnterWorkspaceEvent = {
+			oldWorkspace,
+			newWorkspace,
+			join: (promise: Promise<void>) => promises.push(promise)
+		};
+		this._onDidEnterWorkspace.fire(event);
+		return Promise.all(promises).then(() => { });
+	}
+}
+
 suite('ChatSessionStore', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
+	let mockWorkspaceEditingService: MockWorkspaceEditingService;
 
 	function createChatSessionStore(isEmptyWindow: boolean = false): ChatSessionStore {
 		const workspace = isEmptyWindow ? new Workspace('empty-window-id', []) : TestWorkspace;
@@ -61,6 +81,8 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		mockWorkspaceEditingService = testDisposables.add(new MockWorkspaceEditingService());
+		instantiationService.stub(IWorkspaceEditingService, mockWorkspaceEditingService as unknown as IWorkspaceEditingService);
 	});
 
 	test('hasSessions returns false when no sessions exist', () => {
@@ -372,6 +394,72 @@ suite('ChatSessionStore', () => {
 			const result = store.getTransferredSessionData();
 			assert.ok(result);
 			assert.strictEqual(result.toString(), session2Resource.toString());
+		});
+	});
+
+	suite('workspace migration', () => {
+		test('migration is triggered when onDidEnterWorkspace fires', async () => {
+			const fileService = instantiationService.get(IFileService) as InMemoryTestFileService;
+
+			// Create store with empty window
+			const store = createChatSessionStore(true);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+
+			// Store a session in empty window
+			await store.storeSessions([model]);
+			assert.strictEqual(store.hasSessions(), true);
+
+			// Get the file path for the session in empty window storage
+			const emptyWindowStorageRoot = store.getChatStorageFolder();
+			const sessionFile = URI.joinPath(emptyWindowStorageRoot, 'session-1.json');
+			const fileExists = await fileService.exists(sessionFile);
+			assert.strictEqual(fileExists, true, 'Session file should exist in empty window storage');
+
+			// Simulate workspace transition via the onDidEnterWorkspace event
+			const oldWorkspace: IAnyWorkspaceIdentifier = { id: 'empty-window-id' };
+			const newWorkspace: IAnyWorkspaceIdentifier = { id: TestWorkspace.id, uri: URI.file('/test/folder') };
+
+			// Fire the workspace transition event - migration happens synchronously via join()
+			await mockWorkspaceEditingService.fireWorkspaceTransition(oldWorkspace, newWorkspace);
+
+			// Verify file was copied to new location
+			const newStorageRoot = store.getChatStorageFolder();
+			const migratedSessionFile = URI.joinPath(newStorageRoot, 'session-1.json');
+			const migratedFileExists = await fileService.exists(migratedSessionFile);
+			assert.strictEqual(migratedFileExists, true, 'Session file should be migrated to workspace storage');
+		});
+
+		test('migration handles non-existent old storage location gracefully', async () => {
+			// Create store with a workspace
+			const store = createChatSessionStore(false);
+
+			// Simulate workspace transition from a non-existent workspace
+			const oldWorkspace: IAnyWorkspaceIdentifier = { id: 'non-existent-workspace-id' };
+			const newWorkspace: IAnyWorkspaceIdentifier = { id: 'new-workspace-id' };
+
+			// Fire the workspace transition event - should not crash
+			await mockWorkspaceEditingService.fireWorkspaceTransition(oldWorkspace, newWorkspace);
+
+			// Store should work normally
+			assert.strictEqual(store.hasSessions(), false);
+		});
+
+		test('storage root is updated after workspace transition', async () => {
+			// Create store with empty window
+			const store = createChatSessionStore(true);
+
+			const initialStorageRoot = store.getChatStorageFolder();
+			assert.ok(initialStorageRoot.path.includes('emptyWindowChatSessions'), 'Initial storage should be empty window location');
+
+			// Simulate workspace transition - use proper identifier types
+			// Empty workspace only has 'id', single folder has 'uri' property too
+			const oldWorkspace: IAnyWorkspaceIdentifier = { id: 'empty-window-id' };
+			const newWorkspace: IAnyWorkspaceIdentifier = { id: 'new-workspace-id', uri: URI.file('/test/folder') };
+
+			await mockWorkspaceEditingService.fireWorkspaceTransition(oldWorkspace, newWorkspace);
+
+			const newStorageRoot = store.getChatStorageFolder();
+			assert.ok(newStorageRoot.path.includes('new-workspace-id'), 'Storage root should be updated to new workspace location');
 		});
 	});
 });

@@ -13,7 +13,9 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 export enum AgentStatusMode {
 	/** Default mode showing workspace name + session stats */
 	Default = 'default',
-	/** Session mode showing session title + Esc button */
+	/** Session ready mode showing session title + Enter button (before entering projection) */
+	SessionReady = 'sessionReady',
+	/** Session mode showing session title + Esc button (inside projection) */
 	Session = 'session',
 }
 
@@ -54,6 +56,18 @@ export interface IAgentTitleBarStatusService {
 	 * Used by Agent Session Projection when entering a focused session view.
 	 */
 	enterSessionMode(sessionResource: URI, title: string): void;
+
+	/**
+	 * Enter session ready mode, showing the session title and enter button.
+	 * Used when viewing a projection-capable session that can be entered.
+	 */
+	enterSessionReadyMode(sessionResource: URI, title: string): void;
+
+	/**
+	 * Exit session ready mode, returning to the default mode.
+	 * Called when the session is no longer visible or valid for projection.
+	 */
+	exitSessionReadyMode(): void;
 
 	/**
 	 * Exit session mode, returning to the default mode with workspace name and stats.
@@ -100,6 +114,32 @@ export class AgentTitleBarStatusService extends Disposable implements IAgentTitl
 			this._onDidChangeMode.fire(this._mode);
 		}
 		this._onDidChangeSessionInfo.fire(this._sessionInfo);
+	}
+
+	enterSessionReadyMode(sessionResource: URI, title: string): void {
+		const newInfo: IAgentStatusSessionInfo = { sessionResource, title };
+		const modeChanged = this._mode !== AgentStatusMode.SessionReady;
+
+		this._mode = AgentStatusMode.SessionReady;
+		this._sessionInfo = newInfo;
+
+		if (modeChanged) {
+			this._onDidChangeMode.fire(this._mode);
+		}
+		this._onDidChangeSessionInfo.fire(this._sessionInfo);
+	}
+
+	exitSessionReadyMode(): void {
+		// Only exit if we're in SessionReady mode (don't exit from Session mode)
+		if (this._mode !== AgentStatusMode.SessionReady) {
+			return;
+		}
+
+		this._mode = AgentStatusMode.Default;
+		this._sessionInfo = undefined;
+
+		this._onDidChangeMode.fire(this._mode);
+		this._onDidChangeSessionInfo.fire(undefined);
 	}
 
 	exitSessionMode(): void {

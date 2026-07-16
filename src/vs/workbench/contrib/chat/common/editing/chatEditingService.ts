@@ -26,6 +26,10 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
+export interface IChatEditingSessionProvider {
+	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+}
+
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
@@ -49,32 +53,13 @@ export interface IChatEditingService {
 	 */
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
 
-	//#region related files
-
-	hasRelatedFilesProviders(): boolean;
-	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
-	getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
-
-	//#endregion
-}
-
-export interface IChatRequestDraft {
-	readonly prompt: string;
-	readonly files: readonly URI[];
-}
-
-export interface IChatRelatedFileProviderMetadata {
-	readonly description: string;
-}
-
-export interface IChatRelatedFile {
-	readonly uri: URI;
-	readonly description: string;
-}
-
-export interface IChatRelatedFilesProvider {
-	readonly description: string;
-	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
+	/**
+	 * Registers a provider that creates editing sessions for chat sessions
+	 * with the given URI scheme. When {@link createEditingSession} is called
+	 * for a chat model whose sessionResource matches the scheme, the provider
+	 * is used instead of the default implementation.
+	 */
+	registerEditingSessionProvider(scheme: string, provider: IChatEditingSessionProvider): IDisposable;
 }
 
 export interface WorkingSetDisplayMetadata {
@@ -116,6 +101,7 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
+	readonly supportsKeepUndo: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
@@ -137,8 +123,8 @@ export interface IChatEditingSession extends IDisposable {
 	 * agents that make changes on-disk rather than streaming edits through the
 	 * chat session.
 	 */
-	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]>;
-	stopExternalEdits(responseModel: IChatResponseModel, operationId: number): Promise<IChatProgress[]>;
+	startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string, contentFor?: URI[]): Promise<IChatProgress[]>;
+	stopExternalEdits(responseModel: IChatResponseModel, operationId: number, contentFor?: URI[]): Promise<IChatProgress[]>;
 
 	/**
 	 * Gets the snapshot URI of a file at the request and _after_ changes made in the undo stop.
@@ -208,6 +194,21 @@ export interface IChatEditingSession extends IDisposable {
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+
+	/**
+	 * Triggers generation of explanations for all modified files in the session.
+	 */
+	triggerExplanationGeneration(): Promise<void>;
+
+	/**
+	 * Clears any active explanation generation.
+	 */
+	clearExplanations(): void;
+
+	/**
+	 * Whether explanations are currently being generated or displayed.
+	 */
+	hasExplanations(): boolean;
 }
 
 export function chatEditingSessionIsReady(session: IChatEditingSession): Promise<void> {
@@ -289,6 +290,20 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** LHS and RHS of a diff editor, if opened: */
 	originalURI: URI;
 	modifiedURI: URI;
+
+	/**
+	 * Optional frozen "after" content for the RHS. When set, this is the exact
+	 * modified-side snapshot the diff represents (e.g. an agent-host per-turn
+	 * checkpoint), as opposed to {@link modifiedURI} which may be the live
+	 * working file and therefore include later changes. Consumers that want the
+	 * changeset's own diff should prefer this when present; {@link modifiedURI}
+	 * remains the file's identity for labels and go-to-file.
+	 *
+	 * Note: distinct from the agent-host checkpoint-ref readability fix (#323932).
+	 * That made the frozen snapshot blobs *readable*; this field carries *which*
+	 * snapshot to diff against so a per-turn review shows only that turn's changes.
+	 */
+	modifiedSnapshotURI?: URI;
 
 	/** Diff state information: */
 	quitEarly: boolean;

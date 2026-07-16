@@ -80,14 +80,14 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		return this._remoteTerminalChannel.processBinary(this.id, e);
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._startBarrier.wait().then(_ => {
 			this._lastDimensions.cols = cols;
 			this._lastDimensions.rows = rows;
-			this._remoteTerminalChannel.resize(this.id, cols, rows);
+			this._remoteTerminalChannel.resize(this.id, cols, rows, pixelWidth, pixelHeight);
 		});
 	}
 

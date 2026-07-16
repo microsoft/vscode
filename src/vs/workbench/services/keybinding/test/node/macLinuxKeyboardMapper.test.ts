@@ -1617,7 +1617,7 @@ suite('keyboardMapper', () => {
 		assertNumpadKeyboardEvent(KeyCode.UpArrow, 'Numpad8', 'UpArrow', 'Up', 'up', '[ArrowUp]');
 		assertNumpadKeyboardEvent(KeyCode.PageUp, 'Numpad9', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 		assertNumpadKeyboardEvent(KeyCode.Insert, 'Numpad0', 'Insert', 'Insert', 'insert', '[Insert]');
-		assertNumpadKeyboardEvent(KeyCode.Delete, 'NumpadDecimal', 'Delete', 'Delete', 'delete', '[Delete]');
+		assertNumpadKeyboardEvent(KeyCode.Delete, 'NumpadDecimal', 'Del', 'Delete', 'delete', '[Delete]');
 	});
 
 	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
@@ -1654,7 +1654,7 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
 		assertKeyboardEvent(KeyCode.RightArrow, 'NonConvert', 'RightArrow', 'Right', 'right', '[ArrowRight]');
-		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Delete', 'Delete', 'delete', '[Delete]');
+		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Del', 'Delete', 'delete', '[Delete]');
 		assertKeyboardEvent(KeyCode.Insert, 'NumpadDivide', 'Insert', 'Insert', 'insert', '[Insert]');
 		assertKeyboardEvent(KeyCode.End, 'Unknown', 'End', 'End', 'end', '[End]');
 		assertKeyboardEvent(KeyCode.Home, 'IntlRo', 'Home', 'Home', 'home', '[Home]');
@@ -1666,7 +1666,7 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 		assertKeyboardEvent(KeyCode.End, '', 'End', 'End', 'end', '[End]');
 		assertKeyboardEvent(KeyCode.Home, 'IntlRo', 'Home', 'Home', 'home', '[Home]');
-		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Delete', 'Delete', 'delete', '[Delete]');
+		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Del', 'Delete', 'delete', '[Delete]');
 		assertKeyboardEvent(KeyCode.Insert, 'NumpadDivide', 'Insert', 'Insert', 'insert', '[Insert]');
 		assertKeyboardEvent(KeyCode.RightArrow, 'NonConvert', 'RightArrow', 'Right', 'right', '[ArrowRight]');
 		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');

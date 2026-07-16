@@ -7,6 +7,11 @@
 		"editor.background": "#221a0f",
 		"editor.foreground": "#d3af86",
 		"focusBorder": "#a57a4c",
+		// agent sessions
+		"agentsPanel.border": "#5e452b",
+		"agentsChatInput.border": "#5e452b",
+		"agentsChatInput.focusBorder": "#a57a4c",
+		"agentsNewSessionButton.border": "#5e452b",
 		"list.highlightForeground": "#e3b583",
 		"list.activeSelectionBackground": "#7c5021",
 		"list.hoverBackground": "#7c502166",

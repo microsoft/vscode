@@ -9,11 +9,12 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, CodeCompareBlockPart } from './codeBlockPart.js';
-import { ResourcePool, IDisposableReference } from './chatCollections.js';
+import { ResourcePool, KeyedResourcePool, IDisposableReference } from './chatCollections.js';
+import { createSingleCallFunction } from '../../../../../../base/common/functional.js';
 
 export class EditorPool extends Disposable {
 
-	private readonly _pool: ResourcePool<CodeBlockPart>;
+	private readonly _pool: KeyedResourcePool<CodeBlockPart>;
 
 	inUse(): Iterable<CodeBlockPart> {
 		return this._pool.inUse;
@@ -27,23 +28,27 @@ export class EditorPool extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._pool = this._register(new ResourcePool(() => {
+		this._pool = this._register(new KeyedResourcePool(() => {
 			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
+		}, { maxIdleSize: 2 }));
 	}
 
-	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
+	get(key: string): IDisposableReference<CodeBlockPart> {
+		const codeBlock = this._pool.get(key);
 		let stale = false;
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
-				this._pool.release(codeBlock);
-			}
+				this._pool.release(codeBlock, key);
+			})
 		};
+	}
+
+	clear(): void {
+		this._pool.clear();
 	}
 }
 
@@ -74,11 +79,15 @@ export class DiffEditorPool extends Disposable {
 		return {
 			object: codeBlock,
 			isStale: () => stale,
-			dispose: () => {
+			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
+			})
 		};
+	}
+
+	clear(): void {
+		this._pool.clear();
 	}
 }

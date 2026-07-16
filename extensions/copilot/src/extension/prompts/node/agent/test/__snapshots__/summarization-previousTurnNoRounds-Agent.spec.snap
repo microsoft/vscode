@@ -1,0 +1,74 @@
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+</workspace_info>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<userRequest>
+previous turn 1
+</userRequest>
+
+~~~
+
+
+### Assistant
+~~~md
+response
+~~~
+
+
+### User
+~~~md
+<userRequest>
+previous turn 2
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### Assistant
+~~~md
+response
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<attachments>
+<attachment id="file" filePath="/workspace/file.ts">
+line 1
+line 2
+
+line 4
+line 5
+</attachment>
+
+</attachments>
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+
+</reminderInstructions>
+<userRequest>
+hello
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

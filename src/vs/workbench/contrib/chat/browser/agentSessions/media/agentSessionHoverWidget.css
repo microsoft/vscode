@@ -46,6 +46,11 @@
 		align-items: center;
 		gap: 4px;
 		flex-wrap: wrap;
+
+		.codicon {
+			display: flex;
+			align-items: center;
+		}
 	}
 
 	.agent-session-hover-details .separator {

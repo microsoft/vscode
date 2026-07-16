@@ -17,6 +17,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabel } from '../../../browser/labels.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { ICompositeControl } from '../../../common/composite.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
@@ -76,6 +77,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+			undefined,
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -93,12 +95,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
+		// Apply the view model and any restored view state together so the widget's
+		// automatic first-change navigation sees the restored state instead of
+		// navigating to the first file.
 		const viewState = this.loadEditorViewState(input, context);
-		if (viewState) {
-			this._multiDiffEditorWidget!.setViewState(viewState);
-		}
+		this._multiDiffEditorWidget!.setViewModel(this._viewModel, { preserveFocus: options?.preserveFocus, viewState });
+
 		this._applyOptions(options);
 	}
 
@@ -223,9 +226,14 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 }
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+	readonly headerClickToCollapse: boolean;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) { }
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
+	}
 
 	createResourceLabel(element: HTMLElement): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});

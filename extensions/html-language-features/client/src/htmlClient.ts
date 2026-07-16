@@ -43,7 +43,7 @@ interface AutoInsertParams {
 }
 
 namespace AutoInsertRequest {
-	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
+	export const type: RequestType<AutoInsertParams, string | null, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -209,7 +209,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 	toDispose.push(client.onRequest(CustomDataContent.type, customDataSource.getContent));
 
 
-	const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string> => {
+	const insertRequestor = (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position): Promise<string | null> => {
 		const param: AutoInsertParams = {
 			kind,
 			textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
@@ -317,14 +317,12 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 				const snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
 				snippetProposal.range = range;
 				const content = ['<!DOCTYPE html>',
-					'<html>',
+					'<html lang=\'${1:en}\'>',
 					'<head>',
 					'\t<meta charset=\'utf-8\'>',
-					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
-					'\t<title>${1:Page Title}</title>',
 					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
-					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
-					'\t<script src=\'${3:main.js}\'></script>',
+					'\t<title>${2:Page Title}</title>',
+					'\t<link rel=\'stylesheet\' href=\'${3:main.css}\'>',
 					'</head>',
 					'<body>',
 					'\t$0',

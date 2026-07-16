@@ -52,6 +52,9 @@ import { FileUserDataProvider } from '../../platform/userData/common/fileUserDat
 import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
+import { NativeManagedSettingsChannelClient } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { FileManagedSettingsChannelClient } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../services/userDataProfile/common/userDataProfile.js';
@@ -63,8 +66,8 @@ import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
+import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
 
 export class DesktopMain extends Disposable {
 
@@ -215,14 +218,19 @@ export class DesktopMain extends Disposable {
 
 		// Policies
 		let policyService: IPolicyService;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
-		if (this.configuration.policiesData) {
-			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
-			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
+		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
+		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, nativeManagedSettings, fileManagedSettings));
+		if (policyChannel) {
+			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {
 			policyService = accountPolicy;
 		}
 		serviceCollection.set(IPolicyService, policyService);
+		serviceCollection.set(IAccountPolicyGateService, accountPolicy);
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);

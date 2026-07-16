@@ -1,5 +1,15 @@
+.config
+.dbus
+.dotnet
 .DS_Store
-npm-debug.log
-Thumbs.db
+.local
+.mozilla
+.pki
+.var
+.vscode*
+Downloads
 node_modules/
+npm-debug.log
 out/
+results.xml
+Thumbs.db

@@ -36,12 +36,16 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
+import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
+import { IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
+import { IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -99,12 +103,25 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatEditingService _chatEditingService: IChatEditingService,
+		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
 
 		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+
+		// Create explanation widget manager and connect it to the model manager
+		this._store.add(new ChatEditingExplanationWidgetManager(
+			this._editor,
+			this._chatWidgetService,
+			this._viewsService,
+			this._explanationModelManager,
+			this._entry.modifiedURI,
+		));
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {

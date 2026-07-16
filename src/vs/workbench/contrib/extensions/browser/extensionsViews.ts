@@ -400,6 +400,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
+		else if (/@restartrequired/i.test(query.value)) {
+			extensions = this.filterRestartRequiredExtensions(local, query, options);
+		}
+
 		else if (/@contribute:/i.test(query.value)) {
 			extensions = this.filterExtensionsByFeature(local, query);
 		}
@@ -657,6 +661,19 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterRestartRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		local = local.filter(e => e.runtimeState !== undefined);
+
+		value = value.replace(/@restartrequired/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
@@ -1157,6 +1174,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			|| this.isSearchDeprecatedExtensionsQuery(query)
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isRestartRequiredQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy)
 			|| this.isFeatureExtensionsQuery(query);
@@ -1179,11 +1197,11 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed$/i.test(query);
+		return /@installed$/i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query);
 	}
 
 	static isSearchInstalledExtensionsQuery(query: string): boolean {
-		return /@installed\s./i.test(query) || this.isFeatureExtensionsQuery(query);
+		return (/@installed\s./i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query)) || this.isFeatureExtensionsQuery(query);
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {
@@ -1244,6 +1262,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	static isSearchRecentlyUpdatedQuery(query: string): boolean {
 		return /@recentlyUpdated/i.test(query);
+	}
+
+	static isRestartRequiredQuery(query: string): boolean {
+		return /@restartrequired/i.test(query);
 	}
 
 	static isSearchExtensionUpdatesQuery(query: string): boolean {
@@ -1608,7 +1630,8 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
 		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
-		const page = this.pages[pageIndex];
+		// pages array excludes page 0 (pre-resolved via firstPage), so adjust index
+		const page = this.pages[pageIndex - 1];
 
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();
@@ -1657,7 +1680,7 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		// Skip first page as the preferred extensions are always in the first page
 		if (pageIndex !== 0 && adjustIndexOfNextPagesBy) {
 			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
-			const indices = [...this.resolved.keys()].sort();
+			const indices = [...this.resolved.keys()].sort((a, b) => a - b);
 			for (const index of indices) {
 				if (index >= nextPageStartIndex) {
 					const e = this.resolved.get(index);

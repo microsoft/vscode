@@ -90,7 +90,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Use scheduler to prevent unnecessary flashing
-		this.updateTreeScheduler = new RunOnceScheduler(async () => {
+		this.updateTreeScheduler = this._register(new RunOnceScheduler(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 
 			this.needsRefresh = false;
@@ -116,7 +116,7 @@ export class VariablesView extends ViewPane implements IDebugViewWithVariables {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
-		}, 400);
+		}, 400));
 	}
 
 	protected override renderBody(container: HTMLElement): void {

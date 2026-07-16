@@ -162,7 +162,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		let totalHeight = 0;
 		for (let i = 0; i < candidateLineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			const position = new Position(candidateLineNumbers[i], 1);
+			const viewModel = this._editor._getViewModel();
+			if (viewModel && position.lineNumber <= viewModel.getLineCount()) {
+				totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			}
 		}
 		if (totalHeight === 0) {
 			return { lineNumbers: [], lastLineRelativePosition: 0 };
@@ -503,11 +507,11 @@ class RenderedStickyLine {
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-		const foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
-		if (foldingIcon) {
-			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
-			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
-			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
+		this.foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
+		if (this.foldingIcon) {
+			lineNumberHTMLNode.appendChild(this.foldingIcon.domNode);
+			this.foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
+			this.foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
 		}
 
 		editor.applyFontInfo(lineHTMLNode);

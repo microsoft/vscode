@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, Range } from '../modes/languageModes';
+import { Position, Range } from '../modes/languageModes.js';
 
 export function beforeOrSame(p1: Position, p2: Position) {
 	return p1.line < p2.line || p1.line === p2.line && p1.character <= p2.character;

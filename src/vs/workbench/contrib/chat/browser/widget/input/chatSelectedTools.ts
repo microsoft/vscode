@@ -11,14 +11,17 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { ILanguageModelToolsService, IToolData, isToolSet, ToolAndToolSetEnablementMap, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
 
 
+// todo@connor4312/bhavyaus: make tools key off displayName so model-specific tool
+// enablement can stick between models with different underlying tool definitions
 type ToolEnablementStates = {
 	readonly toolSets: ReadonlyMap<string, boolean>;
 	readonly tools: ReadonlyMap<string, boolean>;
@@ -37,10 +40,10 @@ type StoredDataV1 = {
 };
 
 namespace ToolEnablementStates {
-	export function fromMap(map: IToolAndToolSetEnablementMap): ToolEnablementStates {
+	export function fromMap(map: ToolAndToolSetEnablementMap): ToolEnablementStates {
 		const toolSets: Map<string, boolean> = new Map(), tools: Map<string, boolean> = new Map();
-		for (const [entry, enabled] of map.entries()) {
-			if (entry instanceof ToolSet) {
+		for (const [entry, enabled] of map) {
+			if (isToolSet(entry)) {
 				toolSets.set(entry.id, enabled);
 			} else {
 				tools.set(entry.id, enabled);
@@ -98,9 +101,11 @@ export class ChatSelectedTools extends Disposable {
 	private readonly _globalState: ObservableMemento<ToolEnablementStates>;
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
+	private readonly _currentTools: IObservable<readonly IToolData[]>;
 
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
+		private readonly languageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IStorageService _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -115,13 +120,17 @@ export class ChatSelectedTools extends Disposable {
 		});
 
 		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
+		this._currentTools = languageModel.map(lm =>
+			_toolsService.observeTools(lm?.metadata)).map((o, r) => o.read(r));
 	}
 
 	/**
 	 * All tools and tool sets with their enabled state.
+	 * Tools are filtered based on the current model context.
 	 */
-	public readonly entriesMap: IObservable<IToolAndToolSetEnablementMap> = derived(r => {
-		const map = new Map<IToolData | ToolSet, boolean>();
+	public readonly entriesMap: IObservable<ToolAndToolSetEnablementMap> = derived(r => {
+		const map = new Map<IToolData | IToolSet, boolean>();
+		const lm = this.languageModel.read(r)?.metadata;
 
 		// look up the tools in the hierarchy: session > mode > global
 		const currentMode = this._mode.read(r);
@@ -129,26 +138,33 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
-				const target = currentMode.target?.read(r);
-				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target));
+				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, lm));
 			}
 		}
 		if (!currentMap) {
 			currentMap = this._globalState.read(r);
 		}
-		for (const tool of this._toolsService.toolsObservable.read(r)) {
+		// Use getTools with contextKeyService to filter tools by current model
+		for (const tool of this._currentTools.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
 				map.set(tool, currentMap.tools.get(tool.id) !== false); // if unknown, it's enabled
 			}
 		}
-		for (const toolSet of this._toolsService.toolSets.read(r)) {
+		for (const toolSet of this._toolsService.getToolSetsForModel(lm, r)) {
+			// Hidden tool sets (e.g. the built-in client tool sets that only exist to group tools
+			// in the Chat Customizations UI) can't be toggled here and are ignored by the picker.
+			// Their member tools are already resolved by the loop above, so skip them entirely -
+			// otherwise they'd override individual tool state and re-enable disabled tools.
+			if (toolSet.hiddenInToolsPicker) {
+				continue;
+			}
 			const toolSetEnabled = currentMap.toolSets.get(toolSet.id) !== false; // if unknown, it's enabled
 			map.set(toolSet, toolSetEnabled);
 			for (const tool of toolSet.getTools(r)) {
 				map.set(tool, toolSetEnabled || currentMap.tools.get(tool.id) === true); // if unknown, use toolSetEnabled
 			}
 		}
-		return map;
+		return ToolAndToolSetEnablementMap.fromMap(map);
 	});
 
 	public readonly userSelectedTools: IObservable<UserSelectedTools> = derived(r => {
@@ -156,7 +172,7 @@ export class ChatSelectedTools extends Disposable {
 		const result: UserSelectedTools = {};
 		const map = this.entriesMap.read(r);
 		for (const [item, enabled] of map) {
-			if (!(item instanceof ToolSet)) {
+			if (!isToolSet(item)) {
 				result[item.id] = enabled;
 			}
 		}
@@ -183,7 +199,7 @@ export class ChatSelectedTools extends Disposable {
 		this._sessionStates.delete(mode.id);
 	}
 
-	set(enablementMap: IToolAndToolSetEnablementMap, sessionOnly: boolean): void {
+	set(enablementMap: ToolAndToolSetEnablementMap, sessionOnly: boolean): void {
 		const mode = this._mode.get();
 		if (sessionOnly || this._sessionStates.has(mode.id)) {
 			this._sessionStates.set(mode.id, ToolEnablementStates.fromMap(enablementMap));
@@ -203,7 +219,7 @@ export class ChatSelectedTools extends Disposable {
 		this._globalState.set(ToolEnablementStates.fromMap(enablementMap), undefined);
 	}
 
-	private async updateCustomModeTools(uri: URI, enablementMap: IToolAndToolSetEnablementMap): Promise<void> {
+	private async updateCustomModeTools(uri: URI, enablementMap: ToolAndToolSetEnablementMap): Promise<void> {
 		await this._instantiationService.createInstance(PromptFileRewriter).openAndRewriteTools(uri, enablementMap, CancellationToken.None);
 	}
 }

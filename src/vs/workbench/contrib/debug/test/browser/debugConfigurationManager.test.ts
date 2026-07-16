@@ -7,26 +7,26 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ConfigurationManager } from '../../browser/debugConfigurationManager.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from '../../common/debug.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { TestQuickInputService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestHistoryService, TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { ITestInstantiationService, TestRemoteAgentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('debugConfigurationManager', () => {
 	const configurationProviderType = 'custom-type';
 	let _debugConfigurationManager: ConfigurationManager;
 	let disposables: DisposableStore;
+	let instantiationService: ITestInstantiationService;
+	let contextService: TestContextService;
 
 	const adapterManager = <IAdapterManager>{
 		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
@@ -47,22 +47,22 @@ suite('debugConfigurationManager', () => {
 	};
 
 	const configurationService = new TestConfigurationService();
+	let remoteAgentService: IRemoteAgentService;
+
+	function createConfigurationManager(): ConfigurationManager {
+		instantiationService.stub(IWorkspaceContextService, contextService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		instantiationService.stub(IPreferencesService, preferencesService);
+		return disposables.add(instantiationService.createInstance(ConfigurationManager, adapterManager));
+	}
+
 	setup(() => {
 		disposables = new DisposableStore();
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService], [IConfigurationService, configurationService])));
-		_debugConfigurationManager = new ConfigurationManager(
-			adapterManager,
-			new TestContextService(),
-			configurationService,
-			new TestQuickInputService(),
-			instantiationService,
-			new TestStorageService(),
-			new TestExtensionService(),
-			new TestHistoryService(),
-			new UriIdentityService(fileService),
-			disposables.add(new ContextKeyService(configurationService)),
-			new NullLogService());
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+		contextService = new TestContextService();
+		remoteAgentService = new TestRemoteAgentService();
+		_debugConfigurationManager = createConfigurationManager();
 	});
 
 	teardown(() => disposables.dispose());
@@ -128,6 +128,70 @@ suite('debugConfigurationManager', () => {
 		assert.strictEqual(resultConfig!.type, secondProviderType);
 		// eslint-disable-next-line local/code-no-any-casts
 		assert.strictEqual((resultConfig as any).configurationResolved, true, 'Configuration should be updated by test provider');
+	});
+
+	test('uses remote target OS when computing visible configurations', async () => {
+		class LinuxRemoteAgentService extends TestRemoteAgentService {
+			override async getEnvironment(): Promise<IRemoteAgentEnvironment> {
+				return {
+					pid: 1,
+					connectionToken: 'token',
+					appRoot: URI.file('/remote/app'),
+					execPath: '/remote/app/node',
+					tmpDir: URI.file('/remote/tmp'),
+					settingsPath: URI.file('/remote/settings.json'),
+					mcpResource: URI.file('/remote/mcp.json'),
+					logsPath: URI.file('/remote/logs'),
+					extensionHostLogsPath: URI.file('/remote/ext-logs'),
+					globalStorageHome: URI.file('/remote/global-storage'),
+					workspaceStorageHome: URI.file('/remote/workspace-storage'),
+					localHistoryHome: URI.file('/remote/local-history'),
+					userHome: URI.file('/remote/home'),
+					os: OperatingSystem.Linux,
+					arch: 'x64',
+					marks: [],
+					useHostProxy: false,
+					profiles: {
+						all: [],
+						home: URI.file('/remote/profiles')
+					},
+					isUnsupportedGlibc: false
+				};
+			}
+		}
+
+		remoteAgentService = new LinuxRemoteAgentService();
+		contextService = new TestContextService();
+		configurationService.setUserConfiguration('launch', {
+			version: '0.2.0',
+			configurations: [
+				{ type: 'node', request: 'launch', name: 'visible', presentation: { hidden: false } },
+				{ type: 'node', request: 'launch', name: 'linux-hidden', linux: { presentation: { hidden: true } } }
+			]
+		});
+		disposables.delete(_debugConfigurationManager);
+		_debugConfigurationManager = createConfigurationManager();
+
+		if (OS !== OperatingSystem.Linux) {
+			await Event.toPromise(_debugConfigurationManager.onDidSelectConfiguration);
+		}
+
+		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['visible']);
+	});
+
+	test('ignores null entries in launch configurations', () => {
+		configurationService.setUserConfiguration('launch', {
+			version: '0.2.0',
+			configurations: [
+				{ type: 'node', request: 'launch', name: 'valid' },
+				null
+			]
+		});
+
+		disposables.delete(_debugConfigurationManager);
+		_debugConfigurationManager = createConfigurationManager();
+
+		assert.deepStrictEqual(_debugConfigurationManager.getAllConfigurations().map(({ name }) => name), ['valid']);
 	});
 
 	teardown(() => disposables.clear());

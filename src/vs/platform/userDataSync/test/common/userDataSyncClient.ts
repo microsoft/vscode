@@ -6,7 +6,7 @@
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -26,7 +26,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
+import { AuthInfo, Credentials, IRequestCompleteEvent, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -45,6 +45,7 @@ import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesSer
 import { NullPolicyService } from '../../../policy/common/policy.js';
 import { IUserDataProfileStorageService } from '../../../userDataProfile/common/userDataProfileStorageService.js';
 import { TestUserDataProfileStorageService } from '../../../userDataProfile/test/common/userDataProfileStorageService.test.js';
+import { IMeteredConnectionService } from '../../../meteredConnection/common/meteredConnection.js';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -67,7 +68,7 @@ export class UserDataSyncClient extends Disposable {
 			userRoamingDataHome,
 			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
-			sync: 'on',
+			sync: 'on'
 		});
 
 		this.instantiationService.stub(IProductService, {
@@ -100,6 +101,8 @@ export class UserDataSyncClient extends Disposable {
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
+
+		this.instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: new Emitter<boolean>().event });
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 
@@ -177,6 +180,8 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 export class UserDataSyncTestServer implements IRequestService {
 
 	_serviceBrand: undefined;
+
+	readonly onDidCompleteRequest = Event.None as Event<IRequestCompleteEvent>;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;

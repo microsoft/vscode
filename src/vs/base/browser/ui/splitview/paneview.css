@@ -6,6 +6,7 @@
 .monaco-pane-view {
 	width: 100%;
 	height: 100%;
+	--pane-header-size: 22px;
 }
 
 .monaco-pane-view .pane {
@@ -21,7 +22,7 @@
 }
 
 .monaco-pane-view .pane > .pane-header {
-	height: 22px;
+	height: var(--pane-header-size);
 	font-size: 11px;
 	font-weight: bold;
 	overflow: hidden;
@@ -42,11 +43,15 @@
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
 	flex-direction: column;
 	height: 100%;
-	width: 22px;
+	width: var(--pane-header-size);
 }
 
 .monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
 	margin: 0 2px;
+}
+
+.monaco-pane-view .pane > .pane-header.expanded > .codicon:first-of-type {
+	transform: translateY(1px);
 }
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {

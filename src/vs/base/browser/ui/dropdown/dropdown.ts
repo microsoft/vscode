@@ -7,7 +7,7 @@ import { IContextMenuProvider } from '../../contextmenu.js';
 import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { EventType as GestureEventType, Gesture } from '../../touch.js';
-import { AnchorAlignment } from '../contextview/contextview.js';
+import { AnchorAlignment, IContextViewCloseAnimation } from '../contextview/contextview.js';
 import type { IManagedHover } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
@@ -171,6 +171,8 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	readonly actions?: IAction[];
 	readonly actionProvider?: IActionProvider;
 	menuClassName?: string;
+	closeAnimation?: IContextViewCloseAnimation;
+	getAnchor?: () => HTMLElement;
 	menuAsChild?: boolean; // scope down for #99448
 	readonly skipTelemetry?: boolean;
 }
@@ -211,12 +213,13 @@ export class DropdownMenu extends BaseDropdown {
 		this.element.classList.add('active');
 
 		this._options.contextMenuProvider.showContextMenu({
-			getAnchor: () => this.element,
+			getAnchor: () => this._options.getAnchor?.() ?? this.element,
 			getActions: () => this.actions,
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionViewItem: (action, options) => this.menuOptions && this.menuOptions.actionViewItemProvider ? this.menuOptions.actionViewItemProvider(action, options) : undefined,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : undefined,
 			getMenuClassName: () => this._options.menuClassName || '',
+			closeAnimation: this._options.closeAnimation,
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,

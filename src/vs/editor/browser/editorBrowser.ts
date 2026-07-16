@@ -1227,6 +1227,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getWidthOfLine(lineNumber: number): number;
 
 	/**
+	 * Reset cached line widths. Call this when the editor becomes visible after being hidden.
+	 * @internal
+	 */
+	resetLineWidthCaches(): void;
+
+	/**
 	 * Force an editor render now.
 	 */
 	render(forceRedraw?: boolean): void;

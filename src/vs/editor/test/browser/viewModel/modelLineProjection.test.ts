@@ -915,8 +915,8 @@ suite('SplitLinesCollection', () => {
 			assert.deepStrictEqual(
 				data.map((d) => ({
 					inlineDecorations: d.inlineDecorations?.map((d) => ({
-						startOffset: d.startOffset,
-						endOffset: d.endOffset,
+						startOffset: d.range.startColumn - 1,
+						endOffset: d.range.endColumn - 1,
 					})),
 				})),
 				[

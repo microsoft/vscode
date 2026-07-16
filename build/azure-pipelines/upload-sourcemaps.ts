@@ -11,7 +11,7 @@ import * as util from '../lib/util.ts';
 import { getProductionDependencies } from '../lib/dependencies.ts';
 import { ClientAssertionCredential } from '@azure/identity';
 import Stream from 'stream';
-import azure from 'gulp-azure-storage';
+import { azureStorage } from '../lib/gulp/facade.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
@@ -58,7 +58,7 @@ function main(): Promise<void> {
 				console.log('Uploading Sourcemap', data.relative); // debug
 				this.emit('data', data);
 			}))
-			.pipe(azure.upload({
+			.pipe(azureStorage.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
 				container: '$web',

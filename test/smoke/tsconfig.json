@@ -8,6 +8,7 @@
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
+		"rootDir": "./src",
 		"outDir": "out",
 		"sourceMap": true,
 		"skipLibCheck": true,

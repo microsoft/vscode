@@ -10,14 +10,22 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { localize } from '../../../../../nls.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 
 //#region Session Opener Registry
 
 export interface ISessionOpenerParticipant {
 	handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean>;
+	handleOpenSessionResource?(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<boolean>;
 }
 
 export interface ISessionOpenOptions {
@@ -48,14 +56,46 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
 
+export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+
+	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		if (!participant.handleOpenSessionResource) {
+			continue;
+		}
+
+		try {
+			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSessionResource?.(accessor, resource, openOptions));
+			if (handled) {
+				return undefined;
+			}
+		} catch (error) {
+			logService.error(error);
+		}
+	}
+
+	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
+	if (!session) {
+		throw new Error(`Chat session not found: ${resource.toString()}`);
+	}
+
+	return instantiationService.invokeFunction(openSession, session, openOptions);
+}
+
 export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
-		const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
-		if (handled) {
-			return undefined; // Participant handled the session, skip default opening
+		try {
+			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
+			if (handled) {
+				return undefined; // Participant handled the session, skip default opening
+			}
+		} catch (error) {
+			logService.error(error); // log error but continue to support opening from default logic
 		}
 	}
 
@@ -66,36 +106,42 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const notificationService = accessor.get(INotificationService);
 
-	session.setRead(true); // mark as read when opened
+	try {
+		session.setRead(true); // mark as read when opened
 
-	let sessionOptions: IChatEditorOptions;
-	if (isLocalAgentSessionItem(session)) {
-		sessionOptions = {};
-	} else {
-		sessionOptions = { title: { preferred: session.label } };
+		let sessionOptions: IChatEditorOptions;
+		if (isLocalAgentSessionItem(session)) {
+			sessionOptions = {};
+		} else {
+			sessionOptions = { title: { preferred: session.label } };
+		}
+
+		let options: IChatEditorOptions = {
+			...sessionOptions,
+			...openOptions?.editorOptions,
+			revealIfOpened: true, // always try to reveal if already opened
+		};
+
+		await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+
+		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
+		if (openOptions?.sideBySide) {
+			target = ACTIVE_GROUP;
+		} else {
+			target = ChatViewPaneTarget;
+		}
+
+		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || getChatSessionType(session.resource) === localChatSessionType;
+		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(getChatSessionType(session.resource)))) {
+			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
+			options = { ...options, revealIfOpened: true };
+		}
+
+		return await chatWidgetService.openSession(session.resource, target, options);
+	} catch (error) {
+		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
+		return undefined;
 	}
-
-	let options: IChatEditorOptions = {
-		...sessionOptions,
-		...openOptions?.editorOptions,
-		revealIfOpened: true, // always try to reveal if already opened
-	};
-
-	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
-
-	let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
-	if (openOptions?.sideBySide) {
-		target = ACTIVE_GROUP;
-	} else {
-		target = ChatViewPaneTarget;
-	}
-
-	const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || session.resource.scheme === Schemas.vscodeLocalChatSession;
-	if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(session.resource))) {
-		target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
-		options = { ...options, revealIfOpened: true };
-	}
-
-	return chatWidgetService.openSession(session.resource, target, options);
 }

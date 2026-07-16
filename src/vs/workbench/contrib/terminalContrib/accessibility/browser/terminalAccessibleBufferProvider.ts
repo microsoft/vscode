@@ -21,7 +21,7 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 
 	private _focusedInstance: ITerminalInstance | undefined;
 
-	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
+	private readonly _onDidRequestClearProvider = this._register(new Emitter<AccessibleViewProviderId>());
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 
 	constructor(
