@@ -715,8 +715,10 @@ export class SettingsEditor2 extends EditorPane {
 		// Reveal renders the row synchronously so its control can be focused below.
 		this.settingsTree.reveal(target);
 		this.settingsTree.setFocus([target]);
+		// The row selector avoids matching the previously focused setting, whose container
+		// keeps a stale focused class until DOM focus moves away from its control.
 		// eslint-disable-next-line no-restricted-syntax
-		const control = this.settingsTree.getHTMLElement().querySelector(`[${AbstractSettingRenderer.SETTING_ID_ATTR}="${target.id}"] ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
+		const control = this.settingsTree.getHTMLElement().querySelector(`.monaco-list-row.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
 		if (control) {
 			(<HTMLElement>control).focus();
 		}
