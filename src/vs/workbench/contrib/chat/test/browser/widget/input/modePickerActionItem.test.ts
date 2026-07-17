@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { getCustomAgentCategory } from '../../../../browser/widget/input/modePickerActionItem.js';
+import { getCustomAgentAriaDescription, getCustomAgentCategory } from '../../../../browser/widget/input/modePickerActionItem.js';
 import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 
 suite('getCustomAgentCategory', () => {
@@ -32,7 +32,7 @@ suite('getCustomAgentCategory', () => {
 				user: { label: 'User', order: 2, showHeader: true },
 				plugin: { label: 'Plugins', order: 3, showHeader: true },
 				extension: { label: 'Extensions', order: 4, showHeader: true },
-				builtIn: { label: 'Custom', order: 5, showHeader: true },
+				builtIn: { label: 'Built-in', order: 0, showHeader: true },
 				undefined: { label: 'Custom', order: 5, showHeader: true },
 			}
 		);
@@ -43,5 +43,32 @@ suite('getCustomAgentCategory', () => {
 		const user = getCustomAgentCategory(PromptsStorage.user);
 
 		assert.ok(workspace!.order < user!.order, 'workspace agents should be listed before user agents');
+	});
+});
+
+suite('getCustomAgentAriaDescription', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('tells same-named agents apart by folding the category into the accessible description', () => {
+		const workspace = getCustomAgentCategory(PromptsStorage.local);
+		const user = getCustomAgentCategory(PromptsStorage.user);
+
+		assert.deepStrictEqual(
+			{
+				workspaceAgent: getCustomAgentAriaDescription(workspace, 'Reviews code'),
+				userAgent: getCustomAgentAriaDescription(user, 'Reviews code'),
+				withoutDescription: getCustomAgentAriaDescription(workspace, undefined),
+				withoutCategory: getCustomAgentAriaDescription(undefined, 'Reviews code'),
+				withoutBoth: getCustomAgentAriaDescription(undefined, undefined),
+			},
+			{
+				workspaceAgent: 'Workspace, Reviews code',
+				userAgent: 'User, Reviews code',
+				withoutDescription: 'Workspace',
+				withoutCategory: 'Reviews code',
+				withoutBoth: undefined,
+			}
+		);
 	});
 });

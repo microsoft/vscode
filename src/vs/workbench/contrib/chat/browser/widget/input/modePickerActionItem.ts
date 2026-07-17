@@ -77,8 +77,19 @@ export function getCustomAgentCategory(storage: PromptsStorage | undefined): IAc
 		case PromptsStorage.user: return userCategory;
 		case PromptsStorage.plugin: return pluginCategory;
 		case PromptsStorage.extension: return extensionCategory;
+		case PromptsStorage.builtIn: return builtInCategory;
 		default: return customCategory;
 	}
+}
+
+/**
+ * Screen readers announce an action without the category header it sits under, so agents that share a
+ * name would be announced identically. Fold the category into the accessible description to keep them
+ * distinguishable.
+ */
+export function getCustomAgentAriaDescription(category: IActionWidgetDropdownAction['category'], description: string | undefined): string | undefined {
+	const parts = coalesce([category?.label, description]);
+	return parts.length ? parts.join(', ') : undefined;
 }
 
 export class ModePickerActionItem extends ChatInputPickerActionViewItem {
@@ -183,13 +194,16 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			};
 		};
 
-		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode, categoryOverride?: IActionWidgetDropdownAction['category']): IActionWidgetDropdownAction => {
+			const description = mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
+			const category = categoryOverride ?? (agentModeDisabledViaPolicy ? policyDisabledCategory : getCustomAgentCategory(mode.source?.storage));
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
-				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
+				hover: { content: description },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
-				category: agentModeDisabledViaPolicy ? policyDisabledCategory : getCustomAgentCategory(mode.source?.storage)
+				ariaDescription: getCustomAgentAriaDescription(category, description),
+				category
 			};
 		};
 
@@ -210,11 +224,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			const checked = currentMode.id === ChatMode.Agent.id;
 			const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
 			defaultAction.category = builtInCategory;
-			const builtInActions = customModes.builtin?.map(mode => {
-				const action = makeActionFromCustomMode(mode, currentMode);
-				action.category = builtInCategory;
-				return action;
-			}) ?? [];
+			const builtInActions = customModes.builtin?.map(mode => makeActionFromCustomMode(mode, currentMode, builtInCategory)) ?? [];
 			// Add filtered custom modes
 			const customActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
 			return [defaultAction, ...builtInActions, ...customActions];
@@ -240,11 +250,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					filteredCustomModes,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
-				const customBuiltinModeActions = customModes.builtin?.map(mode => {
-					const action = makeActionFromCustomMode(mode, currentMode);
-					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
-					return action;
-				}) ?? [];
+				const customBuiltinModeActions = customModes.builtin?.map(mode =>
+					makeActionFromCustomMode(mode, currentMode, agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory)) ?? [];
 				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
 				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
