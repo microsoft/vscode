@@ -336,13 +336,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
-					if (!this._isResuming) {
-						this._lastSessionId = msg.session_id;
-					}
+					// Always adopt the server's session id and clear the resuming
+					// flag, even when a resume attempt failed and the server
+					// started a fresh session instead. Refusing the fresh id here
+					// left the client believing it still owned a dead session,
+					// stalling reconnect (see `_isResuming` regression).
+					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'session_resumed':
 					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
@@ -499,6 +504,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
+		this._isResuming = false;
 		this._lastSentById.clear();
 		this._lastSentActive = '';
 		this._setConnected(false);

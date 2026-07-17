@@ -43,6 +43,13 @@ function createTestWindow(language = 'en-US'): Window & typeof globalThis {
 			if (property === 'WebSocket') {
 				return TestWebSocket;
 			}
+			// Native timer methods are branded to their owning `window` and
+			// throw "Illegal invocation" when invoked with a Proxy as `this`
+			// (as happens via `win.setInterval(...)` through this trap).
+			// Bind them to the real target so the service's ping timer works.
+			if (property === 'setInterval' || property === 'clearInterval') {
+				return target[property].bind(target);
+			}
 			if (property === 'navigator') {
 				return new Proxy(target.navigator, {
 					get(navigatorTarget, navigatorProperty, navigatorReceiver) {
@@ -388,5 +395,60 @@ suite('VoiceClientService', () => {
 				voice: 'daniel_neutral',
 			}],
 		});
+	});
+
+	test('adopts the server session id and clears isResuming on session_init, even after a failed resume', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		assert.strictEqual(service.currentSessionId, 'session-1');
+		assert.strictEqual(service.isResuming, false);
+
+		// Simulate a reconnect attempt: the socket opens (marking us as
+		// resuming the prior session id) but the server can't resume and
+		// starts a brand new session instead.
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-2' }),
+		}));
+
+		assert.strictEqual(service.currentSessionId, 'session-2');
+		assert.strictEqual(service.isResuming, false);
+	});
+
+	test('adopts the server session id and clears isResuming on session_resumed', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_resumed', session_id: 'session-1' }),
+		}));
+
+		assert.strictEqual(service.currentSessionId, 'session-1');
+		assert.strictEqual(service.isResuming, false);
+	});
+
+	test('resets isResuming on cleanup (terminal disconnect)', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+		socket().onopen?.();
+		assert.strictEqual(service.isResuming, true);
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 1000, wasClean: true }));
+
+		assert.strictEqual(service.isResuming, false);
+		assert.strictEqual(service.currentSessionId, undefined);
 	});
 });
