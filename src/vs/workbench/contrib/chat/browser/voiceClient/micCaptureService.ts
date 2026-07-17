@@ -239,6 +239,14 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		// now: cancel the fallback timer, mark streaming closed, fire
 		// `_onPttEnd`. Otherwise the backend would keep the prior turn
 		// open and our new turn would race against it.
+		//
+		// This is also a load-bearing ordering guarantee: flushing the
+		// drain (and its `_onPttEnd`) BEFORE this turn's `_onPttStart`
+		// fires below keeps the wire order `ptt_end`(prev) then
+		// `ptt_start`(next). `ptt_end` carries no turn_id, so the backend
+		// relies on that order to end the correct turn and never the
+		// freshly opened one. Keep `_finishDrain()` ahead of every
+		// `_onPttStart.fire()` path if this method is refactored.
 		this._finishDrain();
 		// If a previous press's diagnostic hasn't fired yet (back-to-back
 		// presses inside the diagnostic window), emit it now so it
