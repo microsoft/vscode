@@ -50,6 +50,15 @@ const MODEL_FILES = [
 ];
 
 /**
+ * Pinned Hugging Face commit the hard-coded tensor shapes, cache sizes, and
+ * vocabulary ids below were validated against. Downloads resolve this exact
+ * revision (not the mutable `main` branch) and it is part of the on-disk cache
+ * identity, so an upstream model update can never hand new users an
+ * incompatible export or be silently mixed with a previously cached one.
+ */
+const MODEL_REVISION = '8364d9e2dd9da23789b480bdbba9e423717e42ee';
+
+/**
  * onnxruntime-node is a heavy native addon (also pulled in by transformers.js);
  * import it lazily and keep its types loose so the platform layer doesn't take
  * a hard build-time dependency on it.
@@ -111,22 +120,44 @@ export class NemotronTranscriber {
 	}
 
 	/**
+	 * Release the native ONNX sessions and drop references to them. Safe to call
+	 * more than once. Invoke when replacing/reloading the model or disposing the
+	 * owning service so the ~800MB of native allocations do not stay resident
+	 * for the utility process lifetime.
+	 */
+	async release(): Promise<void> {
+		const sessions = [this._enc, this._dec, this._joint];
+		this._enc = this._dec = this._joint = undefined;
+		await Promise.allSettled(sessions.map(s => s?.release()));
+	}
+
+	/**
 	 * Download (if needed) and load the model. `cacheDir` is the shared model
 	 * cache; files are placed in a per-model subfolder guarded by a `.complete`
 	 * sentinel so a half-finished download is never reused.
 	 */
 	async prepare(cacheDir: string, model: string, onProgress: INemotronProgress): Promise<void> {
-		const modelDir = join(cacheDir, 'nemotron', model.replace(/[^a-zA-Z0-9._-]/g, '_'));
+		const sanitized = `${model}@${MODEL_REVISION}`.replace(/[^a-zA-Z0-9._-]/g, '_');
+		const modelDir = join(cacheDir, 'nemotron', sanitized);
 		await this._ensureDownloaded(modelDir, model, onProgress);
 
 		onProgress({ downloaded: true });
 		const ort = await this._loadOrt();
 		const opts = { executionProviders: ['cpu'] } as const;
-		[this._enc, this._dec, this._joint] = await Promise.all([
-			ort.InferenceSession.create(join(modelDir, 'encoder.onnx'), opts),
-			ort.InferenceSession.create(join(modelDir, 'decoder.onnx'), opts),
-			ort.InferenceSession.create(join(modelDir, 'joint.onnx'), opts),
-		]);
+		// Open the three graphs concurrently, but if any fails release the ones
+		// that already opened so a partial failure cannot leak native sessions.
+		const encP = ort.InferenceSession.create(join(modelDir, 'encoder.onnx'), opts);
+		const decP = ort.InferenceSession.create(join(modelDir, 'decoder.onnx'), opts);
+		const jointP = ort.InferenceSession.create(join(modelDir, 'joint.onnx'), opts);
+		try {
+			this._enc = await encP;
+			this._dec = await decP;
+			this._joint = await jointP;
+		} catch (err) {
+			await Promise.allSettled([encP, decP, jointP].map(p => p.then(s => s.release()).catch(() => { })));
+			this._enc = this._dec = this._joint = undefined;
+			throw err;
+		}
 		this._vocab = fs.readFileSync(join(modelDir, 'vocab.txt'), 'utf8').split('\n');
 		this._filterbank = melFilterbank();
 		// Hann window (symmetric), centered within the N_FFT frame.
@@ -218,7 +249,7 @@ export class NemotronTranscriber {
 
 		// Determine total bytes up front so progress can be reported as a single
 		// 0..1 value across all files (the .data blobs dominate).
-		const base = `https://huggingface.co/${model}/resolve/main`;
+		const base = `https://huggingface.co/${model}/resolve/${MODEL_REVISION}`;
 		const sizes: number[] = [];
 		for (const file of MODEL_FILES) {
 			sizes.push(await headContentLength(`${base}/${file}`));

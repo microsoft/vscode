@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import {
 	ILocalTranscriptionModelStatus,
@@ -91,6 +91,22 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 	private _interimTimer: ReturnType<typeof setTimeout> | undefined;
 	private _lastText = '';
 
+	/**
+	 * Set when a session is torn down while an inference is still awaiting an
+	 * ONNX run: resetting the transducer's streaming state right then would race
+	 * with the in-flight call (which would resume and write cache/LSTM/token
+	 * results into the freshly-reset state, contaminating the next session). The
+	 * reset is deferred until that inference finishes instead.
+	 */
+	private _pendingStreamReset = false;
+
+	constructor() {
+		super();
+		// Release the ~800MB of native ONNX allocations when the service (and its
+		// utility process) goes away, rather than leaking them for its lifetime.
+		this._register(toDisposable(() => { void this._nemotron?.release(); this._nemotron = undefined; }));
+	}
+
 	async getModelStatus(): Promise<ILocalTranscriptionModelStatus> {
 		return this._status;
 	}
@@ -126,20 +142,35 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			try {
 				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
 
+				// Reaching here means we are (re)loading rather than reusing an
+				// already-loaded backend, so release any previous transducer's
+				// native sessions before opening the replacement.
+				if (this._nemotron) {
+					const previous = this._nemotron;
+					this._nemotron = undefined;
+					await previous.release();
+				}
+
 				// `prepare` reports `downloaded:false` progress callbacks only for
 				// bytes actually fetched from the network; a fully-cached model
 				// loads without them. Track that so the model-prepare telemetry
 				// can distinguish a first-use download from a cache hit.
 				let didDownload = false;
 				const transcriber = new NemotronTranscriber();
-				await transcriber.prepare(cacheDir, model, ({ downloaded, progress }) => {
-					if (downloaded) {
-						this._setStatus({ state: LocalTranscriptionModelState.Loading });
-					} else {
-						didDownload = true;
-						this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: progress ?? 0 });
-					}
-				});
+				try {
+					await transcriber.prepare(cacheDir, model, ({ downloaded, progress }) => {
+						if (downloaded) {
+							this._setStatus({ state: LocalTranscriptionModelState.Loading });
+						} else {
+							didDownload = true;
+							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: progress ?? 0 });
+						}
+					});
+				} catch (err) {
+					// Release anything the failed load left open before rethrowing.
+					await transcriber.release();
+					throw err;
+				}
 				this._nemotron = transcriber;
 				this._setStatus({ state: LocalTranscriptionModelState.Ready, downloaded: didDownload });
 				return transcriber;
@@ -206,6 +237,13 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 			return text;
 		} finally {
 			this._inferenceInFlight = false;
+			// A session torn down mid-inference deferred its stream reset to avoid
+			// racing this call; now that it has finished mutating the transducer's
+			// streaming state, apply the reset so the next session starts clean.
+			if (this._pendingStreamReset) {
+				this._pendingStreamReset = false;
+				this._nemotron?.resetStream();
+			}
 		}
 	}
 
@@ -270,8 +308,15 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._sampleCount = 0;
 		this._lastText = '';
 		// Drop the streaming transducer's per-session state (caches, LSTM state,
-		// emitted tokens) so the next session starts from a clean slate.
-		this._nemotron?.resetStream();
+		// emitted tokens) so the next session starts from a clean slate. If an
+		// inference is still awaiting an ONNX run, resetting now would race it
+		// (it would resume and write results into the reset state); defer the
+		// reset until that call finishes instead.
+		if (this._inferenceInFlight) {
+			this._pendingStreamReset = true;
+		} else {
+			this._nemotron?.resetStream();
+		}
 	}
 }
 
