@@ -694,6 +694,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			...this._content,
 			options: { ...this._content.options, localResourceRoots: resources }
 		};
+		this.onContentDidChange();
 	}
 
 	public set state(state: string | undefined) {

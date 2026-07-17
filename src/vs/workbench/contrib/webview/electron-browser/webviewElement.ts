@@ -321,6 +321,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			html: this.content.html,
 			allowScripts: this.content.options.allowScripts,
 			allowForms: this.content.options.allowForms,
+			roots: this.content.options.localResourceRoots?.map(root => root.toString()),
 		});
 		if (contentKey === this._directContentKey) {
 			return;
@@ -344,6 +345,7 @@ export class ElectronWebviewElement extends WebviewElement {
 				windowId: this.windowId!,
 				html: transformed.html,
 				csp: transformed.csp,
+				roots: this.content.options.localResourceRoots || [],
 			});
 			if (generation !== this._directGeneration || !this.element) {
 				return;

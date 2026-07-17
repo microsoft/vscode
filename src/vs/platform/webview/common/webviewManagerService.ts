@@ -59,6 +59,7 @@ export interface WebviewDocumentRegistration {
 	readonly windowId: number;
 	readonly html: string;
 	readonly csp: string;
+	readonly roots: readonly UriComponents[];
 }
 
 export interface WebviewResourceRequest {

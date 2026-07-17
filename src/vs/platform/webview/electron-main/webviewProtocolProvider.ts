@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { protocol } from 'electron';
+import { net, protocol } from 'electron';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { getWebviewContentMimeType } from '../common/mimeTypes.js';
+import { isWebviewResourceAllowed } from '../common/resourceLoading.js';
 import { WebviewDocumentRegistration, WebviewPortMappingRequest, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
 
 
@@ -35,6 +38,7 @@ export class WebviewProtocolProvider implements IDisposable {
 		private readonly requestResource: (request: WebviewResourceRequest) => void,
 		private readonly cancelResource: (requestId: number) => void,
 		private readonly requestPortMapping: (request: WebviewPortMappingRequest) => void,
+		private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		// Register the protocol for loading webview html
@@ -245,6 +249,10 @@ export class WebviewProtocolProvider implements IDisposable {
 		if (!resource) {
 			return new Response(null, { status: 403 });
 		}
+		const localResponse = await this.tryLoadLocalFileResource(request, resource, document);
+		if (localResponse) {
+			return localResponse;
+		}
 		if (this.pendingResources.size >= 128) {
 			return new Response(null, { status: 429 });
 		}
@@ -274,6 +282,35 @@ export class WebviewProtocolProvider implements IDisposable {
 				range,
 			});
 		});
+	}
+
+	private async tryLoadLocalFileResource(request: GlobalRequest, resource: URI, document: WebviewDocumentRegistration): Promise<Response | undefined> {
+		if (resource.scheme !== Schemas.file
+			|| request.headers.has('range')
+			|| request.headers.has('if-none-match')
+			|| !isWebviewResourceAllowed(resource, document.roots.map(root => URI.revive(root)), this.uriIdentityService)) {
+			return undefined;
+		}
+
+		try {
+			const response = await net.fetch(resource.toString(true), {
+				method: request.method,
+				signal: request.signal,
+				bypassCustomProtocolHandlers: true,
+			});
+			const headers = new Headers(response.headers);
+			headers.set('Content-Type', getWebviewContentMimeType(resource));
+			headers.set('Access-Control-Allow-Origin', '*');
+			headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+			headers.set('X-Content-Type-Options', 'nosniff');
+			return new Response(request.method === 'HEAD' ? null : response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			});
+		} catch {
+			return undefined;
+		}
 	}
 
 	private parseRange(value: string | null): { start: number; end?: number } | undefined {

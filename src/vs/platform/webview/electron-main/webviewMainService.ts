@@ -10,6 +10,7 @@ import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, Webview
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IFileService } from '../../files/common/files.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
@@ -27,6 +28,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	constructor(
 		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super();
@@ -34,6 +36,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			request => this._onDidRequestWebviewResource.fire(request),
 			requestId => this._onDidCancelWebviewResource.fire(requestId),
 			request => this._onDidRequestWebviewPortMapping.fire(request),
+			uriIdentityService,
 			fileService,
 		));
 		this._register(this.windowsMainService.onDidDestroyWindow(window => this.protocolProvider.unregisterWebviewWindow(window.id)));
