@@ -27,6 +27,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
@@ -72,6 +73,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -204,6 +206,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
+			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),

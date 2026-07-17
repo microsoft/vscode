@@ -8,7 +8,9 @@
 /** @type {ServiceWorkerGlobalScope} */
 const sw = /** @type {any} */ (self);
 
-const VERSION = 5;
+const VERSION = 6;
+
+const maxActiveHostResourceResponseBodies = 32;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
@@ -17,6 +19,7 @@ const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
+const shouldLimitHostResourceResponseBodies = searchParams.get('platform') === 'electron';
 
 /**
  * Origin used for resources
@@ -106,11 +109,121 @@ class RequestStore {
 	}
 }
 
+class AsyncSemaphore {
+	/**
+	 * @param {number} maxConcurrency
+	 */
+	constructor(maxConcurrency) {
+		this.maxConcurrency = maxConcurrency;
+		this.activeCount = 0;
+		/** @type {Array<(release: () => void) => void>} */
+		this.waiters = [];
+	}
+
+	/**
+	 * @returns {Promise<() => void>}
+	 */
+	acquire() {
+		if (this.activeCount < this.maxConcurrency && this.waiters.length === 0) {
+			this.activeCount++;
+			return Promise.resolve(this.createReleaser());
+		}
+
+		return new Promise(resolve => this.waiters.push(resolve));
+	}
+
+	/**
+	 * @returns {() => void}
+	 */
+	createReleaser() {
+		let released = false;
+		return () => {
+			if (released) {
+				return;
+			}
+			released = true;
+
+			const waiter = this.waiters.shift();
+			if (waiter) {
+				waiter(this.createReleaser());
+			} else {
+				this.activeCount--;
+			}
+		};
+	}
+}
+
+/**
+ * @param {() => void} release
+ * @param {number} pendingCount
+ * @returns {() => void}
+ */
+function createJoinedFinalizer(release, pendingCount) {
+	let remaining = pendingCount;
+	let finished = false;
+	return () => {
+		if (finished) {
+			return;
+		}
+
+		remaining--;
+		if (remaining === 0) {
+			finished = true;
+			release();
+		}
+	};
+}
+
+/**
+ * @param {ReadableStream<Uint8Array>} stream
+ * @param {() => void} onDidFinish
+ * @returns {ReadableStream<Uint8Array>}
+ */
+function trackReadableStreamLifetime(stream, onDidFinish) {
+	const reader = stream.getReader();
+	let finished = false;
+	const finish = () => {
+		if (finished) {
+			return;
+		}
+		finished = true;
+		onDidFinish();
+	};
+
+	return new ReadableStream({
+		async pull(controller) {
+			try {
+				const { done, value } = await reader.read();
+				if (done) {
+					finish();
+					controller.close();
+					return;
+				}
+
+				controller.enqueue(value);
+			} catch (error) {
+				finish();
+				throw error;
+			}
+		},
+		cancel(reason) {
+			const cancellation = reader.cancel(reason).catch(() => undefined);
+			if (shouldLimitHostResourceResponseBodies) {
+				return cancellation.finally(finish);
+			}
+			finish();
+			return cancellation;
+		}
+	});
+}
+
 /**
  * Map of requested paths to responses.
  */
 /** @type {RequestStore<ResourceResponse>} */
 const resourceRequestStore = new RequestStore();
+
+const hostResourceResponseBodySemaphore = new AsyncSemaphore(maxActiveHostResourceResponseBodies);
 
 /**
  * Safari fallback: map of active chunk-based streaming responses.
@@ -165,16 +278,31 @@ sw.addEventListener('message', async (event) => {
 					);
 					stream = transform.readable;
 				}
-				resourceRequestStore.resolve(response.id, {
-					status: response.status,
-					id: response.id,
-					path: response.path,
-					mime: response.mime,
-					etag: response.etag,
-					mtime: response.mtime,
-					stream,
-					range: response.range,
-				});
+				if (response.stream) {
+					if (!resourceRequestStore.resolve(response.id, {
+						status: response.status,
+						id: response.id,
+						path: response.path,
+						mime: response.mime,
+						etag: response.etag,
+						mtime: response.mtime,
+						stream,
+						range: response.range,
+					})) {
+						event.waitUntil(stream.cancel().catch(() => undefined));
+					}
+				} else {
+					resourceRequestStore.resolve(response.id, {
+						status: response.status,
+						id: response.id,
+						path: response.path,
+						mime: response.mime,
+						etag: response.etag,
+						mtime: response.mtime,
+						stream,
+						range: response.range,
+					});
+				}
 			} else if (!resourceRequestStore.resolve(response.id, response)) {
 				console.log('Could not resolve unknown resource', response.path);
 			}
@@ -319,8 +447,9 @@ async function processResourceRequest(
 	 * @param {Response|undefined} cachedResponse
 	 * @returns {Response}
 	 */
-	const resolveResourceEntry = (result, cachedResponse) => {
+	const resolveResourceEntry = (result, cachedResponse, releaseHostResourceResponseBody) => {
 		if (result.status === 'timeout') {
+			releaseHostResourceResponseBody();
 			return requestTimeout();
 		}
 
@@ -333,6 +462,7 @@ async function processResourceRequest(
 		const entry = result.value;
 		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
+				releaseHostResourceResponseBody();
 				const r = cachedResponse.clone();
 				for (const [key, value] of Object.entries(accessControlHeaders)) {
 					r.headers.set(key, value);
@@ -344,10 +474,12 @@ async function processResourceRequest(
 		}
 
 		if (entry.status === 401) {
+			releaseHostResourceResponseBody();
 			return unauthorized();
 		}
 
 		if (entry.status !== 200 && entry.status !== 206) {
+			releaseHostResourceResponseBody();
 			return notFound();
 		}
 
@@ -382,18 +514,22 @@ async function processResourceRequest(
 			if (entry.status === 206 && entry.range) {
 				headers['Content-Range'] = entry.range;
 				headers['Cache-Control'] = 'no-store';
-				return new Response(entry.stream, { status: 206, headers });
+				return new Response(trackReadableStreamLifetime(entry.stream, releaseHostResourceResponseBody), { status: 206, headers });
 			}
-
-			const response = new Response(entry.stream, { status: 200, headers });
 
 			if (shouldTryCaching && entry.etag) {
-				const responseForCache = response.clone();
-				caches.open(resourceCacheName).then(cache => {
-					return cache.put(event.request, responseForCache);
-				});
+				const [responseStream, cacheStream] = entry.stream.tee();
+				const releaseAfterResponseAndCache = createJoinedFinalizer(releaseHostResourceResponseBody, 2);
+				const response = new Response(trackReadableStreamLifetime(responseStream, releaseAfterResponseAndCache), { status: 200, headers });
+				const responseForCache = new Response(cacheStream, { status: 200, headers });
+				void caches.open(resourceCacheName)
+					.then(cache => cache.put(event.request, responseForCache))
+					.then(undefined, () => undefined)
+					.finally(releaseAfterResponseAndCache);
+				return response;
 			}
-			return response;
+
+			return new Response(trackReadableStreamLifetime(entry.stream, releaseHostResourceResponseBody), { status: 200, headers });
 		}
 	};
 
@@ -403,8 +539,6 @@ async function processResourceRequest(
 		const cache = await caches.open(resourceCacheName);
 		cached = await cache.match(event.request);
 	}
-
-	const { requestId, promise } = resourceRequestStore.create();
 
 	// Parse range header to forward to the host so it can read only the needed bytes
 	/** @type {{ start: number, end?: number } | undefined} */
@@ -428,28 +562,48 @@ async function processResourceRequest(
 		}
 	}
 
+	/** @type {Client[] | undefined} */
+	let parentClients;
 	if (webviewId) {
-		const parentClients = await getOuterIframeClient(webviewId);
+		parentClients = await getOuterIframeClient(webviewId);
 		if (!parentClients.length) {
 			console.log('Could not find parent client for request');
 			return notFound();
 		}
-
-		for (const parentClient of parentClients) {
-			parentClient.postMessage({
-				channel: 'load-resource',
-				id: requestId,
-				scheme: requestUrlComponents.scheme,
-				authority: requestUrlComponents.authority,
-				path: requestUrlComponents.path,
-				query: requestUrlComponents.query,
-				ifNoneMatch: cached?.headers.get('ETag'),
-				range,
-			});
-		}
 	}
 
-	return promise.then(entry => resolveResourceEntry(entry, cached));
+	const releaseHostResourceResponseBody = shouldLimitHostResourceResponseBodies && webviewId
+		? await hostResourceResponseBodySemaphore.acquire()
+		: () => { };
+
+	const { requestId, promise } = resourceRequestStore.create();
+	try {
+		if (parentClients) {
+			for (const parentClient of parentClients) {
+				parentClient.postMessage({
+					channel: 'load-resource',
+					id: requestId,
+					scheme: requestUrlComponents.scheme,
+					authority: requestUrlComponents.authority,
+					path: requestUrlComponents.path,
+					query: requestUrlComponents.query,
+					ifNoneMatch: cached?.headers.get('ETag'),
+					range,
+				});
+			}
+		}
+
+		const entry = await promise;
+		try {
+			return resolveResourceEntry(entry, cached, releaseHostResourceResponseBody);
+		} catch (error) {
+			releaseHostResourceResponseBody();
+			throw error;
+		}
+	} catch (error) {
+		releaseHostResourceResponseBody();
+		throw error;
+	}
 }
 
 /**

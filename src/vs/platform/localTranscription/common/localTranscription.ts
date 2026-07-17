@@ -30,8 +30,19 @@ export interface ILocalTranscriptionModelStatus {
 	readonly state: LocalTranscriptionModelState;
 	/** Overall download progress in [0, 1] while `Downloading`. */
 	readonly progress?: number;
-	/** Short error identifier when `state === Error`. */
+	/**
+	 * Whether model files were actually fetched from the network (a cache miss)
+	 * during this preparation, as opposed to loaded from the on-disk cache. Set
+	 * on the `Ready` status. Used for download telemetry.
+	 */
+	readonly downloaded?: boolean;
+	/** Human-readable error message when `state === Error` (for UI/logging). */
 	readonly error?: string;
+	/**
+	 * Allowlisted, low-cardinality error identifier when `state === Error`
+	 * (e.g. `network`, `notFound`, `memory`), safe to send as telemetry.
+	 */
+	readonly errorCode?: string;
 }
 
 export interface ILocalTranscriptionResult {

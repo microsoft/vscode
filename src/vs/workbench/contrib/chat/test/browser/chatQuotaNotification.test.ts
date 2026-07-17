@@ -239,7 +239,7 @@ suite('ChatQuotaNotificationContribution', () => {
 		const vendor = modelOpts?.vendor ?? 'copilot';
 		const selectedModelId = modelOpts?.selectedModelId ?? `${vendor}/test-model`;
 		// Persist model selection in storage (used by getSelectedModelVendor)
-		storageService.store('chat.currentLanguageModel.panel', selectedModelId, StorageScope.APPLICATION, StorageTarget.USER);
+		storageService.store('chat.currentLanguageModel.panel', selectedModelId, StorageScope.PROFILE, StorageTarget.USER);
 		const modelIds = ['copilot/auto', selectedModelId];
 		const languageModelsService = {
 			_serviceBrand: undefined,
@@ -1141,7 +1141,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			const contextKeyService = store.add(new MockContextKeyService());
 			const storageService = store.add(new InMemoryStorageService());
 			// Start with BYOK model
-			storageService.store('chat.currentLanguageModel.panel', 'customendpoint/ANT/claude-sonnet-4-6', StorageScope.APPLICATION, StorageTarget.USER);
+			storageService.store('chat.currentLanguageModel.panel', 'customendpoint/ANT/claude-sonnet-4-6', StorageScope.PROFILE, StorageTarget.USER);
 			// Registry returns undefined — vendor detection relies on prefix extraction
 			const languageModelsService = {
 				_serviceBrand: undefined,
@@ -1172,7 +1172,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 
 			// Switch to Copilot model via storage — triggers storage listener
-			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.APPLICATION, StorageTarget.USER);
+			storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1', StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});

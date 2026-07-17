@@ -67,6 +67,31 @@ type Transformers = typeof import('@huggingface/transformers');
 type ASRResult = { text?: string } | Array<{ text?: string }>;
 type ASRPipeline = (audio: Float32Array, options?: Record<string, unknown>) => Promise<ASRResult>;
 
+/**
+ * Map a raw model download/load error message to a fixed, low-cardinality code
+ * safe to emit as telemetry. The raw message can contain paths, URLs, or other
+ * dynamic detail, so only the returned allowlisted code should be reported.
+ */
+function classifyModelError(message: string): string {
+	const text = message.toLowerCase();
+	if (/\b(404|not found|no such file|does not exist|could not locate|repository not found)\b/.test(text)) {
+		return 'notFound';
+	}
+	if (/\b(network|fetch|econn|enotfound|etimedout|socket|dns|offline|proxy|tls|certificate|getaddrinfo)\b/.test(text)) {
+		return 'network';
+	}
+	if (/\b(out of memory|oom|enomem|allocation failed|cannot allocate)\b/.test(text)) {
+		return 'memory';
+	}
+	if (/\b(enospc|no space left|disk)\b/.test(text)) {
+		return 'disk';
+	}
+	if (/\b(eacces|eperm|permission denied|access is denied)\b/.test(text)) {
+		return 'permission';
+	}
+	return 'unknown';
+}
+
 export class LocalTranscriptionService extends Disposable implements ILocalTranscriptionService {
 
 	declare readonly _serviceBrand: undefined;
@@ -140,10 +165,20 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				env.cacheDir = cacheDir;
 				env.allowRemoteModels = true;
 
+				// transformers.js only emits `initiate`/`download`/`progress`
+				// callbacks for files it actually fetches from the network; a
+				// fully-cached model loads without any of them. Track that so we
+				// can distinguish a first-use download from a cache hit (the
+				// unconditional `Downloading` state below is a UI signal only and
+				// fires even for cached loads, so it cannot be used for this).
+				let didDownload = false;
 				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
 				const pipe = await pipeline('automatic-speech-recognition', model, {
 					dtype: DEFAULT_DTYPE,
 					progress_callback: (p: { status?: string; progress?: number }) => {
+						if (p.status === 'initiate' || p.status === 'download' || p.status === 'progress') {
+							didDownload = true;
+						}
 						if (p.status === 'progress' && typeof p.progress === 'number') {
 							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, p.progress / 100) });
 						} else if (p.status === 'ready') {
@@ -154,13 +189,14 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 				// The transformers.js pipeline() return type is a broad union that
 				// isn't directly callable; narrow it to our ASR call signature.
 				this._pipeline = pipe as unknown as ASRPipeline;
-				this._setStatus({ state: LocalTranscriptionModelState.Ready });
+				this._setStatus({ state: LocalTranscriptionModelState.Ready, downloaded: didDownload });
 				return this._pipeline;
 			} catch (err) {
 				this._pipeline = undefined;
 				this._pipelinePromise = undefined;
 				this._loadedModel = undefined;
-				this._setStatus({ state: LocalTranscriptionModelState.Error, error: String(err instanceof Error ? err.message : err) });
+				const message = String(err instanceof Error ? err.message : err);
+				this._setStatus({ state: LocalTranscriptionModelState.Error, error: message, errorCode: classifyModelError(message) });
 				throw err;
 			}
 		})();

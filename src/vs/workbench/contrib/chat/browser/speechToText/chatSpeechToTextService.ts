@@ -32,9 +32,12 @@ const SAMPLE_RATE = 16000;
 const ENABLED_SETTING = 'chat.speechToText.enabled';
 /** On-device Whisper model to use for dictation. */
 const MODEL_SETTING = 'chat.speechToText.model';
+/** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
+const MODE_SETTING = 'chat.speechToText.mode';
 
 type SpeechToTextSessionEvent = {
 	outcome: 'completed' | 'cancelled' | 'error';
+	mode: string;
 	durationMs: number;
 	segments: number;
 	transcriptLength: number;
@@ -44,10 +47,26 @@ type SpeechToTextSessionClassification = {
 	owner: 'meganrogge';
 	comment: 'Tracks usage and reliability of chat-input dictation (speech-to-text).';
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the dictation session ended.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Recording duration in milliseconds.' };
-	segments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of transcript segments returned.' };
-	transcriptLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Character length of the final transcript.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured dictation shortcut mode (auto, toggle, or pushToTalk).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Recording duration in milliseconds.' };
+	segments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of transcript segments returned.' };
+	transcriptLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the final transcript.' };
 	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when the session failed, else empty.' };
+};
+
+type SpeechToTextModelPrepareEvent = {
+	outcome: 'ready' | 'error';
+	downloaded: boolean;
+	durationMs: number;
+	errorCode: string;
+};
+type SpeechToTextModelPrepareClassification = {
+	owner: 'meganrogge';
+	comment: 'Tracks download/load success and duration of the on-device dictation (speech-to-text) model.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the model became ready or failed to prepare.' };
+	downloaded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether a download to disk was observed (first use) versus loading an already-cached model.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from starting preparation until the model became ready or errored.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Short error identifier when preparation failed, else empty.' };
 };
 
 export const enum ChatSpeechToTextState {
@@ -166,6 +185,11 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _sessionSegments = 0;
 	private _sessionErrorCode = '';
 
+	// Model-preparation telemetry accumulator. `_prepareStartMs` is non-zero
+	// while a preparation is being tracked, so the terminal Ready/Error status
+	// can report the elapsed download/load time exactly once.
+	private _prepareStartMs = 0;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -210,12 +234,42 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		const durationMs = Date.now() - this._sessionStartMs;
 		this._telemetryService.publicLog2<SpeechToTextSessionEvent, SpeechToTextSessionClassification>('chatSpeechToText.session', {
 			outcome,
+			mode: this._getDictationMode(),
 			durationMs,
 			segments: this._sessionSegments,
 			transcriptLength: this._transcript.length,
 			errorCode: this._sessionErrorCode,
 		});
 		this._sessionStartMs = 0;
+	}
+
+	/**
+	 * Read the configured dictation shortcut mode for telemetry, normalizing any
+	 * unexpected value to the `auto` default so the event stays low-cardinality.
+	 */
+	private _getDictationMode(): string {
+		const value = this._configurationService.getValue<string>(MODE_SETTING);
+		return value === 'toggle' || value === 'pushToTalk' ? value : 'auto';
+	}
+
+	/**
+	 * Emit the model-preparation telemetry event once, when the on-device model
+	 * reaches a terminal state (ready or error). `_prepareStartMs` guards against
+	 * duplicate emission, since `_handleModelStatus` can fire repeatedly.
+	 */
+	private _logModelPrepareTelemetry(status: ILocalTranscriptionModelStatus): void {
+		if (this._prepareStartMs === 0) {
+			return;
+		}
+		const outcome = status.state === LocalTranscriptionModelState.Ready ? 'ready' : 'error';
+		const durationMs = Date.now() - this._prepareStartMs;
+		this._telemetryService.publicLog2<SpeechToTextModelPrepareEvent, SpeechToTextModelPrepareClassification>('chatSpeechToText.modelPrepare', {
+			outcome,
+			downloaded: status.downloaded === true,
+			durationMs,
+			errorCode: outcome === 'error' ? (status.errorCode || 'unknown') : '',
+		});
+		this._prepareStartMs = 0;
 	}
 
 	private _setState(state: ChatSpeechToTextState): void {
@@ -340,6 +394,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	 */
 	private _trackModelPreparation(): void {
 		this._setPreparingModel(true);
+		// Start timing preparation (download + load) for the model-prepare
+		// telemetry event, emitted once the model reaches Ready or Error.
+		this._prepareStartMs = Date.now();
 		// Guarantee the download notification is dismissed no matter how the
 		// session ends (teardown, cancel, or the service being disposed).
 		this._localSessionDisposables.add(toDisposable(() => this._completeDownloadNotification()));
@@ -363,8 +420,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {
+			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
 		} else if (status.state === LocalTranscriptionModelState.Error) {
+			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
 			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
 		}
@@ -518,6 +577,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._stopCapture();
 		this._setPreparingModel(false);
 		this._completeDownloadNotification();
+		// Drop any in-progress preparation timing; a session torn down before the
+		// model reached a terminal state does not emit a model-prepare event.
+		this._prepareStartMs = 0;
 		this._localSessionDisposables.clear();
 	}
 

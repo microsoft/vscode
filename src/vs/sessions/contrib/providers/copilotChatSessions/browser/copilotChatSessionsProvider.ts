@@ -34,6 +34,7 @@ import { ChatMode, IChatMode, IChatModeService, isBuiltinChatMode } from '../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -1707,7 +1708,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		));
 	}
 
-	getModelsSnapshot(sessionId: string, restoredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		const session = this.getSession(sessionId);
 		if (session instanceof RemoteNewSession) {
 			// Cloud sessions: models come from the extension-host `models` option
@@ -1716,24 +1717,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// picker widget can render them like regular language models.
 			const { modelOption, isResolved } = session.getModelOptionsSnapshot();
 			const models = modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
-			return { models, isResolved };
+			// Cloud model readiness comes from the extension-host option group, not language-model vendors.
+			return { models, desiredModelResolution: resolveModelIdentifier(models, desiredModelId, isResolved), modelTarget: session.sessionType };
 		}
 
 		// CLI / Claude sessions: language models registered against the session's
 		// `targetChatSessionType`.
 		const sessionType = session?.sessionType;
 		if (!sessionType) {
-			return { models: [], isResolved: false };
+			return { models: [], desiredModelResolution: resolveModelIdentifier([], desiredModelId, false), modelTarget: undefined };
 		}
-		const models = this.languageModelsService.getLanguageModelIds()
-			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
-				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata && metadata.targetChatSessionType === sessionType ? { identifier: id, metadata } : undefined;
-			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
-		const separator = restoredModelId?.search(/[/:]/) ?? -1;
-		const isResolved = separator === -1 || this.languageModelsService.hasResolvedVendor(restoredModelId!.substring(0, separator));
-		return { models, isResolved };
+		const allModels = getRegisteredLanguageModels(this.languageModelsService);
+		const models = allModels.filter(model => model.metadata.targetChatSessionType === sessionType);
+		return {
+			models,
+			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, desiredModelId, this.languageModelsService, allModels),
+			modelTarget: sessionType,
+		};
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {

@@ -669,6 +669,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
+	get canRequestNarration(): boolean {
+		return this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket;
+	}
+
 	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		// Gate on session_context having been sent: the WS preserves send order,
 		// so the backend processes start_session/resume_session before any

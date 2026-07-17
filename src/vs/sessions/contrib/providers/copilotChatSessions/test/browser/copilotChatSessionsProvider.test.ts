@@ -18,6 +18,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -26,7 +27,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -144,6 +145,7 @@ interface ICreateProviderOptions {
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
+	readonly languageModelsService?: Partial<ILanguageModelsService>;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
@@ -224,9 +226,7 @@ function createProviderWithConfig(
 		lastFocusedWidget: undefined,
 		onDidChangeFocusedSession: Event.None,
 	});
-	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
-	});
+	instantiationService.stub(ILanguageModelsService, opts?.languageModelsService ?? { lookupLanguageModel: () => undefined });
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});
@@ -688,11 +688,47 @@ suite('CopilotChatSessionsProvider', () => {
 		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
 
 		assert.deepStrictEqual({
-			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), isResolved: beforeResolve.isResolved },
-			afterResolve: { models: afterResolve.models.map(model => model.identifier), isResolved: afterResolve.isResolved },
+			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), desiredModelResolution: beforeResolve.desiredModelResolution, modelTarget: beforeResolve.modelTarget },
+			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
 		}, {
-			beforeResolve: { models: [], isResolved: false },
-			afterResolve: { models: ['synthetic-cloud-model'], isResolved: true },
+			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+		});
+	});
+
+	test('Copilot CLI keeps an empty Copilot catalog pending until live models arrive', () => {
+		const models = new Map<string, ILanguageModelChatMetadata>();
+		const provider = createProvider(disposables, model, {
+			languageModelsService: {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: identifier => models.get(identifier),
+				hasResolvedVendor: () => true,
+			},
+		});
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const empty = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		models.set('copilot/other', {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'other',
+			name: 'Other',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'other',
+			maxInputTokens: 1,
+			maxOutputTokens: 1,
+			isUserSelectable: true,
+			isDefaultForLocation: {},
+			targetChatSessionType: CopilotCLISessionType.id,
+		});
+		const live = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		assert.deepStrictEqual({
+			empty: { resolution: empty.desiredModelResolution, modelTarget: empty.modelTarget },
+			live: { resolution: live.desiredModelResolution, modelTarget: live.modelTarget },
+		}, {
+			empty: { resolution: { kind: 'pending', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
+			live: { resolution: { kind: 'unavailable', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
 		});
 	});
 
