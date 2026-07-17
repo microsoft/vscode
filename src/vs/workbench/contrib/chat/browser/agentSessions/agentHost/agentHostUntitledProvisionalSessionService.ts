@@ -98,6 +98,13 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	get(sessionResource: URI): URI | undefined;
 
 	/**
+	 * Initial config the editor window applies to every new Agent Host session.
+	 * Returns `undefined` in the Agents window, where the sessions provider owns
+	 * the initial config supplied on the request.
+	 */
+	getInitialSessionConfig(): Record<string, unknown> | undefined;
+
+	/**
 	 * Ensure a backend provisional exists for an untitled chat UI resource.
 	 * Multiple picker chips may call this concurrently; implementation must keep
 	 * one create in flight per resource and return the same backend URI.
@@ -259,6 +266,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	get(sessionResource: URI): URI | undefined {
 		return this._entries.get(sessionResource)?.backendSession;
+	}
+
+	getInitialSessionConfig(): Record<string, unknown> | undefined {
+		return this._getInitialConfig();
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {

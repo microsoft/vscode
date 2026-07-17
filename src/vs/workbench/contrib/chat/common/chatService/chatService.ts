@@ -745,9 +745,18 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
 	| { type: ToolConfirmKind.Skipped };
 
+/**
+ * Active-only controls for a tool call executing on another connected client.
+ */
+export interface IChatToolInvocationOtherClientData {
+	readonly cancel: () => void;
+}
+
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
 	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
+	/** Active-only metadata that is omitted when the invocation is serialized. */
+	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from

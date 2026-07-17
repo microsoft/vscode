@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { NullOpenerService } from '../../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getControlModelsForEntitlement, getModelHoverContent, getModelPickerAccessibilityProvider, getModelPickerIcon } from '../../../../browser/widget/input/chatModelPicker.js';
-import { getModelProviderIcon } from '../../../../browser/widget/input/modelProviderIcons.js';
-import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
+import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { MarkdownString } from '../../../../../../../../base/common/htmlContent.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { StateType } from '../../../../../../../../platform/update/common/update.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
+import { filterModelsForSession } from '../../../../../browser/widget/input/chatModelSelectionLogic.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
 	return {
@@ -49,47 +47,6 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
-
-suite('model provider icons', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('uses provider-specific icons', () => {
-		assert.deepStrictEqual([
-			getModelProviderIcon(createModel('gpt-5.6-terra', 'GPT-5.6 Terra')).id,
-			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5')).id,
-			getModelProviderIcon(createModel('gemini-3.1-pro', 'Gemini 3.1 Pro')).id,
-			getModelProviderIcon(createAutoModel()).id,
-			getModelProviderIcon(createModel('auto', 'Auto', 'anthropic')).id,
-			getModelProviderIcon(createModel('auto', 'Auto', 'openai'), true).id,
-			getModelProviderIcon(createModel('custom', 'Custom Model', 'third-party')).id,
-			getModelProviderIcon(createModel('claude-sonnet-5', 'Claude Sonnet 5'), true).id,
-		], [
-			'chat-model-provider-openai',
-			'chat-model-provider-claude',
-			'chat-model-provider-gemini',
-			'chat-model-provider-copilot',
-			'chat-model-provider-copilot',
-			'chat-model-provider-copilot',
-			'chat-model-provider-generic',
-			'chat-model-provider-generic',
-		]);
-	});
-
-	test('status icon wins, warning text keeps provider icon', () => {
-		const model = createModel('gpt-5.6-terra', 'GPT-5.6 Terra');
-		const modelWithStatusIcon = { ...model, metadata: { ...model.metadata, statusIcon: Codicon.info } };
-		const modelWithWarningText = { ...model, metadata: { ...model.metadata, warningText: { degradation: 'Degraded' } } };
-
-		assert.deepStrictEqual([
-			getModelPickerIcon(modelWithStatusIcon).id,
-			getModelPickerIcon(modelWithWarningText).id,
-		], [
-			Codicon.info.id,
-			getModelProviderIcon(model).id,
-		]);
-	});
-});
 
 /**
  * Builds an agent-host model: all such models share a single vendor (the
@@ -232,7 +189,7 @@ function createControlManifest(): IModelsControlManifest {
 
 suite('buildModelPickerItems', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('accessibility provider uses radio semantics for model items', () => {
 		const provider = getModelPickerAccessibilityProvider();
@@ -789,32 +746,6 @@ suite('buildModelPickerItems', () => {
 			{ label: 'Manifest Featured', description: undefined },
 			{ label: 'Negative Discount', description: undefined },
 			{ label: 'Zero Discount', description: undefined },
-		]);
-	});
-
-	test('non-positive promo models have no promo hover presentation', () => {
-		const results = [0, -10].map(discountPercent => {
-			const model = createModel(`discount-${discountPercent}`, `Discount ${discountPercent}`);
-			model.metadata = {
-				...model.metadata,
-				category: 'powerful',
-				priceCategory: 'high',
-				promo: { id: `test-promo-${discountPercent}`, discountPercent, endsAt: '2026-07-20T23:59:59Z', message: 'Do not render this text' },
-			} as ILanguageModelChatMetadata;
-			const hover = getModelHoverContent(model, false, undefined, NullOpenerService);
-			assert.ok(hover);
-			disposables.add(hover.disposable);
-			return {
-				discountPercent,
-				category: hover.element.querySelector('.chat-model-hover-category')?.textContent,
-				badges: Array.from(hover.element.querySelectorAll('.chat-model-hover-price-badge'), element => element.textContent),
-				promoText: hover.element.querySelector('.chat-model-hover-promo-text')?.textContent,
-			};
-		});
-
-		assert.deepStrictEqual(results, [
-			{ discountPercent: 0, category: 'Powerful', badges: ['High cost'], promoText: undefined },
-			{ discountPercent: -10, category: 'Powerful', badges: ['High cost'], promoText: undefined },
 		]);
 	});
 

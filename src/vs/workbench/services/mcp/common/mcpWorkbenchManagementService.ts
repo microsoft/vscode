@@ -448,8 +448,9 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IMcpResourceScannerService mcpResourceScannerService: IMcpResourceScannerService,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 	) {
-		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService);
+		super(mcpResource, target, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 	}
 
 	override async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
@@ -475,6 +476,8 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 				},
 				inputs: mcpServerConfiguration.inputs
 			};
+
+			this.ensureServerAllowed(installable);
 
 			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
 

@@ -189,6 +189,8 @@ const DEFAULT_APPROVAL_ROW_MAX_LINES = 3;
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
+	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
+	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -219,7 +221,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionsTreeDelegate.PLACEHOLDER_HEIGHT;
 		}
 
-		let height = this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE : SessionsTreeDelegate.ITEM_HEIGHT;
+		let height: number;
+		if (this._isPhone()) {
+			height = SessionsTreeDelegate.ITEM_HEIGHT_PHONE;
+		} else if (isQuickChatSession(element as ISession)) {
+			height = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
+		} else {
+			height = SessionsTreeDelegate.ITEM_HEIGHT;
+		}
 		if (this._approvalModel) {
 			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISession, undefined);
 			if (approval) {
@@ -532,17 +541,26 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
+			// Quick chats show the chat icon in place of the read/unread/PR status
+			// glyph, rather than as a separate icon in the details row — but only
+			// when rendered outside the Chats section, whose header already
+			// carries a chat icon (e.g. a quick chat pinned or moved to a group).
+			const suppressChatIcon = isQuickChat && this.options.isInChatsSection(element);
+			const completedStateIcon = isQuickChat && !suppressChatIcon ? Codicon.commentCompact : gitHubInfo?.pullRequest?.icon;
 
 			// The status icon (spinner vs. codicon, cross-fade, reduced-motion) is fully
 			// owned by the SessionStatusIcon widget; here we just feed it the latest state.
 			// Row recycling re-feeds the widget, which cross-fades to the new session's icon.
-			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
+			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon);
 			// The title shimmer (toggled by the `in-progress` class) is phase-aligned
 			// across rows via an `animationstart` handler on the title element, so no
 			// per-state work is needed here.
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
+			// Quick-chat rows use a more compact layout (smaller icon, tighter row height).
+			template.container.classList.toggle('quick-chat', isQuickChat);
 		}));
 
 		// Title — reactive
@@ -551,15 +569,30 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.set(titleText, matches);
 		}));
 
-		// Details row — reactive: badge · diff stats · time
+		// Details row — reactive: badge · diff stats · time · status description
+		// (quick chats use a more compact row: no diff stats/time/type-icon, and
+		// no "Working..." text since their spinner status icon already conveys it)
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
-			const changes = element.changes.read(reader);
-			const changesSummary = element.changesSummary?.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
+			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
+
+			// Clear and rebuild details row
+			DOM.clearNode(template.detailsRow);
+
+			// Quick chats are single-line rows with no details row at all (hidden
+			// via CSS) — skip building its content entirely.
+			if (isQuickChat) {
+				descriptionDisposable.clear();
+				timeDisposable.clear();
+				return;
+			}
+
+			const changes = element.changes.read(reader);
+			const changesSummary = element.changesSummary?.read(reader);
 			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
@@ -568,26 +601,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			if (!hideDetails) {
 				timeDate = element.updatedAt.read(reader);
 			}
-			// Clear and rebuild details row
-			DOM.clearNode(template.detailsRow);
+
 			const parts: HTMLElement[] = [];
 
+			// Type icon (folder/worktree/cloud) — regular sessions only. Quick
+			// chats show their chat icon on the status icon instead (see above).
 			if (sessionStatus !== SessionStatus.InProgress) {
 				const isWorkspaceSession = workspace &&
 					workspace.folders.length > 0 &&
 					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
-				// The chat icon means "quick chat" and must come from the
-				// `isQuickChat` tag, never from `workspace === undefined` (which is
-				// also transiently true for a still-resolving workspace session).
-				const icon = isQuickChatSession(element) ? Codicon.commentCompact : workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
-				// The per-row chat icon is redundant under the "Chats" section, whose
-				// header already carries one; keep it elsewhere (Pinned / groups).
-				const suppressChatIcon = isQuickChatSession(element) && this.options.isInChatsSection(element);
-				if (!suppressChatIcon) {
-					const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-					DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
-					parts.push(typeIconEl);
-				}
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceSession ? Codicon.folderCompact : Codicon.worktreeCompact;
+				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
+				parts.push(typeIconEl);
 			}
 
 			// Workspace badge — show when not grouped by workspace,

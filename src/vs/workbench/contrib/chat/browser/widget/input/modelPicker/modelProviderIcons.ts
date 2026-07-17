@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { localize } from '../../../../../../nls.js';
-import { registerIcon } from '../../../../../../platform/theme/common/iconRegistry.js';
-import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../common/languageModels.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../../nls.js';
+import { registerIcon } from '../../../../../../../platform/theme/common/iconRegistry.js';
+import { ILanguageModelChatMetadataAndIdentifier, isAutoLanguageModel } from '../../../../common/languageModels.js';
 
 const copilotModelProviderIcon = registerIcon('chat-model-provider-copilot', Codicon.copilotCompact, localize('chatModelProviderCopilotIcon', "Icon for Copilot models."));
 const openAIModelProviderIcon = registerIcon('chat-model-provider-openai', Codicon.openai, localize('chatModelProviderOpenAIIcon', "Icon for OpenAI models."));
@@ -36,4 +36,8 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 		return copilotModelProviderIcon;
 	}
 	return genericModelProviderIcon;
+}
+
+export function getModelPickerIcon(model: ILanguageModelChatMetadataAndIdentifier, useGenericIcon = false): ThemeIcon {
+	return model.metadata.statusIcon ?? getModelProviderIcon(model, useGenericIcon);
 }

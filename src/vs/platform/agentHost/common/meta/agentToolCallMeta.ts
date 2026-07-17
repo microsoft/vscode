@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../base/common/types.js';
-import type { ToolCallState } from '../state/protocol/state.js';
+
+/** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
+interface IHasToolCallMeta {
+	readonly _meta?: Record<string, unknown>;
+}
 
 /**
- * Well-known typed view over a tool call's open `_meta` bag (see
- * {@link ToolCallState._meta}). Producers and
+ * Well-known typed view over a tool call's open `_meta` bag. Producers and
  * consumers agree on these keys here so the two sides can't drift; always read
  * the bag through {@link readToolCallMeta}, which validates each field and drops
  * wrong-typed values.
@@ -27,6 +30,8 @@ export interface IToolCallMeta {
 	readonly subagentDescription?: string;
 	/** Agent name for a `subagent` tool call (e.g. "explore"). */
 	readonly subagentAgentName?: string;
+	/** Chat URI of the subagent this tool call spawns, stamped by the host (see {@link buildSubagentChatUri}); the resource may not be registered yet. */
+	readonly subagentChatUri?: string;
 	/** Raw, pre-stringified tool arguments captured for display/debugging. */
 	readonly toolArguments?: unknown;
 	/** Originating MCP server name, when the call came from an MCP server. */
@@ -84,7 +89,7 @@ function readToolCallUiMeta(value: unknown): IToolCallUiMeta | undefined {
  * Reads the well-known {@link IToolCallMeta} keys from a tool call's `_meta`
  * bag, dropping unknown keys and wrong-typed values.
  */
-export function readToolCallMeta(source: ToolCallState): IToolCallMeta {
+export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const meta = source._meta;
 	if (!meta) {
 		return {};
@@ -94,6 +99,7 @@ export function readToolCallMeta(source: ToolCallState): IToolCallMeta {
 	if (typeof meta['language'] === 'string') { result.language = meta['language']; }
 	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }
 	if (typeof meta['subagentAgentName'] === 'string') { result.subagentAgentName = meta['subagentAgentName']; }
+	if (typeof meta['subagentChatUri'] === 'string') { result.subagentChatUri = meta['subagentChatUri']; }
 	if (meta['toolArguments'] !== undefined) { result.toolArguments = meta['toolArguments']; }
 	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
 	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }

@@ -25,7 +25,7 @@ import { IChatInputPickerOptions, withChatInputPickerMotion } from '../widget/in
 import { autorun } from '../../../../../base/common/observable.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IActionListItemHover } from '../../../../../platform/actionWidget/browser/actionList.js';
-import { getModelHoverContent } from '../widget/input/chatModelPicker.js';
+import { getModelHoverContent } from '../widget/input/modelPicker/modelPickerHover.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 

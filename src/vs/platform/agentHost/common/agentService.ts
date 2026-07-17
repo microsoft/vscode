@@ -45,6 +45,9 @@ export const enum AgentHostIpcChannels {
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
+/** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
+export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -1665,14 +1668,6 @@ export interface IAgent {
 	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
-
-	/**
-	 * Notifies the agent that a customization has been toggled on or off.
-	 * The agent MAY restart its client before the next message is sent.
-	 *
-	 * @param id The opaque session-unique customization id.
-	 */
-	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Request a session MCP server start/restart by customization id. */
 	startMcpServer?(session: URI, id: string): Promise<void>;

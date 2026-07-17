@@ -57,6 +57,12 @@ export interface ISessionModelPickerOptions {
 	readonly showAutoModel?: boolean;
 }
 
+export interface ISessionModelsSnapshot {
+	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
+	/** Whether absence of the requested restored model is conclusive. */
+	readonly isResolved: boolean;
+}
+
 /**
  * Options controlling how a chat is deleted via {@link ISessionsProvider.deleteChat}.
  */
@@ -218,18 +224,10 @@ export interface ISessionsProvider {
 	renameSession(sessionId: string, title: string): Promise<void>;
 
 	/**
-	 * Get the language models that can be selected for a session. The sessions
-	 * core renders these in a single {@link ModelPickerActionItem}-based picker
-	 * and persists the user's choice per provider per session type. Returns an
-	 * empty array when the session has no selectable models (e.g. the underlying
-	 * runtime does not expose model selection).
-	 *
-	 * Providers backed by registered language models return them directly;
-	 * providers whose models come from another source (e.g. extension-host
-	 * option groups for cloud sessions) synthesize equivalent metadata.
-	 * @param sessionId The ID of the session.
+	 * Get selectable models and whether absence of `restoredModelId` is conclusive.
+	 * Callers wait for {@link onDidChangeModels} before repairing an unresolved selection.
 	 */
-	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[];
+	getModelsSnapshot(sessionId: string, restoredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the
@@ -241,7 +239,7 @@ export interface ISessionsProvider {
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
 
 	/**
-	 * Event that fires when the set of models returned by {@link getModels}
+	 * Event that fires when the snapshot returned by {@link getModelsSnapshot}
 	 * may have changed (e.g. language models finished loading, or the backend
 	 * advertised a new option group). The core model picker re-reads the model
 	 * list when this fires. Has no payload — consumers re-query per session.

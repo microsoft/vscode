@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../../base/browser/dom.js';
-import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
-import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../../base/common/actions.js';
-import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { ModelPickerWidget } from './chatModelPicker.js';
+import { getActiveWindow } from '../../../../../../../base/browser/dom.js';
+import { IManagedHoverContent } from '../../../../../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../../nls.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
+import { ModelPickerWidget } from './modelPickerWidget.js';
 
 /**
  * Read/write access to a model's configuration (e.g. context size, thinking

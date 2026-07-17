@@ -451,6 +451,9 @@ export const AgentHostPreferLongContextEnabledConfigKey = 'preferLongContextEnab
 // The Copilot Chat setting ID for preferring long context, forwarded into the agent host root config.
 export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongContext.enabled';
 
+/** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
+export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.autoApprove` setting changes. Holds the effective
@@ -694,6 +697,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.preferLongContextEnabled.title', "Prefer Long Context"),
 		description: localize('agentHost.config.preferLongContextEnabled.description', "Whether Copilot Chat's prefer-long-context setting is enabled. When `true`, models with a free long context window only show the long context option in the picker. When `false` (default), the smaller default context option stays selectable."),
 		default: false,
+	}),
+	[AgentHostSystemProxyEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.systemProxyEnabled.title', "System Proxy Discovery"),
+		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
+		default: true,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({
 		type: 'object',

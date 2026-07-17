@@ -21,7 +21,7 @@ import { IAgentHostChangesetOperationService } from '../../common/agentHostChang
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -75,6 +75,7 @@ suite('ChangesetSessionCoordinator', () => {
 		};
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostChangesetOperationService, operationContributionService],
 			[IAgentHostChangesetService, changesets],
@@ -83,7 +84,7 @@ suite('ChangesetSessionCoordinator', () => {
 			[IAgentHostGitService, gitService],
 			[IAgentHostGitStateService, gitStateService],
 		), /*strict*/ true));
-		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator, stateManager));
+		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator };
 	}
 

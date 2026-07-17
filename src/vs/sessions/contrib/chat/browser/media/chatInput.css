@@ -383,6 +383,43 @@
 	font-size: 14px;
 }
 
+/* Dictation (speech-to-text) mic button */
+.sessions-chat-stt-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-stt-button.hidden {
+	display: none;
+}
+
+.sessions-chat-stt-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-stt-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-stt-button.recording {
+	color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
 /* Attached context container */
 .sessions-chat-attached-context {
 	display: flex;

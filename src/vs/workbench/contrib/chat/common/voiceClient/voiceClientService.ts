@@ -21,7 +21,7 @@ export interface IVoiceSessionContext {
 		id: string;
 		last_message: string | null;
 	};
-	display_locale?: string;
+	display_locale: string;
 }
 
 /**
@@ -164,13 +164,6 @@ export interface IVoiceClientService {
 	sendPttStart(turnId: string): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
-	/**
-	 * Barge-in: stream raw mic audio while the assistant speaks (hands-free) so
-	 * the backend can detect the user talking over it. Not a turn; not transcribed.
-	 */
-	sendBargeInStart(): void;
-	sendBargeInAudioChunk(audio: string): void;
-	sendBargeInStop(): void;
 	/**
 	 * Send a per-press post-mortem diagnostic payload for tail-loss
 	 * investigation. Fired ~500ms after `pttUp` by the mic service.

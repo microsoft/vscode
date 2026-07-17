@@ -8,7 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
 
 export class AgentHostSyncOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -16,7 +16,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();

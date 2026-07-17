@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
-import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -174,6 +174,27 @@ suite('ChatToolProgressSubPart', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	function renderToolInvocation(toolInvocation: IChatToolInvocation, renderer = mockMarkdownRenderer): ChatToolInvocationPart {
+		return disposables.add(new ChatToolInvocationPart(
+			toolInvocation,
+			createRenderContext(),
+			renderer,
+			{} as CollapsibleListPool,
+			mockEditorPool,
+			() => 500,
+			undefined,
+			0,
+			instantiationService,
+			{
+				_serviceBrand: undefined,
+				onDidUpdateTodos: Event.None,
+				getTodos: () => [],
+				setTodos() { },
+				migrateTodos() { },
+			} satisfies IChatTodoListService,
+		));
+	}
 
 	test('detects MCP tool invocations for live and serialized rows', () => {
 		const mcpSource: ToolDataSourceType = {
@@ -350,6 +371,70 @@ suite('ChatToolProgressSubPart', () => {
 		));
 
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
+	});
+
+	test('renders another client tool with an accessible inline skip action', () => {
+		let cancelCount = 0;
+		const state = observableValue<IChatToolInvocation.State>('state', {
+			type: IChatToolInvocation.StateKind.Executing,
+			parameters: undefined,
+			confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			progress: observableValue('progress', { progress: undefined }),
+		});
+		const invocation: IChatToolInvocation = {
+			...createToolInvocation({ invocationMessage: 'Running Run Task on another client...' }),
+			pastTenseMessage: 'Ran Task',
+			state,
+			otherClientToolCall: {
+				cancel: () => {
+					cancelCount++;
+					state.set({
+						type: IChatToolInvocation.StateKind.Completed,
+						parameters: undefined,
+						confirmationMessages: undefined,
+						confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+						postConfirmed: undefined,
+						resultDetails: undefined,
+						contentForModel: [],
+					}, undefined);
+				}
+			},
+		};
+		const markdownRenderer: IMarkdownRenderer = {
+			render: (markdown, options) => renderMarkdown(markdown, options),
+		};
+		const part = renderToolInvocation(invocation, markdownRenderer);
+		const skipLink = part.domNode.querySelector<HTMLAnchorElement>('a[data-href="#skip"]');
+		const progressText = part.domNode.querySelector('.progress-step')?.textContent?.replaceAll('\u00a0', ' ');
+		const linkParagraphText = skipLink?.closest('p')?.textContent?.replaceAll('\u00a0', ' ');
+		const linkLabel = skipLink?.textContent;
+		const linkRole = skipLink?.getAttribute('role');
+		const linkHref = skipLink?.getAttribute('href');
+		const tabIndex = skipLink?.tabIndex;
+
+		skipLink?.click();
+
+		assert.deepStrictEqual({
+			progressText,
+			linkParagraphText,
+			textAfterSkip: part.domNode.textContent?.replaceAll('\u00a0', ' '),
+			linkAfterSkip: part.domNode.querySelector('a[data-href="#skip"]'),
+			linkLabel,
+			linkRole,
+			linkHref,
+			tabIndex,
+			cancelCount,
+		}, {
+			progressText: 'Running Run Task on another client... Skip?',
+			linkParagraphText: 'Running Run Task on another client... Skip?',
+			textAfterSkip: 'Ran Task',
+			linkAfterSkip: null,
+			linkLabel: 'Skip?',
+			linkRole: 'button',
+			linkHref: '',
+			tabIndex: 0,
+			cancelCount: 1,
+		});
 	});
 
 	test('does not add shimmer styling for completed MCP tool progress', () => {

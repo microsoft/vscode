@@ -20,12 +20,13 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent, SubagentChatSignal } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
+import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -770,6 +771,47 @@ suite('AgentSideEffects', () => {
 			// Live terminal reference is stripped; text output is retained.
 			assert.ok(toolCallPart?.toolCall?.content?.every(c => c.type !== ToolResultContentType.Terminal));
 			assert.ok(toolCallPart?.toolCall?.content?.some(c => c.type === ToolResultContentType.Text));
+		});
+
+		test('seeds the session title from the ! command when the session is untitled', async () => {
+			// A brand-new, untitled session: the bang command is the only thing
+			// we can title it with until a real request arrives.
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const bangSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(db),
+				onTurnComplete: () => { },
+			}, undefined, undefined, undefined, terminalManager);
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			bangSideEffects.handleAction(defaultChatUri, action);
+
+			// The provisional title is applied synchronously, before the command runs.
+			assert.strictEqual(stateManager.getSessionState(sessionUri.toString())?.title, 'echo hi');
+
+			// Let the command finish so the turn closes cleanly.
+			await terminalManager.commandFinishedListenerRegistered.p;
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'echo hi', exitCode: 0, output: 'hi\n' });
+			await waitForState(stateManager, () => stateManager.getActiveTurnId(sessionUri.toString()) === undefined ? true : undefined);
+
+			// The provisional title is persisted so it survives reload.
+			assert.strictEqual(await db.getMetadata('customTitle'), 'echo hi');
 		});
 	});
 
@@ -1798,6 +1840,57 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.title, 'Queued Title');
 		});
 
+		test('replaces a queued bang command title with the following real message', async () => {
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const db = new TestSessionDatabase();
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const queuedSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(db),
+				onTurnComplete: () => { },
+			}, undefined, undefined, undefined, terminalManager);
+			disposables.add(queuedSideEffects.registerProgressListener(agent));
+
+			startTurn('turn-1');
+			for (const [id, text] of [['q-command', '!echo hi'], ['q-request', 'Explain the build']] as const) {
+				const setAction = {
+					type: ActionType.ChatPendingMessageSet as const,
+					kind: PendingMessageKind.Queued,
+					id,
+					message: { text, origin: { kind: MessageKind.User } },
+				};
+				stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+				queuedSideEffects.handleAction(defaultChatUri, setAction);
+			}
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			await terminalManager.commandFinishedListenerRegistered.p;
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'echo hi', exitCode: 0, output: 'hi\n' });
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({
+				prompt: agent.sendMessageCalls[0].prompt,
+				title: stateManager.getSessionState(sessionUri.toString())?.title,
+				persistedTitle: await db.getMetadata('customTitle'),
+			}, {
+				prompt: 'Explain the build',
+				title: 'Explain the build',
+				persistedTitle: 'Explain the build',
+			});
+		});
+
 		test('drains a peer chat queued message to the owning session with the chat arg', async () => {
 			setupSession();
 			const chatUri = URI.parse(buildChatUri(sessionUri, 'peer-q'));
@@ -2153,26 +2246,6 @@ suite('AgentSideEffects', () => {
 				0,
 				'should not republish session customizations after listener disposed',
 			);
-		});
-	});
-
-	// ---- handleAction: session/customizationToggled ---------------------
-
-	suite('handleAction — session/customizationToggled', () => {
-
-		test('calls setCustomizationEnabled on the agent', () => {
-			setupSession();
-
-			const action: SessionAction = {
-				type: ActionType.SessionCustomizationToggled,
-				id: 'file:///plugin-a',
-				enabled: false,
-			};
-			sideEffects.handleAction(sessionUri.toString(), action);
-
-			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
-				{ id: 'file:///plugin-a', enabled: false },
-			]);
 		});
 	});
 
@@ -3536,6 +3609,30 @@ suite('AgentSideEffects', () => {
 			}
 		});
 
+		test('stamps _meta.subagentChatUri onto a subagent-spawning tool call as soon as toolKind is known', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', contributor: undefined,
+					_meta: { toolKind: 'subagent', language: undefined },
+				},
+			});
+
+			const expectedUri = buildSubagentChatUri(sessionUri.toString(), 'tc-1');
+			const parentState = stateManager.getSessionState(sessionUri.toString());
+			const toolCall = parentState?.activeTurn?.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-1'
+			);
+			assert.ok(toolCall?.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(readToolCallMeta(toolCall.toolCall).subagentChatUri, expectedUri);
+			assert.strictEqual(stateManager.getSnapshot(expectedUri), undefined);
+		});
+
 		test('nested subagent_started routes its discovery content block to the immediate parent chat (arbitrary depth)', () => {
 			// Regression: for a subagent spawned by another subagent, the
 			// `subagent_started` signal's `chat` is the top-level chat, but
@@ -4026,24 +4123,64 @@ suite('AgentSideEffects', () => {
 			return stateManager.getSessionState(sessionUri.toString())?.inputNeeded ?? [];
 		}
 
-		test('chat input request is produced and removed on completion', () => {
+		test('chat input request mirrors its unresolved response part and is removed on completion', () => {
 			setupSession();
 			startTurn('turn-1');
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputRequested,
-				request: { id: 'req-1', questions: [] },
+				request: {
+					id: 'req-1',
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+				},
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputAnswerChanged,
+				requestId: 'req-1',
+				questionId: 'question-1',
+				answer: {
+					state: ChatInputAnswerState.Draft,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'draft value' },
+				},
 			});
 
 			const produced = sessionInputNeeded();
-			assert.deepStrictEqual(produced.map(r => ({ kind: r.kind, chat: r.chat })), [
-				{ kind: SessionInputRequestKind.ChatInput, chat: defaultChatUri },
+			assert.deepStrictEqual(produced.map(r => ({
+				kind: r.kind,
+				chat: r.chat,
+				request: r.kind === SessionInputRequestKind.ChatInput ? r.request : undefined,
+			})), [
+				{
+					kind: SessionInputRequestKind.ChatInput,
+					chat: defaultChatUri,
+					request: {
+						id: 'req-1',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Which value?' }],
+						answers: {
+							'question-1': {
+								state: ChatInputAnswerState.Draft,
+								value: { kind: ChatInputAnswerValueKind.Text, value: 'draft value' },
+							},
+						},
+					},
+				},
 			]);
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatInputCompleted,
 				requestId: 'req-1',
 				response: SessionInputResponseKind.Accept,
+			});
+
+			assert.deepStrictEqual(sessionInputNeeded(), []);
+		});
+
+		test('chat input request without an active turn is not mirrored', () => {
+			setupSession();
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatInputRequested,
+				request: { id: 'req-1', questions: [] },
 			});
 
 			assert.deepStrictEqual(sessionInputNeeded(), []);

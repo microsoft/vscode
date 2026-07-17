@@ -26,7 +26,7 @@ import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGrou
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -712,16 +712,16 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	// --- Option group accessors ---
 
-	getModelOptionGroup(): ISessionOptionGroup | undefined {
+	getModelOptionsSnapshot(): { readonly modelOption: ISessionOptionGroup | undefined; readonly isResolved: boolean } {
 		const groups = this._getOptionGroups();
 		if (!groups) {
-			return undefined;
+			return { modelOption: undefined, isResolved: false };
 		}
 		const group = groups.find(g => isModelOptionGroup(g));
 		if (!group) {
-			return undefined;
+			return { modelOption: undefined, isResolved: true };
 		}
-		return { group, value: this._getValueForGroup(group) };
+		return { modelOption: { group, value: this._getValueForGroup(group) }, isResolved: true };
 	}
 
 	getOtherOptionGroups(): ISessionOptionGroup[] {
@@ -1707,29 +1707,33 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		));
 	}
 
-	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+	getModelsSnapshot(sessionId: string, restoredModelId?: string): ISessionModelsSnapshot {
 		const session = this.getSession(sessionId);
 		if (session instanceof RemoteNewSession) {
 			// Cloud sessions: models come from the extension-host `models` option
 			// group rather than from registered language models. Synthesize
 			// language-model metadata from each option item so the shared model
 			// picker widget can render them like regular language models.
-			const modelOption = session.getModelOptionGroup();
-			return modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+			const { modelOption, isResolved } = session.getModelOptionsSnapshot();
+			const models = modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+			return { models, isResolved };
 		}
 
 		// CLI / Claude sessions: language models registered against the session's
 		// `targetChatSessionType`.
 		const sessionType = session?.sessionType;
 		if (!sessionType) {
-			return [];
+			return { models: [], isResolved: false };
 		}
-		return this.languageModelsService.getLanguageModelIds()
+		const models = this.languageModelsService.getLanguageModelIds()
 			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata && metadata.targetChatSessionType === sessionType ? { identifier: id, metadata } : undefined;
 			})
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+		const separator = restoredModelId?.search(/[/:]/) ?? -1;
+		const isResolved = separator === -1 || this.languageModelsService.hasResolvedVendor(restoredModelId!.substring(0, separator));
+		return { models, isResolved };
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
@@ -1794,7 +1798,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Cloud sessions additionally persist the selection as the value of
 			// the `models` option group so the extension host honours it.
 			if (newSession instanceof RemoteNewSession) {
-				const modelOption = newSession.getModelOptionGroup();
+				const { modelOption } = newSession.getModelOptionsSnapshot();
 				const item = modelOption?.group.items.find(i => i.id === modelId);
 				if (item) {
 					newSession.setOptionValue(modelOption!.group.id, item);

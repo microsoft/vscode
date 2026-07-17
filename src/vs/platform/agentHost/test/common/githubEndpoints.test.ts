@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agentService.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource } from '../../common/githubEndpoints.js';
+import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubMcpServerUrl, gitHubRepoResource } from '../../common/githubEndpoints.js';
 
 suite('githubEndpoints', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +60,20 @@ suite('githubEndpoints', () => {
 			graphQlUri: 'http://ghe.local/api/graphql',
 			oauthServer: 'http://ghe.local/login/oauth',
 			enterpriseHost: 'ghe.local',
+		});
+	});
+
+	test('gitHubMcpServerUrl derives the MCP endpoint from the per-user Copilot API host', () => {
+		assert.deepStrictEqual({
+			default: gitHubMcpServerUrl(undefined),
+			enterprise: gitHubMcpServerUrl('https://api.enterprise.githubcopilot.com/v1?tenant=acme#fragment'),
+			ghe: gitHubMcpServerUrl('https://copilot-api.ghe.acme.com'),
+			invalid: gitHubMcpServerUrl('not a uri'),
+		}, {
+			default: 'https://api.githubcopilot.com/mcp',
+			enterprise: 'https://api.enterprise.githubcopilot.com/mcp',
+			ghe: 'https://copilot-api.ghe.acme.com/mcp',
+			invalid: undefined,
 		});
 	});
 

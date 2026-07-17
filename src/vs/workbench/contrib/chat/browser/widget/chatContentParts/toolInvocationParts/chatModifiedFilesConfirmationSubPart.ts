@@ -33,6 +33,7 @@ import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferences
 import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
 
 type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
 
@@ -123,7 +124,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
 				buttons: this.createButtons(data.options),
 				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
-				footerBanner: this.createRiskBadgeDomNode(state.parameters),
+				footerBanner: createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)?.domNode
+					?? this.createRiskBadgeDomNode(state.parameters),
 			}
 		));
 

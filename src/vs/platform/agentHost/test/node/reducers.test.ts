@@ -174,7 +174,7 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		assert.strictEqual(state.status, SessionStatus.InProgress);
 	});
 
-	test('Chat status is InputNeeded with inputRequests', () => {
+	test('Chat status is InputNeeded with an unresolved input request response part', () => {
 		let state = withActiveTurnAndToolCall(makeChat());
 
 		state = chatReducer(state, {
@@ -191,7 +191,40 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			},
 		});
 
-		assert.strictEqual(state.status, SessionStatus.InputNeeded);
+		assert.deepStrictEqual({
+			status: state.status,
+			responsePart: state.activeTurn?.responseParts.at(-1),
+		}, {
+			status: SessionStatus.InputNeeded,
+			responsePart: {
+				kind: ResponsePartKind.InputRequest,
+				request: {
+					id: 'req-1',
+					message: 'What is your name?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'q-1',
+						message: 'What is your name?',
+						required: true,
+					}],
+				},
+			},
+		});
+	});
+
+	test('ChatInputRequested without an active turn is ignored', () => {
+		const state = chatReducer(makeChat(), {
+			type: ActionType.ChatInputRequested,
+			request: { id: 'req-1', questions: [] },
+		});
+
+		assert.deepStrictEqual({
+			status: state.status,
+			activeTurn: state.activeTurn,
+		}, {
+			status: SessionStatus.Idle,
+			activeTurn: undefined,
+		});
 	});
 
 	test('SessionStatus transitions from InputNeeded to InProgress after ChatInputCompleted', () => {
@@ -221,7 +254,32 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			answers: { 'q-1': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' } } },
 		});
 
-		assert.strictEqual(state.status, SessionStatus.InProgress);
+		assert.deepStrictEqual({
+			status: state.status,
+			responsePart: state.activeTurn?.responseParts.at(-1),
+		}, {
+			status: SessionStatus.InProgress,
+			responsePart: {
+				kind: ResponsePartKind.InputRequest,
+				request: {
+					id: 'req-1',
+					message: 'What is your name?',
+					questions: [{
+						kind: ChatInputQuestionKind.Text,
+						id: 'q-1',
+						message: 'What is your name?',
+						required: true,
+					}],
+					answers: {
+						'q-1': {
+							state: ChatInputAnswerState.Submitted,
+							value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' },
+						},
+					},
+				},
+				response: ChatInputResponseKind.Accept,
+			},
+		});
 	});
 
 	test('Tool call transition to PendingConfirmation updates chat status to InputNeeded', () => {

@@ -38,6 +38,7 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/def
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -58,7 +59,8 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, getDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionResource, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
@@ -578,7 +580,7 @@ export function registerChatActions() {
 	 * honoring the remembered harness preference and then the configured default.
 	 */
 	function getNewChatEditorSessionUri(accessor: ServicesAccessor): URI {
-		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace());
+		return getDefaultNewChatSessionResource(accessor.get(IConfigurationService), accessor.get(IChatSessionsService), accessor.get(IStorageService), accessor.get(IWorkspaceContextService).getWorkspace(), accessor.get(IAgentHostEnablementService).enabled);
 	}
 
 	registerAction2(PrimaryOpenChatGlobalAction);
@@ -1763,18 +1765,34 @@ export interface IClearEditingSessionConfirmationOptions {
  * Clears the current chat session and starts a new one using the shared
  * new-session harness resolver.
  */
-export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService, storageService: IStorageService, workspace: IWorkspace): Promise<void> {
+export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType: string | undefined, configurationService: IConfigurationService, chatSessionsService: IChatSessionsService, storageService: IStorageService, workspace: IWorkspace, agentHostEnabled: boolean): Promise<void> {
 	const currentResource = widget.viewModel?.model.sessionResource;
 	const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-	const newSessionType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, { explicitOverride: sessionType, currentSessionType });
-	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
-		// For the sidebar, we need to explicitly load a session with the same type
-		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });
+	const { sessionType: newSessionType, isPreferCopilotHarnessSwap } = resolveDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, { explicitOverride: sessionType, currentSessionType });
+	if (isIChatViewViewContext(widget.viewContext)) {
 		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(newResource);
+		if (newSessionType !== localChatSessionType) {
+			// Load a session of the resolved type in the sidebar.
+			await view.loadSession(URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` }));
+			// Consume the one-time migration only now that the swap has been applied.
+			if (isPreferCopilotHarnessSwap) {
+				markPreferredCopilotHarness(storageService);
+			}
+		} else {
+			// The resolved type is local (an explicit request or session
+			// preservation). A plain `widget.clear()` re-acquires the computed
+			// default (a non-local harness when the agent host is enabled), so
+			// start a local session explicitly to honor the resolved type.
+			await view.startNewLocalSession();
+		}
 	} else {
-		// For the editor, widget.clear() already preserves the session type via clearChatEditor
-		await widget.clear();
+		// For the editor, thread the resolved type through the clear path so
+		// clearChatEditor opens a session of that type instead of recomputing
+		// the default (which would drop an explicit or preserved local request).
+		await widget.clear(newSessionType);
+		if (isPreferCopilotHarnessSwap) {
+			markPreferredCopilotHarness(storageService);
+		}
 	}
 }
 

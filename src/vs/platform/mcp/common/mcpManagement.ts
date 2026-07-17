@@ -10,6 +10,7 @@ import { IIterativePager } from '../../../base/common/paging.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IMcpServerIdentity } from './allowedMcpServers.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 
 export type InstallSource = 'gallery' | 'local';
@@ -244,9 +245,18 @@ export interface IAllowedMcpServersService {
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
+
+	/**
+	 * Checks whether an MCP server identified by name / remote URL / local command is permitted by
+	 * the `chat.mcp.allowedServers` allowlist (in addition to the `chat.mcp.access` gate). Used by
+	 * the runtime enforcement path, which does not have a gallery/local/installable representation.
+	 */
+	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }
 
 export const mcpAccessConfig = 'chat.mcp.access';
+export const mcpAllowedServersConfig = 'chat.mcp.allowedServers';
+export const mcpDeniedServersConfig = 'chat.mcp.deniedServers';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';

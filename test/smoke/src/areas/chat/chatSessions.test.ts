@@ -33,7 +33,7 @@ interface SessionConfig {
 const SESSIONS: readonly SessionConfig[] = [
 	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2' },
 	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE', scenarioId2: 'smoke-chat-sessions-claude-2', reply2: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE_2' },
-	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
+	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
 ];
 
 /**
@@ -55,7 +55,7 @@ interface ShellSessionConfig {
 const SHELL_SESSIONS: readonly ShellSessionConfig[] = [
 	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli-shell', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
 	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude-shell', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
-	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local-terminal', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_TERMINAL_RESPONSE', scenarioFactory: runInTerminalScenario },
+	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local-terminal', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_TERMINAL_RESPONSE', scenarioFactory: runInTerminalScenario },
 ];
 
 async function openSession(app: Application, session: { readonly command: string; readonly kind: 'editor' | 'view' }): Promise<void> {

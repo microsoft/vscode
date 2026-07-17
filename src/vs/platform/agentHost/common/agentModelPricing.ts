@@ -12,7 +12,7 @@ import type { IAgentModelInfo } from './agentService.js';
  * picker can render its cost hover.
  *
  * All cost values are expressed as credits per 1M tokens — the same unit the model picker hover renders (see
- * `getModelHoverContent` in `chatModelPicker.ts`). Fields are optional; agents omit what they don't know.
+ * `getModelHoverContent` in `modelPicker/modelPickerHover.ts`). Fields are optional; agents omit what they don't know.
  */
 export interface IAgentModelPricingMeta {
 	/** Request multiplier (e.g. `1.5` rendered as "1.5x"). */

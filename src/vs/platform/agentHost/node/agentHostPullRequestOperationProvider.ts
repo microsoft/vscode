@@ -10,14 +10,14 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
 	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService
 	) {

@@ -5,20 +5,23 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { FishFeedingStreak, STREAK_WINDOW_MS } from '../../browser/fishFeedingStreak.js';
 
 suite('FishFeedingStreak', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const STREAK_COUNT_KEY = 'sessions.aquarium.streak.count';
 
 	function createStreak() {
 		const storage = store.add(new InMemoryStorageService());
 		let clock = 1_000_000;
-		const streak = new FishFeedingStreak(storage, () => clock);
+		const now = () => clock;
 		return {
-			streak,
+			storage,
+			streak: new FishFeedingStreak(storage, now),
 			advance: (ms: number) => { clock += ms; },
+			reload: () => new FishFeedingStreak(storage, now),
 		};
 	}
 
@@ -63,6 +66,38 @@ suite('FishFeedingStreak', () => {
 			streak.recordFeed();
 		}
 		assert.strictEqual(streak.count, 1);
+	});
+
+	test('feeding at the deadline keeps the streak alive', () => {
+		const { streak, advance } = createStreak();
+
+		assert.deepStrictEqual(streak.recordFeed(), { count: 1, started: true, revived: false });
+		advance(STREAK_WINDOW_MS);
+		assert.deepStrictEqual(streak.recordFeed(), { count: 2, started: false, revived: false });
+		assert.strictEqual(streak.isAlive, true);
+	});
+
+	test('feeding refreshes the 24 hour clock and persists across reloads', () => {
+		const { streak, advance, reload } = createStreak();
+
+		assert.deepStrictEqual(streak.recordFeed(), { count: 1, started: true, revived: false });
+		advance(STREAK_WINDOW_MS - 1);
+		assert.deepStrictEqual(streak.recordFeed(), { count: 1, started: false, revived: false });
+
+		advance(STREAK_WINDOW_MS - 1);
+		const restored = reload();
+		assert.deepStrictEqual({
+			count: restored.count,
+			isAlive: restored.isAlive,
+			revivableCount: restored.revivableCount,
+		}, {
+			count: 1,
+			isAlive: true,
+			revivableCount: 0,
+		});
+
+		advance(2);
+		assert.strictEqual(restored.isAlive, false);
 	});
 
 	test('a revived streak continues counting up from its restored value', () => {
@@ -112,5 +147,49 @@ suite('FishFeedingStreak', () => {
 		assert.strictEqual(streak.count, 0);
 		assert.strictEqual(streak.isAlive, false);
 		assert.strictEqual(streak.revivableCount, 0);
+	});
+
+	test('feeding an expired persisted streak revives it even if no badge refresh collected it first', () => {
+		const { streak, advance } = createStreak();
+
+		streak.recordFeed();
+		advance(60 * 60 * 1000);
+		streak.recordFeed();
+		advance(STREAK_WINDOW_MS - 60 * 60 * 1000);
+		streak.recordFeed();
+		assert.strictEqual(streak.count, 2);
+
+		advance(STREAK_WINDOW_MS + 1);
+		assert.deepStrictEqual(streak.recordFeed(), { count: 2, started: false, revived: true });
+		assert.deepStrictEqual({
+			count: streak.count,
+			isAlive: streak.isAlive,
+			revivableCount: streak.revivableCount,
+		}, {
+			count: 2,
+			isAlive: true,
+			revivableCount: 0,
+		});
+	});
+
+	test('keeps an existing persisted count when timestamp metadata is missing', () => {
+		const storage = store.add(new InMemoryStorageService());
+		let clock = 1_000_000;
+		const now = () => clock;
+		storage.store(STREAK_COUNT_KEY, 7, StorageScope.APPLICATION, StorageTarget.USER);
+
+		const streak = new FishFeedingStreak(storage, now);
+		assert.deepStrictEqual({
+			count: streak.count,
+			isAlive: streak.isAlive,
+			feed: streak.recordFeed(),
+		}, {
+			count: 7,
+			isAlive: true,
+			feed: { count: 7, started: false, revived: false },
+		});
+
+		clock += STREAK_WINDOW_MS + 1;
+		assert.strictEqual(streak.collectExpired(), 7);
 	});
 });

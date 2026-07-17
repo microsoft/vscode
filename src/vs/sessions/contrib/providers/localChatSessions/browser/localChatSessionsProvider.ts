@@ -16,7 +16,7 @@ import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } 
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
@@ -751,17 +751,20 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		return Event.signal(this.languageModelsService.onDidChangeLanguageModels);
 	}
 
-	getModels(_sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+	getModelsSnapshot(_sessionId: string, restoredModelId?: string): ISessionModelsSnapshot {
 		// Local (in-process VS Code chat) sessions use general-purpose models
 		// (those without a `targetChatSessionType`) that are user-selectable —
 		// no extension registers models specifically targeting the 'local'
 		// session type.
-		return this.languageModelsService.getLanguageModelIds()
+		const models = this.languageModelsService.getLanguageModelIds()
 			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable ? { identifier: id, metadata } : undefined;
 			})
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+		const separator = restoredModelId?.search(/[/:]/) ?? -1;
+		const isResolved = separator === -1 || this.languageModelsService.hasResolvedVendor(restoredModelId!.substring(0, separator));
+		return { models, isResolved };
 	}
 
 	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {

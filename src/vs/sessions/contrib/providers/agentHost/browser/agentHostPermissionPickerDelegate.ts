@@ -229,6 +229,10 @@ export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): bool
 	return true;
 }
 
+export function isWellKnownModeValue(schema: SessionConfigPropertySchema, value: string): boolean {
+	return isWellKnownModeSchema(schema) && schema.enum!.some(candidate => String(candidate) === value);
+}
+
 /**
  * Returns `true` when a `permissionMode` session-config property uses the
  * Claude SDK's well-known permission-mode value set and includes `default`.

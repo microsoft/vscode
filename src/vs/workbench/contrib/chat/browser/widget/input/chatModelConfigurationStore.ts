@@ -11,7 +11,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { createModelConfigurationActions, ILanguageModelsService } from '../../../common/languageModels.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
-import { IModelConfigurationAccess } from './modelPickerActionItem.js';
+import { IModelConfigurationAccess } from './modelPicker/modelPickerActionItem.js';
 
 /**
  * Per-editor store for model configuration (e.g. context size, thinking effort).

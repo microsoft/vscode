@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverAttributionForLoopError, findParentWithClass, hasParentWithClass } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -24,6 +24,25 @@ suite('dom', () => {
 		assert(!element.classList.contains('bar'));
 		assert(!element.classList.contains('foo'));
 		assert(!element.classList.contains(''));
+	});
+
+	test('findParentWithClass supports multiple required classes', () => {
+		const root = $('div.modern-ui.motion-enabled');
+		const intermediate = $('div.modern-ui');
+		const child = $('div');
+		root.appendChild(intermediate).appendChild(child);
+
+		assert.deepStrictEqual({
+			multipleClasses: findParentWithClass(child, ['modern-ui', 'motion-enabled']) === root,
+			singleClass: findParentWithClass(child, 'modern-ui') === intermediate,
+			missingClass: hasParentWithClass(child, ['modern-ui', 'missing']),
+			stoppedBeforeMatch: hasParentWithClass(child, ['modern-ui', 'motion-enabled'], intermediate),
+		}, {
+			multipleClasses: true,
+			singleClass: true,
+			missingClass: false,
+			stoppedBeforeMatch: false,
+		});
 	});
 
 	test('removeClass', () => {

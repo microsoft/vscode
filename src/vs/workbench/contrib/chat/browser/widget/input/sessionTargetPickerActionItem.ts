@@ -23,6 +23,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -104,6 +105,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -152,7 +154,8 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+			if (e.affectsConfiguration(ChatConfiguration.EditorPreferCopilotHarness) ||
+				e.affectsConfiguration(ChatConfiguration.DefaultToCopilotHarness) ||
 				e.affectsConfiguration(ChatConfiguration.EditorLocalAgentEnabled) ||
 				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
@@ -169,7 +172,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type);
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled);
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -263,12 +266,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * The default session type for the picker when no session is yet active.
-	 * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
-	 * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
-	 * when the selected provider is registered.
+	 * Defaults to Agent Host Copilot when the agent host is enabled, otherwise
+	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace()) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {

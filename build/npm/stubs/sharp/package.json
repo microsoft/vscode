@@ -1,0 +1,7 @@
+{
+	"name": "sharp",
+	"version": "0.34.5",
+	"description": "Pure-JS stub of sharp; see index.js for rationale.",
+	"main": "index.js",
+	"license": "MIT"
+}

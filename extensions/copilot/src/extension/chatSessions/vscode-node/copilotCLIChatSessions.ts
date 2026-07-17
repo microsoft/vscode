@@ -757,7 +757,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unique chat request ID." },
 			"hasChatSessionItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Invoked with a chat session item." },
 			"isUntitled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the chat session is untitled." },
-			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." }
+			"hasDelegatePrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Indicates if the prompt is a /delegate command." },
+			"isolation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The isolation mode of the session, if applicable." },
+			"isWorktree": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Convenience boolean for isolationMode == 'worktree'." },
+			"worktreeTurnIndex": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "1-based count of CLI turns issued against this worktree, including this one.", "isMeasurement": true },
+			"worktreeAgeBucketMs": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bucketed age since worktree creation (e.g. '<5min', '<1h', '<1d', '<7d', '>=7d'). Measure short-lived vs long-lived worktrees." }
 		}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('copilotcli.chat.invoke', {

@@ -10,6 +10,7 @@ import { themeColorFromId } from '../../../../../../../base/common/themables.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
@@ -87,6 +88,15 @@ class InputEditorDecorations extends Disposable {
 		this.registeredDecorationTypes();
 		this.triggerInputEditorDecorationsUpdate();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.widget.inputEditor.onDidChangeConfiguration(e => {
+			// The editor's placeholder option is set/cleared by features such as
+			// dictation ("Listening…"). When it is set, PlaceholderTextContribution
+			// renders it, so the decoration placeholder must yield to avoid two
+			// overlapping placeholders; re-run when the option changes.
+			if (e.hasChanged(EditorOption.placeholder)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
 		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
@@ -215,6 +225,16 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
+			// If the editor's placeholder option is set (e.g. dictation shows
+			// "Listening…"), PlaceholderTextContribution renders it already; skip
+			// the decoration placeholder so the two don't render on top of each
+			// other.
+			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
+				this.updateAriaPlaceholder(undefined);
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+				return;
+			}
+
 			const mode = this.widget.input.currentModeObs.get();
 			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
 			const displayPlaceholder = viewModel.inputPlaceholder || placeholder;

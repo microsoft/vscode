@@ -92,9 +92,6 @@ export interface IMicCaptureService {
 	/** Fired when a PTT segment ends. All chunks have been sent before this fires. */
 	readonly onPttEnd: Event<void>;
 
-	/** Base64 raw PCM16 chunks during barge-in monitoring (not turn input). */
-	readonly onMonitorAudioChunk: Event<string>;
-
 	/**
 	 * Fired after the diagnostic window closes (~1s after `pttUp`) with
 	 * per-press telemetry. Always fires AFTER `onPttEnd` for normal
@@ -132,12 +129,6 @@ export interface IMicCaptureService {
 	 */
 	abortPtt(): void;
 
-	/** Stream mic audio for barge-in detection (no PTT turn, no AEC gating). */
-	startMonitor(window: Window & typeof globalThis): Promise<void>;
-
-	/** Stop barge-in monitoring. Releases the mic only if no PTT press is active. */
-	stopMonitor(): void;
-
 	// --- Mute / AEC suppression ---
 	isMuted: boolean;
 
@@ -167,9 +158,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	private _isMuted = false;
 	private _suppressUntilTs = 0;
 	private _pttAcquiring = false;
-	private _capturePromise: Promise<void> | undefined;
 	private _pttReleasedDuringAcquire = false;
-	private _monitoring = false;
 
 	// --- Hardware mute detection. ---
 	// A hardware microphone kill switch (e.g. on Framework laptops) leaves
@@ -218,9 +207,6 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 
 	private readonly _onPttEnd = this._register(new Emitter<void>());
 	readonly onPttEnd: Event<void> = this._onPttEnd.event;
-
-	private readonly _onMonitorAudioChunk = this._register(new Emitter<string>());
-	readonly onMonitorAudioChunk: Event<string> = this._onMonitorAudioChunk.event;
 
 	private readonly _onPttDiagnostic = this._register(new Emitter<IPttDiagnostic>());
 	readonly onPttDiagnostic: Event<IPttDiagnostic> = this._onPttDiagnostic.event;
@@ -345,49 +331,8 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._scheduleDiagnosticFire();
 	}
 
-	async startMonitor(window: Window & typeof globalThis): Promise<void> {
-		this._window = window;
-		if (this._monitoring) { return; }
-		this._monitoring = true;
-		if (!this._isCapturing) {
-			try {
-				await this.startCapture(window);
-			} catch (err) {
-				// Rethrow so the controller resets its _bargeInMonitorActive flag.
-				this._monitoring = false;
-				this.logService.warn('[mic] barge-in monitor could not acquire microphone', err);
-				throw err;
-			}
-			// Cancelled mid-acquire: release the mic we just opened.
-			if (!this._monitoring && !this._pttHeld && !this._pttStreaming) {
-				this.stopCapture();
-			}
-		}
-	}
-
-	stopMonitor(): void {
-		if (!this._monitoring) { return; }
-		this._monitoring = false;
-		// Keep the mic if a PTT press is using it.
-		if (!this._pttHeld && !this._pttStreaming) {
-			this.stopCapture();
-		}
-	}
-
 	async startCapture(window: Window & typeof globalThis): Promise<void> {
 		this._window = window;
-		if (this._isCapturing) { return; }
-		// Serialize concurrent acquisitions (monitor + PTT) into one getUserMedia.
-		if (this._capturePromise) { return this._capturePromise; }
-		this._capturePromise = this._acquireCapture(window);
-		try {
-			await this._capturePromise;
-		} finally {
-			this._capturePromise = undefined;
-		}
-	}
-
-	private async _acquireCapture(window: Window & typeof globalThis): Promise<void> {
 		if (this._isCapturing) { return; }
 		const deviceId = this.storageService.get(AgentsVoiceStorageKeys.MicrophoneDevice, StorageScope.APPLICATION);
 		const audioConstraints: MediaTrackConstraints = {
@@ -480,14 +425,6 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 				return;
 			}
 
-			// Barge-in monitor: stream raw audio during playback (not a turn,
-			// not AEC-gated) so the backend can detect the user talking over it.
-			if (this._monitoring) {
-				const monitorData = e.inputBuffer.getChannelData(0);
-				const monitorSamples = new Float32Array(monitorData);
-				this._onMonitorAudioChunk.fire(encodeRawPcm16Base64(monitorSamples, this._window!));
-			}
-
 			if (nowTs < this._suppressUntilTs) {
 				if (isDrainCallback) { this._diagDrainSkippedBySuppression++; }
 				if (isPostReleaseCallback) { this._diagPostReleaseSkippedBySuppression++; }
@@ -577,7 +514,6 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._pttHeld = false;
 		this._pttStreaming = false;
 		this._pttReleasedDuringAcquire = false;
-		this._monitoring = false;
 	}
 
 	override dispose(): void {

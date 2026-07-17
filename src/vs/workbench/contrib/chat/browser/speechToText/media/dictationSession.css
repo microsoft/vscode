@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Not-yet-finalized (interim) dictation text is rendered in the input's
+ * placeholder color to signal it is provisional. The settled leading portion
+ * (which the recognizer has stopped revising) is shown statically, while the
+ * still-processing trailing portion shimmers. Both decorations are removed once
+ * the transcript is finalized, leaving solid text. */
+@keyframes dictation-interim-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
+.monaco-editor .dictation-interim-settled {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.monaco-editor .dictation-interim-shimmer {
+	background: linear-gradient(90deg,
+			var(--vscode-input-placeholderForeground) 0%,
+			var(--vscode-input-placeholderForeground) 30%,
+			var(--vscode-foreground) 50%,
+			var(--vscode-input-placeholderForeground) 70%,
+			var(--vscode-input-placeholderForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: dictation-interim-shimmer 2s linear infinite;
+	will-change: background-position;
+}
