@@ -10,16 +10,16 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { getDefaultNewChatSessionResource, resolveDefaultNewChatSessionType } from '../../common/constants.js';
 import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
-export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
+export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
@@ -33,22 +33,31 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
-		const currentResource = chatEditorInput.sessionResource;
 		let resource: URI;
-		if (currentResource && currentResource.scheme !== Schemas.vscodeLocalChatSession) {
-			// Contributed/non-local session: keep the same type for the new session.
-			resource = currentResource.with({ path: `/untitled-${generateUuid()}` });
+		if (targetSessionType !== undefined) {
+			// The caller already resolved the target type (honoring an explicit
+			// request, session preservation, or the preferCopilotHarness swap and
+			// its marker); apply it directly instead of recomputing the default.
+			resource = targetSessionType === localChatSessionType
+				? LocalChatSessionUri.getNewSessionUri()
+				: URI.from({ scheme: targetSessionType, path: `/untitled-${generateUuid()}` });
 		} else {
-			// Local (or brand-new) session. Honor the one-time preferCopilotHarness
-			// swap, consuming the migration marker only here where it is applied.
-			// Otherwise fall back to the computed default.
-			const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
-			const resolved = resolveDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled, { currentSessionType });
-			if (resolved.isPreferCopilotHarnessSwap) {
-				markPreferredCopilotHarness(storageService);
-				resource = URI.from({ scheme: resolved.sessionType, path: `/untitled-${generateUuid()}` });
+			const currentResource = chatEditorInput.sessionResource;
+			if (currentResource && currentResource.scheme !== Schemas.vscodeLocalChatSession) {
+				// Contributed/non-local session: keep the same type for the new session.
+				resource = currentResource.with({ path: `/untitled-${generateUuid()}` });
 			} else {
-				resource = getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace());
+				// Local (or brand-new) session. Honor the one-time preferCopilotHarness
+				// swap, consuming the migration marker only here where it is applied.
+				// Otherwise fall back to the computed default.
+				const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+				const resolved = resolveDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled, { currentSessionType });
+				if (resolved.isPreferCopilotHarnessSwap) {
+					markPreferredCopilotHarness(storageService);
+					resource = URI.from({ scheme: resolved.sessionType, path: `/untitled-${generateUuid()}` });
+				} else {
+					resource = getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
+				}
 			}
 		}
 
