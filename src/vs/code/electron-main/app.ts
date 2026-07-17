@@ -334,19 +334,11 @@ export class CodeApplication extends Disposable {
 				if (!frame || !owner) {
 					return false;
 				}
-				let belongsToOwner = false;
-				for (let current: WebFrameMain | null = frame; current; current = current.parent) {
-					if (current === owner.webContents.mainFrame) {
-						belongsToOwner = true;
-						break;
-					}
-				}
-				if (!belongsToOwner) {
+				if (frame.frameTreeNodeId !== directDocument.frameTreeNodeId) {
 					return false;
 				}
 				const route = `${Schemas.vscodeWebview}://${directDocument.extensionId.toLowerCase()}/${encodeURIComponent(directDocument.webviewId)}/`;
-				const isInitialNavigation = frame === owner.webContents.mainFrame
-					|| frame.url === ''
+				const isInitialNavigation = frame.url === ''
 					|| frame.url === 'about:blank'
 					|| frame.url.startsWith(`${Schemas.vscodeFileResource}://`);
 				return isInitialNavigation || frame.url.startsWith(route);

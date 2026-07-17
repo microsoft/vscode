@@ -57,6 +57,7 @@ export interface WebviewDocumentRegistration {
 	readonly extensionId: string;
 	readonly webviewId: string;
 	readonly windowId: number;
+	readonly frameName: string;
 	readonly html: string;
 	readonly csp: string;
 	readonly roots: readonly UriComponents[];

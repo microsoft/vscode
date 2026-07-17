@@ -29,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
+import { defaultWebviewStyles } from '../browser/pre/defaultStyles.js';
 import { WebviewResourceResponse } from '../browser/resourceLoading.js';
 import { WindowIgnoreMenuShortcutsManager } from './windowIgnoreMenuShortcutsManager.js';
 
@@ -95,25 +96,45 @@ const singleIframeBootstrap = String.raw`(() => {
 	window.addEventListener('dragenter', event => { if (!event.defaultPrevented && !event.shiftKey && hasOnlyFiles(event)) { post('drag-start'); } });
 	window.addEventListener('dragover', event => { event.preventDefault(); if (hasOnlyFiles(event)) { post('drag', { shiftKey: event.shiftKey }); } });
 	window.addEventListener('drop', event => event.preventDefault());
-	window.addEventListener('contextmenu', event => post('did-context-menu', { clientX: event.clientX, clientY: event.clientY, context: {} }));
+	window.addEventListener('contextmenu', event => {
+		if (event.defaultPrevented) { return; }
+		event.preventDefault();
+		let context = {};
+		let element = event.target instanceof Element ? event.target : null;
+		while (element) {
+			element = element.closest('[data-vscode-context]');
+			if (!element) { break; }
+			try { context = { ...JSON.parse(element.getAttribute('data-vscode-context')), ...context }; }
+			catch (error) { console.error("Error parsing 'data-vscode-context' as json", element, error); }
+			element = element.parentElement;
+		}
+		post('did-context-menu', { clientX: event.clientX, clientY: event.clientY, context });
+	});
 	document.addEventListener('click', event => {
+		if (!event.isTrusted) { return; }
 		const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-		if (anchor) { event.preventDefault(); post('did-click-link', { uri: anchor.href }); }
+		if (!anchor) { return; }
+		const href = anchor.getAttribute('href');
+		const base = document.querySelector('base');
+		if (href === '#') {
+			window.scrollTo(0, 0);
+		} else if (anchor.hash && (href === anchor.hash || (base && anchor.href === base.href + anchor.hash))) {
+			const fragment = anchor.hash.slice(1);
+			const decodedFragment = decodeURIComponent(fragment);
+			const scrollTarget = document.getElementById(fragment) ?? document.getElementById(decodedFragment);
+			if (scrollTarget) {
+				scrollTarget.scrollIntoView();
+			} else if (decodedFragment.toLowerCase() === 'top') {
+				window.scrollTo(0, 0);
+			}
+		} else {
+			post('did-click-link', { uri: anchor.href });
+		}
+		event.preventDefault();
 	});
 
 	parent.postMessage({ target: bootstrap.target, channel: 'webview-ready', data: { generation: bootstrap.generation } }, '*', [channel.port2]);
 })();`;
-
-const singleIframeDefaultStyles = `@layer vscode-default {
-	html { scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background); }
-	body { overscroll-behavior-x: none; background-color: transparent; color: var(--vscode-editor-foreground); font-family: var(--vscode-font-family); font-weight: var(--vscode-font-weight); font-size: var(--vscode-font-size); margin: 0; padding: 0 20px; }
-	img, video { max-width: 100%; max-height: 100%; }
-	a, a code { color: var(--vscode-textLink-foreground); }
-	a:hover { color: var(--vscode-textLink-activeForeground); }
-	a:focus, input:focus, select:focus, textarea:focus { outline: 1px solid -webkit-focus-ring-color; outline-offset: -1px; }
-	code { font-family: var(--monaco-monospace-font); color: var(--vscode-textPreformat-foreground); background-color: var(--vscode-textPreformat-background); padding: 1px 3px; border-radius: 4px; }
-	pre code { padding: 0; }
-}`;
 
 const singleIframeHtmlPolicy = createTrustedTypesPolicy('singleIframeWebview', {
 	createHTML: value => value,
@@ -137,6 +158,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private _directHandshakeId: string | undefined;
 	private _directContentKey: string | undefined;
 	private _directUpdate: Promise<void> = Promise.resolve();
+	private _directDisposed = false;
 	private readonly _directResourceRequests = new Map<number, CancellationTokenSource>();
 
 	protected override get platform() { return 'electron'; }
@@ -148,7 +170,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _directLogService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
@@ -158,7 +180,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService);
+			_directLogService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
@@ -197,6 +219,8 @@ export class ElectronWebviewElement extends WebviewElement {
 	override dispose(): void {
 		// Make sure keyboard handler knows it closed (#71800)
 		this._webviewKeyboardHandler.didBlur();
+		this._directDisposed = true;
+		this._directGeneration++;
 
 		if (this.extension?.useSingleIframe && this.resourceId) {
 			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.resourceId);
@@ -313,62 +337,74 @@ export class ElectronWebviewElement extends WebviewElement {
 		const extensionId = this.extension?.id.value.toLowerCase();
 		const webviewId = this.resourceId;
 		const targetWindow = this._directTargetWindow;
-		if (!extensionId || !webviewId || !targetWindow || typeof this.windowId !== 'number' || !this.element) {
+		const windowId = this.windowId;
+		if (this._directDisposed || !extensionId || !webviewId || !targetWindow || typeof windowId !== 'number' || !this.element) {
 			return;
 		}
 
+		const content = this.content;
 		const contentKey = JSON.stringify({
-			html: this.content.html,
-			allowScripts: this.content.options.allowScripts,
-			allowForms: this.content.options.allowForms,
-			roots: this.content.options.localResourceRoots?.map(root => root.toString()),
+			html: content.html,
+			allowScripts: content.options.allowScripts,
+			allowForms: content.options.allowForms,
+			roots: content.options.localResourceRoots?.map(root => root.toString()),
 		});
 		if (contentKey === this._directContentKey) {
 			return;
 		}
 		this._directContentKey = contentKey;
 
-		this._directUpdate = this._directUpdate.then(async () => {
-			const generation = ++this._directGeneration;
-			const handshakeId = generateUuid();
-			this._directHandshakeId = handshakeId;
-			const transformed = await this.transformDirectHtml(this.content.html, !!this.content.options.allowScripts, {
+		const generation = ++this._directGeneration;
+		const handshakeId = generateUuid();
+		this._directHandshakeId = handshakeId;
+		if (prepareForNavigation) {
+			this.prepareForDirectNavigation(targetWindow);
+			this.style();
+		}
+
+		const update = this._directUpdate.then(async () => {
+			const transformed = await this.transformDirectHtml(content.html, !!content.options.allowScripts, {
 				target: this.id,
 				generation: handshakeId,
-			});
-			if (generation !== this._directGeneration) {
+			}, content.state, content.title);
+			if (this._directDisposed || generation !== this._directGeneration) {
 				return;
 			}
 			await this._webviewMainService.registerWebviewDocument({
 				extensionId,
 				webviewId,
-				windowId: this.windowId!,
+				windowId,
+				frameName: this.id,
 				html: transformed.html,
 				csp: transformed.csp,
-				roots: this.content.options.localResourceRoots || [],
+				roots: content.options.localResourceRoots || [],
 			});
-			if (generation !== this._directGeneration || !this.element) {
+			if (this._directDisposed || generation !== this._directGeneration || !this.element) {
+				await this._webviewMainService.unregisterWebviewDocument(extensionId, webviewId);
 				return;
 			}
 
 			this.element.sandbox.remove('allow-same-origin', 'allow-forms', 'allow-downloads');
 			this.element.sandbox.add('allow-scripts', 'allow-pointer-lock');
-			if (this.content.options.allowForms ?? this.content.options.allowScripts) {
+			if (content.options.allowForms ?? content.options.allowScripts) {
 				this.element.sandbox.add('allow-forms');
 			}
-			if (this.content.options.allowScripts) {
+			if (content.options.allowScripts) {
 				this.element.sandbox.add('allow-downloads');
 			}
-			if (prepareForNavigation) {
-				this.prepareForDirectNavigation(targetWindow);
-				this.style();
-			}
+			this.element.title = content.title || '';
 			this.element.src = `${Schemas.vscodeWebview}://${extensionId}/${encodeURIComponent(webviewId)}/index.html`;
+		});
+		this._directUpdate = update.then(undefined, error => {
+			if (generation === this._directGeneration) {
+				this._directContentKey = undefined;
+			}
+			this._directLogService.error(`Webview(${this.id}): failed to update direct webview`, error);
 		});
 		await this._directUpdate;
 	}
 
-	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string }): Promise<{ html: string; csp: string }> {
+	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string }, persistedState: string | undefined, title: string | undefined): Promise<{ html: string; csp: string }> {
 		const source = html || '<!DOCTYPE html><html><head></head><body></body></html>';
 		const trustedSource = singleIframeHtmlPolicy?.createHTML(source) ?? source;
 		const parsedDocument = new DOMParser().parseFromString(trustedSource as string, 'text/html');
@@ -384,9 +420,15 @@ export class ElectronWebviewElement extends WebviewElement {
 		let csp = policies[0].getAttribute('content')!.trim();
 		policies[0].remove();
 		const hash = await this.contentHash(singleIframeBootstrap);
-		const styleHash = await this.contentHash(singleIframeDefaultStyles);
+		const styleHash = await this.contentHash(defaultWebviewStyles);
 		csp = this.addHash(csp, 'script-src', hash);
+		if (this.hasDirective(csp, 'script-src-elem')) {
+			csp = this.addHash(csp, 'script-src-elem', hash);
+		}
 		csp = this.addHash(csp, 'style-src', styleHash);
+		if (this.hasDirective(csp, 'style-src-elem')) {
+			csp = this.addHash(csp, 'style-src-elem', styleHash);
+		}
 		if (!allowScripts) {
 			csp += `, script-src ${hash}; script-src-attr 'none'`;
 		}
@@ -399,13 +441,13 @@ export class ElectronWebviewElement extends WebviewElement {
 		parsedDocument.head.prepend(bootstrap);
 		const defaultStyles = parsedDocument.createElement('style');
 		defaultStyles.id = '_defaultStyles';
-		defaultStyles.textContent = singleIframeDefaultStyles;
+		defaultStyles.textContent = defaultWebviewStyles;
 		parsedDocument.head.prepend(defaultStyles);
-		const state = parsedDocument.createElement('meta');
-		state.name = 'vscode-webview-state';
-		state.content = this.content.state ? encodeURIComponent(this.content.state) : '';
-		parsedDocument.head.prepend(state);
-		parsedDocument.title = this.content.title || '';
+		const stateElement = parsedDocument.createElement('meta');
+		stateElement.name = 'vscode-webview-state';
+		stateElement.content = persistedState ? encodeURIComponent(persistedState) : '';
+		parsedDocument.head.prepend(stateElement);
+		parsedDocument.title = title || '';
 		return { html: `<!DOCTYPE html>\n${parsedDocument.documentElement.outerHTML}`, csp };
 	}
 
@@ -418,13 +460,24 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	private addHash(csp: string, directive: string, hash: string): string {
 		const directives = csp.split(';').map(value => value.trim()).filter(Boolean);
-		const index = directives.findIndex(value => value.toLowerCase().startsWith(`${directive} `));
+		const index = directives.findIndex(value => value.split(/\s/, 1)[0].toLowerCase() === directive);
 		if (index >= 0) {
 			directives[index] += ` ${hash}`;
 		} else {
 			directives.push(`${directive} ${hash}`);
 		}
 		return directives.join('; ');
+	}
+
+	private hasDirective(csp: string, directive: string): boolean {
+		return csp.split(';').some(value => value.trim().split(/\s/, 1)[0].toLowerCase() === directive);
+	}
+
+	public override setTitle(title: string): void {
+		super.setTitle(title);
+		if (this.useSingleIframe && this.element) {
+			this.element.title = title;
+		}
 	}
 
 	protected override webviewContentEndpoint(iframeId: string): string {

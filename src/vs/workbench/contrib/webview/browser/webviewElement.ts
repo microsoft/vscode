@@ -12,7 +12,7 @@ import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { COI } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { listenStream } from '../../../../base/common/stream.js';
@@ -75,6 +75,7 @@ interface WebviewActionContext {
 const webviewIdContext = 'webviewId';
 
 export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
+	private readonly _directMessageHandler = this._register(new MutableDisposable<IDisposable>());
 
 	protected readonly id = generateUuid();
 	private _resourceId: string | undefined;
@@ -527,7 +528,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	protected _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		const subscription = addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -570,7 +571,12 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 				subscription.dispose();
 			}
-		}));
+		});
+		if (this.useSingleIframe) {
+			this._directMessageHandler.value = subscription;
+		} else {
+			this._register(subscription);
+		}
 	}
 
 	protected isValidWebviewReady(_data: unknown): boolean { return true; }

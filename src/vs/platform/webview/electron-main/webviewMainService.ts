@@ -43,7 +43,18 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	}
 
 	public async registerWebviewDocument(document: WebviewDocumentRegistration): Promise<void> {
-		this.protocolProvider.registerWebviewDocument(document);
+		const window = this.windowsMainService.getWindowById(document.windowId);
+		const mainFrame = window?.win?.webContents.mainFrame;
+		const frame = mainFrame?.framesInSubtree.find(frame => {
+			return frame.parent === mainFrame && frame.name === document.frameName;
+		});
+		if (!frame) {
+			throw new Error(`Unknown direct webview frame: ${document.frameName}`);
+		}
+		this.protocolProvider.registerWebviewDocument({
+			...document,
+			frameTreeNodeId: frame.frameTreeNodeId,
+		});
 	}
 
 	public async unregisterWebviewDocument(extensionId: string, webviewId: string): Promise<void> {

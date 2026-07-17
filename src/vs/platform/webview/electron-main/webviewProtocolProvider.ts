@@ -14,15 +14,19 @@ import { getWebviewContentMimeType } from '../common/mimeTypes.js';
 import { isWebviewResourceAllowed } from '../common/resourceLoading.js';
 import { WebviewDocumentRegistration, WebviewPortMappingRequest, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
 
+export interface RegisteredWebviewDocument extends WebviewDocumentRegistration {
+	readonly frameTreeNodeId: number;
+}
 
 export class WebviewProtocolProvider implements IDisposable {
 	private static instance: WebviewProtocolProvider | undefined;
-	private static readonly documents = new Map<string, WebviewDocumentRegistration>();
+	private static readonly documents = new Map<string, RegisteredWebviewDocument>();
 
 	private static validWebviewFilePaths = new Map<string, { readonly mime: string }>([
 		['/index.html', { mime: 'text/html' }],
 		['/fake.html', { mime: 'text/html' }],
 		['/service-worker.js', { mime: 'application/javascript' }],
+		['/defaultStyles.js', { mime: 'application/javascript' }],
 	]);
 	private readonly pendingResources = new Map<number, {
 		readonly resolve: (response: Response) => void;
@@ -60,7 +64,7 @@ export class WebviewProtocolProvider implements IDisposable {
 		if (WebviewProtocolProvider.instance === this) { WebviewProtocolProvider.instance = undefined; }
 	}
 
-	public registerWebviewDocument(document: WebviewDocumentRegistration): void {
+	public registerWebviewDocument(document: RegisteredWebviewDocument): void {
 		if (!/^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/.test(document.extensionId.toLowerCase()) || !document.webviewId || document.webviewId.includes('/')) {
 			throw new Error('Invalid direct webview route');
 		}
@@ -137,7 +141,7 @@ export class WebviewProtocolProvider implements IDisposable {
 		}
 	}
 
-	public static getWebviewDocument(url: URI): WebviewDocumentRegistration | undefined {
+	public static getWebviewDocument(url: URI): RegisteredWebviewDocument | undefined {
 		const match = /^\/([^/]+)\/(?:index\.html|_vscode\/resource\/)/.exec(url.path);
 		if (!match) {
 			return undefined;
