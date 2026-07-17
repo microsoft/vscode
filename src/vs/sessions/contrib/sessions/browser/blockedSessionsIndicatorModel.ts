@@ -11,7 +11,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../blockedSessions/browser/blockedSessions.js';
+import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 import { getFirstApprovalAcrossChats, IApprovedSession } from './views/sessionsList.js';
 
 /**
@@ -32,13 +34,11 @@ export const enum RequiresInputKind {
  * Model behind the sessions title bar's "N sessions require input" indicator.
  *
  * It refines the raw {@link BlockedSessions} set into what the title bar should
- * actually surface: it drops sessions the user can already see, applies optimistic
- * dismissals for approvals the user just allowed, classifies the homogeneous
- * requires-input reason, and decides when the attention blink should play.
+ * actually surface: visible and explicitly ignored occurrences are acknowledged,
+ * approvals are dismissed optimistically, and later occurrences surface again.
  *
- * Blink detection keys off *changes to* the blocked-session ids, so visibility can
- * only ever suppress a blink, never trigger one — navigating between sessions never
- * blinks.
+ * Blink detection keys off blocked occurrences, so navigation can acknowledge a
+ * block but never creates one.
  *
  * The DOM rendering of the indicator lives in the title bar widget; this class is
  * DOM-free so it can be unit tested in isolation.
@@ -56,20 +56,20 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		return this._approvalModel;
 	}
 
-	/**
-	 * Sessions whose current pending approval the user just allowed, keyed by
-	 * `sessionId` → the approved approval's identity. Such a session is optimistically
-	 * hidden from the blocked set until its approval resolves into a NEW distinct
-	 * block (or it stops being blocked), so an approved row disappears immediately
-	 * instead of lingering until the provider updates the session status.
-	 */
-	private readonly _dismissedApprovals = observableValue<ReadonlyMap<string, string>>('dismissedApprovals', new Map());
+	/** Drives the per-session "Fix CI" row; shared with the dropdown list. */
+	private readonly _ciFixModel: BlockedSessionsCIFixModel;
+
+	/** The CI-fix model, shared with the dropdown list so the fix action and the hide-while-fixing agree. */
+	get ciFixModel(): BlockedSessionsCIFixModel {
+		return this._ciFixModel;
+	}
+
+	/** Current blocked occurrences the user has already acknowledged, keyed by session id. */
+	private readonly _ignoredBlockOccurrences = observableValue<ReadonlyMap<string, string>>('ignoredBlockOccurrences', new Map());
 
 	/**
-	 * Blocked sessions that are NOT currently visible on screen and not optimistically
-	 * dismissed. A session the user can already see doesn't need the titlebar indicator
-	 * or a dropdown row, so it is excluded from both the "N sessions require input" count
-	 * and the list.
+	 * Blocked sessions that are not visible, ignored, being fixed, or already approved.
+	 * Visible blocked occurrences stay acknowledged after the user navigates away.
 	 */
 	readonly blockedSessions: IObservable<readonly IBlockedSession[]>;
 
@@ -81,20 +81,15 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	readonly requiresInputKind: IObservable<RequiresInputKind | undefined>;
 
 	/**
-	 * Ids of the sessions the underlying model reports as blocked, kept in sync
-	 * with the model (independent of which sessions happen to be visible). Used to
-	 * detect when a *genuinely new* session becomes blocked so the attention blink
-	 * only fires for real new blocks — and never merely because the user navigated
-	 * to a different session, which changes the visible set but not the model.
+	 * Latest blocked occurrence per session, independent of visibility. Used so the
+	 * attention blink only fires for a genuinely new input request or CI failure.
 	 */
-	private _lastBlockedSessionIds: ReadonlySet<string> = new Set();
+	private _lastBlockedOccurrences: ReadonlyMap<string, string> = new Map();
 
 	/**
-	 * Ids of not-yet-visible sessions that genuinely became blocked and whose
-	 * attention blink hasn't played yet. Keyed by session id so a queued blink can be
-	 * individually dropped once its session becomes visible or stops being blocked.
+	 * Not-yet-visible blocked occurrences whose attention blink has not played yet.
 	 */
-	private readonly _pendingBlinkSessionIds = new Set<string>();
+	private readonly _pendingBlinkOccurrences = new Map<string, string>();
 
 	private readonly _onDidRequestBlink = this._register(new Emitter<void>());
 	/**
@@ -107,17 +102,19 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	constructor(
 		approvalModel: AgentSessionApprovalModel | undefined,
 		blockedSessions: BlockedSessions | undefined,
+		ciFixModel: BlockedSessionsCIFixModel | undefined,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
 	) {
 		super();
 
-		// The model owns the approval model and blocked-sessions model; the optional
-		// parameters are test seams so fixtures/tests can supply preset instances (only
-		// register — and thus dispose — the ones we created ourselves).
+		// The model owns the approval model, blocked-sessions model and CI-fix model;
+		// the optional parameters are test seams so fixtures/tests can supply preset
+		// instances (only register — and thus dispose — the ones we created ourselves).
 		this._approvalModel = approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		this._blockedSessionsModel = blockedSessions ?? this._register(instantiationService.createInstance(BlockedSessions));
+		this._ciFixModel = ciFixModel ?? this._register(instantiationService.createInstance(BlockedSessionsCIFixModel));
 
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
@@ -134,9 +131,15 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 					visibleSessionIds.add(session.sessionId);
 				}
 			}
-			const dismissed = this._dismissedApprovals.read(reader);
+			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
+			// Sessions whose CI fix is being submitted in the background are hidden
+			// immediately (before their status flips to in-progress) so the row
+			// disappears the moment the user clicks "Fix CI".
+			const ciFixHidden = this._ciFixModel.hiddenSessions.read(reader);
 			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
-				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId) && !this._isApprovalDismissed(blocked, dismissed, reader));
+				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId)
+					&& !ciFixHidden.has(blocked.session.sessionId)
+					&& !this._isBlockIgnored(blocked, ignoredOccurrences, reader));
 		});
 
 		// The homogeneous reason across all blocked sessions (or `undefined` for a
@@ -164,32 +167,40 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			return common;
 		});
 
-		// Drop optimistic dismissals once the session is no longer blocked or its
-		// pending approval has been superseded by a new, distinct one — so a stale
-		// dismissal can't keep hiding a genuinely new block.
+		// A visible blocked session has been acknowledged. Keep that occurrence
+		// ignored after navigation, and clear stale ignores when a new block appears.
 		this._register(autorun(reader => {
-			const dismissed = this._dismissedApprovals.read(reader);
-			if (dismissed.size === 0) {
+			if (!enabled) {
 				return;
 			}
-			const blockedById = new Map(this._blockedSessionsModel.blockedSessionsWithReasons.read(reader).map(blocked => [blocked.session.sessionId, blocked] as const));
-			let next: Map<string, string> | undefined;
-			for (const [sessionId, approvalId] of dismissed) {
-				const blocked = blockedById.get(sessionId);
-				let stale: boolean;
-				if (!blocked || blocked.reason !== BlockedSessionReason.NeedsInput) {
-					stale = true;
-				} else {
-					const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
-					stale = approval !== undefined && agentSessionApprovalId(approval) !== approvalId;
-				}
-				if (stale) {
-					next ??= new Map(dismissed);
+			const blockedSessions = this._blockedSessionsModel.blockedSessionsWithReasons.read(reader);
+			const blockedById = new Map(blockedSessions.map(entry => [entry.session.sessionId, entry] as const));
+			const visibleSessionIds = new Set(this._sessionsService.visibleSessions.read(reader).filter(session => session !== undefined).map(session => session.sessionId));
+			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
+			const next = new Map(ignoredOccurrences);
+			let changed = false;
+
+			for (const [sessionId, ignoredOccurrence] of ignoredOccurrences) {
+				const blockedSession = blockedById.get(sessionId);
+				if (!blockedSession || this._getBlockOccurrenceId(blockedSession, reader, ignoredOccurrence) !== ignoredOccurrence) {
 					next.delete(sessionId);
+					changed = true;
 				}
 			}
-			if (next) {
-				this._dismissedApprovals.set(next, undefined);
+
+			for (const blockedSession of blockedById.values()) {
+				if (!visibleSessionIds.has(blockedSession.session.sessionId)) {
+					continue;
+				}
+				const occurrenceId = this._getBlockOccurrenceId(blockedSession, reader, next.get(blockedSession.session.sessionId));
+				if (next.get(blockedSession.session.sessionId) !== occurrenceId) {
+					next.set(blockedSession.session.sessionId, occurrenceId);
+					changed = true;
+				}
+			}
+
+			if (changed) {
+				this._ignoredBlockOccurrences.set(next, undefined);
 			}
 		}));
 
@@ -199,10 +210,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			if (!enabled) {
 				return;
 			}
-			const modelBlocked = this._blockedSessionsModel.blockedSessions.read(reader);
-			const currentIds = new Set(modelBlocked.map(session => session.sessionId));
-			const previousIds = this._lastBlockedSessionIds;
-			this._lastBlockedSessionIds = currentIds;
+			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
+			const modelBlocked = this._blockedSessionsModel.blockedSessionsWithReasons.read(reader);
+			const currentOccurrences = new Map(modelBlocked.map(blocked => [
+				blocked.session.sessionId,
+				this._getBlockOccurrenceId(blocked, reader, ignoredOccurrences.get(blocked.session.sessionId)),
+			] as const));
+			const previousOccurrences = this._lastBlockedOccurrences;
+			this._lastBlockedOccurrences = currentOccurrences;
 
 			const visibleSessionIds = new Set<string>();
 			for (const session of this._sessionsService.visibleSessions.read(reader)) {
@@ -212,17 +227,19 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 
 			// Drop queued blinks for sessions that unblocked or that the user can now see.
-			for (const id of this._pendingBlinkSessionIds) {
-				if (!currentIds.has(id) || visibleSessionIds.has(id)) {
-					this._pendingBlinkSessionIds.delete(id);
+			for (const [sessionId, occurrenceId] of this._pendingBlinkOccurrences) {
+				if (currentOccurrences.get(sessionId) !== occurrenceId || visibleSessionIds.has(sessionId)) {
+					this._pendingBlinkOccurrences.delete(sessionId);
 				}
 			}
 
 			// Only a genuinely new block the user cannot already see queues a blink.
 			let queued = false;
-			for (const session of modelBlocked) {
-				if (!previousIds.has(session.sessionId) && !visibleSessionIds.has(session.sessionId)) {
-					this._pendingBlinkSessionIds.add(session.sessionId);
+			for (const blocked of modelBlocked) {
+				const sessionId = blocked.session.sessionId;
+				const occurrenceId = currentOccurrences.get(sessionId)!;
+				if (previousOccurrences.get(sessionId) !== occurrenceId && !visibleSessionIds.has(sessionId)) {
+					this._pendingBlinkOccurrences.set(sessionId, occurrenceId);
 					queued = true;
 				}
 			}
@@ -240,29 +257,44 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	 * a subsequent render won't replay the animation.
 	 */
 	consumePendingBlink(): boolean {
-		if (this._pendingBlinkSessionIds.size === 0) {
+		if (this._pendingBlinkOccurrences.size === 0) {
 			return false;
 		}
-		const surfacedIds = new Set(this.blockedSessions.get().map(entry => entry.session.sessionId));
+		const ignoredOccurrences = this._ignoredBlockOccurrences.get();
+		const surfacedOccurrences = new Map(this.blockedSessions.get().map(blocked => [
+			blocked.session.sessionId,
+			this._getBlockOccurrenceId(blocked, undefined, ignoredOccurrences.get(blocked.session.sessionId)),
+		] as const));
 		let shouldBlink = false;
-		for (const id of this._pendingBlinkSessionIds) {
-			if (surfacedIds.has(id)) {
+		for (const [sessionId, occurrenceId] of this._pendingBlinkOccurrences) {
+			if (surfacedOccurrences.get(sessionId) === occurrenceId) {
 				shouldBlink = true;
 				break;
 			}
 		}
-		this._pendingBlinkSessionIds.clear();
+		this._pendingBlinkOccurrences.clear();
 		return shouldBlink;
+	}
+
+	/** Ignore this session's current blocked occurrence. */
+	ignoreSession(session: ISession): void {
+		const blocked = this._blockedSessionsModel.blockedSessionsWithReasons.get().find(entry => entry.session.sessionId === session.sessionId);
+		if (!blocked) {
+			return;
+		}
+		this._ignoreOccurrence(blocked, this._getBlockOccurrenceId(blocked, undefined, this._ignoredBlockOccurrences.get().get(session.sessionId)));
 	}
 
 	/**
 	 * Remember that the user allowed this exact approval so the session drops out of
-	 * the blocked set immediately (see {@link _isApprovalDismissed}).
+	 * the blocked set immediately.
 	 */
 	dismissApproval(approved: IApprovedSession): void {
-		const next = new Map(this._dismissedApprovals.get());
-		next.set(approved.session.sessionId, approved.approvalId);
-		this._dismissedApprovals.set(next, undefined);
+		const blocked = this._blockedSessionsModel.blockedSessionsWithReasons.get().find(entry => entry.session.sessionId === approved.session.sessionId);
+		if (!blocked || blocked.reason !== BlockedSessionReason.NeedsInput) {
+			return;
+		}
+		this._ignoreOccurrence(blocked, this._approvalOccurrenceId(blocked, approved.approvalId));
 	}
 
 	/**
@@ -291,18 +323,31 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		}
 	}
 
-	/**
-	 * Whether a blocked session should stay hidden because the user just approved
-	 * its pending action: hidden while that approval resolves (no current approval,
-	 * status lagging) or is unchanged; a new, distinct approval re-surfaces it.
-	 */
-	private _isApprovalDismissed(blocked: IBlockedSession, dismissed: ReadonlyMap<string, string>, reader: IReader): boolean {
-		const dismissedId = dismissed.get(blocked.session.sessionId);
-		if (dismissedId === undefined || blocked.reason !== BlockedSessionReason.NeedsInput) {
-			return false;
+	private _ignoreOccurrence(blocked: IBlockedSession, occurrenceId: string): void {
+		const next = new Map(this._ignoredBlockOccurrences.get());
+		next.set(blocked.session.sessionId, occurrenceId);
+		this._ignoredBlockOccurrences.set(next, undefined);
+	}
+
+	private _isBlockIgnored(blocked: IBlockedSession, ignoredOccurrences: ReadonlyMap<string, string>, reader: IReader): boolean {
+		const ignoredOccurrence = ignoredOccurrences.get(blocked.session.sessionId);
+		return ignoredOccurrence !== undefined && this._getBlockOccurrenceId(blocked, reader, ignoredOccurrence) === ignoredOccurrence;
+	}
+
+	private _getBlockOccurrenceId(blocked: IBlockedSession, reader: IReader | undefined, ignoredOccurrence?: string): string {
+		if (blocked.reason !== BlockedSessionReason.NeedsInput) {
+			return blocked.occurrenceId;
 		}
 		const approval = getFirstApprovalAcrossChats(this._approvalModel, blocked.session, reader);
-		return approval === undefined || agentSessionApprovalId(approval) === dismissedId;
+		if (approval) {
+			return this._approvalOccurrenceId(blocked, agentSessionApprovalId(approval));
+		}
+		const approvalPrefix = this._approvalOccurrenceId(blocked, '');
+		return ignoredOccurrence?.startsWith(approvalPrefix) ? ignoredOccurrence : blocked.occurrenceId;
+	}
+
+	private _approvalOccurrenceId(blocked: IBlockedSession, approvalId: string): string {
+		return `${blocked.occurrenceId}:approval:${approvalId}`;
 	}
 
 	/**

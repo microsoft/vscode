@@ -123,6 +123,10 @@ export function getAncillaryStub(method: string, path: string): IStubResponse | 
 	if (path === '/models' && method === 'GET') {
 		return { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ data: STUB_MODELS.map(expandModel), object: 'list' }) };
 	}
+	// The SDK probes websocket support before falling back to POST /responses.
+	if (path === '/responses' && method === 'GET') {
+		return { status: 400, headers: { 'content-type': 'text/plain' }, body: 'Bad Request' };
+	}
 	// Auto-mode model-selection endpoints the SDK/agent host probes during model
 	// setup: `/models/session/intent` (model router) and `/models/session` (auto
 	// model / session token). Replay drives the model turn from the recorded

@@ -424,6 +424,7 @@ export class ProtocolServerHandler extends Disposable {
 				}
 
 				if (!client) {
+					transport.send(jsonRpcError(msg.id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${msg.method}`));
 					return;
 				}
 				this._handleRequest(client, msg.method, msg.params, msg.id);
@@ -1393,7 +1394,7 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 
-		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
+		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
 	}
 
 	/**

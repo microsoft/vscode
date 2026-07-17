@@ -694,11 +694,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
+		const sessionsWithChangedArchivedState: IInternalAgentSession[] = [];
+		for (const [, session] of sessions) {
+			const previousSession = this._sessions.get(session.resource);
+			if (previousSession && this.isArchived(previousSession) !== this.isArchived(session)) {
+				sessionsWithChangedArchivedState.push(session);
+			}
+		}
+
 		this._sessions = sessions;
 		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
+		for (const session of sessionsWithChangedArchivedState) {
+			this._onDidChangeSessionArchivedState.fire(session);
+		}
 		this._onDidChangeSessions.fire();
 	}
 
@@ -751,10 +762,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
-		// Agent host sessions have server-authoritative archived state, so ignore
-		// the local view-state overlay: a stale local value must not mask the
-		// server truth reported via `session.archived`.
-		if (isAgentHostTarget(session.providerType)) {
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
 			return Boolean(session.archived);
 		}
 		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
@@ -767,6 +775,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		if (archived === this.isArchived(session)) {
 			return; // no change
+		}
+
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+			this.chatSessionsService.setChatSessionItemArchived(session.resource, archived);
+			return;
 		}
 
 		const state = this.resolveStateEntry(session) ?? {};

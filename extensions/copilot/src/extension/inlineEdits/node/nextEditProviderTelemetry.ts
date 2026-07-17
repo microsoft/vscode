@@ -8,7 +8,7 @@ import { IGitExtensionService } from '../../../platform/git/common/gitExtensionS
 import { getUpstreamRemote } from '../../../platform/git/common/utils';
 import { DebugRecorderBookmark } from '../../../platform/inlineEdits/common/debugRecorderBookmark';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
-import { IStatelessNextEditTelemetry, StatelessNextEditRequest } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
+import { IStatelessNextEditModelTelemetry, IStatelessNextEditTelemetry, StatelessNextEditRequest } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
@@ -266,6 +266,8 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			alternativeAction,
 
 			...this._statelessNextEditTelemetry,
+			modelName: this._statelessNextEditTelemetry?.modelName ?? this._cachedModelTelemetry?.modelName,
+			modelConfig: this._statelessNextEditTelemetry?.modelConfig ?? this._cachedModelTelemetry?.modelConfig,
 
 			activeDocumentRepository,
 			repositoryUrls,
@@ -346,6 +348,12 @@ export class LlmNESTelemetryBuilder extends Disposable {
 	private _isFromCache: boolean = false;
 	public setIsFromCache(): this {
 		this._isFromCache = true;
+		return this;
+	}
+
+	private _cachedModelTelemetry: IStatelessNextEditModelTelemetry | undefined;
+	public setCachedModelTelemetry(modelTelemetry: IStatelessNextEditModelTelemetry): this {
+		this._cachedModelTelemetry = modelTelemetry;
 		return this;
 	}
 

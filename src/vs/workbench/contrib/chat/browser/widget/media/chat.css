@@ -319,8 +319,125 @@
 	white-space: nowrap;
 }
 
-.interactive-item-container .chat-footer-details.hidden {
-	display: none !important;
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details:not(.hidden) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.interactive-item-container .chat-footer-details:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.interactive-item-container .chat-response-timing {
+	display: inline-grid;
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.interactive-item-container .chat-response-timing > * {
+	grid-area: 1 / 1;
+	justify-self: end;
+	text-align: right;
+	transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.interactive-item-container .chat-response-flip-reset .chat-response-timing > * {
+	transition: none;
+}
+
+.interactive-item-container .chat-response-timing .chat-response-alternate {
+	opacity: 0;
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-down .chat-response-timing .chat-response-alternate {
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-completed-at,
+.interactive-item-container .chat-footer-details:focus-visible .chat-response-timing.has-alternate .chat-response-completed-at {
+	opacity: 0;
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-down.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-completed-at {
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-footer-details.chat-response-flip-active .chat-response-timing.has-alternate .chat-response-alternate,
+.interactive-item-container .chat-footer-details:focus-visible .chat-response-timing.has-alternate .chat-response-alternate {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.interactive-item-container .chat-request-timing {
+	display: inline-grid;
+	overflow: hidden;
+}
+
+.interactive-item-container .chat-request-timestamp:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.interactive-item-container .chat-request-timing > * {
+	grid-area: 1 / 1;
+	justify-self: end;
+	text-align: right;
+	transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.interactive-item-container .chat-request-flip-reset .chat-request-timing > * {
+	transition: none;
+}
+
+.interactive-item-container .chat-request-timing .chat-request-full-date {
+	opacity: 0;
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-down .chat-request-timing .chat-request-full-date {
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-relative,
+.interactive-item-container .chat-request-timestamp:focus-visible .chat-request-timing.has-alternate .chat-request-relative {
+	opacity: 0;
+	transform: translateY(-100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-down.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-relative {
+	transform: translateY(100%);
+}
+
+.interactive-item-container .chat-request-timestamp.chat-request-flip-active .chat-request-timing.has-alternate .chat-request-full-date,
+.interactive-item-container .chat-request-timestamp:focus-visible .chat-request-timing.has-alternate .chat-request-full-date {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.interactive-item-container .chat-response-model-details {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
+	display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container .chat-response-timing > *,
+	.interactive-item-container .chat-request-timing > * {
+		transition: none;
+	}
+}
+
+.interactive-item-container.interactive-request:not(.show-verbose-details) .value .chat-request-timestamp {
+	display: none;
 }
 
 .interactive-item-container .value {
@@ -1847,83 +1964,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
-/* Split model picker layout */
-.chat-input-picker-item:has(.model-picker-split) {
-	overflow: visible;
-}
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
-	padding: 0;
-	overflow: visible;
-	height: auto;
-	border-radius: 0;
-	position: relative;
-	cursor: default;
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section {
-	display: flex;
-	align-items: center;
-	height: 16px;
-	padding: 3px 5px;
-	border-radius: 4px;
-	cursor: pointer;
-	text-decoration: none;
-	color: inherit;
-	white-space: nowrap;
-}
-
-/* Prevent double hover: disable the outer container hover so only individual sections highlight */
-.chat-input-picker-item .action-label.model-picker-split:hover,
-.chat-input-picker-item .action-label.model-picker-split[aria-expanded="true"] {
-	background-color: transparent !important;
-}
-
-.chat-input-picker-item .action-label.model-picker-split:not(.disabled):has(.model-picker-section:hover) .model-picker-section {
-	color: var(--vscode-foreground);
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section:hover,
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section[aria-expanded="true"] {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-name {
-	min-width: 0;
-	flex-shrink: 1;
-	overflow: hidden;
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-config {
-	flex-shrink: 0;
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
-	font-size: 12px;
-}
-
-.chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon + .chat-input-picker-label {
-	margin-left: 2px;
-}
-
-.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section {
-	cursor: default;
-}
-
-.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-section:hover {
-	background-color: transparent;
-}
-
-.chat-input-picker-item .action-label.model-picker-split.disabled .codicon {
-	color: var(--vscode-disabledForeground);
-}
-
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 8px;
@@ -1999,90 +2039,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item.disabled .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label.disabled .codicon {
 	color: var(--vscode-disabledForeground) !important;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-unavailable .description a,
-.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:visited {
-	color: var(--vscode-textLink-foreground);
-}
-
-.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
-.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
-	color: var(--vscode-textLink-activeForeground);
-}
-
-.action-widget .action-list-filter-input.chat-model-picker-filter-input,
-.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
-	outline: none;
-	box-shadow: none;
-	border-color: transparent;
-	background-color: transparent;
-}
-
-.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
-	margin-bottom: 4px;
-}
-
-.style-override.monaco-enable-motion .action-widget:has(.chat-input-picker-dropdown) {
-	animation: chat-input-picker-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
-	transform-origin: bottom left;
-	will-change: transform, opacity;
-}
-
-.style-override.monaco-enable-motion .context-view.bottom .action-widget:has(.chat-input-picker-dropdown) {
-	transform-origin: top left;
-}
-
-.style-override.monaco-enable-motion .action-widget.chat-input-picker-dropdown-closing:has(.chat-input-picker-dropdown) {
-	animation: chat-input-picker-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
-	pointer-events: none;
-}
-
-@keyframes chat-input-picker-dropdown-open {
-	0% {
-		opacity: 0;
-		transform: scale(0.97);
-	}
-
-	100% {
-		opacity: 1;
-		transform: scale(1);
-	}
-}
-
-@keyframes chat-input-picker-dropdown-close {
-	0% {
-		opacity: 1;
-		transform: scale(1);
-	}
-
-	100% {
-		opacity: 0;
-		transform: scale(0.99);
-	}
-}
-
-.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
-	display: flex;
-}
-
-/* Promoted model items: show source inline next to the model name and keep cost aligned right. */
-.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
-	flex: 0 1 auto;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
-	padding: 0;
-	border-radius: 0;
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: normal;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
-	margin-left: auto;
-	flex-shrink: 0;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2261,6 +2217,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 4px;
 	position: relative;
+}
+
+.interactive-session .interactive-input-part:not(.chat-input-hidden) > .chat-input-persistent-content {
+	display: contents;
+}
+
+.interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content) {
+	display: none;
+}
+
+.interactive-session .interactive-input-part.chat-input-hidden:not(:has(> .chat-input-persistent-content > :not(.hidden))) {
+	display: none;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -3837,6 +3805,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 	}
 
+	.interactive-item-container.interactive-request .chat-request-timestamp {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label3);
+		line-height: var(--vscode-fontSize-label3);
+		opacity: 0.7;
+		visibility: visible;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+	}
+
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus-visible {
+		opacity: 0.7;
+		visibility: visible;
+		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	}
+
 	.interactive-item-container.interactive-request .chat-attached-context {
 		max-width: 100%;
 		width: fit-content;
@@ -4309,6 +4298,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.checkpoint-container {
 			opacity: 1;
 		}
+
+		.chat-request-timestamp {
+			opacity: 0.7;
+			visibility: visible;
+			transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+		}
 	}
 
 	.interactive-request.editing .rendered-markdown,
@@ -4567,254 +4562,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none !important;
 }
 
-/* --- Chat Model Hover --- */
-.chat-model-hover {
-	display: flex;
-	flex-direction: column;
-	gap: 24px;
-	/* max-width: 250px; */
-}
-
-.chat-model-hover-warning-text {
-	display: flex;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
-	border-radius: 4px;
-	padding: 6px 8px;
-}
-
-.chat-model-hover-warning-text > .codicon {
-	flex-shrink: 0;
-	color: var(--vscode-notificationsWarningIcon-foreground);
-}
-
-.chat-model-hover-warning-text p {
-	margin: 0;
-}
-
-.chat-model-hover-promo-text {
-	display: flex;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
-	border-radius: 4px;
-	padding: 6px 8px;
-}
-
-.chat-model-hover-promo-text > .codicon {
-	flex-shrink: 0;
-	color: var(--vscode-notificationsInfoIcon-foreground);
-}
-
-.chat-model-hover-promo-text p {
-	margin: 0;
-}
-
-.chat-model-hover.has-long-context {
-	max-width: 300px;
-}
-
-.chat-model-hover-name {
-	font-weight: 500;
-	font-size: 14px;
-}
-
-.chat-model-hover-description {
-	font-size: 12px;
-	max-width: 300px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-description p {
-	margin: 0;
-}
-
-.chat-model-hover-title-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-}
-
-.chat-model-hover-price-badge {
-	flex: 0 0 auto;
-	padding: 2px 8px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-model-hover-price-badge.high-cost {
-	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
-	border-color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-editorWarning-foreground));
-}
-
-.chat-model-hover-title-tags {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex: 0 0 auto;
-}
-
-.chat-model-hover-category {
-	font-size: 11px;
-	/* color: var(--vscode-descriptionForeground); */
-	white-space: nowrap;
-}
-
-.chat-model-hover-cost-table {
-	display: grid;
-	grid-template-columns: auto auto;
-	column-gap: 0;
-	row-gap: 12px;
-	align-items: center;
-	font-size: 12px;
-}
-
-.chat-model-hover-cost-table.has-long-context {
-	grid-template-columns: auto auto auto;
-}
-
-/* Each row is a real (positioned) element that still aligns to the table's columns via subgrid,
-	so it can paint a single continuous dotted line behind all of its cells. */
-.chat-model-hover-cost-row {
-	display: grid;
-	grid-column: 1 / -1;
-	grid-template-columns: subgrid;
-	align-items: center;
-	position: relative;
-}
-
-/* The single continuous dotted leader, painted behind the cells. The label text and the
-	number have opaque backgrounds (below) that mask it, so the visible dots read as one
-	continuous line running from the label to the number. */
-.chat-model-hover-cost-row:not(.header)::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	right: 0;
-	top: 50%;
-	border-top: var(--vscode-strokeThickness) dotted var(--vscode-descriptionForeground);
-	opacity: 0.5;
-}
-
-.chat-model-hover-cost-heading {
-	color: var(--vscode-foreground);
-	white-space: nowrap;
-	padding-right: 12px;
-}
-
-/* Label cell: text only. Opaque background + right padding mask the start of the dotted line
-	and create the gap between the label and the first dot. Positioned above the leader. */
-.chat-model-hover-cost-label {
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	position: relative;
-	z-index: 1;
-}
-
-.chat-model-hover-cost-label-text {
-	padding-right: 6px;
-	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
-}
-
-/* Value cell: right-aligned number whose opaque background masks the end of the dotted line. */
-.chat-model-hover-cost-value {
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-	white-space: nowrap;
-	min-width: 0;
-	position: relative;
-	z-index: 1;
-	/* Blank inset separating the Default and Long Context value columns. */
-	padding-left: 8px;
-}
-
-/* Opaque mask over the second value column's leading inset so the Default column's dots stop
-	cleanly and don't bleed into the Long Context column (a clear separator between them). */
-.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value {
-	padding-left: 12px;
-}
-
-.chat-model-hover-cost-table.has-long-context .chat-model-hover-cost-value + .chat-model-hover-cost-value::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	top: 0;
-	bottom: 0;
-	width: 12px;
-	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
-}
-
-.chat-model-hover-cost-number {
-	padding-left: 6px;
-	font-weight: 700;
-	color: var(--vscode-foreground);
-	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
-}
-
-.chat-model-hover-cost-value.subheader {
-	font-weight: normal;
-	color: var(--vscode-descriptionForeground);
-	padding-left: 6px;
-}
-
-.chat-model-hover-cost {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-context {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.chat-model-hover-context-label {
-	font-weight: 600;
-}
-
-.chat-model-hover-configurable {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	font-size: 12px;
-}
-
-.chat-model-hover-configurable-label {
-	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-}
-
-.chat-model-hover-configurable-buttons {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-start;
-	gap: 6px;
-}
-
-.chat-model-hover-configurable-buttons > .monaco-button {
-	width: auto;
-	padding: 2px 8px;
-	font-size: 11px;
-}
-
-.monaco-workbench .chat-model-hover-configurable > .monaco-button .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize-compact);
-}
-
 @keyframes chat-voice-icon-glow {
 	0%,
 	100% {
@@ -4838,13 +4585,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Voice mode: purple when speaking */
-.chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+.chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
 	--chat-voice-icon-glow-color: rgba(163, 113, 247, 0.65);
 	color: var(--vscode-charts-purple, #a371f7) !important;
 	border-radius: 50%;
 }
 
-.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active:not(.voice-listening) .chat-input-toolbars .action-label.codicon-voice-mode {
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-speaking .chat-input-toolbars .action-label.codicon-voice-mode {
+	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
+}
+
+/* Voice mode: themed breathing glow while connected-idle (armed) */
+.chat-input-container.voice-active.voice-idle .chat-input-toolbars .action-label.codicon-voice-mode {
+	--chat-voice-icon-glow-color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
+	color: var(--vscode-foreground) !important;
+	border-radius: 50%;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-input-container.voice-active.voice-idle .chat-input-toolbars .action-label.codicon-voice-mode {
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 

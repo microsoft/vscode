@@ -6,7 +6,7 @@
 
 import assert from 'assert';
 import * as extHostTypes from '../../common/extHostTypes.js';
-import { ChatAgentResult, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
+import { ChatAgentResult, LanguageModelChatMessage2, MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from '../../common/extHostTypeConverters.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceTextEditDto } from '../../common/extHost.protocol.js';
@@ -71,6 +71,39 @@ suite('ExtHostTypeConverter', function () {
 		assert.strictEqual(size(data.uris!), 2);
 		assert.ok(!!data.uris!['file:///somepath/here']);
 		assert.ok(!!data.uris!['file:///somepath/here2']);
+	});
+
+	test('LanguageModelChatMessage2 converters preserve tool-result data parts across the provider boundary #313920', function () {
+
+		// Platform converters round-trip data parts unchanged (unknown mime types aren't stripped), so the producer must gate emission (#313920).
+		const CACHE_CONTROL_MIME = 'cache_control';
+
+		const toolResult = new extHostTypes.LanguageModelToolResultPart('call-1', [
+			new extHostTypes.LanguageModelTextPart('the tool output'),
+			new extHostTypes.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CACHE_CONTROL_MIME),
+		]);
+		const hostMessage = extHostTypes.LanguageModelChatMessage2.User([toolResult]);
+
+		const providerMessage = LanguageModelChatMessage2.to(LanguageModelChatMessage2.from(hostMessage));
+		const providerToolResult = providerMessage.content[0] as extHostTypes.LanguageModelToolResultPart;
+		const roundTrippedPart = providerToolResult.content[1] as extHostTypes.LanguageModelDataPart;
+
+		assert.deepStrictEqual({
+			mimeType: roundTrippedPart.mimeType,
+			decodedData: new TextDecoder().decode(roundTrippedPart.data),
+			marshalled: roundTrippedPart.toJSON(),
+			naiveSerialization: JSON.stringify(roundTrippedPart),
+		}, {
+			mimeType: 'cache_control',
+			decodedData: 'ephemeral',
+			marshalled: {
+				$mid: MarshalledId.LanguageModelDataPart,
+				mimeType: 'cache_control',
+				data: 'ZXBoZW1lcmFs', // base64('ephemeral')
+				audience: undefined,
+			},
+			naiveSerialization: '{"$mid":24,"mimeType":"cache_control","data":"ZXBoZW1lcmFs"}',
+		});
 	});
 
 	test('NPM script explorer running a script from the hover does not work #65561', function () {

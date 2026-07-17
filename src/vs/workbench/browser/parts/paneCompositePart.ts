@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -615,6 +615,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
+		// Mirror the panel's outer-edge state onto the workbench container so the
+		// horizontal grid sash highlight can match the panel card's doubled outer
+		// gutter by selecting a direct class, rather than a `:has()` query on the
+		// workbench root (which would force selector invalidation across the whole
+		// workbench on every DOM change). Updated here in lockstep with the part-level
+		// classes above, so the timing is identical.
+		if (this.partId === Parts.PANEL_PART) {
+			const workbenchContainer = this.layoutService.getContainer(getWindow(this.element));
+			workbenchContainer.classList.toggle('floating-panel-outer-left', outerGutter.left);
+			workbenchContainer.classList.toggle('floating-panel-outer-right', outerGutter.right);
+		}
+
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 
@@ -712,10 +724,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
 		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
 		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
-			? margin * 2 : margin;
+			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
 			height: topMargin + bottomMargin + borderTotal

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -71,8 +71,8 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 	} as unknown as ISession;
 }
 
-function sessionType(providerId: string, id: string, label: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal } };
+function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
+	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType } };
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI): ISession {
@@ -102,6 +102,10 @@ class TestSessionTypePicker extends SessionTypePicker {
 	pick(p: IPickedSessionType): void {
 		this._handleSelectedSessionType(p);
 	}
+
+	showPicker(): void {
+		this._showPicker();
+	}
 }
 
 function createPicker(
@@ -110,9 +114,10 @@ function createPicker(
 	managementService: MockSessionsManagementService,
 	storage: IStorageService,
 	options?: ISessionTypePickerOptions,
+	actionWidgetService: Partial<IActionWidgetService> = { isVisible: false, hide: () => { }, show: () => { } },
 ): TestSessionTypePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
-	instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { }, show: () => { } });
+	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 	instantiationService.stub(IStorageService, storage);
@@ -304,6 +309,21 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(fired, [{ providerId: 'local-1', sessionTypeId: 'local' }]);
 	});
 
+	test('exposes the selected concrete model target reactively', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('agent-host', 'copilotcli', 'Copilot CLI', 'agent-host-copilotcli'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+		const targets: (string | undefined)[] = [];
+		disposables.add(autorun(reader => targets.push(picker.modelTargetChatSessionType.read(reader))));
+
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folder));
+		picker.pick({ providerId: 'agent-host', sessionTypeId: 'copilotcli' });
+
+		assert.deepStrictEqual(targets, [undefined, 'local', 'agent-host-copilotcli']);
+	});
+
 	test('a quick chat sources its types from the quick-chat list, not the folder list', () => {
 		// Folder list is empty (workspace-less); quick-chat list drives defaults.
 		management.setSessionTypes([]);
@@ -357,6 +377,49 @@ suite('SessionTypePicker', () => {
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('folder-driven mode preserves an unavailable initial pick until its provider appears', () => {
+		const folderA = URI.file('/a');
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
+			initialPick: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
+			preserveUnavailableInitialPick: true,
+		});
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('folder-driven mode can replace a pending pick when only one alternative is available', () => {
+		const folderA = URI.file('/a');
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('local-1', 'local', 'Local'),
+		]);
+		let pickerShown = false;
+		const picker = createPicker(disposables, session, management, storage, undefined, {
+			isVisible: false,
+			hide: () => { },
+			show: () => { pickerShown = true; },
+		});
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
+			initialPick: { providerId: 'copilot', sessionTypeId: 'copilot-cli' },
+			preserveUnavailableInitialPick: true,
+		});
+		picker.render(document.createElement('div'));
+
+		picker.showPicker();
+
+		assert.strictEqual(pickerShown, true);
 	});
 
 	test('folder-driven mode re-defaults when a folder change no longer serves the pick', () => {

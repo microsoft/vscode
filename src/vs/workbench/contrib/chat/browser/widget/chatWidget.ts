@@ -741,6 +741,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.scrollHeight;
 	}
 
+	get viewportHeight(): number {
+		return this.listWidget.renderHeight;
+	}
+
 	get attachmentModel(): ChatAttachmentModel {
 		return this.input.attachmentModel;
 	}
@@ -1005,7 +1009,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return responseItems[indexToFocus];
 	}
 
-	async clear(): Promise<void> {
+	async clear(targetSessionType?: string): Promise<void> {
 		this.logService.debug('ChatWidget#clear');
 		if (this._dynamicMessageLayoutData) {
 			this._dynamicMessageLayoutData.enabled = true;
@@ -1027,7 +1031,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.clearTodoListWidget(this.viewModel?.sessionResource, true);
 		this.inputPart?.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
-		await this.viewOptions.clear?.();
+		await this.viewOptions.clear?.(targetSessionType);
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
@@ -1583,17 +1587,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/**
 	 * Show or hide the input part. Hidden inputs are removed from the DOM flow
-	 * and not reserved during layout so the message list takes the full height.
-	 * Used to render read-only (non-interactive) chats without a composer.
+	 * unless they contain persistent content. Used to render read-only chats
+	 * without a composer while retaining input-adjacent status controls.
 	 */
 	setInputVisible(visible: boolean): void {
 		const changed = this._inputVisible !== visible;
 		this._inputVisible = visible;
-		// Hide the composer directly via an inline style rather than a CSS class:
-		// inline styles win over the stylesheet's `.interactive-input-part`
-		// display rule without a specificity battle, and this does not depend on
-		// any CSS file being (re)loaded. Re-applied in `createInput` so a rebuilt
-		// input part keeps the correct visibility.
+		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
 			this._layoutListForInputHeight();
@@ -1603,7 +1603,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _applyInputVisibility(): void {
 		const inputElement = this.inputPartDisposable.value?.element;
 		if (inputElement) {
-			inputElement.style.display = this._inputVisible ? '' : 'none';
+			inputElement.classList.toggle('chat-input-hidden', !this._inputVisible);
+			inputElement.style.display = '';
 		}
 	}
 
@@ -2987,7 +2988,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
-		const inputHeight = this._inputVisible ? this.inputPart.height.get() : 0;
+		const inputHeight = this._inputVisible ? this.inputPart.height.get() : this.inputPart.element.offsetHeight;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 

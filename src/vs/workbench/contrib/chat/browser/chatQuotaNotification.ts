@@ -18,9 +18,9 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
-import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
+import { isSelectedModelCopilot, SELECTED_MODEL_STORAGE_KEY_PREFIX, SELECTED_MODEL_STORAGE_SCOPE } from '../common/chatSelectedModel.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
-import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
@@ -30,7 +30,6 @@ const TRAJECTORY_NUDGE_SPEC = {
 	averageDailyUsageThreshold: 4.5,
 	minimumPercentUsed: 10,
 	maximumPercentUsed: 35,
-	billingPeriodDays: 30,
 	msPerDay: 24 * 60 * 60 * 1000,
 	learnMoreUrl: 'https://aka.ms/token-usage-tips',
 	learnMoreCommandId: 'workbench.action.chat.learnMoreAboutCreditUsage',
@@ -117,7 +116,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		// The chatModelId context key is widget-scoped and may not bubble to the global
 		// service, so we also listen for storage changes on the persisted model selection key.
 		const storageListener = this._register(new DisposableStore());
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, storageListener)(e => {
+		this._register(this._storageService.onDidChangeValue(SELECTED_MODEL_STORAGE_SCOPE, undefined, storageListener)(e => {
 			if (e.key.startsWith(SELECTED_MODEL_STORAGE_KEY_PREFIX)) {
 				this._update();
 			}
@@ -317,14 +316,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const resetTime = new Date(resetDate).getTime();
+		const reset = new Date(resetDate);
+		const resetTime = reset.getTime();
 		if (!Number.isFinite(resetTime)) {
 			return undefined;
 		}
 
-		const periodStartTime = resetTime - (TRAJECTORY_NUDGE_SPEC.billingPeriodDays * TRAJECTORY_NUDGE_SPEC.msPerDay);
-		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay);
-		if (elapsedDays <= 0) {
+		const periodStart = new Date(resetTime);
+		periodStart.setUTCMonth(periodStart.getUTCMonth() - 1);
+		const periodStartTime = periodStart.getTime();
+		const elapsedDays = (Date.now() - periodStartTime) / TRAJECTORY_NUDGE_SPEC.msPerDay;
+		if (elapsedDays < 0) {
 			return undefined;
 		}
 
@@ -333,7 +335,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return undefined;
 		}
 
-		const averageDailyUsage = percentUsed / elapsedDays;
+		const averageDailyUsage = percentUsed / Math.max(1, elapsedDays);
 		if (averageDailyUsage < TRAJECTORY_NUDGE_SPEC.averageDailyUsageThreshold) {
 			return undefined;
 		}
@@ -409,19 +411,19 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown) {
 			description = localize('quota.exhausted.anonymous', "Sign in to keep going.");
-			actions = [{ label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('signIn', "Sign In"), commandId: 'workbench.action.chat.triggerSetup' }];
 		} else if (entitlement === ChatEntitlement.Free) {
 			description = localize('quota.exhausted.free', "Upgrade to keep going.");
-			actions = [{ label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.exhausted.managed', "Contact your admin to increase your limits.");
 			actions = [];
 		} else if (hadOverage) {
 			description = localize('quota.exhausted.hadOverage', "Increase your budget to keep building.");
-			actions = [{ label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		} else {
 			description = localize('quota.exhausted.default', "Manage your budget to keep building.");
-			actions = [{ label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget2', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({
@@ -466,7 +468,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		if (entitlement === ChatEntitlement.Unknown || entitlement === ChatEntitlement.Free) {
 			description = localize('quota.approaching.free', "Upgrade to continue past the limit.");
-			actions = [{ label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('upgrade2', "Upgrade"), commandId: 'workbench.action.chat.upgradePlan' }];
 		} else if (this._isManagedPlan(entitlement)) {
 			description = localize('quota.approaching.managed', "Contact your admin to increase your limits.");
 			actions = [];
@@ -475,7 +477,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			actions = [];
 		} else {
 			description = localize('quota.approaching.default', "Set additional budget to cover extra usage.");
-			actions = [{ label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
+			actions = [{ kind: ChatInputNotificationActionKind.Command, label: localize('manageBudget3', "Manage Budget"), commandId: 'workbench.action.chat.manageAdditionalSpend' }];
 		}
 
 		this._setNotification({

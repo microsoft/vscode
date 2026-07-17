@@ -264,12 +264,13 @@ export class BreadcrumbsControl {
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
-	private readonly _editorTypeNode: HTMLDivElement;
-	private readonly _editorTypeLabel: HTMLSpanElement;
-	private readonly _editorTypeHover: IManagedHover;
+	private _editorTypeNode: HTMLDivElement | undefined;
+	private _editorTypeLabel: HTMLSpanElement | undefined;
+	private _editorTypeHover: IManagedHover | undefined;
 	private _lastLayoutDimension: dom.Dimension | undefined;
 
 	private readonly _disposables = new DisposableStore();
+	private readonly _editorTypeDisposables = this._disposables.add(new DisposableStore());
 	private readonly _breadcrumbsDisposables = new DisposableStore();
 	private readonly _labels: ResourceLabels;
 	private readonly _model = new MutableDisposable<BreadcrumbsModel>();
@@ -327,24 +328,6 @@ export class BreadcrumbsControl {
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 
-		// Editor type dropdown (right-aligned). Lets the user switch between the editors that can
-		// open the active resource (e.g. "Text Editor" vs. "Markdown Preview"). Only shown when a
-		// more specialized editor is available for the resource.
-		this._editorTypeNode = document.createElement('div');
-		this._editorTypeNode.classList.add('breadcrumbs-editor-type', 'hidden');
-		this._editorTypeNode.setAttribute('role', 'button');
-		this._editorTypeLabel = document.createElement('span');
-		this._editorTypeLabel.classList.add('label');
-		this._editorTypeNode.appendChild(this._editorTypeLabel);
-		const editorTypeChevron = document.createElement('span');
-		editorTypeChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
-		this._editorTypeNode.appendChild(editorTypeChevron);
-		dom.append(this.domNode, this._editorTypeNode);
-		this._editorTypeHover = this._disposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._editorTypeNode, ''));
-		this._disposables.add(dom.addDisposableListener(this._editorTypeNode, dom.EventType.CLICK, e => {
-			dom.EventHelper.stop(e, true);
-			this._showEditorTypePicker();
-		}));
 		if (this._options.showEditorTypePicker) {
 			this._disposables.add(this._cfShowEditorType.onDidChange(() => this._updateEditorTypeControl()));
 		}
@@ -388,7 +371,7 @@ export class BreadcrumbsControl {
 		}
 		// When the editor type dropdown is visible it occupies space on the right, so shrink the
 		// breadcrumbs widget accordingly to avoid it rendering behind the dropdown.
-		if (dim && !this._editorTypeNode.classList.contains('hidden')) {
+		if (dim && this._editorTypeNode) {
 			const editorTypeWidth = this._editorTypeNode.offsetWidth;
 			dim = new dom.Dimension(Math.max(0, dim.width - editorTypeWidth), dim.height);
 		}
@@ -406,7 +389,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible.set(false);
 		this._ckBreadcrumbsHasSymbols.set(false);
 		this.domNode.classList.toggle('hidden', true);
-		this._editorTypeNode.classList.toggle('hidden', true);
+		this._hideEditorTypeControl();
 
 		if (!wasHidden) {
 			this._onDidVisibilityChange.fire();
@@ -530,39 +513,72 @@ export class BreadcrumbsControl {
 	}
 
 	private _updateEditorTypeControl(): void {
-		const wasHidden = this._editorTypeNode.classList.contains('hidden');
-		const previousWidth = wasHidden ? 0 : this._editorTypeNode.offsetWidth;
+		const previousWidth = this._editorTypeNode?.offsetWidth ?? 0;
 
 		const available = (this._options.showEditorTypePicker && this._cfShowEditorType.getValue()) ? getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService) : undefined;
 		const configuredDefaultEditor = available ? this._editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor) : undefined;
 		if (!available || !hasDefaultEditorAssociation(available, configuredDefaultEditor)) {
-			this._editorTypeNode.classList.toggle('hidden', true);
+			this._hideEditorTypeControl();
 		} else {
+			const { label: editorTypeLabel, hover: editorTypeHover } = this._createEditorTypeControl();
 			const current = available.editors.find(editor => editor.id === available.currentId);
 			const label = current ? editorTypeDisplayLabel(current, available.isDiffEditor) : available.currentId;
-			this._editorTypeLabel.textContent = label;
-			this._editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
-			this._editorTypeNode.classList.toggle('hidden', false);
+			editorTypeLabel.textContent = label;
+			editorTypeHover.update(localize('editorType.hover', "Editor: {0}", label));
 		}
 
 		// The dropdown width may have changed (different editor label or visibility toggled). Since the
 		// breadcrumbs widget uses an explicit pixel width that reserves room for the dropdown, re-run the
 		// layout so the widget shrinks/grows to match the new dropdown width.
-		const isHiddenNow = this._editorTypeNode.classList.contains('hidden');
-		const currentWidth = isHiddenNow ? 0 : this._editorTypeNode.offsetWidth;
+		const currentWidth = this._editorTypeNode?.offsetWidth ?? 0;
 		if (this._lastLayoutDimension && currentWidth !== previousWidth) {
 			this.layout(this._lastLayoutDimension);
 		}
 	}
 
+	private _createEditorTypeControl(): { label: HTMLSpanElement; hover: IManagedHover } {
+		if (this._editorTypeNode && this._editorTypeLabel && this._editorTypeHover) {
+			return { label: this._editorTypeLabel, hover: this._editorTypeHover };
+		}
+
+		this._editorTypeNode = document.createElement('div');
+		this._editorTypeNode.classList.add('breadcrumbs-editor-type');
+		this._editorTypeNode.setAttribute('role', 'button');
+		this._editorTypeLabel = document.createElement('span');
+		this._editorTypeLabel.classList.add('label');
+		this._editorTypeNode.appendChild(this._editorTypeLabel);
+		const editorTypeChevron = document.createElement('span');
+		editorTypeChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
+		this._editorTypeNode.appendChild(editorTypeChevron);
+		dom.append(this.domNode, this._editorTypeNode);
+		this._editorTypeHover = this._editorTypeDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._editorTypeNode, ''));
+		this._editorTypeDisposables.add(dom.addDisposableListener(this._editorTypeNode, dom.EventType.CLICK, e => {
+			dom.EventHelper.stop(e, true);
+			this._showEditorTypePicker();
+		}));
+		return { label: this._editorTypeLabel, hover: this._editorTypeHover };
+	}
+
+	private _hideEditorTypeControl(): void {
+		this._editorTypeDisposables.clear();
+		this._editorTypeNode?.remove();
+		this._editorTypeNode = undefined;
+		this._editorTypeLabel = undefined;
+		this._editorTypeHover = undefined;
+	}
+
 	private _showEditorTypePicker(): void {
+		const editorTypeNode = this._editorTypeNode;
+		if (!editorTypeNode) {
+			return;
+		}
 		const available = getAvailableEditorTypes(this._editorGroup.activeEditor, this._editorResolverService);
 		if (!available) {
 			return;
 		}
 		const actions = createEditorTypeActions(available, this._editorResolverService, this._commandService, this._editorService);
 		this._contextMenuService.showContextMenu({
-			getAnchor: () => this._editorTypeNode,
+			getAnchor: () => editorTypeNode,
 			getActions: () => actions
 		});
 	}

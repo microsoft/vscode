@@ -4,28 +4,79 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from './languageModels.js';
 
 /**
  * Storage key prefix for persisted model selections.
- * Full key format: `chat.currentLanguageModel.{location}[.{sessionType}]`
+ * Full key format: `chat.currentLanguageModel.{location}[.{modelTarget}]`
  */
 export const SELECTED_MODEL_STORAGE_KEY_PREFIX = 'chat.currentLanguageModel.';
 
+export const SELECTED_MODEL_STORAGE_SCOPE = StorageScope.PROFILE;
+export const SELECTED_MODEL_STORAGE_TARGET = StorageTarget.USER;
+
+export interface IStoredSelectedModel {
+	readonly identifier: string;
+	readonly isDefault: boolean;
+}
+
 /**
  * Builds the storage key used to persist the selected language model for a
- * given chat location and optional session type.
+ * given chat location and optional model target.
  *
  * Matches the keys written by `chatInputPart.ts` so that other consumers
  * can read the persisted model selection without depending on widget internals.
  */
-export function getSelectedModelStorageKey(location: string, sessionType?: string): string {
-	if (sessionType) {
-		return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}.${sessionType}`;
+export function getSelectedModelStorageKey(location: string, modelTarget?: string): string {
+	if (modelTarget) {
+		return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}.${modelTarget}`;
 	}
 	return `${SELECTED_MODEL_STORAGE_KEY_PREFIX}${location}`;
+}
+
+export function getSelectedModelIsDefaultStorageKey(location: string, modelTarget?: string): string {
+	return `${getSelectedModelStorageKey(location, modelTarget)}.isDefault`;
+}
+
+export function storeSelectedModel(
+	storageService: IStorageService,
+	location: string,
+	modelTarget: string | undefined,
+	selection: IStoredSelectedModel,
+): void {
+	storageService.store(getSelectedModelStorageKey(location, modelTarget), selection.identifier, SELECTED_MODEL_STORAGE_SCOPE, SELECTED_MODEL_STORAGE_TARGET);
+	storageService.store(getSelectedModelIsDefaultStorageKey(location, modelTarget), selection.isDefault, SELECTED_MODEL_STORAGE_SCOPE, SELECTED_MODEL_STORAGE_TARGET);
+}
+
+/** Reads the selected model and lazily migrates the previous application-scoped value. */
+export function getStoredSelectedModel(
+	storageService: IStorageService,
+	location: string,
+	modelTarget?: string,
+): IStoredSelectedModel | undefined {
+	const key = getSelectedModelStorageKey(location, modelTarget);
+	const isDefaultKey = getSelectedModelIsDefaultStorageKey(location, modelTarget);
+	const identifier = storageService.get(key, SELECTED_MODEL_STORAGE_SCOPE);
+	if (identifier) {
+		return {
+			identifier,
+			isDefault: storageService.getBoolean(isDefaultKey, SELECTED_MODEL_STORAGE_SCOPE, true),
+		};
+	}
+
+	const legacyIdentifier = storageService.get(key, StorageScope.APPLICATION);
+	if (!legacyIdentifier) {
+		return undefined;
+	}
+
+	const selection = {
+		identifier: legacyIdentifier,
+		isDefault: storageService.getBoolean(isDefaultKey, StorageScope.APPLICATION, true),
+	};
+	storeSelectedModel(storageService, location, modelTarget, selection);
+	return selection;
 }
 
 /**
@@ -69,11 +120,11 @@ export function getPersistedSelectedModelIdentifier(
 	const location = contextKeyService.getContextKeyValue<string>(ChatContextKeys.location.key) ?? 'panel';
 	const sessionType = contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key) ?? '';
 	const candidateKeys = sessionType
-		? [getSelectedModelStorageKey(location, sessionType), getSelectedModelStorageKey(location)]
-		: [getSelectedModelStorageKey(location)];
+		? [sessionType, undefined]
+		: [undefined];
 
-	for (const key of candidateKeys) {
-		const persisted = storageService.get(key, StorageScope.APPLICATION);
+	for (const modelTarget of candidateKeys) {
+		const persisted = getStoredSelectedModel(storageService, location, modelTarget)?.identifier;
 		if (persisted) {
 			return persisted;
 		}

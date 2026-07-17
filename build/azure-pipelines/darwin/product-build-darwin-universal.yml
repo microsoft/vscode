@@ -1,7 +1,7 @@
 jobs:
   - job: macOSUniversal
     displayName: macOS (UNIVERSAL)
-    timeoutInMinutes: 90
+    timeoutInMinutes: 120
     variables:
       VSCODE_ARCH: universal
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -81,7 +81,7 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
 
-      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
+      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_client_darwin_x64_archive=macOS (X64)" "--producer=unsigned_vscode_client_darwin_arm64_archive=macOS (ARM64)" unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for x64 and arm64 artifacts

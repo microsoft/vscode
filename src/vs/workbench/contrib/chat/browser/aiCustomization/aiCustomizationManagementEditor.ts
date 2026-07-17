@@ -1139,10 +1139,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			type: 'question',
 			message: localize('promptMigrationConfirmMessage', "Convert prompt files to skills?"),
 			detail: migrationInfo && migrationInfo.workspacePromptCount > 0 && migrationInfo.userPromptCount > 0
-				? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills for the active harness.", migrationInfo.workspacePromptCount, migrationInfo.userPromptCount)
+				? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills.", migrationInfo.workspacePromptCount, migrationInfo.userPromptCount)
 				: migrationInfo && migrationInfo.workspacePromptCount > 0
-					? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills for the active harness.", migrationInfo.workspacePromptCount)
-					: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills for the active harness.", migrationInfo?.userPromptCount ?? this.promptFilesToMigrate.length),
+					? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills.", migrationInfo.workspacePromptCount)
+					: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills.", migrationInfo?.userPromptCount ?? this.promptFilesToMigrate.length),
 			checkbox: {
 				label: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 				checked: true,

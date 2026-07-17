@@ -285,13 +285,29 @@ suite('agentHostSchema', () => {
 	suite('platformSessionSchema', () => {
 
 		test('validates the autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove'];
+			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'assisted'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
+		});
+
+		test('exposes approval choices in picker order with current copy', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.AutoApprove];
+			assert.deepStrictEqual({
+				enum: property.enum,
+				enumLabels: property.enumLabels,
+				enumDescriptions: property.enumDescriptions,
+			}, {
+				enum: ['default', 'assisted', 'autoApprove'],
+				enumLabels: ['Default approvals', 'Assisted permissions', 'Allow all'],
+				enumDescriptions: [
+					'Asks when approval settings don\'t apply',
+					'Evaluates risk before running tools',
+					'Runs tool calls without asking',
+				],
+			});
 		});
 
 		test('validates permissions shape', () => {
