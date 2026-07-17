@@ -48,6 +48,25 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	}
 }
 
+class RecordingMicCaptureService extends mock<IMicCaptureService>() {
+	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
+	override readonly onPttStart = Event.None;
+	override readonly onPttAudioChunk = Event.None;
+	override readonly onPttEnd = Event.None;
+	override readonly onPttDiagnostic = Event.None;
+	override readonly analyserNode = undefined;
+	override isMuted = false;
+	override prepare(): void { }
+	override async startCapture(): Promise<void> { }
+	override stopCapture(): void { }
+	override abortPtt(): void { }
+	override pttUp(): void { }
+	override suppressUntil(): void { }
+	override async pttDown(turnId: string, passive?: boolean): Promise<void> {
+		this.pttDownCalls.push({ turnId, passive });
+	}
+}
+
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly isPlaying = false;
 	override readonly onPlaybackStarted = Event.None;
@@ -55,6 +74,7 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly analyserNode = undefined;
 	override getLastPlayedSamples(): Float32Array | null { return null; }
 	override closeContext(): void { }
+	override stopPlayback(): void { }
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -96,10 +116,10 @@ suite('VoiceSessionController', () => {
 		sinon.restore();
 	});
 
-	function createController(voiceClientService: TestVoiceClientService): IVoiceSessionController {
+	function createController(voiceClientService: TestVoiceClientService, micCaptureService?: IMicCaptureService): IVoiceSessionController {
 		return store.add(new VoiceSessionController(
 			voiceClientService,
-			new class extends mock<IMicCaptureService>() {
+			micCaptureService ?? new class extends mock<IMicCaptureService>() {
 				override readonly onPttStart = Event.None;
 				override readonly onPttAudioChunk = Event.None;
 				override readonly onPttEnd = Event.None;
@@ -129,8 +149,10 @@ suite('VoiceSessionController', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() { }(),
 			NullTelemetryService,
 			new TestConfigurationService({ 'agents.voice.handsFree': false }),
-			new class extends mock<IAccessibilitySignalService>() { }(),
-			new class extends mock<IAccessibilityService>() { }(),
+			new class extends mock<IAccessibilitySignalService>() {
+				override async playSignal(): Promise<void> { }
+			}(),
+			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
 		));
@@ -225,6 +247,30 @@ suite('VoiceSessionController', () => {
 		// expected, so it must not clobber that reply's state.
 		assert.strictEqual(pendingSolicitedNarrations.size, 0);
 		assert.strictEqual(controller.statusText.get(), 'Tap to start');
+	});
+	test('auto-listen opens a passive mic turn so the backend does not latch user_is_speaking', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
+		enterAutoListen.call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('a deliberate user press opens a non-passive mic turn', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, false);
 	});
 });
 
