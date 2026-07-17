@@ -679,6 +679,48 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	/**
+	 * Moves focus to the next setting's control, skipping group headers. Works no matter
+	 * whether focus is currently in the search input, on a tree row, or inside a setting's
+	 * control. Stops at the last setting.
+	 */
+	focusNextSetting(): void {
+		this.focusAdjacentSetting(true);
+	}
+
+	/**
+	 * Like {@link focusNextSetting}, but backwards. Stops at the first setting.
+	 */
+	focusPreviousSetting(): void {
+		this.focusAdjacentSetting(false);
+	}
+
+	private focusAdjacentSetting(next: boolean): void {
+		// The tree's focus tracks the setting whose control contains DOM focus, so this
+		// anchor is correct even while focus is inside a control. It is empty when no
+		// setting has been focused yet, in which case navigation starts from the top,
+		// or from the bottom when navigating backwards.
+		const anchor = this.settingsTree.getFocus()[0];
+		const navigator = this.settingsTree.navigate(anchor);
+		let target = !anchor && !next ? navigator.last() : next ? navigator.next() : navigator.previous();
+		while (target && !(target instanceof SettingsTreeSettingElement)) {
+			target = next ? navigator.next() : navigator.previous();
+		}
+		if (!(target instanceof SettingsTreeSettingElement)) {
+			return;
+		}
+
+		// Reveal renders the row synchronously so its control can be queried below.
+		this.settingsTree.reveal(target);
+		this.settingsTree.setFocus([target]);
+		const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), target.setting.key);
+		// eslint-disable-next-line no-restricted-syntax
+		const control = domElements[0]?.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+		if (control) {
+			(<HTMLElement>control).focus();
+		}
+	}
+
+	/**
 	 * Invoked when the user presses the down arrow while the search input is focused.
 	 * Navigates forward through the search history first; only once there are no more
 	 * recent history entries does focus move down into the settings results.

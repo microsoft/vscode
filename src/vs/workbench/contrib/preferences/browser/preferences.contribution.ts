@@ -59,6 +59,8 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focu
 const SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH = 'settings.action.showPreviousSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER = 'settings.action.focusSettingsFromSearchOnEnter';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS = 'settings.action.focusSearchFromSettings';
+const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
+const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
 const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
@@ -739,6 +741,50 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
 				preferencesEditor?.focusSearch();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING,
+					precondition: CONTEXT_SETTINGS_EDITOR,
+					keybinding: {
+						primary: KeyCode.F7,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					f1: true,
+					category,
+					title: nls.localize2('settings.focusNextSetting', "Focus Next Setting")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusNextSetting();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING,
+					precondition: CONTEXT_SETTINGS_EDITOR,
+					keybinding: {
+						primary: KeyMod.Shift | KeyCode.F7,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					f1: true,
+					category,
+					title: nls.localize2('settings.focusPreviousSetting', "Focus Previous Setting")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusPreviousSetting();
 			}
 		}));
 
