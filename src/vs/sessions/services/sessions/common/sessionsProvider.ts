@@ -8,6 +8,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
@@ -55,6 +56,13 @@ export interface ISessionModelPickerOptions {
 	 * picker or offering Auto.
 	 */
 	readonly showAutoModel?: boolean;
+}
+
+export interface ISessionModelsSnapshot {
+	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
+	readonly desiredModelResolution: ModelIdentifierResolution;
+	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
+	readonly modelTarget: string | undefined;
 }
 
 /**
@@ -218,18 +226,10 @@ export interface ISessionsProvider {
 	renameSession(sessionId: string, title: string): Promise<void>;
 
 	/**
-	 * Get the language models that can be selected for a session. The sessions
-	 * core renders these in a single {@link ModelPickerActionItem}-based picker
-	 * and persists the user's choice per provider per session type. Returns an
-	 * empty array when the session has no selectable models (e.g. the underlying
-	 * runtime does not expose model selection).
-	 *
-	 * Providers backed by registered language models return them directly;
-	 * providers whose models come from another source (e.g. extension-host
-	 * option groups for cloud sessions) synthesize equivalent metadata.
-	 * @param sessionId The ID of the session.
+	 * Get selectable models and the current resolution of `desiredModelId`.
+	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 */
-	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[];
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the
@@ -241,7 +241,7 @@ export interface ISessionsProvider {
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
 
 	/**
-	 * Event that fires when the set of models returned by {@link getModels}
+	 * Event that fires when the snapshot returned by {@link getModelsSnapshot}
 	 * may have changed (e.g. language models finished loading, or the backend
 	 * advertised a new option group). The core model picker re-reads the model
 	 * list when this fires. Has no payload — consumers re-query per session.

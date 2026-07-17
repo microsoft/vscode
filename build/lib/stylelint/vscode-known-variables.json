@@ -943,6 +943,8 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--action-widget-close-start-opacity",
+		"--action-widget-close-start-transform",
 		"--activity-bar-action-height",
 		"--activity-bar-icon-size",
 		"--activity-bar-width",

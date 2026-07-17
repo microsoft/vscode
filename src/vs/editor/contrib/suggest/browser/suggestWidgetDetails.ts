@@ -64,6 +64,7 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.ariaLabel = nls.localize('details.close', "Close");
 		this._close.role = 'button';
 		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));

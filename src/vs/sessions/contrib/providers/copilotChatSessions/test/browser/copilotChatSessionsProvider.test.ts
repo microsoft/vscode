@@ -14,18 +14,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -33,7 +35,7 @@ import { IGitService } from '../../../../../../workbench/contrib/git/common/gitS
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
+import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, CopilotCloudSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -41,6 +43,7 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { extUri } from '../../../../../../base/common/resources.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -141,6 +144,8 @@ interface ICreateProviderOptions {
 	readonly hideCopilotCli?: boolean;
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
+	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
+	readonly languageModelsService?: Partial<ILanguageModelsService>;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
@@ -171,6 +176,7 @@ function createProviderWithConfig(
 	configService.setUserConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents, opts?.hideCopilotCli ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
+	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
@@ -206,6 +212,7 @@ function createProviderWithConfig(
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
+		getOptionGroupsForSessionType: () => opts?.getOptionGroups?.(),
 		onDidChangeOptionGroups: Event.None,
 	});
 	instantiationService.stub(IChatService, {
@@ -219,9 +226,7 @@ function createProviderWithConfig(
 		lastFocusedWidget: undefined,
 		onDidChangeFocusedSession: Event.None,
 	});
-	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
-	});
+	instantiationService.stub(ILanguageModelsService, opts?.languageModelsService ?? { lookupLanguageModel: () => undefined });
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});
@@ -668,6 +673,64 @@ suite('CopilotChatSessionsProvider', () => {
 	// Note: createNewSession tests are limited because CopilotCLISession
 	// requires IGitService and creates disposables that are hard to clean
 	// up in isolation. Full integration tests should cover session creation.
+	test('cloud models resolve arbitrary restored ids with option groups', () => {
+		const modelsState: { optionGroups: IChatSessionProviderOptionGroup[] | undefined } = { optionGroups: undefined };
+		const provider = createProvider(disposables, model, { getOptionGroups: () => modelsState.optionGroups });
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repository' });
+		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+		const beforeResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
+
+		modelsState.optionGroups = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'synthetic-cloud-model', name: 'Synthetic Cloud Model' }],
+		}];
+		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
+
+		assert.deepStrictEqual({
+			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), desiredModelResolution: beforeResolve.desiredModelResolution, modelTarget: beforeResolve.modelTarget },
+			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
+		}, {
+			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+		});
+	});
+
+	test('Copilot CLI keeps an empty Copilot catalog pending until live models arrive', () => {
+		const models = new Map<string, ILanguageModelChatMetadata>();
+		const provider = createProvider(disposables, model, {
+			languageModelsService: {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: identifier => models.get(identifier),
+				hasResolvedVendor: () => true,
+			},
+		});
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const empty = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		models.set('copilot/other', {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'other',
+			name: 'Other',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'other',
+			maxInputTokens: 1,
+			maxOutputTokens: 1,
+			isUserSelectable: true,
+			isDefaultForLocation: {},
+			targetChatSessionType: CopilotCLISessionType.id,
+		});
+		const live = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		assert.deepStrictEqual({
+			empty: { resolution: empty.desiredModelResolution, modelTarget: empty.modelTarget },
+			live: { resolution: live.desiredModelResolution, modelTarget: live.modelTarget },
+		}, {
+			empty: { resolution: { kind: 'pending', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
+			live: { resolution: { kind: 'unavailable', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
+		});
+	});
 
 	test('Copilot CLI session maps workspace selection to Agent Host folder config', async () => {
 		const provider = createProviderForSendTests(disposables, model, async () => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }));

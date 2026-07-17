@@ -339,7 +339,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; agentHostEnabled?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -366,7 +366,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		openSession: async () => options?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
+		getLanguageModelIds: () => options?.languageModelIds ?? [],
 		lookupLanguageModel: options?.lookupLanguageModel ?? (() => undefined),
+		hasResolvedVendor: () => true,
 	});
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
@@ -1274,6 +1276,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session?.modelId.get(), undefined);
 	});
 
+	test('getModels returns only models targeting the session resource scheme', () => {
+		const matchingModel = { ...createTestLanguageModel('matching'), targetChatSessionType: 'agent-host-copilotcli' };
+		const otherModel = { ...createTestLanguageModel('other'), targetChatSessionType: 'agent-host-other' };
+		const provider = createProvider(disposables, agentHost, undefined, {
+			languageModelIds: ['matching', 'other', 'missing'],
+			lookupLanguageModel: id => id === 'matching' ? matchingModel : id === 'other' ? otherModel : undefined,
+		});
+		fireSessionAdded(agentHost, 'model-catalog', { title: 'Model Catalog Session' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Model Catalog Session');
+		assert.ok(session);
+
+		const snapshot = provider.getModelsSnapshot(session.sessionId);
+		assert.deepStrictEqual({
+			models: snapshot.models.map(model => model.identifier),
+			modelTarget: snapshot.modelTarget,
+		}, {
+			models: ['matching'],
+			modelTarget: 'agent-host-copilotcli',
+		});
+	});
+
 	test('setModel updates existing session model and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-model', { title: 'Set Model Session' });
@@ -1967,9 +1990,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
-	test('createNewSession seeds autoApprove from chat.defaultConfiguration and forwards it to resolveSessionConfig', async () => {
+	test('createNewSession maps allowAll from chat.defaultConfiguration to autoApprove', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove'], title: 'Auto-approve' } } },
 			values: { autoApprove: 'autoApprove' },
@@ -2005,7 +2028,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession forwards seeded config to eager createSession', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
@@ -2028,7 +2051,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
 		const config = createPolicyRestrictedConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -2234,7 +2257,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Case 1: policy restricts auto-approve — remembered 'autoApprove' is clamped to 'default'
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
-		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
 		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
@@ -2320,7 +2343,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession uses configured chat.defaultConfiguration when there is no remembered pick', async () => {
 		const config = createSchemaDefaultConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);

@@ -19,6 +19,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -93,6 +94,13 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 			}());
 			reg.defineInstance(IMicCaptureService, new class extends mock<IMicCaptureService>() {
 				override readonly analyserNode = undefined;
+			}());
+			reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+				override readonly onDidChangeState = Event.None;
+				override readonly onDidChangePreparingModel = Event.None;
+				override readonly state = ChatSpeechToTextState.Idle;
+				override readonly isConfigured = false;
+				override readonly isPreparingModel = false;
 			}());
 		},
 	});

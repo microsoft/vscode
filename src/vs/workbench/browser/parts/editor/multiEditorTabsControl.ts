@@ -104,7 +104,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		shrink: 80 as const,
 		fit: 120 as const
 	};
-	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 32 as const;
+	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 28 as const;
+	private static readonly STYLE_OVERRIDE_PINNED_TAB_SPACING = 4 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -188,6 +189,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container
 		this.tabsContainer = $('.tabs-container', {
 			role: 'tablist',
+			'aria-multiselectable': 'true',
 			draggable: true
 		});
 		this._register(Gesture.addTarget(this.tabsContainer));
@@ -1741,7 +1743,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.classList.toggle('selected', isSelected);
-		tabContainer.setAttribute('aria-selected', isActive ? 'true' : 'false');
+		tabContainer.classList.toggle('multi-selected', isSelected && this.groupView.selectedEditors.length > 1);
+		tabContainer.setAttribute('aria-selected', isSelected ? 'true' : 'false');
 		tabContainer.tabIndex = isActive ? 0 : -1; // Only active tab can be focused into
 		tabActionBar.setFocusable(isActive);
 
@@ -2231,12 +2234,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
 		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
+		const styleOverrideSpacing = hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_PINNED_TAB_SPACING : 0;
 
 		switch (pinnedTabSizing) {
 			case 'compact':
-				return hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact;
+				return (hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact) + styleOverrideSpacing;
 			case 'shrink':
-				return MultiEditorTabsControl.TAB_WIDTH.shrink;
+				return MultiEditorTabsControl.TAB_WIDTH.shrink + styleOverrideSpacing;
 			default:
 				return 0;
 		}
@@ -2436,7 +2440,7 @@ registerThemingParticipant((theme, collector) => {
 			}
 
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-				outline: 1px dotted;
+				outline: 1px dashed;
 				outline-offset: -5px;
 			}
 

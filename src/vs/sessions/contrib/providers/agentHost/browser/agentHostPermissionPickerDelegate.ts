@@ -17,7 +17,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { isAutoApprovalsEnabled, isAutoApproveValueVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { isAssistedPermissionsEnabled, isPermissionLevelVisible } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 
 const REQUIRED_AUTO_APPROVE_VALUE = 'default';
 const REQUIRED_MODE_VALUE = 'interactive';
@@ -77,12 +77,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const provider = this._getProvider(session.providerId);
 		const schema = provider?.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.AutoApprove];
 		const values = schema?.type === 'string' && Array.isArray(schema.enum) ? schema.enum : [];
-		const autoApprovalsEnabled = isAutoApprovalsEnabled(this._configurationService);
+		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
 		return [
 			ChatPermissionLevel.Default,
 			ChatPermissionLevel.Assisted,
 			ChatPermissionLevel.AutoApprove,
-		].filter(level => values.includes(level) && isAutoApproveValueVisible(level, autoApprovalsEnabled));
+		].filter(level => values.includes(level) && isPermissionLevelVisible(level, assistedPermissionsEnabled));
 	}
 
 	/** Agent-host sessions seed their default approval level from this setting. */
@@ -122,7 +122,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
-		if (!isAutoApproveValueVisible(level, isAutoApprovalsEnabled(this._configurationService))) {
+		if (!isPermissionLevelVisible(level, isAssistedPermissionsEnabled(this._configurationService))) {
 			return;
 		}
 		const session = this._session.get();
@@ -227,6 +227,10 @@ export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): bool
 		return false;
 	}
 	return true;
+}
+
+export function isWellKnownModeValue(schema: SessionConfigPropertySchema, value: string): boolean {
+	return isWellKnownModeSchema(schema) && schema.enum!.some(candidate => String(candidate) === value);
 }
 
 /**
