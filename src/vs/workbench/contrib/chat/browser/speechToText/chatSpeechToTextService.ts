@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -11,12 +11,14 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { localize } from '../../../../../nls.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
+import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -120,6 +122,14 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		return this._isPreparingModel;
 	}
 
+	/**
+	 * Active download-progress notification, shown while the on-device model is
+	 * downloading to disk. `report` drives the progress bar, `complete` resolves
+	 * the backing task so the notification dismisses. `lastReported` is the last
+	 * percentage pushed, so we can translate absolute progress into increments.
+	 */
+	private _downloadNotification: { readonly report: IProgress<IProgressStep>; readonly complete: () => void; lastReported: number } | undefined;
+
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
 		return this._state;
@@ -159,6 +169,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IProgressService private readonly _progressService: IProgressService,
 		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -321,20 +332,80 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	/**
 	 * Track model download/load so the toolbar mic can show a spinner until the
-	 * model is ready. Intentionally silent — the spinner in place of the mic is
-	 * the only progress affordance; no notification is shown. Recording proceeds
-	 * meanwhile and interim transcripts begin once the model finishes loading.
+	 * model is ready. While the model is downloading to disk (which can be
+	 * hundreds of MB on first use) a progress notification is also shown so the
+	 * user understands why dictation has not started yet; it dismisses once the
+	 * download finishes. Recording proceeds meanwhile and interim transcripts
+	 * begin once the model finishes loading.
 	 */
 	private _trackModelPreparation(): void {
 		this._setPreparingModel(true);
-		this._localSessionDisposables.add(this._localTranscription.onDidChangeModelStatus(status => {
-			if (status.state === LocalTranscriptionModelState.Ready) {
-				this._setPreparingModel(false);
-			} else if (status.state === LocalTranscriptionModelState.Error) {
-				this._setPreparingModel(false);
-				this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+		// Guarantee the download notification is dismissed no matter how the
+		// session ends (teardown, cancel, or the service being disposed).
+		this._localSessionDisposables.add(toDisposable(() => this._completeDownloadNotification()));
+		// Register the status listener BEFORE snapshotting the current status. A
+		// Downloading→Ready/Error transition can land between the snapshot and the
+		// subscription; if it did, the completion event would be missed and the
+		// spinner and download notification would be stranded for the rest of the
+		// recording. Registering first, then re-querying, makes the handoff
+		// race-free — any transition is caught by the listener, and the snapshot
+		// settles the current state.
+		this._localSessionDisposables.add(this._localTranscription.onDidChangeModelStatus(status => this._handleModelStatus(status)));
+		this._localTranscription.getModelStatus().then(status => this._handleModelStatus(status), () => { /* errors also surface via onDidChangeModelStatus */ });
+	}
+
+	/**
+	 * Drive the spinner, download notification, and error handling from a model
+	 * status. Safe to call repeatedly and from both the status snapshot and the
+	 * change listener, since the notification and preparing-state updates are
+	 * idempotent.
+	 */
+	private _handleModelStatus(status: ILocalTranscriptionModelStatus): void {
+		this._updateDownloadNotification(status);
+		if (status.state === LocalTranscriptionModelState.Ready) {
+			this._setPreparingModel(false);
+		} else if (status.state === LocalTranscriptionModelState.Error) {
+			this._setPreparingModel(false);
+			this._failSession('model', localize('chatStt.modelError', "On-device speech-to-text model failed to load: {0}", status.error ?? ''));
+		}
+	}
+
+	/**
+	 * Show a progress notification while the model is downloading, updating its
+	 * progress bar as bytes arrive, and dismiss it as soon as the model leaves
+	 * the `Downloading` state (loading into memory, ready, or errored).
+	 */
+	private _updateDownloadNotification(status: ILocalTranscriptionModelStatus): void {
+		if (status.state !== LocalTranscriptionModelState.Downloading) {
+			this._completeDownloadNotification();
+			return;
+		}
+		if (!this._downloadNotification) {
+			const deferred = new DeferredPromise<void>();
+			let report: IProgress<IProgressStep> = Progress.None;
+			this._progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('chatStt.downloadingModel', "Downloading speech-to-text model…"),
+				delay: 500,
+			}, progress => {
+				report = progress;
+				return deferred.p;
+			});
+			this._downloadNotification = { report, complete: () => deferred.complete(), lastReported: 0 };
+		}
+		if (typeof status.progress === 'number') {
+			const percent = Math.max(0, Math.min(100, Math.round(status.progress * 100)));
+			const increment = percent - this._downloadNotification.lastReported;
+			if (increment > 0) {
+				this._downloadNotification.report.report({ increment, total: 100 });
+				this._downloadNotification.lastReported = percent;
 			}
-		}));
+		}
+	}
+
+	private _completeDownloadNotification(): void {
+		this._downloadNotification?.complete();
+		this._downloadNotification = undefined;
 	}
 
 	/**
@@ -446,6 +517,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private _teardown(): void {
 		this._stopCapture();
 		this._setPreparingModel(false);
+		this._completeDownloadNotification();
 		this._localSessionDisposables.clear();
 	}
 

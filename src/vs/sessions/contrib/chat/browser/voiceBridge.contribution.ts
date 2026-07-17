@@ -25,6 +25,7 @@ import { INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVo
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
+ * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
  */
 class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,6 +39,7 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 	) {
 		super();
 
@@ -135,6 +137,25 @@ class SessionsVoiceBridgeContribution extends Disposable implements IWorkbenchCo
 			} catch {
 				return false;
 			}
+		}));
+
+		// Explicitly narrate a session's pending voice item (e.g. the user clicked
+		// its pending-voice indicator). Deterministic - activates even when the
+		// session is already the active one, where no focus/view-model change fires.
+		// The resource is passed straight through so it matches the key the pending
+		// indicator was set under (see IVoicePlaybackService.setPendingResponse).
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.activateSession', (_accessor, resourceStr: string): boolean => {
+			if (!resourceStr || resourceStr === NEW_CHAT_VOICE_SENTINEL.toString()) {
+				return false;
+			}
+			let resource: URI;
+			try {
+				resource = URI.parse(resourceStr);
+			} catch {
+				return false;
+			}
+			this.voiceSessionController.activateSession(resource);
+			return true;
 		}));
 	}
 

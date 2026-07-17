@@ -129,6 +129,15 @@ the `IChatSessionContentProvider` for content/send, but **not** on
 `IChatSessionItemController` — that API exists only to feed the classic chat
 sidebar list.
 
+User-input requests are unresolved `InputRequest` response parts on the active
+turn, not a separate chat-level queue. `AgentHostSessionHandler` renders and
+settles the question, plan-review, or URL elicitation directly from that part as
+its `response` and `request.answers` change. Replacing an unresolved request with
+the same id recreates the UI when its structure changes; completed turns restore
+the settled interaction and answers at the part's original stream position.
+Agent implementations decline or cancel requests raised without an active turn
+because there is no response stream in which to represent them.
+
 ## New Session Flow
 
 `createNewSession(workspaceUri, sessionTypeId)`:

@@ -823,7 +823,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (!domNode) {
 			return;
 		}
-		await startDictation(sttService, this._editor, dom.getWindow(domNode));
+		await startDictation(sttService, this._editor, dom.getWindow(domNode), this.logService);
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---

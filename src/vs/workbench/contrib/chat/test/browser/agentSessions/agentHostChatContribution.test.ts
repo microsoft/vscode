@@ -120,7 +120,7 @@ function normalizeTestAction(action: SessionAction | ChatAction | TerminalAction
  * these on the session for convenience; the mock connection splits them onto
  * the default-chat subscription when serving {@link StateComponents.Chat}.
  */
-type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'inputRequests' | 'draft'>>;
+type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'draft'>>;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -494,7 +494,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			activeTurn: seeded?.activeTurn,
 			steeringMessage: seeded?.steeringMessage,
 			queuedMessages: seeded?.queuedMessages,
-			inputRequests: seeded?.inputRequests,
 			draft: seeded?.draft,
 		};
 	}
@@ -3647,6 +3646,45 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('replacing an unresolved input request recreates its UI for the new request shape', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question-1', message: 'Initial question' }],
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			const first = collected.flat().find(part => part.kind === 'questionCarousel') as ChatQuestionCarouselData;
+			assert.ok(first);
+			fire({
+				type: ActionType.ChatInputRequested,
+				request: {
+					id: 'input-1',
+					message: 'Authorize the replacement',
+					url: 'https://example.com/replacement',
+				},
+			} as ChatAction);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				partKinds: collected.flat().map(part => part.kind),
+				firstIsUsed: first.isUsed,
+				completions: agentHostService.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.ChatInputCompleted).length,
+			}, {
+				partKinds: ['questionCarousel', 'elicitation2'],
+				firstIsUsed: true,
+				completions: 0,
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('input request completion from another client clears local question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-input-request-test' });
@@ -5196,6 +5234,65 @@ suite('AgentHostChatContribution', () => {
 				const termData = toolPart.toolSpecificData as IChatTerminalToolInvocationData;
 				assert.strictEqual(termData.terminalCommandOutput?.text, 'file1\r\nfile2');
 				assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+			}
+		});
+
+		test('resolved input requests preserve their stream position and answers in history', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'input-history');
+
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'configure', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.Markdown,
+						id: 'before',
+						content: 'Before',
+					}, {
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'input-1',
+							message: 'Configuration',
+							questions: [{ kind: ChatInputQuestionKind.Text, id: 'name', message: 'Name?' }],
+							answers: {
+								name: {
+									state: ChatInputAnswerState.Submitted,
+									value: { kind: ChatInputAnswerValueKind.Text, value: 'Ada' },
+								},
+							},
+						},
+						response: ChatInputResponseKind.Accept,
+					}, {
+						kind: ResponsePartKind.Markdown,
+						id: 'after',
+						content: 'After',
+					}],
+				}],
+			} as SessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/input-history' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const response = chatSession.history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type === 'response') {
+				const carousel = response.parts[1] as ChatQuestionCarouselData;
+				assert.deepStrictEqual({
+					partKinds: response.parts.map(part => part.kind),
+					questions: carousel.questions.map(question => ({ id: question.id, title: question.title })),
+					data: carousel.data,
+					isUsed: carousel.isUsed,
+				}, {
+					partKinds: ['markdownContent', 'questionCarousel', 'markdownContent'],
+					questions: [{ id: 'name', title: 'Name?' }],
+					data: { name: 'Ada' },
+					isUsed: true,
+				});
 			}
 		});
 
@@ -8523,6 +8620,10 @@ suite('AgentHostChatContribution', () => {
 			override getMcpServers(): readonly IAgentHostMcpServer[] {
 				return this.mcpServers;
 			}
+			onPrepare: (() => void) | undefined;
+			override prepareMcpServersForTurn(): void {
+				this.onPrepare?.();
+			}
 			fireChange(): void {
 				this._onDidChange.fire();
 			}
@@ -8595,6 +8696,32 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 			return promptParts;
 		}
+
+		test('prepares MCP enablement immediately before dispatching the turn', async () => {
+			const customizationService = disposables.add(new TestMcpCustomizationService());
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			let prepareCount = 0;
+			customizationService.onPrepare = () => {
+				assert.strictEqual(agentHostService.turnActions.length, 0);
+				prepareCount++;
+			};
+
+			await runTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				URI.from({ scheme: 'agent-host-copilot', path: '/mcp-prepare' }),
+				{ v: 1 },
+			);
+
+			assert.deepStrictEqual({
+				prepareCount,
+				turnCount: agentHostService.turnActions.length,
+			}, {
+				prepareCount: 1,
+				turnCount: 1,
+			});
+		});
 
 		test('surfaces an unauthenticated server once, then suppresses it on the next turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

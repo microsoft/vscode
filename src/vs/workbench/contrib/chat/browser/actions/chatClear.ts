@@ -4,23 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { getDefaultNewChatSessionResource } from '../../common/constants.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { getDefaultNewChatSessionResource, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { markPreferredCopilotHarness } from '../../common/chatSessionTypePreference.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 
-export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput): Promise<void> {
+export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInput?: ChatEditorInput, targetSessionType?: string): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const storageService = accessor.get(IStorageService);
 	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 
 	if (!chatEditorInput) {
 		const editorInput = editorService.activeEditor;
@@ -28,11 +33,33 @@ export async function clearChatEditor(accessor: ServicesAccessor, chatEditorInpu
 	}
 
 	if (chatEditorInput instanceof ChatEditorInput) {
-		// If we have a contributed session, make sure we create an untitled session for it.
-		// Otherwise create a generic new chat editor.
-		const resource = chatEditorInput.sessionResource && chatEditorInput.sessionResource.scheme !== Schemas.vscodeLocalChatSession
-			? chatEditorInput.sessionResource.with({ path: `/untitled-${generateUuid()}` })
-			: getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace());
+		let resource: URI;
+		if (targetSessionType !== undefined) {
+			// The caller already resolved the target type (honoring an explicit
+			// request, session preservation, or the preferCopilotHarness swap and
+			// its marker); apply it directly instead of recomputing the default.
+			resource = targetSessionType === localChatSessionType
+				? LocalChatSessionUri.getNewSessionUri()
+				: URI.from({ scheme: targetSessionType, path: `/untitled-${generateUuid()}` });
+		} else {
+			const currentResource = chatEditorInput.sessionResource;
+			if (currentResource && currentResource.scheme !== Schemas.vscodeLocalChatSession) {
+				// Contributed/non-local session: keep the same type for the new session.
+				resource = currentResource.with({ path: `/untitled-${generateUuid()}` });
+			} else {
+				// Local (or brand-new) session. Honor the one-time preferCopilotHarness
+				// swap, consuming the migration marker only here where it is applied.
+				// Otherwise fall back to the computed default.
+				const currentSessionType = currentResource ? getChatSessionType(currentResource) : undefined;
+				const resolved = resolveDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled, { currentSessionType });
+				if (resolved.isPreferCopilotHarnessSwap) {
+					markPreferredCopilotHarness(storageService);
+					resource = URI.from({ scheme: resolved.sessionType, path: `/untitled-${generateUuid()}` });
+				} else {
+					resource = getDefaultNewChatSessionResource(configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
+				}
+			}
+		}
 
 		// A chat editor can only be open in one group
 		const identifier = editorService.findEditors(chatEditorInput.resource)[0];

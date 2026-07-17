@@ -11,7 +11,8 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, readUsageInfoMeta, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo, type UsageInfoMeta } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -23,10 +24,12 @@ import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSess
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import product from '../../../../../../platform/product/common/product.js';
-import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCredits, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -36,6 +39,14 @@ import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
+
+export const BOOLEAN_TRUE_OPTION_ID = 'true';
+export const BOOLEAN_FALSE_OPTION_ID = 'false';
+
+export interface IAgentHostToolInvocationOptions {
+	readonly currentClientId: string;
+	readonly cancelOtherClientToolCall: (toolCall: ToolCallState) => void;
+}
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -56,6 +67,234 @@ export function parseAhpTerminalToolSessionId(id: string): { terminal: string; s
 		}
 	} catch { /* not an AHP terminal session ID */ }
 	return undefined;
+}
+
+function convertProtocolAnswer(answer: ChatInputAnswer): IChatQuestionAnswerValue | undefined {
+	if (answer.state !== ChatInputAnswerState.Submitted) {
+		return undefined;
+	}
+	switch (answer.value.kind) {
+		case ChatInputAnswerValueKind.Text:
+			return answer.value.value;
+		case ChatInputAnswerValueKind.Number:
+		case ChatInputAnswerValueKind.Boolean:
+			return String(answer.value.value);
+		case ChatInputAnswerValueKind.Selected:
+			return {
+				selectedValue: answer.value.value,
+				freeformValue: answer.value.freeformValues?.[0],
+			};
+		case ChatInputAnswerValueKind.SelectedMany:
+			return {
+				selectedValues: answer.value.value,
+				freeformValue: answer.value.freeformValues?.[0],
+			};
+	}
+}
+
+export function convertProtocolAnswers(raw: Record<string, ChatInputAnswer> | undefined): IChatQuestionAnswers | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	const answers: IChatQuestionAnswers = {};
+	for (const [questionId, answer] of Object.entries(raw)) {
+		const converted = convertProtocolAnswer(answer);
+		if (converted !== undefined) {
+			answers[questionId] = converted;
+		}
+	}
+	return Object.keys(answers).length > 0 ? answers : undefined;
+}
+
+function getPlanReviewAction(planReview: IAgentHostPlanReview, actionId: string | undefined) {
+	return actionId ? planReview.actions.find(action => action.id === actionId) : undefined;
+}
+
+export function convertProtocolPlanReviewResult(planReview: IAgentHostPlanReview, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): IChatPlanReviewResult | undefined {
+	if (response === ChatInputResponseKind.Decline) {
+		return { rejected: true };
+	}
+	if (response !== ChatInputResponseKind.Accept) {
+		return undefined;
+	}
+
+	const answer = answers?.[planReview.answerQuestionId];
+	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
+		return undefined;
+	}
+
+	const value = answer.value;
+	if (value.kind === ChatInputAnswerValueKind.Text) {
+		const feedback = value.value.trim();
+		return feedback ? { rejected: false, feedback, feedbackOverall: feedback } : undefined;
+	}
+	if (value.kind !== ChatInputAnswerValueKind.Selected) {
+		return undefined;
+	}
+
+	const action = getPlanReviewAction(planReview, value.value);
+	const feedback = value.freeformValues?.find(v => v.trim().length > 0)?.trim();
+	return {
+		rejected: false,
+		action: action?.label ?? value.value,
+		actionId: action?.id ?? value.value,
+		...(feedback ? { feedback, feedbackOverall: feedback } : {}),
+	};
+}
+
+export function createInputRequestCarousel(inputReq: ChatInputRequest, connectionAuthority: string): ChatQuestionCarouselData {
+	const questions: IChatQuestion[] = (inputReq.questions ?? []).map((question): IChatQuestion => {
+		let title = question.title;
+		let message = question.message;
+		if (!title) {
+			const endOfLine = question.message.indexOf('\n');
+			title = endOfLine === -1 ? question.message : question.message.substring(0, endOfLine).trim();
+			message = endOfLine === -1 ? '' : question.message.substring(endOfLine + 1).trim();
+		}
+		const detailedMessage = new MarkdownString(message, { isTrusted: false });
+
+		switch (question.kind) {
+			case ChatInputQuestionKind.SingleSelect:
+				return {
+					id: question.id,
+					type: 'singleSelect',
+					title,
+					detailedMessage,
+					required: question.required,
+					allowFreeformInput: question.allowFreeformInput ?? true,
+					options: question.options.map(option => ({ id: option.id, label: option.label, value: option.id })),
+				};
+			case ChatInputQuestionKind.MultiSelect:
+				return {
+					id: question.id,
+					type: 'multiSelect',
+					title,
+					detailedMessage,
+					required: question.required,
+					allowFreeformInput: question.allowFreeformInput ?? true,
+					options: question.options.map(option => ({ id: option.id, label: option.label, value: option.id })),
+				};
+			case ChatInputQuestionKind.Boolean:
+				return {
+					id: question.id,
+					type: 'singleSelect',
+					title,
+					detailedMessage,
+					required: question.required,
+					allowFreeformInput: false,
+					defaultValue: question.defaultValue === undefined ? undefined : String(question.defaultValue),
+					options: [
+						{ id: BOOLEAN_TRUE_OPTION_ID, label: localize('chat.inputRequest.boolean.true', "True"), value: BOOLEAN_TRUE_OPTION_ID },
+						{ id: BOOLEAN_FALSE_OPTION_ID, label: localize('chat.inputRequest.boolean.false', "False"), value: BOOLEAN_FALSE_OPTION_ID },
+					],
+				};
+			case ChatInputQuestionKind.Text:
+				return {
+					id: question.id,
+					type: 'text',
+					title,
+					detailedMessage,
+					required: question.required,
+					defaultValue: question.defaultValue,
+				};
+			default:
+				return {
+					id: question.id,
+					type: 'text',
+					title,
+					detailedMessage,
+					required: question.required,
+				};
+		}
+	});
+
+	if (questions.length === 0) {
+		questions.push({
+			id: 'answer',
+			type: 'text',
+			title: inputReq.message ?? '',
+			required: true,
+		});
+	}
+
+	return new ChatQuestionCarouselData(
+		questions,
+		true,
+		inputReq.id,
+		undefined,
+		undefined,
+		inputReq.message ? rawMarkdownToString(inputReq.message, connectionAuthority) : undefined,
+	);
+}
+
+export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview): ChatPlanReviewData {
+	return new ChatPlanReviewData(
+		planReview.title,
+		planReview.content,
+		planReview.actions.map(action => ({
+			id: action.id,
+			label: action.label,
+			...(action.description ? { description: action.description } : {}),
+			...(action.default ? { default: true } : {}),
+			...(action.permissionLevel ? { permissionLevel: action.permissionLevel } : {}),
+		})),
+		planReview.canProvideFeedback,
+		planReview.planUri ? URI.parse(planReview.planUri).toJSON() : undefined,
+		inputReq.id,
+	);
+}
+
+export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: string): { authority: string; message: MarkdownString } {
+	let authority = url;
+	try {
+		authority = URI.parse(url).authority || url;
+	} catch {
+		// Fall back to the raw URL string.
+	}
+
+	const message = new MarkdownString();
+	if (inputReq.message) {
+		message.appendText(inputReq.message);
+		message.appendMarkdown('\n\n');
+	}
+	message.appendMarkdown(localize('agentHost.elicit.url.instruction', "Open this URL?"));
+	message.appendCodeblock('', url);
+	return { authority, message };
+}
+
+export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string): IChatProgress {
+	const inputReq = part.request;
+	const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
+	if (planReview) {
+		const review = createInputRequestPlanReview(inputReq, planReview);
+		review.data = part.response === undefined
+			? undefined
+			: convertProtocolPlanReviewResult(planReview, part.response, inputReq.answers);
+		review.isUsed = true;
+		return review;
+	}
+
+	if (inputReq.url) {
+		const presentation = getUrlInputRequestPresentation(inputReq, inputReq.url);
+		return {
+			kind: 'elicitationSerialized',
+			title: localize('agentHost.elicit.url.title', "Authorization Required"),
+			message: presentation.message,
+			subtitle: '',
+			source: undefined,
+			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
+	const carousel = createInputRequestCarousel(inputReq, connectionAuthority);
+	const answers = part.response === ChatInputResponseKind.Accept
+		? convertProtocolAnswers(inputReq.answers)
+		: undefined;
+	carousel.data = answers ?? {};
+	carousel.isUsed = true;
+	carousel.answeredExternally = part.response === ChatInputResponseKind.Accept && !answers;
+	return carousel;
 }
 
 /**
@@ -599,6 +838,10 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					// Content references are not restored into history;
 					// they are handled separately by the content provider.
 					break;
+				case ResponsePartKind.InputRequest: {
+					parts.push(inputRequestResponsePartToProgress(rp, connectionAuthority));
+					break;
+				}
 			}
 		}
 
@@ -860,7 +1103,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage);
 	if (usage) {
@@ -884,7 +1127,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
-					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
+					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions));
 				}
 				break;
 			}
@@ -1731,13 +1974,22 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
 		displayName: tc.displayName,
 		modelDescription: tc.toolName,
 	};
+
+	if (tc.contributor?.kind === ToolCallContributorKind.Client && options && tc.contributor.clientId !== options.currentClientId) {
+		const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+		invocation.invocationMessage = localize('agentHost.otherClientTool.running', "Running {0} on another client...", tc.displayName);
+		invocation.otherClientToolCall = {
+			cancel: () => options.cancelOtherClientToolCall(tc),
+		};
+		return invocation;
+	}
 
 	if (tc.status === ToolCallStatus.PendingConfirmation) {
 		// Tool needs confirmation — create with confirmation messages.
