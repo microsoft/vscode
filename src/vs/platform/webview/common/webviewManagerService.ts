@@ -57,10 +57,8 @@ export interface WebviewDocumentRegistration {
 	readonly extensionId: string;
 	readonly webviewId: string;
 	readonly windowId: number;
-	readonly extensionLocation: UriComponents | undefined;
 	readonly html: string;
 	readonly csp: string;
-	readonly roots: readonly UriComponents[];
 }
 
 export interface WebviewResourceRequest {

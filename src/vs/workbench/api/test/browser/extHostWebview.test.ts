@@ -210,7 +210,7 @@ suite('ExtHostWebview', () => {
 		assert.strictEqual(desktopWebview.cspSource, 'vscode-webview://publisher.extension');
 		assert.strictEqual(
 			desktopWebview.asWebviewUri(URI.file('/extension/media/icon.svg')).toString(),
-			'vscode-webview://publisher.extension/readable-instance/_vscode/resource/file%2B/extension/media/icon.svg',
+			'vscode-webview://publisher.extension/_vscode/resource/file%2B/extension/media/icon.svg',
 		);
 
 		const webWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Web, undefined, new NullLogService(), NullApiDeprecationService));

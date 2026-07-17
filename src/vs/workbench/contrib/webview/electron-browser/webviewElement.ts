@@ -11,7 +11,9 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { escape } from '../../../../base/common/strings.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -172,7 +174,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._register(this._webviewMainService.onDidRequestWebviewPortMapping(async request => {
 			if (this.useSingleIframe
 				&& request.extensionId.toLowerCase() === this.extension?.id.value.toLowerCase()
-				&& request.webviewId === this.resourceId) {
+				&& request.webviewId === this.id) {
 				const redirect = await this.getDirectLocalhostRedirect(request.origin);
 				await this._webviewMainService.resolveWebviewPortMapping(request.requestId, redirect);
 			}
@@ -196,8 +198,8 @@ export class ElectronWebviewElement extends WebviewElement {
 		// Make sure keyboard handler knows it closed (#71800)
 		this._webviewKeyboardHandler.didBlur();
 
-		if (this.extension?.useSingleIframe && this.resourceId) {
-			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.resourceId);
+		if (this.extension?.useSingleIframe) {
+			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.id);
 		}
 		for (const request of this._directResourceRequests.values()) {
 			request.dispose(true);
@@ -209,7 +211,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private async handleDirectResourceRequest(request: WebviewResourceRequest): Promise<void> {
 		if (!this.useSingleIframe
 			|| request.extensionId.toLowerCase() !== this.extension?.id.value.toLowerCase()
-			|| request.webviewId !== this.resourceId) {
+			|| request.webviewId !== this.id) {
 			return;
 		}
 		const cts = new CancellationTokenSource();
@@ -309,7 +311,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	private async updateDirectDocument(prepareForNavigation: boolean): Promise<void> {
 		const extensionId = this.extension?.id.value.toLowerCase();
-		const webviewId = this.resourceId;
+		const webviewId = this.id;
 		const targetWindow = this._directTargetWindow;
 		if (!extensionId || !webviewId || !targetWindow || typeof this.windowId !== 'number' || !this.element) {
 			return;
@@ -319,7 +321,6 @@ export class ElectronWebviewElement extends WebviewElement {
 			html: this.content.html,
 			allowScripts: this.content.options.allowScripts,
 			allowForms: this.content.options.allowForms,
-			roots: this.content.options.localResourceRoots?.map(root => root.toString()),
 		});
 		if (contentKey === this._directContentKey) {
 			return;
@@ -341,10 +342,8 @@ export class ElectronWebviewElement extends WebviewElement {
 				extensionId,
 				webviewId,
 				windowId: this.windowId!,
-				extensionLocation: this.extension?.location,
 				html: transformed.html,
 				csp: transformed.csp,
-				roots: this.content.options.localResourceRoots || [],
 			});
 			if (generation !== this._directGeneration || !this.element) {
 				return;
@@ -370,13 +369,14 @@ export class ElectronWebviewElement extends WebviewElement {
 	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string }): Promise<{ html: string; csp: string }> {
 		const source = html || '<!DOCTYPE html><html><head></head><body></body></html>';
 		const trustedSource = singleIframeHtmlPolicy?.createHTML(source) ?? source;
-		const document = new DOMParser().parseFromString(trustedSource as string, 'text/html');
-		const policies = document.querySelectorAll('meta[http-equiv="Content-Security-Policy" i]');
+		const parsedDocument = new DOMParser().parseFromString(trustedSource as string, 'text/html');
+		const policies = Array.from(parsedDocument.head.children)
+			.filter(element => element.tagName === 'META' && element.getAttribute('http-equiv')?.toLowerCase() === 'content-security-policy');
 		if (policies.length !== 1 || !policies[0].getAttribute('content')?.trim()) {
 			this.handleNoCspFound();
 			return {
-				html: '<!DOCTYPE html><html><body>Webview blocked: the experimental loader requires exactly one Content-Security-Policy meta tag.</body></html>',
-				csp: "default-src 'none'; style-src 'unsafe-inline'",
+				html: `<!DOCTYPE html><html><body>${escape(localize('webviewBlockedMissingCsp', "Webview blocked: the experimental loader requires exactly one Content-Security-Policy meta tag."))}</body></html>`,
+				csp: `default-src 'none'; style-src 'unsafe-inline'`,
 			};
 		}
 		let csp = policies[0].getAttribute('content')!.trim();
@@ -388,23 +388,23 @@ export class ElectronWebviewElement extends WebviewElement {
 		if (!allowScripts) {
 			csp += `, script-src ${hash}; script-src-attr 'none'`;
 		}
-		const script = document.createElement('script');
+		const script = parsedDocument.createElement('script');
 		script.text = (singleIframeHtmlPolicy?.createScript?.(singleIframeBootstrap) ?? singleIframeBootstrap) as string;
-		document.head.prepend(script);
-		const bootstrap = document.createElement('meta');
+		parsedDocument.head.prepend(script);
+		const bootstrap = parsedDocument.createElement('meta');
 		bootstrap.name = 'vscode-webview-bootstrap';
 		bootstrap.content = encodeURIComponent(JSON.stringify(bootstrapData));
-		document.head.prepend(bootstrap);
-		const defaultStyles = document.createElement('style');
+		parsedDocument.head.prepend(bootstrap);
+		const defaultStyles = parsedDocument.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = singleIframeDefaultStyles;
-		document.head.prepend(defaultStyles);
-		const state = document.createElement('meta');
+		parsedDocument.head.prepend(defaultStyles);
+		const state = parsedDocument.createElement('meta');
 		state.name = 'vscode-webview-state';
 		state.content = this.content.state ? encodeURIComponent(this.content.state) : '';
-		document.head.prepend(state);
-		document.title = this.content.title || '';
-		return { html: `<!DOCTYPE html>\n${document.documentElement.outerHTML}`, csp };
+		parsedDocument.head.prepend(state);
+		parsedDocument.title = this.content.title || '';
+		return { html: `<!DOCTYPE html>\n${parsedDocument.documentElement.outerHTML}`, csp };
 	}
 
 	private async contentHash(value: string): Promise<string> {

@@ -374,6 +374,12 @@ export class CodeApplication extends Disposable {
 
 		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+			if (uri.scheme === Schemas.vscodeWebview && details.frame) {
+				const redirectURL = WebviewProtocolProvider.getWebviewResourceRedirect(details.frame.url, uri);
+				if (redirectURL) {
+					return callback({ redirectURL });
+				}
+			}
 			if ((uri.scheme === Schemas.http || uri.scheme === Schemas.https) && details.frame) {
 				const portMapping = WebviewProtocolProvider.getWebviewPortMapping(details.frame.url, details.url);
 				if (portMapping) {

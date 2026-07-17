@@ -192,8 +192,6 @@ export interface WebviewMessageReceivedEvent {
 }
 
 export interface IWebview extends IDisposable {
-	/** Internal resource route identifier assigned by the extension host bridge. */
-	resourceId?: string;
 
 	/**
 	 * The original view type of the webview.

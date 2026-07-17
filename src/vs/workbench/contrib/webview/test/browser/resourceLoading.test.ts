@@ -245,6 +245,8 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 });
 
 suite('Webview Resource Loading - direct Electron routes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('normalizes and validates extension identifiers', () => {
 		assert.strictEqual(normalizeWebviewExtensionId('Publisher.Extension-Name'), 'publisher.extension-name');
 		assert.strictEqual(normalizeWebviewExtensionId('missingPublisher'), undefined);
@@ -255,17 +257,17 @@ suite('Webview Resource Loading - direct Electron routes', () => {
 		const result = asWebviewUri(
 			URI.from({ scheme: 'test-provider', authority: 'remote+host', path: '/目录/a file.css', query: 'v=1', fragment: 'rule' }),
 			undefined,
-			{ extensionId: 'Publisher.Extension', webviewId: 'instance id' },
+			{ extensionId: 'Publisher.Extension' },
 		);
 		assert.strictEqual(result.scheme, Schemas.vscodeWebview);
 		assert.strictEqual(result.authority, 'publisher.extension');
-		assert.strictEqual(result.path, '/instance id/_vscode/resource/test-provider+remote-002bhost/目录/a file.css');
+		assert.strictEqual(result.path, '/_vscode/resource/test-provider+remote-002bhost/目录/a file.css');
 		assert.strictEqual(result.query, 'v=1');
 		assert.strictEqual(result.fragment, 'rule');
 	});
 
 	test('leaves network resources unchanged', () => {
 		const resource = URI.parse('https://example.com/image.png?q=1#fragment');
-		assert.strictEqual(asWebviewUri(resource, undefined, { extensionId: 'publisher.extension', webviewId: 'instance' }), resource);
+		assert.strictEqual(asWebviewUri(resource, undefined, { extensionId: 'publisher.extension' }), resource);
 	});
 });

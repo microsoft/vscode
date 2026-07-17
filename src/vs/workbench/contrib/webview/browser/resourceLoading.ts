@@ -67,34 +67,6 @@ export async function loadLocalResource(
 		return WebviewResourceResponse.AccessDenied;
 	}
 
-	// File providers that expose real paths let us close the gap between lexical URI
-	// containment and the path that is actually read (for example a symlink from an
-	// extension's media directory to /etc/passwd). Providers without realpath retain
-	// the existing URI-identity containment check above.
-	const requestWithoutQuery = requestUri.with({ query: '', fragment: '' });
-	const canonicalResource = await realpath(fileService, requestWithoutQuery);
-	if (canonicalResource) {
-		let checkedCanonicalRoot = false;
-		let containedByCanonicalRoot = false;
-		for (const root of options.roots) {
-			if (!containsResource(root, requestWithoutQuery, uriIdentityService)) {
-				continue;
-			}
-			const canonicalRoot = await realpath(fileService, root);
-			if (canonicalRoot) {
-				checkedCanonicalRoot = true;
-				if (uriIdentityService.extUri.isEqualOrParent(canonicalResource, canonicalRoot, true)) {
-					containedByCanonicalRoot = true;
-					break;
-				}
-			}
-		}
-		if (checkedCanonicalRoot && !containedByCanonicalRoot) {
-			logService.warn(`Webview.loadLocalResource - access denied after realpath check. requestUri=${requestUri}, canonicalResource=${canonicalResource}`);
-			return WebviewResourceResponse.AccessDenied;
-		}
-	}
-
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
@@ -125,14 +97,6 @@ export async function loadLocalResource(
 		// Otherwise the error is unexpected.
 		logService.error(`Webview.loadLocalResource - Error using fileReader. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 		return WebviewResourceResponse.Failed;
-	}
-}
-
-async function realpath(fileService: IFileService, resource: URI): Promise<URI | undefined> {
-	try {
-		return await fileService.realpath(resource);
-	} catch {
-		return undefined;
 	}
 }
 

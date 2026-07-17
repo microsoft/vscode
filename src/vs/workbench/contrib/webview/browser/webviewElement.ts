@@ -77,9 +77,6 @@ const webviewIdContext = 'webviewId';
 export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
 
 	protected readonly id = generateUuid();
-	private _resourceId: string | undefined;
-	public get resourceId(): string | undefined { return this._resourceId; }
-	public set resourceId(value: string | undefined) { this._resourceId = value; this.onWebviewRouteChanged(); }
 
 	/**
 	 * The provided identifier of this webview.
@@ -694,12 +691,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			...this._content,
 			options: { ...this._content.options, localResourceRoots: resources }
 		};
-		this.onContentDidChange();
 	}
 
 	public set state(state: string | undefined) {
 		this._content = { ...this._content, state };
-		this.onContentDidChange();
 	}
 
 	public set initialScrollProgress(value: number) {

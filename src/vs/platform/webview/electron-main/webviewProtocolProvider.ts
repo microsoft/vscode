@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { net, protocol } from 'electron';
+import { protocol } from 'electron';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
-import { getWebviewContentMimeType } from '../common/mimeTypes.js';
 import { WebviewDocumentRegistration, WebviewPortMappingRequest, WebviewResourceRequest, WebviewResourceResponse } from '../common/webviewManagerService.js';
 
 
@@ -32,7 +30,6 @@ export class WebviewProtocolProvider implements IDisposable {
 	}>();
 	private nextRequestId = 1;
 	private readonly pendingPortMappings = new Map<number, (redirect: string | undefined) => void>();
-	private readonly localResourceAuthorizations = new Map<string, Promise<{ readonly extension: URI; readonly roots: readonly URI[] } | undefined>>();
 
 	constructor(
 		private readonly requestResource: (request: WebviewResourceRequest) => void,
@@ -54,7 +51,6 @@ export class WebviewProtocolProvider implements IDisposable {
 		}
 		this.pendingResources.clear();
 		WebviewProtocolProvider.documents.clear();
-		this.localResourceAuthorizations.clear();
 		for (const resolve of this.pendingPortMappings.values()) { resolve(undefined); }
 		this.pendingPortMappings.clear();
 		if (WebviewProtocolProvider.instance === this) { WebviewProtocolProvider.instance = undefined; }
@@ -66,14 +62,11 @@ export class WebviewProtocolProvider implements IDisposable {
 		}
 		const key = this.documentKey(document.extensionId, document.webviewId);
 		WebviewProtocolProvider.documents.set(key, document);
-		this.localResourceAuthorizations.delete(key);
-		void this.getLocalResourceAuthorization(document);
 	}
 
 	public unregisterWebviewDocument(extensionId: string, webviewId: string): void {
 		const key = this.documentKey(extensionId, webviewId);
 		WebviewProtocolProvider.documents.delete(key);
-		this.localResourceAuthorizations.delete(key);
 		for (const [requestId, pending] of this.pendingResources) {
 			if (pending.extensionId.toLowerCase() === extensionId.toLowerCase() && pending.webviewId === webviewId) {
 				this.pendingResources.delete(requestId);
@@ -146,6 +139,27 @@ export class WebviewProtocolProvider implements IDisposable {
 			return undefined;
 		}
 		return this.documents.get(`${url.authority.toLowerCase()}\0${decodeURIComponent(match[1])}`);
+	}
+
+	public static getWebviewResourceRedirect(frameUrl: string, resource: URI): string | undefined {
+		if (resource.scheme !== Schemas.vscodeWebview || !resource.path.startsWith('/_vscode/resource/')) {
+			return undefined;
+		}
+		let frame: URI;
+		try {
+			frame = URI.parse(frameUrl);
+		} catch {
+			return undefined;
+		}
+		const document = this.getWebviewDocument(frame);
+		if (!document || resource.authority.toLowerCase() !== document.extensionId.toLowerCase()) {
+			return undefined;
+		}
+		const route = `${Schemas.vscodeWebview}://${document.extensionId.toLowerCase()}/${encodeURIComponent(document.webviewId)}/`;
+		if (!frameUrl.startsWith(route)) {
+			return undefined;
+		}
+		return resource.with({ path: `/${document.webviewId}${resource.path}` }).toString();
 	}
 
 	public static getWebviewPortMapping(frameUrl: string, targetUrl: string): Promise<string | undefined> | undefined {
@@ -252,10 +266,6 @@ export class WebviewProtocolProvider implements IDisposable {
 		if (!resource) {
 			return new Response(null, { status: 403 });
 		}
-		const localResponse = await this.tryLoadLocalExtensionResource(request, resource, document);
-		if (localResponse) {
-			return localResponse;
-		}
 		if (this.pendingResources.size >= 128) {
 			return new Response(null, { status: 429 });
 		}
@@ -285,80 +295,6 @@ export class WebviewProtocolProvider implements IDisposable {
 				range,
 			});
 		});
-	}
-
-	private async tryLoadLocalExtensionResource(request: GlobalRequest, resource: URI, document: WebviewDocumentRegistration): Promise<Response | undefined> {
-		const extensionLocation = document.extensionLocation ? URI.revive(document.extensionLocation) : undefined;
-		if (resource.scheme !== Schemas.file
-			|| extensionLocation?.scheme !== Schemas.file
-			|| request.headers.has('range')
-			|| request.headers.has('if-none-match')) {
-			return undefined;
-		}
-
-		try {
-			const [canonicalResource, authorization] = await Promise.all([
-				this._fileService.realpath(resource.with({ query: '', fragment: '' })),
-				this.getLocalResourceAuthorization(document),
-			]);
-			if (!canonicalResource || !authorization || !extUriBiasedIgnorePathCase.isEqualOrParent(canonicalResource, authorization.extension)) {
-				return undefined;
-			}
-
-			if (!authorization.roots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(canonicalResource, root))) {
-				return undefined;
-			}
-
-			const response = await net.fetch(canonicalResource.with({ query: resource.query }).toString(true), {
-				method: request.method,
-				signal: request.signal,
-				bypassCustomProtocolHandlers: true,
-			});
-			const headers = new Headers(response.headers);
-			headers.set('Content-Type', getWebviewContentMimeType(resource));
-			headers.set('Access-Control-Allow-Origin', '*');
-			headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
-			headers.set('X-Content-Type-Options', 'nosniff');
-			return new Response(request.method === 'HEAD' ? null : response.body, {
-				status: response.status,
-				statusText: response.statusText,
-				headers,
-			});
-		} catch {
-			// The renderer loader remains the compatibility path for providers and
-			// file requests that Chromium's file protocol cannot serve.
-			return undefined;
-		}
-	}
-
-	private getLocalResourceAuthorization(document: WebviewDocumentRegistration): Promise<{ readonly extension: URI; readonly roots: readonly URI[] } | undefined> {
-		const key = this.documentKey(document.extensionId, document.webviewId);
-		let authorization = this.localResourceAuthorizations.get(key);
-		if (!authorization) {
-			authorization = (async () => {
-				const extensionLocation = document.extensionLocation ? URI.revive(document.extensionLocation) : undefined;
-				if (extensionLocation?.scheme !== Schemas.file) {
-					return undefined;
-				}
-				const extension = await this._fileService.realpath(extensionLocation);
-				if (!extension) {
-					return undefined;
-				}
-				const roots: URI[] = [];
-				for (const rawRoot of document.roots) {
-					const root = URI.revive(rawRoot);
-					if (root.scheme === Schemas.file) {
-						const canonicalRoot = await this._fileService.realpath(root);
-						if (canonicalRoot) {
-							roots.push(canonicalRoot);
-						}
-					}
-				}
-				return { extension, roots };
-			})().catch(() => undefined);
-			this.localResourceAuthorizations.set(key, authorization);
-		}
-		return authorization;
 	}
 
 	private parseRange(value: string | null): { start: number; end?: number } | undefined {
