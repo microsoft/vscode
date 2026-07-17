@@ -552,11 +552,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return; // only when native tabs are enabled
 		}
 
-		// macOS automatic window tabbing only applies to windows that open
-		// as a result of a user interaction, not to windows that are created
-		// programmatically on startup. As such, restored windows end up as
-		// separate windows even though native tabs are enabled, so we merge
-		// them into tabs explicitly.
+		// macOS automatic window tabbing does not apply to windows that are restored programmatically on startup, so we merge them into tabs explicitly
 
 		const mergeCandidates = usedWindows.filter(window => !window.isExtensionDevelopmentHost);
 		if (mergeCandidates.length < 2) {
@@ -565,9 +561,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		(async () => {
 
-			// Wait for the windows to be ready (and as such visible) before
-			// merging, because tabbing windows that are not shown yet can
-			// cause layout issues (https://github.com/microsoft/vscode/issues/75830)
+			// Wait for the windows to be ready (and as such visible) before merging, because tabbing hidden windows can cause layout issues (https://github.com/microsoft/vscode/issues/75830)
 			await Promise.all(mergeCandidates.map(window => raceTimeout(window.ready(), 10000)));
 
 			const windowsToMerge = mergeCandidates.filter(window => window.isReady && !window.isFullScreen && window.win && !window.win.isDestroyed());
@@ -576,7 +570,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			const [firstWindow, ...otherWindows] = windowsToMerge;
-			const focusedWindow = windowsToMerge.find(window => window.win?.isFocused());
+			const focusedWindow = this.getFocusedWindow();
 			for (const window of otherWindows) {
 				if (!firstWindow.win || firstWindow.win.isDestroyed() || !window.win || window.win.isDestroyed()) {
 					continue;
