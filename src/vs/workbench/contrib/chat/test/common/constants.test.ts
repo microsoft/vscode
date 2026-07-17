@@ -201,8 +201,10 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('preferCopilotHarness resolves the swap without consuming the marker until applied', () => {
+		// DefaultToCopilotHarness stays unset so this proves the one-time swap
+		// fires solely because EditorPreferCopilotHarness is enabled, independent
+		// of the new default gate.
 		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
@@ -228,8 +230,8 @@ suite('ChatConfiguration defaults', () => {
 			firstResolve: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
 			markerBeforeApply: false,
 			secondResolveBeforeApply: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
-			// After applying, the current local session is preserved (feature-2's
-			// computed default is Copilot, but session preservation keeps local).
+			// Once marked, the one-time swap no longer fires; with no remembered
+			// selection the current local session type is returned.
 			afterApply: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
 			markerAfterApply: true,
 		});
