@@ -147,6 +147,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(a?.toString(), expectedBackendUri('a').toString());
 		assert.strictEqual(b?.toString(), a.toString());
 		assert.strictEqual(agentHost.createCalls.length, 1);
+		assert.deepStrictEqual(agentHost.createCalls[0].config, { isolation: 'folder' });
 	});
 
 	test('getOrCreate does not spawn a backend provisional in an untrusted workspace', async () => {

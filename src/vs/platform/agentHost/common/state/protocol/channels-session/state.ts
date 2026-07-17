@@ -225,7 +225,7 @@ export interface SessionActiveClient {
  * @category Session Input Types
  */
 export const enum SessionInputRequestKind {
-	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	/** A user-facing elicitation mirrored from an unresolved chat response part. */
 	ChatInput = 'chatInput',
 	/** A tool call awaiting parameter- or result-confirmation. */
 	ToolConfirmation = 'toolConfirmation',
@@ -258,8 +258,8 @@ interface SessionInputRequestBase {
 }
 
 /**
- * A user-input elicitation surfaced at the session level, mirroring one entry
- * of the owning chat's {@link ChatState.inputRequests}.
+ * A user-input elicitation surfaced at the session level, mirroring the request
+ * from an unresolved {@link InputRequestResponsePart} in the owning chat.
  *
  * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
  * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},

@@ -18,6 +18,45 @@
 	box-shadow: var(--vscode-shadow-lg);
 }
 
+.style-override.monaco-enable-motion .action-widget:has(.action-widget-dropdown) {
+	animation: action-widget-dropdown-open 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	transform-origin: bottom left;
+	will-change: transform, opacity;
+}
+
+.style-override.monaco-enable-motion .context-view.bottom .action-widget:has(.action-widget-dropdown) {
+	transform-origin: top left;
+}
+
+.style-override.monaco-enable-motion .action-widget.action-widget-dropdown-closing:has(.action-widget-dropdown) {
+	animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+	pointer-events: none;
+}
+
+@keyframes action-widget-dropdown-open {
+	0% {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes action-widget-dropdown-close {
+	0% {
+		opacity: var(--action-widget-close-start-opacity, 1);
+		transform: var(--action-widget-close-start-transform, scale(1));
+	}
+
+	100% {
+		opacity: 0;
+		transform: scale(0.99);
+	}
+}
+
 .context-view-block {
 	position: fixed;
 	cursor: initial;
