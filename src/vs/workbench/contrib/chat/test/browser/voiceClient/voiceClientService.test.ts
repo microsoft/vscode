@@ -212,6 +212,21 @@ suite('VoiceClientService', () => {
 		]);
 	});
 
+	test('flags a passive ptt_start for hands-free barge-in listens', async () => {
+		const { service } = createService();
+
+		await service.connect(createTestWindow());
+		service.sendPttStart('turn-passive', true);
+		service.sendPttStart('turn-real', false);
+		service.sendPttStart('turn-default');
+
+		assert.deepStrictEqual(socket().sent, [
+			{ type: 'ptt_start', turn_id: 'turn-passive', passive: true },
+			{ type: 'ptt_start', turn_id: 'turn-real' },
+			{ type: 'ptt_start', turn_id: 'turn-default' },
+		]);
+	});
+
 	test('serializes configured language in start_session context', async () => {
 		const { service } = createService({
 			'agents.voice.language': 'fr-fr',

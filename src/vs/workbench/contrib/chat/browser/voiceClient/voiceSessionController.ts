@@ -930,8 +930,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceEventDisposables.clear();
 
 		// Streaming PTT: send start/chunks/end as they arrive
-		this._voiceEventDisposables.add(this.micCaptureService.onPttStart(() => {
-			this.voiceClientService.sendPttStart(this._pttCurrentTurnId);
+		this._voiceEventDisposables.add(this.micCaptureService.onPttStart((passive) => {
+			this.voiceClientService.sendPttStart(this._pttCurrentTurnId, passive);
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttAudioChunk(b64 => {
 			this.voiceClientService.sendPttAudioChunk(b64);
@@ -2514,7 +2514,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._telemetryPttDownMs = Date.now();
 		this.micCaptureService.isMuted = false;
 		this.micCaptureService.suppressUntil(0);
-		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch(err => {
+		this.micCaptureService.pttDown(this._pttCurrentTurnId, /* passive */ true).catch(err => {
 			this.logService.warn('[voice] barge-in listen failed to start', err);
 			this._pttHeld = false;
 			this._bargeInListenActive = false;

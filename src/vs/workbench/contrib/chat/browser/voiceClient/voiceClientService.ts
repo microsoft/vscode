@@ -540,9 +540,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendPttStart(turnId: string): void {
+	sendPttStart(turnId: string, passive: boolean = false): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId }));
+			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, ...(passive ? { passive: true } : {}) }));
 		}
 	}
 
