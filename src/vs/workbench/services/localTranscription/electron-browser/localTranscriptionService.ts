@@ -30,7 +30,7 @@ function isOnDeviceTranscriptionSupported(): boolean {
 
 /**
  * Renderer-side proxy for the on-device transcription service, which runs in a
- * utility process (heavy: transformers.js + native onnxruntime-node). The
+ * utility process (heavy: native onnxruntime-node). The
  * worker is spun up lazily on first use and torn down with the window.
  */
 export class LocalTranscriptionService {

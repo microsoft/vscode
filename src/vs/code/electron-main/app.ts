@@ -152,6 +152,13 @@ type OSProxyConfigEvent = {
 	readonly durationMs: number;
 	readonly platformKind?: string;
 	readonly autoDetect?: boolean;
+	readonly httpProxyEnvironmentState?: string;
+	readonly httpsProxyEnvironmentState?: string;
+	readonly allProxyEnvironmentState?: string;
+	readonly noProxyEnvironmentState?: string;
+	readonly wpadDhcpState?: string;
+	readonly wpadDnsState?: string;
+	readonly configuredPacState?: string;
 	readonly hasConfiguredPac?: boolean;
 	readonly hasLoadedPac?: boolean;
 	readonly pacSource?: string;
@@ -170,9 +177,16 @@ type OSProxyConfigClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the operating system proxy configuration read in milliseconds.' };
 	platformKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operating system proxy configuration source (windows, macos, linux, unknown, or none).' };
 	autoDetect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic proxy discovery is enabled.' };
+	httpProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTP proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	httpsProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective HTTPS proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	allProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective all-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	noProxyEnvironmentState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the effective no-proxy environment variable is unset, configured, or invalid. The variable name and value are not collected.' };
+	wpadDhcpState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DHCP WPAD inspection state. Discovered URLs and errors are not collected.' };
+	wpadDnsState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The DNS WPAD inspection state. Discovered URLs and errors are not collected.' };
+	configuredPacState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured PAC inspection state. Configured URLs and errors are not collected.' };
 	hasConfiguredPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the operating system has a PAC URL configured. The URL is not collected.' };
 	hasLoadedPac?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether a PAC script was discovered and loaded. The URL and script contents are not collected.' };
-	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad, configured, unknown, or none).' };
+	pacSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the loaded PAC script was selected (wpad-dhcp, wpad-dns, configured, unknown, or none).' };
 	pacScriptCharacterCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of characters in the loaded PAC script. The script contents are not collected.' };
 	pacScriptLineCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of lines in the loaded PAC script. The script contents are not collected.' };
 	pacScriptReturnCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of return keyword occurrences in the loaded PAC script. The script contents are not collected.' };
@@ -1847,6 +1861,13 @@ export class CodeApplication extends Disposable {
 				durationMs,
 				platformKind: config.platform?.kind ?? 'none',
 				autoDetect: config.autoDetect,
+				httpProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpProxy),
+				httpsProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.httpsProxy),
+				allProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.allProxy),
+				noProxyEnvironmentState: getOSProxyEnvironmentState(config.environment.noProxy),
+				wpadDhcpState: config.wpadDhcp.state,
+				wpadDnsState: config.wpadDns.state,
+				configuredPacState: config.configuredPac.state,
 				hasConfiguredPac: !!config.pacUrl,
 				hasLoadedPac: !!config.pac,
 				pacSource: config.pac?.source ?? 'none',
@@ -1875,6 +1896,10 @@ function hasOSProxyBypassRules(config: IOSProxyConfig): boolean {
 		case 'linux': return config.platform.ignoreHosts.length > 0;
 		default: return false;
 	}
+}
+
+function getOSProxyEnvironmentState(status: IOSProxyConfig['environment']['httpProxy']): 'unset' | 'configured' | 'invalid' {
+	return status ? status.error ? 'invalid' : 'configured' : 'unset';
 }
 
 function getPACScriptStats(content: string): { characterCount: number; lineCount: number; returnCount: number } {

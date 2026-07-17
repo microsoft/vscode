@@ -259,23 +259,6 @@ configurationRegistry.registerConfiguration({
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
-		'chat.speechToText.model': {
-			type: 'string',
-			enum: [
-				'onnx-community/whisper-tiny',
-				'onnx-community/whisper-base',
-				'onnx-community/whisper-small',
-			],
-			enumItemLabels: ['Tiny', 'Base', 'Small'],
-			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
-				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
-				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
-			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device Whisper model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/whisper-base',
-			tags: ['experimental']
-		},
 		'chat.speechToText.mode': {
 			type: 'string',
 			enum: ['auto', 'toggle', 'pushToTalk'],

@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -281,6 +283,7 @@ function createProviderForSendTests(
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
+		getOptionGroupsForSessionType: () => undefined,
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
@@ -311,6 +314,7 @@ function createProviderForSendTests(
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -1758,4 +1762,71 @@ suite('CopilotChatSessionsProvider', () => {
 
 		await sendPromise;
 	});
+
+	test('cloud session that commits a new resource resolves without timing out', async () => {
+		// Regression: a cloud session commits a different resource mid-request
+		// (untitled → /task/<id>), so _sendFirstChat must wait for the committed
+		// resource, not the untitled one, otherwise it times out and removes the session.
+		const committedResource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${generateUuid()}` });
+		const onDidCommit = disposables.add(new Emitter<{ original: URI; committed: URI }>());
+
+		let resolveComplete!: () => void;
+		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
+		const responseCreatedPromise = new Promise<IChatResponseModel>(() => { /* never resolves */ });
+
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise,
+				responseCreatedPromise,
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}), { onDidCommitSession: onDidCommit.event });
+
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
+		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+
+		const removals: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => {
+			for (const r of e.removed) {
+				removals.push(r.resource.toString());
+			}
+		}));
+
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const untitledResource = chat.resource;
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'hi' });
+		await added;
+
+		// The response completes early (cloud returns a confirmation) before the
+		// commit lands — this must not cause the wait to give up.
+		resolveComplete();
+
+		model.addSession(createMockAgentSession(committedResource, { providerType: AgentSessionProviders.Cloud }));
+
+		// _waitForCommittedSession subscribes to onDidCommitSession only after
+		// sendRequest resolves, so re-fire until the send settles to avoid the race.
+		let sendSettled = false;
+		const fireCommitUntilSettled = async () => {
+			while (!sendSettled) {
+				onDidCommit.fire({ original: untitledResource, committed: committedResource });
+				await timeout(5);
+			}
+		};
+		const commitLoop = fireCommitUntilSettled();
+
+		try {
+			await assert.doesNotReject(sendPromise);
+		} finally {
+			sendSettled = true;
+			await commitLoop;
+		}
+
+		assert.ok(
+			!removals.includes(untitledResource.toString()),
+			`Cloud session should not be removed after committing. Removals seen: [${removals.join(', ')}]`,
+		);
+	});
 });
+

@@ -31,6 +31,10 @@ export interface IVoiceTranscription {
 	readonly text: string;
 	readonly status?: 'partial' | 'final';
 	readonly committed?: string;
+	/** Client capture turn identifier translated from the wire's `turn_id`. */
+	readonly turnId?: string;
+	/** Monotonically increasing backend revision within a scoped turn. */
+	readonly revision?: number;
 }
 
 export interface IVoiceAudioResponse {

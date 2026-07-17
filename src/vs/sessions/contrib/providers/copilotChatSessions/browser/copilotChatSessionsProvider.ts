@@ -951,6 +951,24 @@ function toSessionStatus(status: ChatSessionStatus): SessionStatus {
 }
 
 /**
+ * Display label for a `github-remote-file://` repo URI, in `owner/repo` form. Returns
+ * `undefined` for non-GitHub URIs so callers can fall back. Used by both the new-session
+ * workspace ({@link CopilotChatSessionsProvider.resolveWorkspace}) and the committed
+ * session adapter ({@link AgentSessionAdapter._buildWorkspace}) so a cloud session groups
+ * under the same `owner/repo` label before and after commit.
+ * TODO: at some point this should be standardized and in the same list as all sessions.
+ * Doing it this way for now just to keep supporting the new chat button from the group.
+ */
+function githubRemoteRepoLabel(uri: URI): string | undefined {
+	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	// Path is `/<owner>/<repo>[/<ref>…]`; take the first two segments.
+	const parts = uri.path.replace(/^\//, '').split('/');
+	return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : undefined;
+}
+
+/**
  * Adapts an existing {@link IAgentSession} from the chat layer into the new {@link ICopilotChatSession} facade.
  */
 class AgentSessionAdapter implements ICopilotChatSession {
@@ -1328,7 +1346,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		return {
 			uri: repoUriResolved,
-			label: getRepositoryName(session) ?? basename(repoUriResolved),
+			label: githubRemoteRepoLabel(repoUriResolved) ?? getRepositoryName(session) ?? basename(repoUriResolved),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			folders: [folder],
@@ -2206,14 +2224,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
 
-		// For non-CLI sessions, chatResource is already the resource we will later
-		// wait for in the committed session cache. Protect it from spurious
-		// removal by _refreshSessionCache before any async work begins — a
-		// concurrent model re-resolve can transiently drop the session from
-		// agentSessionsService.model.sessions while the send is still in-flight.
-		// _refreshSessionCache to fire a `removed` event that tears down the
-		// UI while the send is still in-flight.
-		const committedKey = !(session instanceof CopilotCLISession)
+		// CLI and cloud sessions swap their resource mid-request (untitled → real),
+		// so their committed resource is unknown up-front. Claude commits before
+		// `sendRequest`, so `chatResource` is already committed — protect it from a
+		// spurious `_refreshSessionCache` removal while the send is in-flight.
+		const resourceChangesOnCommit = session instanceof CopilotCLISession || session instanceof RemoteNewSession;
+		const committedKey = !resourceChangesOnCommit
 			? chatResource.toString()
 			: undefined;
 		if (committedKey) {
@@ -2287,11 +2303,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			try {
 				let committedResource = chatResource;
-				if (session instanceof CopilotCLISession) {
-					committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
-					// For CopilotCLI, protect the committed resource now that
-					// we know it (Claude sessions were already protected at the
-					// top of _sendFirstChat).
+				if (resourceChangesOnCommit) {
+					// Learn the committed resource (untitled → real) from the commit
+					// event, then protect it now that we know it. Cloud sessions defer
+					// their commit behind a confirmation + network delegation.
+					committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise, { deferred: session instanceof RemoteNewSession });
 					this._inFlightCommits.add(committedResource.toString());
 				}
 
@@ -2473,20 +2489,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Waits for the committed (real) URI for a session by listening to the
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
-	 * When {@link responseCompletePromise} is provided, the wait is bounded by
-	 * response completion. If the response finishes before the commit event,
-	 * the commit may still be in-flight (e.g. the user cancelled after the
-	 * worktree was initiated but before the commit IPC finished, or the
-	 * extension fired the commit mid-turn but it hasn't been delivered yet).
-	 * In both cases we wait with the safety timeout. Only if the timeout
-	 * expires *and* the response was cancelled do we throw a
-	 * {@link CancellationError} — signalling that the commit will never come.
+	 * By default the wait is bounded by response completion: if the response
+	 * finishes before the commit event, we fall through to a short safety
+	 * timeout. Cloud sessions instead pass {@link IWaitForCommitOptions.deferred}
+	 * because their commit is delayed by a confirmation round-trip and network
+	 * delegation — response completion fires early (at the confirmation) and is
+	 * not a signal that the commit won't come — so they skip the response race
+	 * and use a longer timeout.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
 		responseCompletePromise?: Promise<void>,
 		responseCreatedPromise?: Promise<IChatResponseModel>,
+		options?: { deferred?: boolean },
 	): Promise<URI> {
+		const timeoutMs = options?.deferred ? 5 * 60_000 : 5_000;
 		const disposables = new DisposableStore();
 		try {
 			const commitPromise = new Promise<URI>(resolve => {
@@ -2497,7 +2514,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}));
 			});
 
-			if (responseCompletePromise) {
+			if (!options?.deferred && responseCompletePromise) {
 				// Race the commit event against the response completing.
 				const committed = await Promise.race([
 					commitPromise.then(uri => ({ committed: true as const, uri })),
@@ -2519,7 +2536,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// promise is available, also race it so we can detect
 			// cancellation immediately instead of waiting for the timeout.
 			const candidates: Promise<{ kind: 'commit'; uri: URI } | { kind: 'timeout' } | { kind: 'cancelled' }>[] = [
-				raceTimeout(commitPromise, 5_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
+				raceTimeout(commitPromise, timeoutMs).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
 			];
 			if (responseCreatedPromise) {
 				candidates.push(responseCreatedPromise.then(r => r?.isCanceled ? { kind: 'cancelled' as const } : new Promise<never>(() => { /* never resolves */ })));
@@ -2641,10 +2658,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _labelFromUri(uri: URI): string {
-		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			return uri.path.substring(1).replace(/\/HEAD$/, '');
-		}
-		return basename(uri);
+		return githubRemoteRepoLabel(uri) ?? basename(uri);
 	}
 
 	private _descriptionFromUri(uri: URI): string | undefined {
