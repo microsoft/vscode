@@ -50,6 +50,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 
 class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
+	abortCalls = 0;
 	override readonly onPttStart = Event.None;
 	override readonly onPttAudioChunk = Event.None;
 	override readonly onPttEnd = Event.None;
@@ -59,7 +60,7 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 	override prepare(): void { }
 	override async startCapture(): Promise<void> { }
 	override stopCapture(): void { }
-	override abortPtt(): void { }
+	override abortPtt(): void { this.abortCalls++; }
 	override pttUp(): void { }
 	override suppressUntil(): void { }
 	override async pttDown(turnId: string, passive?: boolean): Promise<void> {
@@ -271,6 +272,39 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(mic.pttDownCalls.length, 1);
 		assert.strictEqual(mic.pttDownCalls[0].passive, false);
+	});
+
+	test('a deliberate press awaiting narration is preserved so its ptt_end clears the backend latch', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+
+		(Reflect.get(controller, '_prepareForPlayback') as () => void).call(controller);
+
+		// The non-passive press latched `user_is_speaking` on the backend; aborting
+		// it here would send no ptt_end and strand the latch, so it stays open.
+		assert.strictEqual(mic.abortCalls, 0);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+	});
+
+	test('a passive open-mic turn is torn down for playback since it never latched', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'passive-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_prepareForPlayback') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 1);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), false);
 	});
 });
 

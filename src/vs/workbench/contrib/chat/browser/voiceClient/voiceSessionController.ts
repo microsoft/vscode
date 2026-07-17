@@ -251,6 +251,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	// --- Internal state ---
 	private _pttHeld = false;
+	/**
+	 * Whether the current held turn's `ptt_start` was passive (a hands-free
+	 * open mic: auto-listen or barge-in). A passive turn tells the backend NOT
+	 * to latch `user_is_speaking`; a deliberate press (non-passive) DOES latch.
+	 * Read by {@link _prepareForPlayback} to decide whether aborting the held
+	 * turn (which sends no `ptt_end`) is safe. Only meaningful while `_pttHeld`.
+	 */
+	private _pttCurrentTurnPassive = false;
 	private _pttToggleMode = false;
 	/**
 	 * True while a passive hands-free barge-in listen is streaming during the
@@ -2148,6 +2156,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		if (this._pttHeld) { this.logService.trace('[voice] pttDown ignored: already held'); return; }
 		this._pttHeld = true;
+		this._pttCurrentTurnPassive = passive;
 		this._autoListenSuppressed = false;
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
@@ -2507,6 +2516,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._clearAutoListenTimer();
 		this._pttCurrentTurnId = generateUuid();
 		this._pttHeld = true;
+		this._pttCurrentTurnPassive = true;
 		// Track this as a passive barge-in listen (NOT toggle mode) so an
 		// explicit `pttDown()` promotes it into a user-driven interrupt instead
 		// of the toggle branch finishing it. The turn stays open on its own —
@@ -3956,6 +3966,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _prepareForPlayback(): void {
 		this._clearAutoListenTimer();
 		this._autoListenSuppressed = false;
+		// A held DELIBERATE press (non-passive) latched the backend's
+		// `user_is_speaking`, so its narration request was NACK'd `busy` and
+		// deferred: it will not play now. Leave the press fully intact. Aborting
+		// it here sends NO `ptt_end` and would strand the latch; its natural
+		// release sends `ptt_end`, clearing the guard and driving the
+		// `narration_unblocked` retry. Only a PASSIVE open-mic turn (auto-listen
+		// or barge-in), which never latched, is safe to abort here to free the
+		// mic for the incoming narration audio.
+		if (this._pttHeld && !this._pttCurrentTurnPassive) {
+			return;
+		}
 		if (this._pttHeld) {
 			// A local-only abort ('auto', no `ptt_end`): a passive turn never
 			// latched `user_is_speaking`, so there's nothing to force-clear.
