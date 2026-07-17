@@ -100,6 +100,33 @@
 	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
 }
 
+.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	display: block !important;
+	z-index: 6;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: auto !important;
+	height: auto !important;
+	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent !important;
+	box-sizing: border-box;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-selectedBorderTop) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
+}
+
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent) !important;
 }
@@ -293,6 +320,10 @@
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+	color: var(--vscode-tab-selectedForeground) !important;
 }
 
 /* Ensure decoration color cascades to every part of the tab label. */

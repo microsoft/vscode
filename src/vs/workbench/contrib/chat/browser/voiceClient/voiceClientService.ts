@@ -32,6 +32,14 @@ const FAST_RETRY_COUNT = 3;
 const FAST_RETRY_DELAY_MS = 2_000;
 const SLOW_RETRY_DELAY_MS = 30_000;
 const MAX_RECONNECT_DURATION_MS = 30 * 60 * 1_000;
+const TTS_SUPPORTED_LANGUAGE_BASES = new Set([
+	'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh',
+]);
+const ASR_SUPPORTED_LANGUAGE_BASES = new Set([
+	'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
+	'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'ru', 'sv', 'th', 'tr', 'vi', 'zh',
+]);
+const DEFAULT_LANGUAGE = 'en-US';
 
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
@@ -42,6 +50,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private _isConnected = false;
 	private _isResuming = false;
+	private _sessionStartedOnSocket = false;
 	private _window: (Window & typeof globalThis) | undefined;
 	private _lastSessionId: string | undefined;
 
@@ -121,6 +130,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (e.affectsConfiguration('agents.voice.voice')) {
 				this._sendSetVoice();
 			}
+			if (e.affectsConfiguration('agents.voice.language')) {
+				this._sendSetLanguage();
+			}
 		}));
 	}
 
@@ -136,6 +148,41 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _sendSetVoice(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'set_voice', voice: this._getVoice() }));
+		}
+	}
+
+	private _getLanguage(): string {
+		const configured = this._configurationService.getValue<string>('agents.voice.language');
+		if (typeof configured === 'string' && configured.trim().toLowerCase() !== 'auto') {
+			const language = this._canonicalizeSupportedLanguage(configured, TTS_SUPPORTED_LANGUAGE_BASES);
+			if (language) {
+				return language;
+			}
+			this._logService.warn(`[voice] Unsupported agents.voice.language value '${configured}', falling back to ${DEFAULT_LANGUAGE}`);
+			return DEFAULT_LANGUAGE;
+		}
+
+		return this._canonicalizeSupportedLanguage(this._window?.navigator.language, ASR_SUPPORTED_LANGUAGE_BASES)
+			?? DEFAULT_LANGUAGE;
+	}
+
+	private _canonicalizeSupportedLanguage(value: string | undefined, supportedBases: ReadonlySet<string>): string | undefined {
+		const candidate = value?.trim();
+		if (!candidate || typeof Intl.getCanonicalLocales !== 'function') {
+			return undefined;
+		}
+
+		try {
+			const canonical = Intl.getCanonicalLocales(candidate)[0];
+			return supportedBases.has(canonical.split('-')[0]) ? canonical : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _sendSetLanguage(): void {
+		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
+			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
 	}
 
@@ -203,6 +250,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			: baseUrl;
 		const ws = new win.WebSocket(url);
 		this._ws = ws;
+		this._sessionStartedOnSocket = false;
 
 		ws.onopen = () => {
 			this._reconnectAttempts = 0;
@@ -368,6 +416,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._lastSentById.clear();
@@ -426,24 +475,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	sendPttEnd(): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'ptt_end' }));
-		}
-	}
-
-	sendBargeInStart(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_start' }));
-		}
-	}
-
-	sendBargeInAudioChunk(audio: string): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_audio_chunk', audio }));
-		}
-	}
-
-	sendBargeInStop(): void {
-		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'barge_in_stop' }));
 		}
 	}
 
@@ -614,19 +645,23 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	 */
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[]): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._seedTracking(context);
-			const payload: Record<string, unknown> = { type: 'start_session', session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			const payload: Record<string, unknown> = { type: 'start_session', session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() };
 			if (priorTimeline && priorTimeline.length > 0) {
 				payload.prior_timeline = priorTimeline;
 			}
 			this._ws.send(JSON.stringify(payload));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 
 	sendResumeSession(context: IVoiceSessionContext, machineId: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN && this._lastSessionId) {
-			this._seedTracking(context);
-			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: context, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			const sessionContext = { ...context, display_locale: this._getLanguage() };
+			this._seedTracking(sessionContext);
+			this._ws.send(JSON.stringify({ type: 'resume_session', session_id: this._lastSessionId, session_context: sessionContext, machine_id: machineId, turn_config: this._getTurnConfig(), voice: this._getVoice() }));
+			this._sessionStartedOnSocket = true;
 		}
 	}
 

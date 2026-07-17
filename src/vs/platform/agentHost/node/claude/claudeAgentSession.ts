@@ -35,11 +35,12 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
 import { scanClaudeDiskCustomizations } from './customizations/scan/claudeAgentSkillScan.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePluginScan.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
@@ -112,6 +113,10 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	private get _storageUri(): URI {
 		return isDefaultChatUri(this._chatChannelUri) ? this.sessionUri : this._chatChannelUri;
+	}
+
+	private get _sessionCustomizations(): readonly Customization[] {
+		return this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
 	}
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
@@ -330,6 +335,7 @@ export class ClaudeAgentSession extends Disposable {
 		private readonly _metadataStore: ClaudeSessionMetadataStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -453,7 +459,7 @@ export class ClaudeAgentSession extends Disposable {
 				resumeSessionAt: this._pendingResumeSessionAt,
 				mcpServers,
 				allowedTools,
-				plugins: this.clientCustomizationsDiff.consume(),
+				plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 				agent: agentName,
 			},
 			ctx.transport,
@@ -550,7 +556,7 @@ export class ClaudeAgentSession extends Disposable {
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						allowedTools: rebuildAllowedTools,
-						plugins: this.clientCustomizationsDiff.consume(),
+						plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 						agent: rebuildAgentName,
 					},
 					ctx.transport,
@@ -570,6 +576,7 @@ export class ClaudeAgentSession extends Disposable {
 				throw err;
 			}
 		});
+		await this._reconcileMcpServerEnablement();
 
 		// Advertise the agent host's server tools on this session so the client
 		// sees them as server-provided. Execution happens in-process via the
@@ -694,11 +701,12 @@ export class ClaudeAgentSession extends Disposable {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference || this._pendingResumeSessionAt !== undefined) {
+		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths()) || this._pendingResumeSessionAt !== undefined) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
 		}
+		await this._reconcileMcpServerEnablement();
 		return pipeline.send(prompt, turnId);
 	}
 
@@ -707,7 +715,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * customization divergence in one trip. Drains the parked
 	 * client-tool MCP handlers (same as the original tool-only
 	 * rebind), then triggers the pipeline rebind — the rematerializer
-	 * reads `toolDiff` and `clientCustomizationsDiff.consume()` while
+	 * reads `toolDiff` and reducer-backed client plugin paths while
 	 * building the new `Options`, so the bit on each diff clears in
 	 * lockstep with the SDK actually receiving the new values. Fires
 	 * `_onDidCustomizationsChange` afterwards so the workbench
@@ -868,7 +876,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
 	requestUserInput(request: ChatInputRequest, parentToolCallId?: string): Promise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }> {
-		if (!this._pipeline || this._pipeline.isAborted) {
+		if (!this._pipeline || this._pipeline.isAborted || !this._pipeline.hasActiveTurn) {
 			return Promise.resolve({ response: ChatInputResponseKind.Cancel });
 		}
 		return this._pendingUserInputs.registerAndFire(request.id, () => {
@@ -946,8 +954,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Merged fire-and-forget signal that this session's customization
 	 * surface changed. Fires from three sources:
 	 *
-	 * 1. Client-side writes (`adoptClientCustomizations` /
-	 *    `setClientCustomizationEnabled`) — via the
+	 * 1. Client-side writes (`adoptClientCustomizations`) — via the
 	 *    {@link SessionClientCustomizationsDiff} observable wired up in the
 	 *    constructor.
 	 * 2. Materialize completes — surfaces the server-side
@@ -974,11 +981,6 @@ export class ClaudeAgentSession extends Disposable {
 		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
 	}
 
-	/** Toggle a **client-pushed** customization on/off for this session. */
-	setClientCustomizationEnabled(id: string, enabled: boolean): void {
-		this.clientCustomizationsDiff.model.setEnabled(id, enabled);
-	}
-
 	/**
 	 * Snapshot of the **client-pushed** customizations on this session.
 	 * Does NOT include server-side (SDK-discovered) entries — use
@@ -996,8 +998,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * (b) the **server-side** (SDK-discovered) view (commands / agents
 	 * / MCP servers, including those the SDK discovered on its own
 	 * from `~/.claude/**`) onto the protocol's
-	 * {@link Customization} surface, with the per-id enablement
-	 * overlay applied to client-pushed entries.
+	 * {@link Customization} surface, with reducer-backed enablement
+	 * applied to client-pushed entries.
 	 *
 	 * Pre-materialize sessions return only the client-pushed projection
 	 * — the SDK side has no Query to query yet. A failure to read the
@@ -1005,7 +1007,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * still returned, so a transient SDK hiccup doesn't blank the UI.
 	 */
 	async getSessionCustomizations(): Promise<readonly Customization[]> {
-		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
+		const { synced } = this.clientCustomizationsDiff.model.state.get();
 		const userHome = this._environmentService.userHome;
 		const [discovered, rules, mcpServers, hooks, nativePlugins] = await Promise.all([
 			scanClaudeDiskCustomizations(this.workingDirectory, userHome, this._fileService),
@@ -1034,18 +1036,45 @@ export class ClaudeAgentSession extends Disposable {
 		// both agents and skills, so the SDK-vs-curated decision lives in one place.
 		const discoveredCustomizations = buildDiscoveredCustomizations([...discovered, ...rules], mcpServers, hooks, nativePlugins, this.workingDirectory, userHome, sdk);
 
-		// Final projection: the client-pushed tier (with the per-id enablement
-		// overlay) first, then the discovered tier appended verbatim — the
-		// enablement map is deliberately NOT applied to discovered entries.
+		// Final projection: the client-pushed tier first, then the discovered
+		// tier, with session MCP enablement applied to both.
+		const state = this._sessionCustomizations;
+		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
 		const result: Customization[] = synced.map(item => ({
 			...item.customization,
-			enabled: enablement.get(item.customization.id) ?? item.customization.enabled,
+			enabled: desiredById.get(item.customization.id) ?? item.customization.enabled,
 		}));
 		result.push(...discoveredCustomizations);
 		// Cache for the MCP-contributor signal enrichment (see
 		// {@link _enrichSignalWithMcpContributor}).
-		this._lastCustomizations = result;
-		return result;
+		const projected = applyMcpServerEnablement(result, state);
+		this._lastCustomizations = projected;
+		return projected;
+	}
+
+	private async _reconcileMcpServerEnablement(): Promise<void> {
+		const pipeline = this._requirePipeline();
+		const state = this._sessionCustomizations;
+		const desired = new Map(getEffectiveMcpServerCustomizations(state).map(server => [server.name, server.enabled]));
+		if (desired.size === 0) {
+			return;
+		}
+
+		if (!await pipeline.reconcileMcpServerEnablement(desired)) {
+			throw new Error(`Claude SDK cannot reconcile MCP server enablement`);
+		}
+	}
+
+	private _desiredClientPluginPaths(): readonly URI[] {
+		const state = this._sessionCustomizations;
+		const desiredById = new Map(state.map(customization => [customization.id, customization.enabled]));
+		const paths: URI[] = [];
+		for (const synced of this.clientCustomizationsDiff.model.state.get().synced) {
+			if (synced.pluginDir && (desiredById.get(synced.customization.id) ?? synced.customization.enabled) !== false) {
+				paths.push(synced.pluginDir);
+			}
+		}
+		return paths;
 	}
 
 	async startMcpServer(id: string): Promise<void> {

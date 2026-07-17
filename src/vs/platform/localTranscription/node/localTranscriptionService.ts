@@ -19,6 +19,22 @@ const SAMPLE_RATE = 16000;
 /** Default downloaded model. `base` balances quality and size (~faster than small). */
 const DEFAULT_MODEL = 'onnx-community/whisper-base';
 
+/**
+ * Precision of the ONNX weights downloaded and run on device. Whisper is an
+ * encoder-decoder model whose decoder dominates size (e.g. for `base` the
+ * fp32 decoder is ~208MB vs the ~82MB encoder), so we quantize the decoder to
+ * int8 (`q8`) while keeping the encoder at full precision, where quantization
+ * would hurt audio-feature accuracy more. This cuts the `base` download from
+ * ~291MB (all fp32) to ~136MB with negligible transcription-quality loss.
+ *
+ * Without an explicit `dtype` transformers.js defaults to fp32 for every file
+ * on the `cpu` device, so this mapping must be passed to `pipeline()`.
+ */
+const DEFAULT_DTYPE = {
+	encoder_model: 'fp32',
+	decoder_model_merged: 'q8',
+} as const;
+
 /** Minimum audio (seconds) before a first interim transcription is attempted. */
 const MIN_INTERIM_SECONDS = 1.0;
 
@@ -33,6 +49,14 @@ const MAX_INTERIM_SECONDS = 45;
 
 /** Debounce (ms) between interim transcription passes while recording. */
 const INTERIM_DEBOUNCE_MS = 1200;
+
+/**
+ * Silence (seconds) appended to the audio before the final transcription pass.
+ * Whisper frequently fails to emit the last word when the recording ends
+ * abruptly right after it (no trailing silence to mark the utterance end), so a
+ * short pad of zeros gives the model the context it needs to finalize the tail.
+ */
+const FINAL_PASS_TRAILING_SILENCE_SECONDS = 0.5;
 
 /**
  * transformers.js is a heavy, ESM-only dependency that also loads the native
@@ -118,6 +142,7 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 
 				this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: 0 });
 				const pipe = await pipeline('automatic-speech-recognition', model, {
+					dtype: DEFAULT_DTYPE,
 					progress_callback: (p: { status?: string; progress?: number }) => {
 						if (p.status === 'progress' && typeof p.progress === 'number') {
 							this._setStatus({ state: LocalTranscriptionModelState.Downloading, progress: Math.min(1, p.progress / 100) });
@@ -182,7 +207,10 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		this._inferenceInFlight = true;
 		try {
 			const audio = this._mergedSamples();
-			const result = await pipe(audio, {
+			// Pad the final pass with trailing silence so Whisper reliably emits
+			// the last word even when the user stops speaking abruptly.
+			const input = isFinal ? this._withTrailingSilence(audio, FINAL_PASS_TRAILING_SILENCE_SECONDS) : audio;
+			const result = await pipe(input, {
 				chunk_length_s: 30,
 				stride_length_s: 5,
 				language: this._language,
@@ -216,6 +244,13 @@ export class LocalTranscriptionService extends Disposable implements ILocalTrans
 		}
 		this._samples = [merged];
 		return merged;
+	}
+
+	/** Return `audio` with `seconds` of trailing silence (zeros) appended. */
+	private _withTrailingSilence(audio: Float32Array, seconds: number): Float32Array {
+		const padded = new Float32Array(audio.length + Math.round(SAMPLE_RATE * seconds));
+		padded.set(audio, 0);
+		return padded;
 	}
 
 	async stop(): Promise<string> {

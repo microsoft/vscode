@@ -34,6 +34,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { localize } from '../../../../../nls.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -168,6 +170,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Internal state ---
 	private _pttHeld = false;
 	private _pttToggleMode = false;
+	/**
+	 * True while a passive hands-free barge-in listen is streaming during the
+	 * assistant's playback (opened by `_startBargeInListen`). It is NOT toggle
+	 * mode — an explicit `pttDown()` promotes this stream into a user-driven
+	 * interrupt rather than finishing it. Cleared once the turn ends, is
+	 * promoted, or transitions to a normal listening turn when playback stops.
+	 */
+	private _bargeInListenActive = false;
 	/** When true, the auto-listen loop is suppressed (user pressed Stop
 	 *  Recording). Cleared on the next explicit `pttDown` or on connect. */
 	private _autoListenSuppressed = false;
@@ -178,6 +188,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
 	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
+	/**
+	 * Watchdog that resets `isConnecting` (and surfaces feedback) if the connect
+	 * handshake never completes. Armed up front in {@link connect} so a step that
+	 * hangs (e.g. resolving the GitHub session while a chat request is in flight)
+	 * can't leave the toolbar spinner stuck indefinitely.
+	 */
+	private readonly _connectWatchdog = this._register(new MutableDisposable());
+	private static readonly _CONNECT_TIMEOUT_MS = 10000;
+	private _connectAttemptGeneration = 0;
 	private readonly _autoApprovedSessions = new Set<string>();
 	private _transcriptFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttMaxDurationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -203,9 +222,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _awaitingReplyWatchdog: ReturnType<typeof setTimeout> | undefined;
 	/** Tracks whether the initial listen cue has been played after connecting. */
 	private _hasPlayedInitialListenCue = false;
-
-	/** True while streaming mic audio to the backend during playback (barge-in). */
-	private _bargeInMonitorActive = false;
 
 	// --- Audio FIFO queue ---
 	private readonly _audioQueue: { sessionId: string | undefined; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[] = [];
@@ -441,6 +457,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -638,6 +655,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	async connect(window: Window & typeof globalThis): Promise<void> {
 		if (this._isConnecting.get() || this._isConnected.get()) { return; }
+		const connectAttemptGeneration = ++this._connectAttemptGeneration;
 
 		this._window = window;
 		this._onFocusedSessionChanged();
@@ -646,12 +664,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceState.set('idle', undefined);
 		this._telemetryConnectStartMs = Date.now();
 
+		// Arm the watchdog before any awaited work below (resolving the GitHub
+		// session, loading transcripts) so a step that hangs can't leave the
+		// toolbar spinner stuck indefinitely — a real report when a chat request
+		// is in progress. Cleared on a successful handshake or an explicit
+		// disconnect.
+		this._armConnectWatchdog();
+
 		// Resolve the GitHub login used as the transcript partition key.
 		// Voice Code is tightly coupled to GitHub auth via Copilot — one session
 		// is expected to exist. If not, we skip persistence rather than fail.
 		let authToken: string | undefined;
 		try {
 			const sessions = await this.authenticationService.getSessions('github');
+			if (connectAttemptGeneration !== this._connectAttemptGeneration) {
+				return;
+			}
 			this._userLogin = sessions[0]?.account.label;
 			authToken = sessions[0]?.accessToken;
 			if (!this._userLogin) {
@@ -661,6 +689,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// continues off the existing one (cosmetic — we only ever
 				// chain locally).
 				const lastTurn = (await this.voiceTranscriptStore.loadTurns(this._userLogin, { limit: 1 }))[0];
+				if (connectAttemptGeneration !== this._connectAttemptGeneration) {
+					return;
+				}
 				this._lastPersistedTurnId = lastTurn?.turnId;
 
 				// Pull the last few persisted timeline entries (voice turns,
@@ -673,6 +704,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						this._userLogin,
 						{ limit: VoiceSessionController.PRIOR_TIMELINE_ENTRY_LIMIT }
 					);
+					if (connectAttemptGeneration !== this._connectAttemptGeneration) {
+						return;
+					}
 					this._pendingPriorTimeline = this._buildPriorTimeline(recent);
 				} catch (err) {
 					this.logService.warn('[voice] failed to load prior timeline entries for context', err);
@@ -681,6 +715,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		} catch (err) {
 			this.logService.warn('[voice] failed to resolve GitHub session', err);
+		}
+
+		// The watchdog (or an explicit disconnect) may have reset us while the
+		// awaited auth/transcript calls were in flight; bail rather than opening a
+		// late connection the user is no longer expecting.
+		if (!this._isConnecting.get() || connectAttemptGeneration !== this._connectAttemptGeneration) {
+			return;
 		}
 
 		this._voiceEventDisposables.clear();
@@ -694,10 +735,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttEnd(() => {
 			this.voiceClientService.sendPttEnd();
-		}));
-		// Barge-in: stream mic audio to the backend during assistant playback.
-		this._voiceEventDisposables.add(this.micCaptureService.onMonitorAudioChunk(b64 => {
-			this.voiceClientService.sendBargeInAudioChunk(b64);
 		}));
 		this._voiceEventDisposables.add(this.micCaptureService.onPttDiagnostic((diag: IPttDiagnostic) => {
 			// Local log so the same correlation key surfaces in the
@@ -756,8 +793,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (this._audioQueue.length > 0) {
 				setTimeout(() => this._processQueue(), 500);
 			} else {
-				this._stopBargeInMonitor();
 				if (this._pttHeld) {
+					if (this._bargeInListenActive) {
+						// The passive barge-in turn opened during playback is now
+						// a normal listening turn (the user stayed silent through
+						// playback). Behave like an auto-listen turn: a tap stops
+						// it, and the backend's server-VAD ends it via
+						// `turn_auto_ended`.
+						this._bargeInListenActive = false;
+						this._pttToggleMode = true;
+					}
 					this._voiceState.set('listening', undefined);
 					this._statusText.set('Listening...', undefined);
 				} else {
@@ -826,6 +871,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._isReconnecting.set(false, tx);
 					this._isConnected.set(true, tx);
 				});
+				// Handshake completed — the connect watchdog is no longer needed.
+				this._connectWatchdog.clear();
 
 				// Seed previous session states so existing sessions don't trigger false transitions
 				const seededResources = new Set<string>();
@@ -1143,23 +1190,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Speech started → stop TTS, suppress late chunks from the previous turn
 		// (same flow as pttDown, but for server-VAD path).
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
-			const wasMonitoring = this._bargeInMonitorActive;
 			this._clearAutoListenTimer();
-			if (wasMonitoring && !this._pttHeld) {
-				// Promote the monitor into a real turn (mic stays warm via pttDown).
-				this.pttDown();
-				this.pttUp();
-				// Clear the playback AEC suppression so the turn start isn't gated.
-				this.micCaptureService.suppressUntil(0);
-			} else {
-				this.ttsPlaybackService.stopPlayback();
-				this._audioQueue.length = 0;
-				this._currentPlaybackSessionId = null;
-				this._isProcessingQueue = false;
-				this._suppressIncomingAudio = true;
-				this._stopBargeInMonitor();
-				this._startUserTurn();
-			}
+			this.ttsPlaybackService.stopPlayback();
+			this._audioQueue.length = 0;
+			this._currentPlaybackSessionId = null;
+			this._isProcessingQueue = false;
+			this._suppressIncomingAudio = true;
+			this._startUserTurn();
 		}));
 
 		// Backend ended the held turn itself (server VAD silence / stop phrase).
@@ -1388,17 +1425,37 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}));
 
 		await this.voiceClientService.connect(window, authToken);
+		if (!this._isConnecting.get() || connectAttemptGeneration !== this._connectAttemptGeneration) {
+			return;
+		}
+		// Re-arm so the WebSocket handshake gets a fresh timeout window
+		// independent of how long the awaited auth/transcript work took above.
+		this._armConnectWatchdog();
+	}
 
-		// Timeout: if still connecting after 10s, give up
-		const connectTimeout = setTimeout(() => {
-			if (this._isConnecting.get() && !this._isConnected.get()) {
-				this.disconnect();
+	/**
+	 * Arms (or re-arms) the watchdog that resets voice mode if the connect
+	 * handshake never completes. Without this, a hung connect step leaves the
+	 * toolbar spinner spinning forever with no way to recover; on timeout we drop
+	 * back to a disconnected state and tell the user so they can retry.
+	 */
+	private _armConnectWatchdog(): void {
+		this._connectWatchdog.value = disposableTimeout(() => {
+			if (!this._isConnecting.get() || this._isConnected.get()) {
+				return;
 			}
-		}, 10000);
-		this._voiceEventDisposables.add({ dispose: () => clearTimeout(connectTimeout) });
+			this.logService.warn('[voice] connect handshake timed out; resetting voice mode');
+			this.disconnect();
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('voice.connectFailed', "Voice mode could not connect. Please try again."),
+			});
+		}, VoiceSessionController._CONNECT_TIMEOUT_MS);
 	}
 
 	disconnect(): void {
+		this._connectAttemptGeneration++;
+
 		// Telemetry: session ended
 		if (this._telemetrySessionStart) {
 			const durationSec = Math.round((Date.now() - this._telemetrySessionStart) / 1000);
@@ -1412,6 +1469,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		this._isConnecting.set(false, undefined);
 		this._isReconnecting.set(false, undefined);
+		this._connectWatchdog.clear();
 		this._voiceAutorunDisposable.clear();
 		this._voiceEventDisposables.clear();
 		this.ttsPlaybackService.closeContext();
@@ -1419,6 +1477,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.voiceClientService.disconnect();
 		this._pttHeld = false;
 		this._pttToggleMode = false;
+		this._bargeInListenActive = false;
 		this._isConnected.set(false, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
@@ -1429,7 +1488,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._enterListenOnSessionInit = false;
 		this._hasPlayedInitialListenCue = false;
 		this._replyPlayedSinceSend = false;
-		this._bargeInMonitorActive = false;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
 		this._isProcessingQueue = false;
@@ -1528,6 +1586,45 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 
+		// Promote a passive barge-in listen into a user-driven interrupt. The
+		// mic is already streaming this turn to the backend (ptt_start already
+		// sent), so we keep the SAME turn — do NOT re-acquire the mic or send a
+		// second ptt_start — and apply the interrupt side effects. Releasing the
+		// button afterwards goes through the normal `pttUp()` path.
+		if (this._bargeInListenActive) {
+			this.logService.trace('[voice] pttDown: promoting passive barge-in listen to user interrupt');
+			this._bargeInListenActive = false;
+			this._autoListenSuppressed = false;
+			this._pttWaitingForPlayback = false;
+			// Re-anchor hold timing to the real press so pttUp's tap/hold split works.
+			this._telemetryPttDownMs = Date.now();
+			this._telemetryFirstTranscriptionMs = undefined;
+			this._telemetryTurnCount++;
+			this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+			if (this._delayedMicStopTimer) {
+				clearTimeout(this._delayedMicStopTimer);
+				this._delayedMicStopTimer = undefined;
+			}
+			this._cancelTranscriptFade();
+			this._startUserTurn();
+			this._audioQueue.length = 0;
+			this._currentPlaybackSessionId = null;
+			this._isProcessingQueue = false;
+			this._suppressIncomingAudio = true;
+			this.ttsPlaybackService.stopPlayback();
+			this._voiceState.set('listening', undefined);
+			this._statusText.set('Listening...', undefined);
+			if (!this._pttMaxDurationTimer) {
+				this._pttMaxDurationTimer = setTimeout(() => {
+					if (this._pttHeld) {
+						this._statusText.set('Max duration reached', undefined);
+						this.pttUp();
+					}
+				}, VoiceSessionController._PTT_MAX_DURATION_MS);
+			}
+			return;
+		}
+
 		if (this._pttHeld) { this.logService.trace('[voice] pttDown ignored: already held'); return; }
 		this._pttHeld = true;
 		this._autoListenSuppressed = false;
@@ -1562,6 +1659,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._suppressIncomingAudio = true;
 
 		this.micCaptureService.isMuted = false;
+		this.micCaptureService.suppressUntil(0);
 		// Lazily acquire the mic — fire-and-forget. The mic service handles
 		// the case where the user releases before acquisition completes.
 		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch((err) => {
@@ -1578,9 +1676,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			this.disconnect();
 		});
-		// Stop the monitor after mic pttDown so its _pttStreaming flag is set
-		// first, letting stopMonitor keep the mic warm instead of re-acquiring.
-		this._stopBargeInMonitor();
 		this.ttsPlaybackService.stopPlayback();
 		this._voiceState.set('listening', undefined);
 		this._statusText.set('Listening...', undefined);
@@ -1627,7 +1722,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._autoListenSuppressed = true;
 		this._pttToggleMode = false;
 		this._clearAutoListenTimer();
-		this._stopBargeInMonitor();
 		if (this._pttHeld) {
 			this._finishPtt('local');
 		} else {
@@ -1648,6 +1742,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _finishPtt(reason: 'local' | 'auto' = 'local'): void {
 		// End toggle (hands-free) mode on every turn-ending path — even when not held — so an out-of-band finish can't leave a stale toggle that self-kills the next auto-listen.
 		this._pttToggleMode = false;
+		this._bargeInListenActive = false;
 		if (!this._pttHeld) { return; }
 		this._clearAutoListenTimer();
 		this._pttHeld = false;
@@ -1769,6 +1864,50 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.pttUp();
 	}
 
+	/**
+	 * Hands-free barge-in listen: open a passive PTT streaming turn WITHOUT
+	 * interrupting the assistant's playback, so the backend's server-VAD keeps
+	 * receiving mic audio and can detect the user talking over the assistant.
+	 *
+	 * Unlike `pttDown()` (a user-driven interrupt) this does NOT stop playback,
+	 * clear the audio queue, or suppress incoming audio. The backend decides
+	 * when a real interruption happened and emits `speech_started` / `barge_in`
+	 * (already wired to cut off TTS). If the user stays silent the turn simply
+	 * stays open and becomes the next listening turn once playback ends
+	 * (`onPlaybackStopped` sees `_pttHeld` and stays in 'listening').
+	 *
+	 * Reuses the warm mic left by the previous turn's `abortPtt`, so no
+	 * `getUserMedia` re-acquisition occurs. Idempotent: a no-op while a turn is
+	 * already held.
+	 */
+	private _startBargeInListen(): void {
+		if (!this._isHandsFreeEnabled() || !this._isConnected.get() || this._pttHeld || this._autoListenSuppressed || !this._window) {
+			return;
+		}
+		this._clearAutoListenTimer();
+		this._pttCurrentTurnId = generateUuid();
+		this._pttHeld = true;
+		// Track this as a passive barge-in listen (NOT toggle mode) so an
+		// explicit `pttDown()` promotes it into a user-driven interrupt instead
+		// of the toggle branch finishing it. The turn stays open on its own —
+		// nothing calls `pttUp()`/`_finishPtt()` — until the backend ends it
+		// (`turn_auto_ended`), the user promotes it, or playback stops.
+		this._bargeInListenActive = true;
+		// NOTE: this marks the turn start at playback time, not when the user
+		// actually starts speaking, so voice latency/hold telemetry in
+		// hands-free mode includes playback duration. Accepted known limitation
+		// (the backend latches `user_is_speaking` on `ptt_start`); a precise
+		// measure would key off the backend's first speech/transcription signal.
+		this._telemetryPttDownMs = Date.now();
+		this.micCaptureService.isMuted = false;
+		this.micCaptureService.suppressUntil(0);
+		this.micCaptureService.pttDown(this._pttCurrentTurnId).catch(err => {
+			this.logService.warn('[voice] barge-in listen failed to start', err);
+			this._pttHeld = false;
+			this._bargeInListenActive = false;
+		});
+	}
+
 	/** Debounced re-listen after assistant stops speaking. */
 	private _scheduleAutoListen(): void {
 		this._clearAutoListenTimer();
@@ -1813,37 +1952,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			clearTimeout(this._awaitingReplyWatchdog);
 			this._awaitingReplyWatchdog = undefined;
 		}
-	}
-
-	/**
-	 * Start barge-in monitoring: stream mic audio to the backend during
-	 * playback so the user can talk over the assistant. Hands-free only;
-	 * the backend emits `speech_started`, which `onSpeechStarted` promotes
-	 * into a real turn. Inert until the backend consumes `barge_in_*`.
-	 */
-	private _startBargeInMonitor(): void {
-		if (this._bargeInMonitorActive || !this._isConnected.get() || this._pttHeld || !this._window) {
-			return;
-		}
-		if (!this._isHandsFreeEnabled()) {
-			return;
-		}
-		this._bargeInMonitorActive = true;
-		this.voiceClientService.sendBargeInStart();
-		this.micCaptureService.startMonitor(this._window).catch(err => {
-			this.logService.warn('[voice] barge-in monitor failed to start', err);
-			this._bargeInMonitorActive = false;
-		});
-	}
-
-	/** Stop barge-in monitoring and tell the backend to stop listening for it. */
-	private _stopBargeInMonitor(): void {
-		if (!this._bargeInMonitorActive) {
-			return;
-		}
-		this._bargeInMonitorActive = false;
-		this.micCaptureService.stopMonitor();
-		this.voiceClientService.sendBargeInStop();
 	}
 
 	/**
@@ -2902,12 +3010,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._currentPlaybackSessionId = sessionId;
 			this._clearAutoListenTimer();
 			this._replyPlayedSinceSend = true;
-			this.micCaptureService.suppressUntil(Date.now() + 800);
 			this._voiceState.set('speaking', undefined);
 			this._statusText.set('Speaking...', undefined);
-			// Hands-free: keep the mic open so the user can barge in.
-			this._startBargeInMonitor();
 			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+			if (this._isHandsFreeEnabled()) {
+				// Hands-free: keep the mic streaming while the assistant speaks so
+				// the backend's server-VAD can hear the user barge in over it. The
+				// backend signals a real interruption via `speech_started` / `barge_in`
+				// (already wired to stop playback); until then this is a passive,
+				// non-interrupting listen that becomes the next listening turn if the
+				// user stays silent.
+				this._startBargeInListen();
+			} else {
+				this.micCaptureService.suppressUntil(Date.now() + 800);
+			}
 		} else if (!speakResponsesEnabled) {
 			this._replyPlayedSinceSend = true;
 			if (isFinal) {
@@ -3407,7 +3523,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const context: IVoiceSessionContext = {
 			sessions: sessionList,
-			display_locale: this._window?.navigator.language,
+			display_locale: this._window?.navigator.language || 'en-US',
 		};
 		if (activeSession) {
 			context.active_session = activeSession;

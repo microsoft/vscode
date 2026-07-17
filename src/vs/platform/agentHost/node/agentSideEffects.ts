@@ -314,12 +314,10 @@ export class AgentSideEffects extends Disposable {
 	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
 		switch (action.type) {
 			case ActionType.ChatInputRequested:
-				this._setSessionInputNeeded(chatUri, {
-					id: this._chatInputNeededId(chatUri, action.request.id),
-					kind: SessionInputRequestKind.ChatInput,
-					chat: chatUri,
-					request: action.request,
-				});
+				this._syncChatInputNeeded(chatUri, action.request.id);
+				break;
+			case ActionType.ChatInputAnswerChanged:
+				this._syncChatInputNeeded(chatUri, action.requestId);
 				break;
 			case ActionType.ChatInputCompleted:
 				this._removeSessionInputNeeded(chatUri, this._chatInputNeededId(chatUri, action.requestId));
@@ -340,6 +338,26 @@ export class AgentSideEffects extends Disposable {
 				this._removeSessionInputNeededForChat(chatUri);
 				break;
 		}
+	}
+
+	private _syncChatInputNeeded(chatUri: ProtocolURI, requestId: string): void {
+		const state = this._stateManager.getSessionState(chatUri);
+		const part = state?.activeTurn?.responseParts.find(part =>
+			part.kind === ResponsePartKind.InputRequest
+			&& part.response === undefined
+			&& part.request.id === requestId
+		);
+		const id = this._chatInputNeededId(chatUri, requestId);
+		if (!part || part.kind !== ResponsePartKind.InputRequest) {
+			this._removeSessionInputNeeded(chatUri, id);
+			return;
+		}
+		this._setSessionInputNeeded(chatUri, {
+			id,
+			kind: SessionInputRequestKind.ChatInput,
+			chat: chatUri,
+			request: part.request,
+		});
 	}
 
 	private _syncToolInputNeeded(chatUri: ProtocolURI, turnId: string, toolCallId: string): void {
@@ -1067,7 +1085,11 @@ export class AgentSideEffects extends Disposable {
 				// Generic, agent-agnostic host commands (`/rename`, `!command`,
 				// …) are intercepted here and handled by the local-command
 				// dispatcher rather than forwarded to the agent SDK.
-				if (this._localCommands.tryHandle({ turnChannel: channel, turnId: action.turnId, text: action.message.text })) {
+				const handled = this._localCommands.tryHandle({ turnChannel: channel, turnId: action.turnId, text: action.message.text });
+				if (handled) {
+					if (handled.suggestedTitle !== undefined) {
+						this._titleController.seedProvisionalTitle(sessionChannel, handled.suggestedTitle, chatChannel);
+					}
 					break;
 				}
 
@@ -1227,11 +1249,6 @@ export class AgentSideEffects extends Disposable {
 				// (e.g. permissions) and session customizations as a catchall.
 				this._publishAgentInfos(this._options.agents.get());
 				this._publishAllSessionCustomizations();
-				break;
-			}
-			case ActionType.SessionCustomizationToggled: {
-				const agent = this._options.getAgent(channel);
-				agent?.setCustomizationEnabled?.(action.id, action.enabled);
 				break;
 			}
 			case ActionType.SessionMcpServerStartRequested: {
@@ -1409,9 +1426,17 @@ export class AgentSideEffects extends Disposable {
 		// Generic host commands (`/rename`, `!command`, …) are intercepted by
 		// the local-command dispatcher (see the ChatTurnStarted handler) and
 		// must not reach the agent SDK even when queued.
-		if (this._localCommands.tryHandle({ turnChannel: session, turnId, text: msg.message.text })) {
+		const handled = this._localCommands.tryHandle({ turnChannel: session, turnId, text: msg.message.text });
+		if (handled) {
+			// A local command may suggest a provisional title (e.g. a `!command`
+			// dequeued before any real request has titled the session).
+			if (handled.suggestedTitle !== undefined) {
+				this._titleController.seedProvisionalTitle(sessionChannel, handled.suggestedTitle, session);
+			}
 			return;
 		}
+
+		this._titleController.seedTitleFromFirstMessage(sessionChannel, msg.message.text, session);
 
 		// Send the message to the agent backend. When `session` is an
 		// additional chat channel, the SDK chat is owned by the
