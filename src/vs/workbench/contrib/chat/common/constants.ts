@@ -106,6 +106,7 @@ export enum ChatConfiguration {
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
 	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
+	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
 	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
@@ -263,10 +264,11 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Returns the effective default session type for a new chat in the VS Code
  * editor window.
  *
- * When the agent host is enabled, Agent Host Copilot CLI is the default so that
- * first-time users land on Copilot instead of the local harness. Otherwise it
- * falls back to {@link localChatSessionType} when local is enabled, or to the
- * first visible non-local provider.
+ * When the agent host is enabled and `chat.defaultToCopilotHarness` is opted
+ * in, Agent Host Copilot CLI is the default so that first-time users land on
+ * Copilot instead of the local harness. Otherwise it falls back to
+ * {@link localChatSessionType} when local is enabled, or to the first visible
+ * non-local provider.
  */
 export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
@@ -274,7 +276,7 @@ export function getComputedDefaultSessionType(
 	workspace: IWorkspace,
 	agentHostEnabled: boolean
 ): string {
-	if (agentHostEnabled) {
+	if (agentHostEnabled && configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness)) {
 		return SessionType.AgentHostCopilot;
 	}
 
