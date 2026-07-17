@@ -245,6 +245,7 @@ suite('VoiceSessionController live transcription', () => {
 			pttUp: () => { },
 			abortPtt: () => { },
 			stopCapture: () => { },
+			suppressUntil: () => { },
 		});
 		instantiationService.stub(ITtsPlaybackService, {
 			isPlaying: false,
