@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -87,9 +90,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -572,11 +575,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * If the send or any configuration setter fails, the stranded draft is
 	 * disposed through its provider and the error is rethrown.
 	 */
-	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined> {
+	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 
 		try {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (createOptions?.modelId) {
 				provider.setModel(session.sessionId, createOptions.modelId);
 			}
@@ -586,14 +592,21 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (createOptions?.permissionLevel) {
 				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 			}
-			if (createOptions?.isolationMode) {
-				provider.setIsolationMode?.(session.sessionId, createOptions.isolationMode);
-			}
-			if (createOptions?.branch) {
-				provider.setBranch?.(session.sessionId, createOptions.branch);
+			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
+				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
+			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch)) {
+				if (createOptions.isolationMode && provider.setIsolationMode) {
+					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
+				}
+				if (createOptions.branch && provider.setBranch) {
+					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
+				}
 			}
 
-			return await this._sendNewChatRequestInBackground(provider, session, options);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, options), token);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it
 			// through its provider to release the eager backend session before
@@ -724,6 +737,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async unarchiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 		this._onDidUnarchiveSession.fire(session);
+	}
+
+	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
+		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
+	}
+
+	markRead(session: ISession): Promise<void> {
+		return this.setSessionReadState(session, true);
+	}
+
+	markUnread(session: ISession): Promise<void> {
+		return this.setSessionReadState(session, false);
+	}
+
+	async markAllRead(sessions: readonly ISession[]): Promise<void> {
+		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

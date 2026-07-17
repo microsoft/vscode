@@ -19,7 +19,7 @@ import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAsses
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { createToolRiskBadge } from './toolRiskBadgeHelper.js';
+import { createApprovalReasonBadge, createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export interface IToolConfirmationConfig {
 	allowActionId: string;
@@ -119,9 +119,12 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 		// Risk badges describe a pending action, so they only show on the pre-execution
 		// confirmation, not after the tool has run.
-		const riskBadge = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
-			? this.createRiskBadgeDomNode(state.parameters)
+		const approvalReasonBadge = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages?.approvalReason)
 			: undefined;
+		const riskBadge = approvalReasonBadge?.domNode ?? (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? this.createRiskBadgeDomNode(state.parameters)
+			: undefined);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<(() => void)>,
 			this.context,

@@ -29,13 +29,13 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { homedir, tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, buildDefaultChatUri, ToolCallConfirmationReason, type MessageAttachment } from '../../../common/state/sessionState.js';
+import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../common/state/sessionState.js';
 import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
-	capiReplayFor, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
-	type IAgentHostE2EProviderConfig,
+	AgentHostE2EServerLease, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
+	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
 } from './agentHostE2ETestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from './testHelpers.js';
 
 const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Copilot',
@@ -49,6 +49,7 @@ const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	// `AGENT_HOST_REPLAY_RECORD=1`. The Copilot CLI is always present (dev dep).
 	enabled: true,
 	supportsWorktreeIsolation: true,
+	supportsHostTerminalTool: true,
 	supportsSubagents: true,
 	supportsPlanMode: true,
 };
@@ -57,40 +58,24 @@ defineAgentHostE2ETests(COPILOT_CONFIG);
 
 suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
-	let server: IServerHandle;
 	let client: TestProtocolClient;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
+	const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, { homeDir: homedir() });
 
-	// Per-test server fronted by the record/replay proxy: these tests replay
-	// committed fixtures by default (tokenless) and record against real CAPI
-	// with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite.
+	// The lease fronts the server with the record/replay proxy: these tests
+	// replay committed fixtures by default (tokenless) and record against real
+	// CAPI with `AGENT_HOST_REPLAY_RECORD=1`, mirroring the shared suite. In
+	// replay the lease reuses one server across the suite and swaps the fixture
+	// per test; while recording it starts a fresh server per test.
 	setup(async function () {
 		this.timeout(60_000);
-		server = await startRealServer({
-			homeDir: homedir(),
-			capiReplay: capiReplayFor(COPILOT_CONFIG.provider, this.currentTest?.title ?? 'unknown'),
-		});
-		client = new TestProtocolClient(server.port);
-		await client.connect();
+		({ client } = await lease.acquire(this.currentTest?.title ?? 'unknown'));
 	});
 
 	teardown(async function () {
 		this.timeout(60_000);
-		for (const session of createdSessions) {
-			try {
-				await client.call('disposeSession', { session }, 30_000);
-			} catch { /* best-effort */ }
-		}
-		createdSessions.length = 0;
-		client.close();
-		// Flush the recording / surface strict replay cache-misses; kill even if
-		// the strict check throws.
-		try {
-			await server?.capiReplay?.stop();
-		} finally {
-			server?.process.kill();
-		}
+		await lease.release(createdSessions);
 
 		for (const dir of tempDirs) {
 			try {
@@ -98,6 +83,74 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			} catch { /* best-effort */ }
 		}
 		tempDirs.length = 0;
+	});
+
+	test('client tool reaches ready after start and completes', async function () {
+		this.timeout(180_000);
+		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs);
+	});
+
+	test('client tool disconnect before permission still completes the turn', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-disconnect-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-client-tool-disconnect';
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					displayName: 'Test Client',
+					tools: [{
+						name: 'get_magic_word',
+						description: 'Returns the secret magic word. Call this when asked for the magic word.',
+						inputSchema: { type: 'object', properties: {}, required: [] },
+					}],
+				},
+			},
+		});
+		dispatchTurn(client, sessionUri, 'turn-client-tool-disconnect', 'Call the get_magic_word tool and then report whether it succeeded.', 2);
+
+		const toolStart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallStart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolName: string };
+			return action.toolName === 'get_magic_word';
+		}, 90_000);
+		const toolCallId = (getActionEnvelope(toolStart).action as { toolCallId: string }).toolCallId;
+
+		client.notify('unsubscribe', { channel: sessionUri });
+
+		const failedCompletion = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallComplete')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolCallId: string; result: { success: boolean } };
+			return action.toolCallId === toolCallId && !action.result.success;
+		}, 30_000);
+		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+
+		const staleReady = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			const action = envelope.action as { toolCallId: string };
+			return envelope.serverSeq > failedCompletionSeq && action.toolCallId === toolCallId;
+		});
+		assert.deepStrictEqual(staleReady, []);
+	});
+
+	suiteTeardown(async function () {
+		this.timeout(60_000);
+		await lease.dispose();
 	});
 
 	test('usage reports include Copilot cost metadata', async function () {

@@ -200,7 +200,7 @@ export function anthropicMessageToSse(message: IAnthropicMessage): string {
 	chunks.push(sseEvent('message_delta', {
 		type: 'message_delta',
 		delta: { stop_reason: message.stopReason, stop_sequence: null },
-		usage: { output_tokens: message.usage?.outputTokens ?? 0 },
+		usage: { output_tokens: message.usage?.outputTokens ?? 1 },
 	}));
 	chunks.push(sseEvent('message_stop', { type: 'message_stop' }));
 
@@ -484,9 +484,9 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 	});
 	const outputText = message.content.filter((b): b is Extract<AnthropicContentBlock, { type: 'text' }> => b.type === 'text').map(b => b.text).join('');
 	const usage = {
-		input_tokens: message.usage?.inputTokens ?? 0,
-		output_tokens: message.usage?.outputTokens ?? 0,
-		total_tokens: (message.usage?.inputTokens ?? 0) + (message.usage?.outputTokens ?? 0),
+		input_tokens: message.usage?.inputTokens ?? 1,
+		output_tokens: message.usage?.outputTokens ?? 1,
+		total_tokens: (message.usage?.inputTokens ?? 1) + (message.usage?.outputTokens ?? 1),
 	};
 	const envelope = (status: string, output: readonly ResponsesOutputItem[], text: string, use: unknown) => ({
 		id: responseId, object: 'response', created_at: 0, status, error: null, incomplete_details: null,

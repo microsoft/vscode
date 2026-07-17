@@ -103,14 +103,6 @@ export interface ISessionTypePickerDelegate {
 	 * Used to gate cloud delegation which requires a GitHub repository.
 	 */
 	hasGitRepository?(): boolean;
-	/**
-	 * Optional visibility filter for the session-type dropdown. When
-	 * provided, the picker hides any session type for which this returns
-	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
-	 * the automations dialog, which only supports a handful of session
-	 * types). When omitted, every contributed session type is shown.
-	 */
-	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -260,8 +252,12 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	/** Action triggered when 'clear' is called on the widget. */
-	clear?: () => Promise<void>;
+	/**
+	 * Action triggered when 'clear' is called on the widget. The optional
+	 * `targetSessionType` carries the already-resolved new session type so the
+	 * host can open a session of that type instead of recomputing the default.
+	 */
+	clear?: (targetSessionType?: string) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -460,7 +456,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): Promise<void>;
+	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;
@@ -468,6 +464,27 @@ export interface IChatWidget {
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+}
+
+/**
+ * Binds a freshly loaded model to a chat widget, preserving any text the user
+ * typed into the input while the session was still loading (the input stays
+ * editable during the async load, and binding would otherwise reset it to the
+ * session's own draft). See #325323.
+ *
+ * @param inputBeforeLoad Input value captured when the load window started, used
+ * as a baseline so a previous session's leftover draft is not mistaken for newly
+ * typed text.
+ * @param setModel Callback that performs the actual `setModel` binding.
+ */
+export function setModelPreservingInputTypedWhileLoading(widget: IChatWidget, inputBeforeLoad: string, setModel: () => void): void {
+	const typedWhileLoading = widget.getInput();
+	setModel();
+	// Restore only genuinely new text onto a session that has no draft of its own,
+	// so we never clobber a persisted draft or carry over a leftover draft.
+	if (typedWhileLoading && typedWhileLoading !== inputBeforeLoad && !widget.getInput()) {
+		widget.setInput(typedWhileLoading);
+	}
 }
 
 

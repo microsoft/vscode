@@ -166,5 +166,22 @@ suite('AgentConfigurationService', () => {
 			const state = manager.getSessionState(uri);
 			assert.deepStrictEqual(state?.config?.values, { level: 'low', limit: 42 });
 		});
+
+		test('fires after the session config is updated', () => {
+			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
+			manager.createSession(makeSummary(uri));
+			seedSessionConfig(uri, { level: 'low' });
+			let change: { session: string; config: Record<string, unknown> } | undefined;
+			disposables.add(service.onDidSessionConfigChange(event => {
+				change = { session: event.session, config: event.config };
+			}));
+
+			service.updateSessionConfig(uri, { level: 'high' });
+
+			assert.deepStrictEqual(change, {
+				session: uri,
+				config: { level: 'high' },
+			});
+		});
 	});
 });

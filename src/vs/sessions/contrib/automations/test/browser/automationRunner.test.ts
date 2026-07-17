@@ -30,6 +30,7 @@ interface IRecordedCall {
 	readonly folderUri: URI;
 	readonly options: ISendRequestOptions;
 	readonly createOptions?: ICreateNewSessionOptions;
+	readonly token: CancellationToken;
 }
 
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -46,8 +47,9 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 		folderUri: URI,
 		options: ISendRequestOptions,
 		createOptions?: ICreateNewSessionOptions,
+		token: CancellationToken = CancellationToken.None,
 	): Promise<ISession | undefined> {
-		this.calls.push({ folderUri, options, createOptions });
+		this.calls.push({ folderUri, options, createOptions, token });
 		if (this.onSendHook) {
 			await this.onSendHook();
 		}
@@ -245,6 +247,7 @@ suite('AutomationRunner', () => {
 		await runner.runOnce(a, 'schedule', 1, cts.token).whenCompleted;
 
 		assert.strictEqual(sessionsMgmt.calls.length, 1);
+		assert.strictEqual(sessionsMgmt.calls[0].token, cts.token);
 		const runs = service.runs.get();
 		assert.strictEqual(runs.length, 1);
 		assert.strictEqual(runs[0].status, 'failed');
@@ -369,6 +372,52 @@ suite('AutomationRunner', () => {
 			isolationMode: undefined,
 			branch: undefined,
 		});
+	});
+
+	test('passes a branch only for Worktree isolation', async () => {
+		const { service, sessionsMgmt, runner } = setup();
+		sessionsMgmt.nextSession = fakeSession('s1');
+
+		const worktree = await service.createAutomation({
+			name: 'Worktree',
+			prompt: 'p',
+			schedule: hourly(),
+			folderUri: FOLDER_A,
+			isolationMode: 'worktree',
+			branch: 'feature/worktree',
+		});
+		const folder = await service.createAutomation({
+			name: 'Folder',
+			prompt: 'p',
+			schedule: hourly(),
+			folderUri: FOLDER_B,
+			isolationMode: 'workspace',
+			branch: 'stale-folder-head',
+		});
+
+		await runner.runOnce(worktree, 'schedule', 1).whenCompleted;
+		await runner.runOnce(folder, 'schedule', 1).whenCompleted;
+
+		assert.deepStrictEqual(sessionsMgmt.calls.map(call => call.createOptions), [
+			{
+				providerId: undefined,
+				sessionTypeId: undefined,
+				modelId: undefined,
+				modeId: undefined,
+				permissionLevel: undefined,
+				isolationMode: 'worktree',
+				branch: 'feature/worktree',
+			},
+			{
+				providerId: undefined,
+				sessionTypeId: undefined,
+				modelId: undefined,
+				modeId: undefined,
+				permissionLevel: undefined,
+				isolationMode: 'workspace',
+				branch: undefined,
+			},
+		]);
 	});
 
 	test('omits createOptions entirely when no provider/sessionType is captured', async () => {

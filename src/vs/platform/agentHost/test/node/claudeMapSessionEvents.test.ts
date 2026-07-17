@@ -84,7 +84,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
-	test('error_during_execution result with a proxy marker emits a ChatError carrying _meta', () => {
+	test('error_during_execution result emits a ChatError carrying duration and _meta', () => {
 		const marker = encodeForwardedChatError({ fetchError: { type: 'quotaExceeded', capiError: { code: 'quota_exceeded', message: 'You have exceeded your monthly quota' } } });
 		const signals = mapSDKMessageToAgentSignals(
 			makeResultError(SESSION_ID, [`CAPI request failed: 402 Payment Required \u2014 quota ${marker}`]),
@@ -93,10 +93,13 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			new ClaudeMapperState(),
 			new NullLogService(),
 			r(),
+			undefined,
+			123,
 		);
 
 		const errorSignal = signals.find(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 		assert.ok(errorSignal && errorSignal.kind === 'action' && errorSignal.action.type === ActionType.ChatError);
+		assert.strictEqual(errorSignal.action.duration, 123);
 		const error = errorSignal.action.error;
 		const meta = error._meta as { chatError?: { fetchError?: { type?: string } } } | undefined;
 		assert.strictEqual(meta?.chatError?.fetchError?.type, 'quotaExceeded');
