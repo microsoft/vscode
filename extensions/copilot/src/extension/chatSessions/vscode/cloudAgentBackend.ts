@@ -207,16 +207,6 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 	/** Fetch the typed event timeline for a task. */
 	fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]>;
 
-	/**
-	 * Block until the task has changed observably since the given baseline (new turn, an
-	 * advance of `updated_at`, or the latest turn leaving in-progress/queued).
-	 */
-	waitForTaskUpdate(
-		taskId: string,
-		since: { turnCount: number; updatedAt?: string },
-		token?: vscode.CancellationToken,
-	): Promise<TaskContent | undefined>;
-
 	/** Post a follow-up turn against a task via the steer endpoint. */
 	sendFollowUpToTask(
 		taskId: string,

@@ -44,9 +44,6 @@ import {
 } from '../vscode/cloudAgentBackend';
 import { extractTitle, SessionIdForPr, SessionIdForTask } from '../vscode/copilotCodingAgentUtils';
 
-const TASK_SESSION_POLL_INTERVAL_MS = 2_000;
-const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
-
 function mapTaskStateToSessionState(state: AgentTaskState): SessionInfo['state'] {
 	switch (state) {
 		case 'queued':
@@ -386,40 +383,6 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			this._instrumentation.operationFailed('fetchEvents', e);
 			return events;
 		}
-	}
-
-	async waitForTaskUpdate(taskId: string, since: { turnCount: number; updatedAt?: string }, token?: vscode.CancellationToken): Promise<TaskContent | undefined> {
-		const startTime = Date.now();
-		while (Date.now() - startTime < TASK_SESSION_POLL_TIMEOUT_MS && !(token?.isCancellationRequested)) {
-			try {
-				const task = await this._taskApiClient.getTask(taskId);
-				const turnCount = task.sessions?.length ?? 0;
-				// Fire when any observable changed: a new turn was added, the task's
-				// `updated_at` advanced (covers in-place state transitions), or the latest
-				// turn left the in-progress/queued region.
-				const updatedAtChanged = since.updatedAt && task.updated_at && task.updated_at !== since.updatedAt;
-				const latestTurnState = task.sessions?.[turnCount - 1]?.state;
-				const latestTurnSettled = latestTurnState && latestTurnState !== 'in_progress' && latestTurnState !== 'queued' && latestTurnState !== 'idle' && latestTurnState !== 'waiting_for_user';
-				if (turnCount > since.turnCount || updatedAtChanged || latestTurnSettled) {
-					// First turn appearing (baseline had none) is the v2 "session activated" signal —
-					// the task has started producing output. Mirrors v1's PR-ready activation.
-					if (since.turnCount === 0 && turnCount >= 1) {
-						const createdAtMs = task.created_at ? Date.parse(task.created_at) : NaN;
-						this._instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
-					}
-					return {
-						task,
-						turns: [],
-						pullArtifact: taskToPullArtifactRef(task, undefined),
-					};
-				}
-			} catch (e) {
-				this._logService.warn(`Failed to poll task ${taskId}: ${e}`);
-				this._instrumentation.operationFailed('pollUpdate', e);
-			}
-			await new Promise(resolve => setTimeout(resolve, TASK_SESSION_POLL_INTERVAL_MS));
-		}
-		return undefined;
 	}
 
 	async sendFollowUpToTask(taskId: string, prompt: string): Promise<FollowUpResult | undefined> {

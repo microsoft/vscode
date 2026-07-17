@@ -22,7 +22,6 @@ export type CloudBackendOperation =
 	| 'fetchSessionList'
 	| 'fetchContent'
 	| 'fetchEvents'
-	| 'pollUpdate'
 	| 'followUp'
 	| 'findTaskForPullRequest'
 	| 'createPullRequest';

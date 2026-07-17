@@ -27,7 +27,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { DeferredPromise, IntervalTimer, retry, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
 import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -191,6 +191,15 @@ const DEFAULT_PARTNER_AGENT_ID = '___vscode_partner_agent_default___';
 const DEFAULT_REPOSITORY_ID = '___vscode_repository_default___';
 
 const ACTIVE_SESSION_POLL_INTERVAL_MS = 5 * 1000; // 5 seconds
+
+/** Poll interval for the v2 task activation monitor (see {@link CopilotCloudSessionsProvider.startTaskActivationMonitor}). */
+const TASK_ACTIVATION_POLL_INTERVAL_MS = 5 * 1000; // 5 seconds
+/**
+ * Upper bound on how long the activation monitor waits for a freshly-created task to produce its
+ * first turn before giving up. A task stuck queued past this window goes unreported rather than
+ * leaking a poll loop — the funnel favors under-counting over an unbounded monitor.
+ */
+const TASK_ACTIVATION_MONITOR_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
@@ -379,6 +388,20 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	/** Resolved Cloud Agent backend version (`v1` Jobs API | `v2` Task API) for this provider instance. */
 	private readonly _backendVersion: CloudBackendVersion;
+
+	/**
+	 * Task ids for which the v2 `sessionActivated` signal has already been emitted, keeping the
+	 * activation monitor idempotent (a task is reported at most once).
+	 */
+	private readonly _activatedTaskIds = new Set<string>();
+
+	/**
+	 * In-flight activation monitors keyed by task id (see {@link startTaskActivationMonitor}). Armed
+	 * only for tasks created locally in this session, so an activation can never be reported without a
+	 * matching local creation. Disposing the entry cancels the monitor; the map is disposed with the
+	 * provider so no loop outlives it.
+	 */
+	private readonly _activationMonitors = this._register(new DisposableMap<string>());
 
 	constructor(
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
@@ -1630,7 +1653,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 			this._activeTaskStreams.add(taskId);
 			try {
-				const streamer = new TaskTurnStreamer(backend, new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService), this.logService);
+				const streamer = new TaskTurnStreamer(
+					backend,
+					new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService),
+					this.logService,
+				);
 				await streamer.stream(stream, taskId, baseline, token);
 			} finally {
 				this._activeTaskStreams.delete(taskId);
@@ -1640,6 +1667,83 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				await this.updatePullRequestToolbarContext(taskId);
 			}
 		};
+	}
+
+	/**
+	 * Start monitoring a freshly-created v2 task so its `sessionActivated` funnel signal fires once
+	 * the task produces its first turn — the v2 analogue of v1's PR becoming available. This runs
+	 * independently of whether the user opens the session, so fast tasks and never-opened tasks are
+	 * still reported.
+	 *
+	 * Arm only from local creation: because a monitor exists solely for tasks this session created,
+	 * an activation can never be reported without a matching local `sessionCreate`, preserving the
+	 * `activations ≤ creations` funnel invariant. A no-op unless the active backend is v2.
+	 */
+	private startTaskActivationMonitor(taskId: string): void {
+		const backend = this._backend;
+		if (backend.kind !== 'task') {
+			return;
+		}
+		if (this._activatedTaskIds.has(taskId) || this._activationMonitors.has(taskId)) {
+			return;
+		}
+		const cts = new vscode.CancellationTokenSource();
+		// Cancel and dispose the token when the entry is removed or the provider is disposed.
+		this._activationMonitors.set(taskId, toDisposable(() => {
+			cts.cancel();
+			cts.dispose();
+		}));
+		const instrumentation = new CloudBackendInstrumentation(this._backendVersion, this.telemetry, this._otelService);
+		void this._monitorTaskActivation(backend, taskId, instrumentation, cts.token)
+			.finally(() => this._activationMonitors.deleteAndDispose(taskId));
+	}
+
+	/**
+	 * Poll a created task until it produces observable output (an `assistant.*` event — genuine
+	 * evidence the agent started a turn) and emit activation, or until it reaches a terminal state
+	 * with no such output (e.g. "Failed to launch agent"), in which case nothing is emitted so
+	 * no-output failures don't inflate the funnel. Bounded by {@link TASK_ACTIVATION_MONITOR_TIMEOUT_MS}.
+	 */
+	private async _monitorTaskActivation(backend: TaskCloudAgentBackend, taskId: string, instrumentation: CloudBackendInstrumentation, token: vscode.CancellationToken): Promise<void> {
+		const startedAt = Date.now();
+		try {
+			while (!token.isCancellationRequested && Date.now() - startedAt < TASK_ACTIVATION_MONITOR_TIMEOUT_MS) {
+				const [content, events] = await Promise.all([
+					backend.fetchTaskContent(taskId).catch(() => undefined),
+					backend.fetchTaskEvents(taskId).catch(() => [] as readonly AgentTaskSessionEvent[]),
+				]);
+				const task = content?.task;
+				// Check for output evidence first so a task that finished quickly (terminal but with a
+				// completed turn) still counts as activated.
+				if (events.some(e => e.type.startsWith('assistant.'))) {
+					// Prefer the server's `created_at`; fall back to the monitor start (≈ creation time)
+					// if the task payload wasn't fetched this tick.
+					const createdAtMs = task?.created_at ? Date.parse(task.created_at) : startedAt;
+					this.reportTaskActivated(taskId, createdAtMs, instrumentation);
+					return;
+				}
+				// Terminal with no output evidence (failed to launch, cancelled before starting): don't emit.
+				if (task && !isActiveTaskState(task.state)) {
+					return;
+				}
+				await timeout(TASK_ACTIVATION_POLL_INTERVAL_MS, token);
+			}
+		} catch {
+			// Cancellation (provider dispose) or a persistent fetch failure — stop silently; a missed
+			// activation only under-counts, which the funnel tolerates.
+		}
+	}
+
+	/**
+	 * Emit the v2 `sessionActivated` funnel signal for a task exactly once. `createdAtMs` is the task's
+	 * creation epoch (ms); `durationMs` is measured from it to now.
+	 */
+	private reportTaskActivated(taskId: string, createdAtMs: number, instrumentation: CloudBackendInstrumentation): void {
+		if (this._activatedTaskIds.has(taskId)) {
+			return;
+		}
+		this._activatedTaskIds.add(taskId);
+		instrumentation.sessionActivated(Number.isNaN(createdAtMs) ? 0 : Math.max(0, Date.now() - createdAtMs));
 	}
 
 	async openSessionInBrowser(chatSessionItem: vscode.ChatSessionItem): Promise<void> {
@@ -3248,6 +3352,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 		if (result.kind !== 'pullRequest') {
 			// Task-shaped result (v2). Always open as a task; PR badging happens later.
+			// Start watching for the first turn so activation is reported even if the user never
+			// opens the session or the task finishes quickly.
+			this.startTaskActivationMonitor(result.taskId);
 			this.refresh();
 			return {
 				kind: 'task',

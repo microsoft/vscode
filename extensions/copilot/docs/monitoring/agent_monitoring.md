@@ -337,7 +337,7 @@ These metrics track the activity and outcomes of agentic code changes across all
 
 **`copilot_chat.cloud.pr_ready.count` attributes:** `github.copilot.cloud.backend_version` (`v1`, optional)
 
-**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`pollUpdate`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
+**`copilot_chat.cloud.operation.count` attributes:** `operation` (`createSession`/`fetchSessionList`/`fetchContent`/`fetchEvents`/`followUp`/`findTaskForPullRequest`/`createPullRequest`/`sessionActivated`), `github.copilot.cloud.backend_version` (`v1`/`v2`), `success`
 
 **`copilot_chat.cloud.operation.duration` attributes:** `operation`, `github.copilot.cloud.backend_version` (`v1`/`v2`)
 
