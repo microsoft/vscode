@@ -1938,8 +1938,8 @@ export class CommandCenter {
 		}
 
 		const originalUri = toGitUri(modifiedUri, '~');
-		const originalDocument = await workspace.openTextDocument(originalUri);
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+		const original = await workspace.decode(await workspace.fs.readFile(originalUri), { encoding: modifiedDocument.encoding });
+		const result = applyLineChanges(original, modifiedDocument.getText(), changes);
 
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
@@ -2009,9 +2009,9 @@ export class CommandCenter {
 		}
 
 		const originalUri = toGitUri(modifiedUri, '~');
-		const originalDocument = await workspace.openTextDocument(originalUri);
+		const original = await workspace.decode(await workspace.fs.readFile(originalUri), { encoding: modifiedDocument.encoding });
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+		const result = applyLineChanges(original, modifiedDocument.getText(), changes);
 
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
@@ -2085,7 +2085,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] diffInformation changes: ${JSON.stringify(indexLineChanges)}`);
 
 		const originalUri = toGitUri(resource.original, 'HEAD');
-		const originalDocument = await workspace.openTextDocument(originalUri);
+		const original = await workspace.decode(await workspace.fs.readFile(originalUri), { encoding: modifiedDocument.encoding });
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 
 		const selectedDiffs = indexLineChanges
@@ -2109,7 +2109,7 @@ export class CommandCenter {
 		const selectedDiffsInverted = selectedDiffs.map(invertLineChange);
 		this.logger.trace(`[CommandCenter][unstageSelectedRanges] selectedDiffsInverted: ${JSON.stringify(selectedDiffsInverted)}`);
 
-		const result = applyLineChanges(modifiedDocument, originalDocument, selectedDiffsInverted);
+		const result = applyLineChanges(modifiedDocument.getText(), original, selectedDiffsInverted);
 		await repository.stage(modifiedDocument.uri, result, modifiedDocument.encoding);
 	}
 
@@ -2174,8 +2174,8 @@ export class CommandCenter {
 		const diffsInverted = [...changesInverted, ...workingTreeDiffsInverted].sort(compareLineChanges);
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
-		const originalDocument = await workspace.openTextDocument(originalUri);
-		const result = applyLineChanges(modifiedDocument, originalDocument, diffsInverted);
+		const original = await workspace.decode(await workspace.fs.readFile(originalUri), { encoding: modifiedDocument.encoding });
+		const result = applyLineChanges(modifiedDocument.getText(), original, diffsInverted);
 
 		await this.runByRepository(modifiedUri, async (repository, resource) =>
 			await repository.stage(resource, result, modifiedDocument.encoding));
