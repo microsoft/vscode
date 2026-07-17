@@ -714,7 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTree.reveal(target);
 		this.settingsTree.setFocus([target]);
 		// eslint-disable-next-line no-restricted-syntax
-		const control = this.settingsTree.getHTMLElement().querySelector(`.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
+		const control = this.settingsTree.getHTMLElement().querySelector(`[${AbstractSettingRenderer.SETTING_ID_ATTR}="${target.id}"] ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
 		if (control) {
 			(<HTMLElement>control).focus();
 		}
