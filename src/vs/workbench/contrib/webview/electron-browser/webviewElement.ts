@@ -42,11 +42,10 @@ const singleIframeBootstrap = String.raw`(() => {
 	const stateElement = document.querySelector('meta[name="vscode-webview-state"]');
 	let state = stateElement?.content ? JSON.parse(decodeURIComponent(stateElement.content)) : undefined;
 	stateElement?.remove();
-	const pending = [];
 	const post = (channelName, data, transfer = []) => channel.port1.postMessage({ channel: channelName, data }, transfer);
 
 	globalThis.acquireVsCodeApi = () => {
-		if (acquired) { throw new Error('An instance of the VS Code API has already been acquired'); }
+		if (acquired && !bootstrap.allowMultipleAPIAcquire) { throw new Error('An instance of the VS Code API has already been acquired'); }
 		acquired = true;
 		return Object.freeze({
 			postMessage(message, transfer) { post('onmessage', { message, transfer }, transfer); },
@@ -159,6 +158,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private _directContentKey: string | undefined;
 	private _directUpdate: Promise<void> = Promise.resolve();
 	private _directDisposed = false;
+	private _directRegisteredDocument: { readonly extensionId: string; readonly webviewId: string; readonly windowId: number } | undefined;
 	private readonly _directResourceRequests = new Map<number, CancellationTokenSource>();
 
 	protected override get platform() { return 'electron'; }
@@ -222,9 +222,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._directDisposed = true;
 		this._directGeneration++;
 
-		if (this.extension?.useSingleIframe && this.resourceId) {
-			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.resourceId);
-		}
+		void this.unregisterDirectDocument();
 		for (const request of this._directResourceRequests.values()) {
 			request.dispose(true);
 		}
@@ -344,7 +342,11 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		const content = this.content;
 		const contentKey = JSON.stringify({
+			extensionId,
+			webviewId,
+			windowId,
 			html: content.html,
+			allowMultipleAPIAcquire: content.options.allowMultipleAPIAcquire,
 			allowScripts: content.options.allowScripts,
 			allowForms: content.options.allowForms,
 			roots: content.options.localResourceRoots?.map(root => root.toString()),
@@ -366,9 +368,20 @@ export class ElectronWebviewElement extends WebviewElement {
 			const transformed = await this.transformDirectHtml(content.html, !!content.options.allowScripts, {
 				target: this.id,
 				generation: handshakeId,
+				allowMultipleAPIAcquire: !!content.options.allowMultipleAPIAcquire,
 			}, content.state, content.title);
 			if (this._directDisposed || generation !== this._directGeneration) {
 				return;
+			}
+			const registeredDocument = this._directRegisteredDocument;
+			if (registeredDocument
+				&& (registeredDocument.extensionId !== extensionId
+					|| registeredDocument.webviewId !== webviewId
+					|| registeredDocument.windowId !== windowId)) {
+				await this.unregisterDirectDocument();
+				if (this._directDisposed || generation !== this._directGeneration) {
+					return;
+				}
 			}
 			await this._webviewMainService.registerWebviewDocument({
 				extensionId,
@@ -381,8 +394,10 @@ export class ElectronWebviewElement extends WebviewElement {
 			});
 			if (this._directDisposed || generation !== this._directGeneration || !this.element) {
 				await this._webviewMainService.unregisterWebviewDocument(extensionId, webviewId);
+				this._directRegisteredDocument = undefined;
 				return;
 			}
+			this._directRegisteredDocument = { extensionId, webviewId, windowId };
 
 			this.element.sandbox.remove('allow-same-origin', 'allow-forms', 'allow-downloads');
 			this.element.sandbox.add('allow-scripts', 'allow-pointer-lock');
@@ -404,7 +419,16 @@ export class ElectronWebviewElement extends WebviewElement {
 		await this._directUpdate;
 	}
 
-	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string }, persistedState: string | undefined, title: string | undefined): Promise<{ html: string; csp: string }> {
+	private async unregisterDirectDocument(): Promise<void> {
+		const registeredDocument = this._directRegisteredDocument;
+		if (!registeredDocument) {
+			return;
+		}
+		this._directRegisteredDocument = undefined;
+		await this._webviewMainService.unregisterWebviewDocument(registeredDocument.extensionId, registeredDocument.webviewId);
+	}
+
+	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string; readonly allowMultipleAPIAcquire: boolean }, persistedState: string | undefined, title: string | undefined): Promise<{ html: string; csp: string }> {
 		const source = html || '<!DOCTYPE html><html><head></head><body></body></html>';
 		const trustedSource = singleIframeHtmlPolicy?.createHTML(source) ?? source;
 		const parsedDocument = new DOMParser().parseFromString(trustedSource as string, 'text/html');

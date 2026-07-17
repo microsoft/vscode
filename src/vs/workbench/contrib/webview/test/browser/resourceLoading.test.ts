@@ -236,6 +236,16 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 			assert.strictEqual(result?.toString(), resource.toString());
 		});
 
+		test('Returns resource equal to one root when it is contained by another root', () => {
+			const roots = [
+				URI.file('/home/user/project/subdir'),
+				URI.file('/home/user/project')
+			];
+			const resource = URI.file('/home/user/project/subdir');
+			const result = getResourceToLoad(resource, roots, uriIdentityService);
+			assert.strictEqual(result?.toString(), resource.toString());
+		});
+
 		test('handles empty roots array', () => {
 			const resource = URI.file('/home/user/project/file.txt');
 			const result = getResourceToLoad(resource, [], uriIdentityService);

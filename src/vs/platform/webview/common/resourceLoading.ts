@@ -12,7 +12,7 @@ export function isWebviewResourceAllowed(resource: URI, roots: readonly URI[], u
 	const resourceWithoutQuery = resource.with({ query: '' });
 	for (const root of roots) {
 		if (uriIdentityService.extUri.isEqual(root, resourceWithoutQuery, true)) {
-			return false;
+			continue;
 		}
 
 		// Compare UNC paths case-insensitively.
