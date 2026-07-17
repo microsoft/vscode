@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -25,6 +26,7 @@ export interface IVoiceInputDecorationsServices {
 	readonly micCaptureService: IMicCaptureService;
 	readonly configurationService: IConfigurationService;
 	readonly keybindingService: IKeybindingService;
+	readonly accessibilityService: IAccessibilityService;
 }
 
 export interface IVoiceInputDecorationsOptions {
@@ -43,7 +45,7 @@ export interface IVoiceInputDecorationsOptions {
  * Decorations show only while this surface is active and voice targets it.
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
-	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService } = services;
+	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, accessibilityService } = services;
 	const { inputContainer: inputContainerEl, isActive, getCurrentResource } = options;
 
 	const store = new DisposableStore();
@@ -76,7 +78,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
 			const intensity = voiceState === 'idle'
-				? readIdleVoiceGlowIntensity(win.performance.now())
+				? readIdleVoiceGlowIntensity(win.performance.now(), accessibilityService.isMotionReduced())
 				: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 			const transcriptHidden = configurationService.getValue<boolean>('agents.voice.showTranscript') === false;

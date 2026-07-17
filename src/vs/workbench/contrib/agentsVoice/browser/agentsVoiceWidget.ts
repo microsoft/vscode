@@ -19,7 +19,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, IDLE_VOICE_GLOW_COLOR } from '../../chat/browser/voiceClient/voiceGlow.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -38,6 +38,8 @@ export interface VoiceWidgetCallbacks {
 	/** Create a new session and set it as transcription target. */
 	newSessionAsTarget(): void;
 	getAnalyserNode(): AnalyserNode | null;
+	/** Reduced-motion state (honors OS + `workbench.reduceMotion`). */
+	isMotionReduced(): boolean;
 	onResize(): void;
 	openPttKeySettings(): void;
 	/** Optional — when provided, header renders a "popout" button. */
@@ -1021,7 +1023,7 @@ export class AgentsVoiceWidget extends Disposable {
 			if (onboarding) {
 				intensity = 0.6;
 			} else if (connectedIdle) {
-				intensity = readIdleVoiceGlowIntensity(getWindow(this.container).performance.now());
+				intensity = readIdleVoiceGlowIntensity(getWindow(this.container).performance.now(), this.callbacks.isMotionReduced());
 			} else if (!analyser) {
 				intensity = 0.3;
 			} else {
@@ -1047,10 +1049,13 @@ export class AgentsVoiceWidget extends Disposable {
 			if (this._inputBoxMicBtn) {
 				const iconGlowActive = connectedIdle || voiceState === 'listening' || voiceState === 'speaking';
 				if (iconGlowActive) {
-					const r = connectedIdle ? '255,255,255' : voiceState === 'speaking' ? '163,113,247' : '88,166,255';
 					const shadowSpread = connectedIdle ? 2 + intensity * 8 : 3 + intensity * 8;
 					const shadowAlpha = connectedIdle ? 0.08 + intensity * 0.18 : 0.2 + intensity * 0.45;
-					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha})`;
+					// Themed idle color stays visible on light input backgrounds; saturated blue/purple for listening/speaking.
+					const glowColor = connectedIdle
+						? `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(shadowAlpha * 100).toFixed(2)}%, transparent)`
+						: `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
+					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
 				} else {
 					this._inputBoxMicBtn.style.boxShadow = 'none';
 				}
@@ -1059,8 +1064,14 @@ export class AgentsVoiceWidget extends Disposable {
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
 			const baseOpacity = connectedIdle ? 0.06 + intensity * 0.18 : 0.15 + intensity * 0.4;
-			const r = connectedIdle ? '255,255,255' : (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			if (connectedIdle) {
+				// Themed idle color so the gradient stays visible on light (white) input backgrounds.
+				const c = (a: number) => `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(a * 100).toFixed(2)}%, transparent)`;
+				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, ${c(baseOpacity)} 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, ${c(baseOpacity * 0.4)} 0%, transparent 100%)`;
+			} else {
+				const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			}
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}

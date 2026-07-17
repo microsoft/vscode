@@ -4595,9 +4595,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	animation: chat-voice-icon-glow 1.4s ease-in-out infinite;
 }
 
-/* Voice mode: white breathing glow while connected-idle (armed) */
+/* Voice mode: themed breathing glow while connected-idle (armed) */
 .chat-input-container.voice-active.voice-idle .chat-input-toolbars .action-label.codicon-voice-mode {
-	--chat-voice-icon-glow-color: rgba(255, 255, 255, 0.7);
+	--chat-voice-icon-glow-color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent);
 	color: var(--vscode-foreground) !important;
 	border-radius: 50%;
 }

@@ -10,7 +10,7 @@ import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity } from '../../../brow
 suite('VoiceGlow', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders a subtle white glow for connected idle voice mode', () => {
+	test('renders a themed subtle glow for connected idle voice mode', () => {
 		const idleStyle = computeVoiceGlowStyle('idle', 0.4, false);
 		assert.deepStrictEqual(
 			{
@@ -18,8 +18,8 @@ suite('VoiceGlow', () => {
 				boxShadow: idleStyle.boxShadow.replace('12.600000000000001', '12.6'),
 			},
 			{
-				borderColor: 'rgba(255,255,255,0.42)',
-				boxShadow: '0 0 12.6px rgba(255,255,255,0.248), inset 0 0 4.41px rgba(255,255,255,0.124)'
+				borderColor: 'color-mix(in srgb, var(--vscode-foreground) 42%, transparent)',
+				boxShadow: '0 0 12.6px color-mix(in srgb, var(--vscode-foreground) 24.8%, transparent), inset 0 0 4.41px color-mix(in srgb, var(--vscode-foreground) 12.4%, transparent)'
 			}
 		);
 	});
@@ -28,6 +28,13 @@ suite('VoiceGlow', () => {
 		assert.deepStrictEqual(
 			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => Number(readIdleVoiceGlowIntensity(timestamp).toFixed(3))),
 			[0.4, 0.55, 0.25]
+		);
+	});
+
+	test('renders a static idle glow midpoint when motion is reduced', () => {
+		assert.deepStrictEqual(
+			[0, 300 * Math.PI, 900 * Math.PI].map(timestamp => readIdleVoiceGlowIntensity(timestamp, true)),
+			[0.4, 0.4, 0.4]
 		);
 	});
 });

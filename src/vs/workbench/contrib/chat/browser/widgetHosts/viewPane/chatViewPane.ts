@@ -39,6 +39,7 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
@@ -147,6 +148,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
@@ -482,7 +484,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				const intensity = voiceState === 'idle'
-					? readIdleVoiceGlowIntensity(win.performance.now())
+					? readIdleVoiceGlowIntensity(win.performance.now(), this.accessibilityService.isMotionReduced())
 					: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
