@@ -53,9 +53,10 @@ export interface ILocalTranscriptionResult {
 }
 
 /**
- * On-device speech-to-text using a downloaded Whisper model (transformers.js +
- * onnxruntime-node). Runs in a utility process. A single transcription session
- * is active at a time (dictation is a singleton in the renderer).
+ * On-device speech-to-text using a downloaded NeMo RNN-T model (Nemotron, run
+ * directly on onnxruntime-node). Runs in a utility process. A single
+ * transcription session is active at a time (dictation is a singleton in the
+ * renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
