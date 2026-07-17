@@ -4965,10 +4965,12 @@ suite('AgentHostChatContribution', () => {
 		test('terminal metadata is observable before terminal revival completes', async () => {
 			const terminalRevival = new DeferredPromise<ITerminalInstance>();
 			let revivalStarted = false;
+			let revivalCall: { terminalUri: URI; terminalToolSessionId: string } | undefined;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
-					reviveTerminal: () => {
+					reviveTerminal: (_connection, terminalUri, terminalToolSessionId) => {
 						revivalStarted = true;
+						revivalCall = { terminalUri, terminalToolSessionId };
 						return terminalRevival.p;
 					},
 				},
@@ -5008,7 +5010,9 @@ suite('AgentHostChatContribution', () => {
 				kind: terminalData.kind,
 				commandLine: terminalData.commandLine.original,
 				terminalCommandUri: terminalData.terminalCommandUri?.toString(),
-				hasTerminalToolSessionId: !!terminalData.terminalToolSessionId,
+				terminalToolSessionId: terminalData.terminalToolSessionId,
+				revivedTerminalUri: revivalCall?.terminalUri.toString(),
+				revivedTerminalToolSessionId: revivalCall?.terminalToolSessionId,
 				terminalCommandId: terminalData.terminalCommandId,
 				terminalCommandOutput: terminalData.terminalCommandOutput,
 				terminalCommandState: terminalData.terminalCommandState,
@@ -5020,7 +5024,9 @@ suite('AgentHostChatContribution', () => {
 				kind: 'terminal',
 				commandLine: 'long-running-command',
 				terminalCommandUri: 'agenthost-terminal://bang/live-shell',
-				hasTerminalToolSessionId: true,
+				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://bang/live-shell', session: 'copilot:/new-turntest' }),
+				revivedTerminalUri: 'agenthost-terminal://bang/live-shell',
+				revivedTerminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://bang/live-shell', session: 'copilot:/new-turntest' }),
 				terminalCommandId: undefined,
 				terminalCommandOutput: undefined,
 				terminalCommandState: undefined,
