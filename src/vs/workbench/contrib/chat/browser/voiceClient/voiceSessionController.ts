@@ -1514,7 +1514,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._handleNarrationAck(e);
 		}));
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationUnblocked(e => {
-			this._retryDeferredNarration(this._sessionKey(e.codingSessionId));
+			this._retryDeferredNarration(this._sessionKey(e.codingSessionId), e.narrationId || undefined);
 		}));
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationInterrupted(e => {
 			this._handleNarrationInterrupted(e);
@@ -3522,11 +3522,25 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * speaking. Returns `true` when a retry was actually sent (mirrors
 	 * {@link _narrate}'s return), so callers can gate other on-reconnect
 	 * behavior (e.g. not entering auto-listen right before a narration plays).
+	 *
+	 * `unblockedNarrationId`, when given, is the specific narration id the
+	 * `narration_unblocked` nudge was for. `_deferredNarrations` is latest-wins
+	 * per session key, so a newer deferred entry can have superseded the one
+	 * this nudge concerns (e.g. a second request went busy for the same
+	 * session before the first one's unblock arrived). In that case the id
+	 * mismatches and we skip: the nudge for the *current* entry will arrive
+	 * separately once its own guard clears, so retrying here would only risk
+	 * an early, possibly-still-busy attempt. Omitted (reconnect replay) means
+	 * "retry whatever is currently deferred, no id to compare against".
 	 */
-	private _retryDeferredNarration(sessionKey: string): boolean {
+	private _retryDeferredNarration(sessionKey: string, unblockedNarrationId?: string): boolean {
 		const deferred = this._deferredNarrations.get(sessionKey);
 		if (!deferred) {
 			this.logService.trace(`[voice] narration_unblocked for ${sessionKey.slice(-32)} but nothing deferred; nothing to retry`);
+			return false;
+		}
+		if (unblockedNarrationId && deferred.narrationId !== unblockedNarrationId) {
+			this.logService.trace(`[voice] narration_unblocked id=${unblockedNarrationId.slice(0, 8)} for ${sessionKey.slice(-32)} does not match currently deferred id=${deferred.narrationId.slice(0, 8)}; a newer entry superseded it, skipping`);
 			return false;
 		}
 		let resource: URI | undefined;
