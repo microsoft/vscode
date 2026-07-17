@@ -700,7 +700,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// The tree's focus tracks the setting whose control contains DOM focus, so the anchor is valid even while a control is focused.
-		const anchor = this.settingsTree.getFocus()[0];
+		const anchor = this._currentFocusContext === SettingsFocusContext.SettingTree || this._currentFocusContext === SettingsFocusContext.SettingControl
+			? this.settingsTree.getFocus()[0]
+			: undefined;
 		const navigator = this.settingsTree.navigate(anchor);
 		let target = !anchor && !next ? navigator.last() : next ? navigator.next() : navigator.previous();
 		while (target && !(target instanceof SettingsTreeSettingElement)) {
