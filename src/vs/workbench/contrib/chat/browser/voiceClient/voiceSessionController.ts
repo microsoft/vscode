@@ -46,6 +46,8 @@ import {
 	VoiceToolApprovalClassification, VoiceToolApprovalEvent,
 	VoiceReconnectClassification, VoiceReconnectEvent,
 	VoiceLatencyClassification, VoiceLatencyEvent,
+	VoiceNarrationDeferredClassification, VoiceNarrationDeferredEvent,
+	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent,
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
@@ -3482,6 +3484,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (e.disposition === 'invalid') {
 			this.logService.trace(`[voice] narration_ack invalid id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
 			this._clearDeferred(key);
+			if (solicited) {
+				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: solicited.kind, reason: 'invalid' });
+			}
 			return;
 		}
 		// busy: defer for a revalidated retry once the guard clears.
@@ -3490,6 +3495,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (kind && text) {
 			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
 			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text });
+			this.telemetryService.publicLog2<VoiceNarrationDeferredEvent, VoiceNarrationDeferredClassification>('voiceNarrationDeferred', { kind, reason: 'busy' });
 		}
 	}
 
@@ -3509,6 +3515,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (solicited) {
 			this.logService.trace(`[voice] narration_interrupted id=${e.narrationId.slice(0, 8)}; deferring for revalidation`);
 			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind: solicited.kind, text: solicited.text });
+			this.telemetryService.publicLog2<VoiceNarrationDeferredEvent, VoiceNarrationDeferredClassification>('voiceNarrationDeferred', { kind: solicited.kind, reason: 'interrupted' });
 		}
 	}
 
@@ -3553,6 +3560,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!narratable || narratable.kind !== deferred.kind) {
 			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer warranted; dropping`);
 			this._clearDeferred(sessionKey);
+			this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: deferred.kind, reason: 'stale' });
 			return false;
 		}
 		// The session may no longer be the one shown (the user switched away while
@@ -3563,6 +3571,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (this._shouldDeferForSession(sessionKey)) {
 			this.logService.trace(`[voice] deferred narration for ${sessionKey.slice(-32)} no longer shown; dropping`);
 			this._clearDeferred(sessionKey);
+			this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: deferred.kind, reason: 'session_changed' });
 			return false;
 		}
 		const reuseId = narratable.text === deferred.text ? deferred.narrationId : undefined;
