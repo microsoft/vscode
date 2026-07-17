@@ -240,8 +240,10 @@ export function setup(logger: Logger) {
 
 			try {
 				// Open the panel chat (Agent mode is the default; the context-size
-				// override is applied on the agent request path).
-				await app.workbench.quickaccess.runCommand('workbench.action.chat.open');
+				// override is applied on the agent request path). Select the local
+				// harness explicitly since the panel default is Agent Host Copilot
+				// when the agent host is enabled.
+				await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
 				await chat.waitForChatView();
 
 				// Retry the warm-up send until the model actually replies, which
