@@ -80,7 +80,6 @@ interface IPendingSolicitedNarration {
 	readonly kind: 'response' | 'confirmation';
 	readonly text: string;
 	readonly audioStartTimer: ReturnType<typeof setTimeout>;
-	audioFinalizeTimer: ReturnType<typeof setTimeout> | undefined;
 	hasReceivedAudio: boolean;
 }
 
@@ -519,7 +518,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _pendingSolicitedNarrations = new Map<string, IPendingSolicitedNarration>();
 	private static readonly _SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS = 30_000;
-	private static readonly _SOLICITED_NARRATION_TIMEOUT_MS = 30_000;
 
 	/**
 	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
@@ -3037,10 +3035,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._solicitedNarrationIds.add(narrationId);
 		// Do NOT mark the reply narrated / clear its pending indicator yet - a
-		// request being accepted is not the reply being heard. First wait for the
-		// backend to send any audio at all; once it does, arm a second timeout for
-		// the stream to finish. This prevents voice mode from getting stuck if the
-		// backend never starts returning audio for a completed response.
+		// request being accepted is not the reply being heard. Wait for the
+		// backend to start returning audio: if it never does, the watchdog below
+		// releases the guard and restores state so voice mode can't get stuck on
+		// a completed response that never produced audio. Once audio starts, the
+		// stream is left to finalize normally (_markNarrationHeard) with no
+		// timeout on the remainder.
 		const audioStartTimer = setTimeout(() => {
 			this._handleSolicitedNarrationAudioStartTimeout(narrationId);
 		}, VoiceSessionController._SOLICITED_NARRATION_AUDIO_START_TIMEOUT_MS);
@@ -3049,7 +3049,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			kind,
 			text,
 			audioStartTimer,
-			audioFinalizeTimer: undefined,
 			hasReceivedAudio: false,
 		});
 		return true;
@@ -3063,16 +3062,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!pending || pending.hasReceivedAudio) {
 			return;
 		}
+		// Audio has started arriving, so the "no audio at all" watchdog is done.
+		// The rest of the stream is left to finalize normally (_markNarrationHeard);
+		// we don't time out a stream that is actively coming in.
 		pending.hasReceivedAudio = true;
 		clearTimeout(pending.audioStartTimer);
-		pending.audioFinalizeTimer = setTimeout(() => {
-			if (this._pendingSolicitedNarrations.get(narrationId) !== pending) {
-				return;
-			}
-			this._pendingSolicitedNarrations.delete(narrationId);
-			this._solicitedNarrationIds.delete(narrationId);
-			this.logService.trace(`[voice] solicited narration ${narrationId.slice(0, 8)} timed out before final audio; releasing guard for retry`);
-		}, VoiceSessionController._SOLICITED_NARRATION_TIMEOUT_MS);
 	}
 
 	private _handleSolicitedNarrationAudioStartTimeout(narrationId: string): void {
@@ -3108,9 +3102,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _clearPendingSolicitedNarration(narrationId: string, pending: IPendingSolicitedNarration): void {
 		clearTimeout(pending.audioStartTimer);
-		if (pending.audioFinalizeTimer) {
-			clearTimeout(pending.audioFinalizeTimer);
-		}
 		this._pendingSolicitedNarrations.delete(narrationId);
 	}
 

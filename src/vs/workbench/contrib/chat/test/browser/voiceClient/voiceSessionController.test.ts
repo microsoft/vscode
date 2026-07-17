@@ -153,7 +153,7 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(pendingSolicitedNarrations.size, 0);
 	});
 
-	test('switches to the final-audio timeout only after audio actually arrives', () => {
+	test('stops the audio-start watchdog once audio arrives and does not time out the stream', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);
 		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
@@ -162,16 +162,16 @@ suite('VoiceSessionController', () => {
 
 		assert.strictEqual(narrate.call(controller, URI.parse('agent-host-copilot:/session-2').toString(), 'response', 'Ready'), true);
 
+		// Audio starts before the audio-start watchdog fires, so it is cancelled.
 		clock.tick(10_000);
 		markAudioStarted.call(controller, 'narration-1');
-		clock.tick(20_000);
 
-		assert.strictEqual(controller.statusText.get(), 'Tap to start');
+		// Well past any timeout: the stream is left to finalize normally, so the
+		// narration stays tracked and state is untouched (no finalize timeout).
+		clock.tick(120_000);
+
 		assert.strictEqual(pendingSolicitedNarrations.size, 1);
-
-		clock.tick(30_000);
-
-		assert.strictEqual(pendingSolicitedNarrations.size, 0);
+		assert.strictEqual(controller.statusText.get(), 'Tap to start');
 	});
 
 	test('does not restore state while another solicited narration is still awaiting audio', () => {
