@@ -26,6 +26,7 @@ export const webviewGenericCspSource = `'self' https://*.${webviewResourceBaseHo
 
 export interface ElectronWebviewResourceRoute {
 	readonly extensionId: string;
+	readonly webviewId: string;
 }
 
 const webviewExtensionIdPattern = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$/;
@@ -69,7 +70,7 @@ export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo, elec
 		return URI.from({
 			scheme: Schemas.vscodeWebview,
 			authority: extensionId,
-			path: `/_vscode/resource/${resource.scheme}+${encodeAuthority(resource.authority)}${resource.path}`,
+			path: `/${electronRoute.webviewId}/_vscode/resource/${resource.scheme}+${encodeAuthority(resource.authority)}${resource.path}`,
 			fragment: resource.fragment,
 			query: resource.query,
 		});

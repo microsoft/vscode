@@ -141,27 +141,6 @@ export class WebviewProtocolProvider implements IDisposable {
 		return this.documents.get(`${url.authority.toLowerCase()}\0${decodeURIComponent(match[1])}`);
 	}
 
-	public static getWebviewResourceRedirect(frameUrl: string, resource: URI): string | undefined {
-		if (resource.scheme !== Schemas.vscodeWebview || !resource.path.startsWith('/_vscode/resource/')) {
-			return undefined;
-		}
-		let frame: URI;
-		try {
-			frame = URI.parse(frameUrl);
-		} catch {
-			return undefined;
-		}
-		const document = this.getWebviewDocument(frame);
-		if (!document || resource.authority.toLowerCase() !== document.extensionId.toLowerCase()) {
-			return undefined;
-		}
-		const route = `${Schemas.vscodeWebview}://${document.extensionId.toLowerCase()}/${encodeURIComponent(document.webviewId)}/`;
-		if (!frameUrl.startsWith(route)) {
-			return undefined;
-		}
-		return resource.with({ path: `/${document.webviewId}${resource.path}` }).toString();
-	}
-
 	public static getWebviewPortMapping(frameUrl: string, targetUrl: string): Promise<string | undefined> | undefined {
 		const instance = this.instance;
 		if (!instance) { return undefined; }

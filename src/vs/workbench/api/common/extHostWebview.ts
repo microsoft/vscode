@@ -82,6 +82,7 @@ export class ExtHostWebview implements vscode.Webview {
 		this.#hasCalledAsWebviewUri = true;
 		return asWebviewUri(resource, this.#remoteInfo, this.#useSingleIframe ? {
 			extensionId: this.#extension.identifier.value,
+			webviewId: this.#handle,
 		} : undefined);
 	}
 

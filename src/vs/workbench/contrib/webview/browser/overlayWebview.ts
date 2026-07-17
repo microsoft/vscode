@@ -36,6 +36,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _title: string | undefined;
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
+	private _resourceId: string | undefined;
+
 	private _extension: WebviewExtensionDescription | undefined;
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
@@ -212,6 +214,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 				extension: this.extension,
 			});
 			this._webview.value = webview;
+			webview.resourceId = this._resourceId;
 			webview.state = this._state;
 
 			if (this._scopedContextKeyService.value) {
@@ -400,4 +403,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._webview.value?.setContextKeyService(contextKeyService);
 	}
 
+	public get resourceId(): string | undefined { return this._resourceId; }
+	public set resourceId(value: string | undefined) {
+		this._resourceId = value;
+		this._withWebview(webview => webview.resourceId = value);
+	}
 }

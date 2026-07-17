@@ -174,7 +174,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		this._register(this._webviewMainService.onDidRequestWebviewPortMapping(async request => {
 			if (this.useSingleIframe
 				&& request.extensionId.toLowerCase() === this.extension?.id.value.toLowerCase()
-				&& request.webviewId === this.id) {
+				&& request.webviewId === this.resourceId) {
 				const redirect = await this.getDirectLocalhostRedirect(request.origin);
 				await this._webviewMainService.resolveWebviewPortMapping(request.requestId, redirect);
 			}
@@ -198,8 +198,8 @@ export class ElectronWebviewElement extends WebviewElement {
 		// Make sure keyboard handler knows it closed (#71800)
 		this._webviewKeyboardHandler.didBlur();
 
-		if (this.extension?.useSingleIframe) {
-			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.id);
+		if (this.extension?.useSingleIframe && this.resourceId) {
+			void this._webviewMainService.unregisterWebviewDocument(this.extension.id.value, this.resourceId);
 		}
 		for (const request of this._directResourceRequests.values()) {
 			request.dispose(true);
@@ -211,7 +211,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private async handleDirectResourceRequest(request: WebviewResourceRequest): Promise<void> {
 		if (!this.useSingleIframe
 			|| request.extensionId.toLowerCase() !== this.extension?.id.value.toLowerCase()
-			|| request.webviewId !== this.id) {
+			|| request.webviewId !== this.resourceId) {
 			return;
 		}
 		const cts = new CancellationTokenSource();
@@ -311,7 +311,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	private async updateDirectDocument(prepareForNavigation: boolean): Promise<void> {
 		const extensionId = this.extension?.id.value.toLowerCase();
-		const webviewId = this.id;
+		const webviewId = this.resourceId;
 		const targetWindow = this._directTargetWindow;
 		if (!extensionId || !webviewId || !targetWindow || typeof this.windowId !== 'number' || !this.element) {
 			return;

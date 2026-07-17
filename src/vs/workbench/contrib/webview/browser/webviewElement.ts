@@ -77,6 +77,9 @@ const webviewIdContext = 'webviewId';
 export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
 
 	protected readonly id = generateUuid();
+	private _resourceId: string | undefined;
+	public get resourceId(): string | undefined { return this._resourceId; }
+	public set resourceId(value: string | undefined) { this._resourceId = value; this.onWebviewRouteChanged(); }
 
 	/**
 	 * The provided identifier of this webview.
