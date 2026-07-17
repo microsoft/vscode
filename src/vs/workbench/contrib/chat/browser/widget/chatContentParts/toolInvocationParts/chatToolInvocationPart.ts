@@ -132,10 +132,13 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const stateChanged = state.type !== previousState.type;
 				const dataKindChanged = dataKind !== previousDataKind;
 				const dataChanged = state !== previousState && toolSpecificData !== previousToolSpecificData;
+				const confirmationMessagesChanged = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					&& previousState.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					&& state.confirmationMessages !== previousState.confirmationMessages;
 				previousState = state;
 				previousDataKind = dataKind;
 				previousToolSpecificData = toolSpecificData;
-				if (stateChanged || dataKindChanged || dataChanged) {
+				if (stateChanged || dataKindChanged || dataChanged || confirmationMessagesChanged) {
 					render();
 				}
 			}));
