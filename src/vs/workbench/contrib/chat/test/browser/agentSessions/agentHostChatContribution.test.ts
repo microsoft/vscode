@@ -8620,6 +8620,10 @@ suite('AgentHostChatContribution', () => {
 			override getMcpServers(): readonly IAgentHostMcpServer[] {
 				return this.mcpServers;
 			}
+			onPrepare: (() => void) | undefined;
+			override prepareMcpServersForTurn(): void {
+				this.onPrepare?.();
+			}
 			fireChange(): void {
 				this._onDidChange.fire();
 			}
@@ -8692,6 +8696,32 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 			return promptParts;
 		}
+
+		test('prepares MCP enablement immediately before dispatching the turn', async () => {
+			const customizationService = disposables.add(new TestMcpCustomizationService());
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			let prepareCount = 0;
+			customizationService.onPrepare = () => {
+				assert.strictEqual(agentHostService.turnActions.length, 0);
+				prepareCount++;
+			};
+
+			await runTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				URI.from({ scheme: 'agent-host-copilot', path: '/mcp-prepare' }),
+				{ v: 1 },
+			);
+
+			assert.deepStrictEqual({
+				prepareCount,
+				turnCount: agentHostService.turnActions.length,
+			}, {
+				prepareCount: 1,
+				turnCount: 1,
+			});
+		});
 
 		test('surfaces an unauthenticated server once, then suppresses it on the next turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
