@@ -85,6 +85,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			inputContainerEl.style.boxShadow = boxShadow;
 			inputContainerEl.classList.add('voice-active');
 			inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+			inputContainerEl.classList.toggle('voice-speaking', voiceState === 'speaking');
+			inputContainerEl.classList.toggle('voice-idle', voiceState === 'idle');
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -95,7 +97,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 		inputContainerEl.style.borderColor = '';
 		inputContainerEl.style.boxShadow = '';
-		inputContainerEl.classList.remove('voice-active', 'voice-listening');
+		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
 	};
 
 	store.add(autorun(reader => {
@@ -144,6 +146,19 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const listening = dom.$('span.listening');
 				listening.textContent = localize('voiceMode.listening', "Listening...");
 				transcriptOverlay.append(listening);
+				transcriptScrollable.scanDomNode();
+			} else if (!showTranscript && voiceState === 'speaking') {
+				// Transcript is disabled: hint that the user can interrupt playback.
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const hint = dom.$('span.partial');
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
+				hint.textContent = kbLabel
+					? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 				transcriptOverlayNode.style.display = '';

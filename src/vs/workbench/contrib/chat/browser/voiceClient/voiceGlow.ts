@@ -37,7 +37,7 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
  * the surface is still armed even when no audio is flowing.
  */
 export function readIdleVoiceGlowIntensity(timestampMs: number): number {
-	return 0.2 + ((Math.sin(timestampMs / 600) + 1) * 0.5) * 0.2;
+	return 0.25 + ((Math.sin(timestampMs / 600) + 1) * 0.5) * 0.3;
 }
 
 export interface IVoiceGlowStyle {
@@ -52,9 +52,9 @@ export interface IVoiceGlowStyle {
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean): IVoiceGlowStyle {
 	if (voiceState === 'idle') {
-		const borderAlpha = 0.16 + intensity * 0.18;
-		const shadowSpread = 5 + intensity * 10;
-		const shadowAlpha = 0.08 + intensity * 0.14;
+		const borderAlpha = 0.3 + intensity * 0.3;
+		const shadowSpread = 7 + intensity * 14;
+		const shadowAlpha = 0.16 + intensity * 0.22;
 		const rgb = '255,255,255';
 		return {
 			borderColor: `rgba(${rgb},${borderAlpha})`,

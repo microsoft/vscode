@@ -466,14 +466,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (lastGlowTarget && lastGlowTarget !== target) {
 					lastGlowTarget.style.borderColor = '';
 					lastGlowTarget.style.boxShadow = '';
-					lastGlowTarget.classList.remove('voice-active', 'voice-listening');
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
 				}
 				lastGlowTarget = target;
 
 				if (!glowActive) {
 					target.style.borderColor = '';
 					target.style.boxShadow = '';
-					target.classList.remove('voice-active', 'voice-listening');
+					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
 					return;
 				}
 
@@ -491,6 +491,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				target.style.boxShadow = boxShadow;
 				target.classList.add('voice-active');
 				target.classList.toggle('voice-listening', voiceState === 'listening');
+				target.classList.toggle('voice-speaking', voiceState === 'speaking');
+				target.classList.toggle('voice-idle', voiceState === 'idle');
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -502,7 +504,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const target = lastGlowTarget ?? inputContainerEl;
 			target.style.borderColor = '';
 			target.style.boxShadow = '';
-			target.classList.remove('voice-active', 'voice-listening');
+			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
 			lastGlowTarget = undefined;
 		};
 
@@ -597,6 +599,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const listening = $('span.listening');
 					listening.textContent = localize('voiceMode.listening', "Listening...");
 					transcriptOverlay.append(listening);
+					transcriptScrollable.scanDomNode();
+				} else if (!showTranscript && voiceState === 'speaking') {
+					// Transcript is disabled: hint that the user can interrupt playback.
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					const kbLabel = kb?.getLabel();
+					hint.textContent = kbLabel
+						? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 					transcriptOverlayNode.style.display = '';

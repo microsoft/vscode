@@ -639,6 +639,10 @@ export class AgentsVoiceWidget extends Disposable {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.connecting', "Connecting...");
 			} else if (isConnected && voiceState === 'listening') {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
+			} else if (isConnected && voiceState === 'speaking') {
+				this._inputBoxPlaceholder!.textContent = keyLabel
+					? localize('agentsVoice.pressToBargeIn', "Press {0} to barge in", keyLabel)
+					: localize('agentsVoice.speakToBargeIn', "Speak to barge in");
 			} else if (isConnected) {
 				this._inputBoxPlaceholder!.textContent = keyLabel
 					? localize('agentsVoice.holdToTalkOrBargeIn', "Hold {0} to talk or barge in", keyLabel)
