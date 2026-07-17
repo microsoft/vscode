@@ -11,7 +11,7 @@ import type { IMarkdownString } from '../../../../../../base/common/htmlContent.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -66,8 +66,8 @@ function message(text: string, kind = MessageKind.User): Message {
 	return { text, origin: { kind } };
 }
 
-function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local');
+function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string, options?: Parameters<typeof rawToolCallStateToInvocation>[5]) {
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local', undefined, options);
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
@@ -102,8 +102,8 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 	};
 }
 
-function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local');
+function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2], options?: Parameters<typeof rawActiveTurnToProgress>[4]) {
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local', undefined, options);
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
@@ -796,6 +796,38 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolCallId, 'tc-42');
 			assert.strictEqual(invocation.toolId, 'my_tool');
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
+		});
+
+		test('represents another client tool without surfacing its confirmation', () => {
+			const toolCall: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-other-client',
+				toolName: 'run_task',
+				displayName: 'Run Task',
+				invocationMessage: 'Run task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+				status: ToolCallStatus.PendingConfirmation,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			};
+			let cancelledToolCallId: string | undefined;
+
+			const invocation = toolCallStateToInvocation(toolCall, undefined, {
+				currentClientId: 'viewer-client',
+				cancelOtherClientToolCall: toolCall => cancelledToolCallId = toolCall.toolCallId,
+			});
+			invocation.otherClientToolCall?.cancel();
+
+			assert.deepStrictEqual({
+				message: invocation.invocationMessage,
+				state: invocation.state.get().type,
+				hasOtherClientData: !!invocation.otherClientToolCall,
+				cancelledToolCallId,
+			}, {
+				message: 'Running Run Task on another client...',
+				state: IChatToolInvocation.StateKind.Executing,
+				hasOtherClientData: true,
+				cancelledToolCallId: 'tc-other-client',
+			});
 		});
 
 		test('creates authentication-required invocation for an MCP tool call', () => {
@@ -1549,6 +1581,36 @@ suite('stateToProgressAdapter', () => {
 			// Live ChatToolInvocation - check it has the right toolCallId
 			const invocation = result[0] as { toolCallId?: string; kind?: string };
 			assert.strictEqual(invocation.toolCallId, 'tc-running');
+		});
+
+		test('hydrates another client tool without a confirmation invocation', () => {
+			const toolCall: ToolCallPendingConfirmationState = {
+				toolCallId: 'tc-other-client',
+				toolName: 'run_task',
+				displayName: 'Run Task',
+				invocationMessage: 'Run task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+				status: ToolCallStatus.PendingConfirmation,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			};
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.ToolCall, toolCall },
+			]), undefined, {
+				currentClientId: 'viewer-client',
+				cancelOtherClientToolCall: () => { },
+			});
+			const invocation = result[0] as IChatToolInvocation;
+
+			assert.deepStrictEqual({
+				kind: invocation.kind,
+				state: invocation.state.get().type,
+				hasOtherClientData: !!invocation.otherClientToolCall,
+			}, {
+				kind: 'toolInvocation',
+				state: IChatToolInvocation.StateKind.Executing,
+				hasOtherClientData: true,
+			});
 		});
 
 		test('creates confirmation invocations for pending tool confirmations', () => {

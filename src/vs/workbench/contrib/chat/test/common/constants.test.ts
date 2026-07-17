@@ -55,7 +55,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('editor default prefers agent host Copilot when the agent host is enabled', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -70,8 +72,25 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('editor default stays local when the agent host is enabled but the Copilot default is not opted in', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
+
+		// The agent host is enabled but `chat.defaultToCopilotHarness` is off (its
+		// default), so the computed default remains the local harness.
+		assert.deepStrictEqual({
+			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true),
+		}, {
+			computed: localChatSessionType,
+			rememberedAware: localChatSessionType,
+		});
+	});
+
 	test('editor default keeps agent host Copilot before contribution registers', () => {
 		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.CopilotCLI);
@@ -126,7 +145,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('remembered non-local selection wins over the agent host default', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -180,6 +201,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('preferCopilotHarness resolves the swap without consuming the marker until applied', () => {
+		// DefaultToCopilotHarness stays unset so this proves the one-time swap
+		// fires solely because EditorPreferCopilotHarness is enabled, independent
+		// of the new default gate.
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
@@ -206,8 +230,8 @@ suite('ChatConfiguration defaults', () => {
 			firstResolve: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
 			markerBeforeApply: false,
 			secondResolveBeforeApply: { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true },
-			// After applying, the current local session is preserved (feature-2's
-			// computed default is Copilot, but session preservation keeps local).
+			// Once marked, the one-time swap no longer fires; with no remembered
+			// selection the current local session type is returned.
 			afterApply: { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false },
 			markerAfterApply: true,
 		});
@@ -234,7 +258,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('selecting computed default clears remembered selection', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -253,7 +279,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('selecting local while the agent host default is Copilot remembers local as an opt-out', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -272,6 +300,7 @@ suite('ChatConfiguration defaults', () => {
 
 	test('one-time Copilot swap overrides a remembered local opt-out and stays redundant when agent host is enabled', () => {
 		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorPreferCopilotHarness]: true,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
@@ -295,7 +324,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('new chat from a local session preserves local even when the agent host default is Copilot', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -311,7 +342,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('explicit New Local Chat wins over a non-local current session even when the agent host default is Copilot', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -326,7 +359,9 @@ suite('ChatConfiguration defaults', () => {
 	});
 
 	test('default session resource follows the agent host default', () => {
-		const configurationService = new TestConfigurationService();
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
+		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
 		const storageService = disposables.add(new TestStorageService());
 
@@ -345,6 +380,7 @@ suite('ChatConfiguration defaults', () => {
 
 	test('agent host default wins over a virtual workspace local override', () => {
 		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
