@@ -51,7 +51,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
@@ -91,7 +91,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallConfirmationMessages, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -937,7 +937,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								participant: this._config.agentId,
 								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
 							});
-							initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority, sessionResource.authority);
+							initialProgress = activeTurnToProgress(
+								resolvedSession,
+								sessionState.activeTurn,
+								this._config.connectionAuthority,
+								sessionResource.authority,
+								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
+							);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
@@ -1710,6 +1716,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
+		this._customizationService.prepareMcpServersForTurn(request.sessionResource);
+
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction: ChatTurnStartedAction = {
@@ -2390,9 +2398,69 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const contributor = initial.contributor;
 		if (contributor?.kind === ToolCallContributorKind.Client && contributor.clientId === this._config.connection.clientId) {
 			this._setupClientToolCall(initial, part$, store, opts);
+		} else if (contributor?.kind === ToolCallContributorKind.Client) {
+			this._setupOtherClientToolCall(initial, part$, store, opts);
 		} else {
 			this._setupServerToolCall(initial, part$, store, opts, subagentContext);
 		}
+	}
+
+	private _setupOtherClientToolCall(
+		initial: ToolCallState,
+		part$: IObservable<ToolCallResponsePart>,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const toolCallId = initial.toolCallId;
+		const adopted = opts.adoptInvocations?.get(toolCallId);
+		const invocation = adopted ?? toolCallStateToInvocation(
+			initial,
+			opts.subAgentInvocationId,
+			opts.backendSession,
+			this._config.connectionAuthority,
+			opts.sessionResource.authority,
+			this._otherClientToolInvocationOptions(opts.backendSession, opts.chatURI, opts.turnId),
+		);
+		if (!adopted) {
+			opts.sink([invocation]);
+		}
+
+		store.add(autorun(reader => {
+			const toolCall = part$.read(reader).toolCall;
+			if ((toolCall.status === ToolCallStatus.Completed || toolCall.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
+				const fileEdits = finalizeToolInvocation(invocation, toolCall, opts.backendSession, this._config.connectionAuthority);
+				if (fileEdits.length > 0) {
+					opts.onFileEdits?.(toolCall, fileEdits);
+				}
+			}
+		}));
+
+		store.add(toDisposable(() => {
+			if (!IChatToolInvocation.isComplete(invocation)) {
+				invocation.didExecuteTool(undefined);
+			}
+		}));
+	}
+
+	private _otherClientToolInvocationOptions(backendSession: URI, chatURI: string, turnId: string): IAgentHostToolInvocationOptions {
+		return {
+			currentClientId: this._config.connection.clientId,
+			cancelOtherClientToolCall: toolCall => {
+				this._dispatchAction(backendSession, {
+					type: ActionType.ChatToolCallComplete,
+					turnId,
+					toolCallId: toolCall.toolCallId,
+					result: {
+						success: false,
+						pastTenseMessage: localize('agentHost.otherClientTool.skipped', "Skipped {0}", toolCall.displayName),
+						error: {
+							message: localize('agentHost.otherClientTool.skippedError', "{0} was skipped from another client", toolCall.displayName),
+							code: 'cancelled',
+						},
+					},
+				}, chatURI);
+			},
+		};
 	}
 
 	/**
@@ -3071,7 +3139,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolInput = tc.toolInput;
 		const sessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
 		const terminalCommandUri = URI.parse(terminalUri);
-		const terminalInstance = this._ensureTerminalInstance(terminalUri, backendSession);
+		const terminalInstance = this._ensureTerminalInstance(terminalUri, sessionId);
 		const existing = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData as IChatTerminalToolInvocationData
 			: undefined;
@@ -3487,18 +3555,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Attaches to an existing server-side terminal via the agent host
 	 * terminal service and registers it with the terminal chat service.
 	 *
-	 * Returns the `terminalToolSessionId` to use for the tool invocation.
+	 * Returns the terminal instance created or reused by the terminal service.
 	 */
-	private async _ensureTerminalInstance(terminalUri: string, backendSession: URI): Promise<string> {
-		const terminalToolSessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
-		const parsedUri = URI.parse(terminalUri);
-		await this._agentHostTerminalService.reviveTerminal(
+	private _ensureTerminalInstance(terminalUri: string, terminalToolSessionId: string): Promise<ITerminalInstance> {
+		return this._agentHostTerminalService.reviveTerminal(
 			this._config.connection,
-			parsedUri,
+			URI.parse(terminalUri),
 			terminalToolSessionId
 		);
-
-		return terminalToolSessionId;
 	}
 
 	/** Maps a UI session resource to a backend provider URI. */

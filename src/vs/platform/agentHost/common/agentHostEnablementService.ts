@@ -60,6 +60,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
+		'chat.defaultToCopilotHarness': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot CLI instead of the local harness. Requires `#{0}#`.", agentHostEnabledSettingId),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),

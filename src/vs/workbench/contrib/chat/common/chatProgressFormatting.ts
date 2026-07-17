@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { safeIntl } from '../../../../base/common/date.js';
+import { fromNow, safeIntl } from '../../../../base/common/date.js';
+import { language } from '../../../../base/common/platform.js';
 
 const dayInMilliseconds = 24 * 60 * 60 * 1000;
 
-const chatRequestTimeFormatter = safeIntl.DateTimeFormat(undefined, {
+const chatRequestTimeFormatter = safeIntl.DateTimeFormat(language, {
 	hour: 'numeric',
 	minute: '2-digit',
 });
 
-const chatRequestFullDateTimeFormatter = safeIntl.DateTimeFormat(undefined, {
+const chatRequestFullDateTimeFormatter = safeIntl.DateTimeFormat(language, {
 	year: 'numeric',
 	month: 'numeric',
 	day: 'numeric',
@@ -52,7 +53,7 @@ export function formatChatRequestTimestamp(timestamp: number | undefined): IForm
 	const isRelative = age > dayInMilliseconds;
 	return {
 		text: isRelative
-			? localize('chatTimestampDays', "{0}d", Math.floor(age / dayInMilliseconds))
+			? fromNow(timestamp, false, true)
 			: chatRequestTimeFormatter.value.format(date),
 		fullText: chatRequestFullDateTimeFormatter.value.format(date),
 		dateTime: date.toISOString(),

@@ -4965,10 +4965,12 @@ suite('AgentHostChatContribution', () => {
 		test('terminal metadata is observable before terminal revival completes', async () => {
 			const terminalRevival = new DeferredPromise<ITerminalInstance>();
 			let revivalStarted = false;
+			let revivalCall: { terminalUri: URI; terminalToolSessionId: string } | undefined;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
-					reviveTerminal: () => {
+					reviveTerminal: (_connection, terminalUri, terminalToolSessionId) => {
 						revivalStarted = true;
+						revivalCall = { terminalUri, terminalToolSessionId };
 						return terminalRevival.p;
 					},
 				},
@@ -5008,7 +5010,9 @@ suite('AgentHostChatContribution', () => {
 				kind: terminalData.kind,
 				commandLine: terminalData.commandLine.original,
 				terminalCommandUri: terminalData.terminalCommandUri?.toString(),
-				hasTerminalToolSessionId: !!terminalData.terminalToolSessionId,
+				terminalToolSessionId: terminalData.terminalToolSessionId,
+				revivedTerminalUri: revivalCall?.terminalUri.toString(),
+				revivedTerminalToolSessionId: revivalCall?.terminalToolSessionId,
 				terminalCommandId: terminalData.terminalCommandId,
 				terminalCommandOutput: terminalData.terminalCommandOutput,
 				terminalCommandState: terminalData.terminalCommandState,
@@ -5020,7 +5024,9 @@ suite('AgentHostChatContribution', () => {
 				kind: 'terminal',
 				commandLine: 'long-running-command',
 				terminalCommandUri: 'agenthost-terminal://bang/live-shell',
-				hasTerminalToolSessionId: true,
+				terminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://bang/live-shell', session: 'copilot:/new-turntest' }),
+				revivedTerminalUri: 'agenthost-terminal://bang/live-shell',
+				revivedTerminalToolSessionId: JSON.stringify({ terminal: 'agenthost-terminal://bang/live-shell', session: 'copilot:/new-turntest' }),
 				terminalCommandId: undefined,
 				terminalCommandOutput: undefined,
 				terminalCommandState: undefined,
@@ -8620,6 +8626,10 @@ suite('AgentHostChatContribution', () => {
 			override getMcpServers(): readonly IAgentHostMcpServer[] {
 				return this.mcpServers;
 			}
+			onPrepare: (() => void) | undefined;
+			override prepareMcpServersForTurn(): void {
+				this.onPrepare?.();
+			}
 			fireChange(): void {
 				this._onDidChange.fire();
 			}
@@ -8692,6 +8702,32 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 			return promptParts;
 		}
+
+		test('prepares MCP enablement immediately before dispatching the turn', async () => {
+			const customizationService = disposables.add(new TestMcpCustomizationService());
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			let prepareCount = 0;
+			customizationService.onPrepare = () => {
+				assert.strictEqual(agentHostService.turnActions.length, 0);
+				prepareCount++;
+			};
+
+			await runTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				URI.from({ scheme: 'agent-host-copilot', path: '/mcp-prepare' }),
+				{ v: 1 },
+			);
+
+			assert.deepStrictEqual({
+				prepareCount,
+				turnCount: agentHostService.turnActions.length,
+			}, {
+				prepareCount: 1,
+				turnCount: 1,
+			});
+		});
 
 		test('surfaces an unauthenticated server once, then suppresses it on the next turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

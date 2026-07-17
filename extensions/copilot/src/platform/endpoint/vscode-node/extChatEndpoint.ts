@@ -24,7 +24,7 @@ import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation 
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
-import { CustomDataPartMimeTypes } from '../common/endpointTypes';
+import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
 import { ExtensionContributedChatTokenizer } from './extChatTokenizer';
@@ -174,6 +174,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		const vscodeMessages = convertToApiChatMessage(messages, {
 			ignoreStatefulMarker,
 			summarizedAtRoundId,
+			emitCacheBreakpoints: modelVendorHandlesCacheBreakpoints(this.languageModel.vendor),
 		});
 		const ourRequestId = generateUuid();
 
@@ -331,6 +332,8 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 interface ConvertToApiChatMessageOptions {
 	readonly ignoreStatefulMarker?: boolean;
 	readonly summarizedAtRoundId?: string;
+	/** Emit the {@link CustomDataPartMimeTypes.CacheControl} sentinel for cache breakpoints. Defaults to `false` (fail closed) so it never reaches a provider that can't consume it (#313920). */
+	readonly emitCacheBreakpoints?: boolean;
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: ConvertToApiChatMessageOptions = {}): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
@@ -356,7 +359,9 @@ export function convertToApiChatMessage(messages: Raw.ChatMessage[], options: Co
 					continue;
 				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.CacheBreakpoint) {
-				apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				if (options.emitCacheBreakpoints) {
+					apiContent.push(new vscode.LanguageModelDataPart(new TextEncoder().encode('ephemeral'), CustomDataPartMimeTypes.CacheControl));
+				}
 			} else if (contentPart.type === Raw.ChatCompletionContentPartKind.Opaque) {
 				const statefulMarker = rawPartAsStatefulMarker(contentPart);
 				// A marker created under a different local summary generation points at

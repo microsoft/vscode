@@ -147,6 +147,7 @@ steps:
       VSCODE_ARCH: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      ONNXRUNTIME_NODE_INSTALL: skip
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -164,7 +165,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -247,7 +248,7 @@ steps:
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact

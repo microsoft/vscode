@@ -4345,6 +4345,110 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.textResultForLlm, 'result text');
 		});
 
+		test('client tool auto-readies when SDK allow-all mode is on', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-allow-all',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
+			const readyAction = readySignal.action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				permissionModeSetCalls: mockSession.permissionModeSetCalls,
+				toolCallId: readyAction.toolCallId,
+				toolInput: readyAction.toolInput === undefined ? undefined : JSON.parse(readyAction.toolInput),
+				confirmed: readyAction.confirmed,
+			}, {
+				permissionModeSetCalls: ['on'],
+				toolCallId: 'tc-allow-all',
+				toolInput: { file: 'test.ts' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-allow-all', { file: 'test.ts' });
+			session.handleClientToolCallComplete('tc-allow-all', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
+		});
+
+		test('SDK-approved client tool auto-readies in assisted mode', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-assisted',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('permission.requested', {
+				requestId: 'permission-assisted',
+				permissionRequest: {
+					kind: 'custom-tool',
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+				},
+				promptRequest: {
+					kind: 'custom-tool',
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+					autoApproval: {
+						recommendation: 'approve',
+						reason: 'The requested browser navigation is safe.',
+					},
+				},
+			} as SessionEventPayload<'permission.requested'>['data']);
+			const permissionResult = await runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-assisted',
+				toolName: 'my_tool',
+			});
+			const readySignal = signals.find((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+			const readyState = readySignal?.state;
+
+			assert.deepStrictEqual({
+				permissionModeSetCalls: mockSession.permissionModeSetCalls,
+				permissionResult,
+				ready: readyState ? {
+					...readyState,
+					toolInput: readyState.toolInput === undefined ? undefined : JSON.parse(readyState.toolInput),
+				} : undefined,
+			}, {
+				permissionModeSetCalls: ['auto'],
+				permissionResult: { kind: 'approve-once' },
+				ready: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+					displayName: 'my_tool',
+					invocationMessage: 'my_tool',
+					toolInput: { file: 'test.ts' },
+					riskAssessment: {
+						kind: ToolCallRiskAssessmentKind.Judge,
+						status: ToolCallRiskAssessmentStatus.Complete,
+						reason: 'The requested browser navigation is safe.',
+						safety: 1,
+					},
+				},
+			});
+		});
+
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {
 			const agentSnapshot: IActiveClientSnapshot = {
 				tools: [{ name: 'list_agents', description: 'List agents', inputSchema: { type: 'object', properties: {} } }],

@@ -43,6 +43,11 @@ import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariable
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
 
+export interface IAgentHostToolInvocationOptions {
+	readonly currentClientId: string;
+	readonly cancelOtherClientToolCall: (toolCall: ToolCallState) => void;
+}
+
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
  * The ID is a JSON string containing both so consumers can parse out either.
@@ -1098,7 +1103,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage);
 	if (usage) {
@@ -1122,7 +1127,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource, connectionAuthority));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.AuthRequired || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
-					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority));
+					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority, mcpServerAuthority, toolInvocationOptions));
 				}
 				break;
 			}
@@ -1969,13 +1974,22 @@ function addCommentReference(tc: ToolCallState): IMarkdownString | undefined {
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
 		displayName: tc.displayName,
 		modelDescription: tc.toolName,
 	};
+
+	if (tc.contributor?.kind === ToolCallContributorKind.Client && options && tc.contributor.clientId !== options.currentClientId) {
+		const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+		invocation.invocationMessage = localize('agentHost.otherClientTool.running', "Running {0} on another client...", tc.displayName);
+		invocation.otherClientToolCall = {
+			cancel: () => options.cancelOtherClientToolCall(tc),
+		};
+		return invocation;
+	}
 
 	if (tc.status === ToolCallStatus.PendingConfirmation) {
 		// Tool needs confirmation — create with confirmation messages.

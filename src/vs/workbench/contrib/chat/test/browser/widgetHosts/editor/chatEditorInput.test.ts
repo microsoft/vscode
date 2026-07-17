@@ -13,6 +13,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatEditorInput } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
+import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../../common/constants.js';
@@ -56,6 +57,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
+			{ enabled: false } as IAgentHostEnablementService,
 		);
 
 		try {
@@ -110,6 +112,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
+			{ enabled: false } as IAgentHostEnablementService,
 		);
 
 		try {
