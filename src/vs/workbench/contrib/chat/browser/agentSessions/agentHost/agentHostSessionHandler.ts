@@ -3555,7 +3555,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Attaches to an existing server-side terminal via the agent host
 	 * terminal service and registers it with the terminal chat service.
 	 *
-	 * Returns the local terminal instance attached to the server-side terminal.
+	 * Returns the terminal instance created or reused by the terminal service.
 	 */
 	private _ensureTerminalInstance(terminalUri: string, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		return this._agentHostTerminalService.reviveTerminal(
