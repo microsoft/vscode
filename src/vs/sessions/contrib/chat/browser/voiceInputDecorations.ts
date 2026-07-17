@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 
 export interface IVoiceInputDecorationsServices {
 	readonly voiceSessionController: IVoiceSessionController;
@@ -75,7 +75,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const analyser = ttsPlaybackService.analyserNode
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
-			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+			const intensity = voiceState === 'idle'
+				? readIdleVoiceGlowIntensity(win.performance.now())
+				: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 			const transcriptHidden = configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 			const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -104,7 +106,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const current = getCurrentResource();
 		// Glow only the active slot targeted by the backend.
 		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (connected && active && !targetedElsewhere && (voiceState === 'listening' || voiceState === 'speaking')) {
+		if (connected && active && !targetedElsewhere && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking')) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -151,8 +153,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
-					? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-					: localize('voiceMode.clickMicHint', "Click voice mode to talk");
+					? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
+					: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
 				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else {

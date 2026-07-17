@@ -75,7 +75,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -459,7 +459,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				animFrameId = win.requestAnimationFrame(animate);
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
-				const glowActive = connected && (voiceState === 'listening' || voiceState === 'speaking');
+				const glowActive = connected && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking');
 				const target = getActiveInputContainer();
 
 				// If the target changed, clear styling on the old one
@@ -481,7 +481,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
-				const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+				const intensity = voiceState === 'idle'
+					? readIdleVoiceGlowIntensity(win.performance.now())
+					: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -517,7 +519,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			if (connected && (voiceState === 'listening' || voiceState === 'speaking')) {
+			if (connected && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking')) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -604,8 +606,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
-						? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
+						? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
+						: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
 					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else {

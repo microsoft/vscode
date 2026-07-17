@@ -32,16 +32,36 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
 	return Math.min(1, (sum / dataArray.value.length) / 80);
 }
 
+/**
+ * A subtle breathing intensity for connected-idle voice mode, used to show that
+ * the surface is still armed even when no audio is flowing.
+ */
+export function readIdleVoiceGlowIntensity(timestampMs: number): number {
+	return 0.2 + ((Math.sin(timestampMs / 600) + 1) * 0.5) * 0.2;
+}
+
 export interface IVoiceGlowStyle {
 	readonly borderColor: string;
 	readonly boxShadow: string;
 }
 
 /**
- * Compute the glow border color and box-shadow. Blue while listening (flashier
- * when the transcript is hidden), purple while speaking.
+ * Compute the glow border color and box-shadow. White while connected-idle,
+ * blue while listening (flashier when the transcript is hidden), and purple
+ * while speaking.
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean): IVoiceGlowStyle {
+	if (voiceState === 'idle') {
+		const borderAlpha = 0.16 + intensity * 0.18;
+		const shadowSpread = 5 + intensity * 10;
+		const shadowAlpha = 0.08 + intensity * 0.14;
+		const rgb = '255,255,255';
+		return {
+			borderColor: `rgba(${rgb},${borderAlpha})`,
+			boxShadow: `0 0 ${shadowSpread}px rgba(${rgb},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.35}px rgba(${rgb},${shadowAlpha * 0.5})`
+		};
+	}
+
 	// Blue when listening, purple when speaking.
 	const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
 	const flashy = voiceState === 'listening' && transcriptHidden;
