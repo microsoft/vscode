@@ -5,12 +5,13 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, Selection, TextDocument, TextEditor, extensions, TabInputTextDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
+import { fromGitUri, isGitUri } from '../uri';
 import { eventToPromise } from '../util';
 
 suite('git smoke test', function () {
@@ -147,6 +148,39 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 
+	test('does not stage a revert of the previous commit (#64027)', async function () {
+		const name = 'stage-range.txt';
+		fs.writeFileSync(file(name), '1\n2\n3\n4\n5\n6\n', 'utf8');
+		cp.execSync(`git add ${name}`, { cwd });
+		cp.execSync('git commit -m "add stage-range.txt"', { cwd });
+
+		const doc = await open(name);
+		const editor = window.activeTextEditor!;
+
+		// Change two separate regions: line 1 and line 6.
+		const edit = new WorkspaceEdit();
+		edit.replace(doc.uri, new Range(0, 0, 0, 1), '1x');
+		edit.replace(doc.uri, new Range(5, 0, 5, 1), '6x');
+		await workspace.applyEdit(edit);
+		await doc.save();
+
+		// Stage the first region and commit it.
+		await waitForWorkingTreeDiff(editor, 2);
+		editor.selection = new Selection(0, 0, 0, 0);
+		await commands.executeCommand('git.stageSelectedRanges');
+		await repository.commit('stage first region');
+
+		// Immediately stage the second region. The index base must be re-read after the
+		// commit, otherwise the just-committed first region is staged as a revert.
+		await waitForWorkingTreeDiff(editor, 1);
+		editor.selection = new Selection(5, 0, 5, 0);
+		await commands.executeCommand('git.stageSelectedRanges');
+
+		assert.strictEqual(cp.execSync(`git show :${name}`, { cwd }).toString(), '1x\n2\n3\n4\n5\n6x\n');
+
+		await repository.commit('stage second region');
+	});
+
 	test('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');
 
@@ -175,4 +209,20 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	function waitForWorkingTreeDiff(editor: TextEditor, changes: number): Promise<void> {
+		// Gate on the same working-tree diff (ref '~'/'') that git.stageSelectedRanges consumes.
+		const ready = () => !!editor.diffInformation?.some(d => d.original && isGitUri(d.original) && ['~', ''].includes(fromGitUri(d.original).ref) && !d.isStale && d.changes.length === changes);
+		if (ready()) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const disposable = window.onDidChangeTextEditorDiffInformation(e => {
+				if (e.textEditor === editor && ready()) {
+					disposable.dispose();
+					resolve();
+				}
+			});
+		});
+	}
 });
