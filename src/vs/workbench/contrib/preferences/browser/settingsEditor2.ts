@@ -747,7 +747,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * focus is not moved into stale results.
 	 */
 	private isSearchUpToDate(): boolean {
-		return !this.searchInputDelayer.isTriggered && this.renderedSearchQuery === this.searchWidget.getValue().trim();
+		return !this.searchInputDelayer.isTriggered() && this.renderedSearchQuery === this.searchWidget.getValue().trim();
 	}
 
 	/**
