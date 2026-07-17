@@ -373,7 +373,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; isInChatsSection: (session: ISession) => boolean; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean> },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -542,12 +542,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			// Quick chats show the chat icon in place of the read/unread/PR status
-			// glyph, rather than as a separate icon in the details row — but only
-			// when rendered outside the Chats section, whose header already
-			// carries a chat icon (e.g. a quick chat pinned or moved to a group).
-			const suppressChatIcon = isQuickChat && this.options.isInChatsSection(element);
-			const completedStateIcon = isQuickChat && !suppressChatIcon ? Codicon.commentCompact : gitHubInfo?.pullRequest?.icon;
+			const completedStateIcon = gitHubInfo?.pullRequest?.icon;
 
 			// The status icon (spinner vs. codicon, cross-fade, reduced-motion) is fully
 			// owned by the SessionStatusIcon widget; here we just feed it the latest state.
@@ -1694,9 +1689,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
 
-	/** Resources of sessions currently rendered under the "Chats" section. */
-	private readonly _chatsSectionSessionIds = new Set<string>();
-
 	/**
 	 * Snapshot of the currently-rendered reorderable top-level headers (groups
 	 * and, in workspace mode, workspace sections) in display order, by reorder
@@ -1784,7 +1776,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => s.isRead.get(), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), isInChatsSection: s => this._chatsSectionSessionIds.has(s.resource.toString()), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
+			{ grouping: this.options.grouping, isPinned: s => this.isSessionPinned(s), isRead: s => s.isRead.get(), visibleSessions: this._sessionsService.visibleSessions, getMultiSelectedSessions: s => this.getMultiSelectedSessions(s), showHover: true, approvalRowMaxLines: DEFAULT_APPROVAL_ROW_MAX_LINES, toolbarMenuId: SessionItemToolbarMenuId },
 			approvalModel,
 			undefined,
 			instantiationService,
@@ -2184,13 +2176,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(item => `group:${item.group.id}`);
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)));
-
-		// Track which sessions render under the "Chats" section so their per-row
-		// chat icon can be suppressed (the section header already carries one).
-		this._chatsSectionSessionIds.clear();
-		for (const s of sections.find(section => section.id === QUICK_CHATS_SECTION_ID)?.sessions ?? []) {
-			this._chatsSectionSessionIds.add(s.resource.toString());
-		}
 
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
@@ -3455,7 +3440,6 @@ export class SessionsFlatList extends Disposable {
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
-				isInChatsSection: s => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
 				toolbarMenuId: this.options.toolbarMenuId ?? SessionItemToolbarMenuId,
 				handleToolbarAction: this.options.onToolbarAction,
