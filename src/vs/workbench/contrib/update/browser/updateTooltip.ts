@@ -398,14 +398,16 @@ export class UpdateTooltip extends Disposable {
 			this.releaseDateNode.style.display = 'none';
 		}
 
-		// Release notes button
-		this.releaseNotesVersion = version ?? this.productService.version;
-		this.releaseNotesButton.style.display = this.releaseNotesVersion ? '' : 'none';
-		this.releaseNotesButton.style.marginRight = this.releaseNotesVersion ? 'auto' : '';
-		this.buttonBar.style.display = this.releaseNotesVersion ? '' : 'none';
+		// Release notes button (only when the command is registered / releaseNotesUrl exists)
+		const showReleaseNotes = Boolean(this.productService.releaseNotesUrl && (version ?? this.productService.version));
+		this.releaseNotesVersion = showReleaseNotes ? (version ?? this.productService.version) : undefined;
+		this.releaseNotesButton.style.display = showReleaseNotes ? '' : 'none';
+		this.releaseNotesButton.style.marginRight = showReleaseNotes ? 'auto' : '';
+		this.buttonBar.style.display = showReleaseNotes ? '' : 'none';
 	}
 
 	private renderActionButton(label: string, commandId: string) {
+		this.buttonBar.style.display = '';
 		this.actionButton.textContent = label;
 		this.actionButton.dataset.commandId = commandId;
 		this.actionButton.style.display = '';

@@ -219,6 +219,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
+	private pendingExplicitUpdateDialog = false;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -260,9 +261,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
-		const previousState = this.state;
 		this.state = state;
 		this.updateStateContextKey.set(state.type);
+
+		if (state.type === StateType.CheckingForUpdates && state.explicit) {
+			this.pendingExplicitUpdateDialog = true;
+		} else if (state.type === StateType.Idle) {
+			this.pendingExplicitUpdateDialog = false;
+		}
 
 		switch (state.type) {
 			case StateType.Idle:
@@ -304,17 +310,19 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		// When the title bar update UI is disabled, offer release notes in a dialog after an explicit check finds an update.
+		// Wait until productVersion is known so we don't open the currently installed release notes (macOS Downloading has no update yet).
 		if (
-			previousState.type === StateType.CheckingForUpdates &&
-			previousState.explicit &&
+			this.pendingExplicitUpdateDialog &&
 			this.productService.releaseNotesUrl &&
 			this.configurationService.getValue<boolean>('update.titleBar') === false &&
 			await this.hostService.hadLastFocus() &&
 			(state.type === StateType.AvailableForDownload ||
 				state.type === StateType.Downloading ||
 				state.type === StateType.Downloaded ||
-				state.type === StateType.Ready)
+				state.type === StateType.Ready) &&
+			state.update?.productVersion
 		) {
+			this.pendingExplicitUpdateDialog = false;
 			await this.showUpdateAvailableDialog(state);
 		}
 	}
@@ -342,7 +350,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				: undefined,
 			buttons: [{
 				label: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes"),
-				run: () => this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion ?? this.productService.version))
+				run: () => productVersion
+					? this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion))
+					: this.instantiationService.invokeFunction(openLatestReleaseNotesInBrowser)
 			}],
 			cancelButton: nls.localize('ok', "OK")
 		});

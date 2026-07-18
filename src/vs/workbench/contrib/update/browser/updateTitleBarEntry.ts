@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
@@ -89,6 +90,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
@@ -198,20 +200,33 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 				break;
 			case StateType.AvailableForDownload:
 				if (this.pendingExplicitCheckResult) {
-					showTooltip = true;
+					// Only auto-open once we know the target product version (for correct release notes).
+					if (this.productService.releaseNotesUrl && this.state.update.productVersion) {
+						showTooltip = true;
+					}
 					this.pendingExplicitCheckResult = false;
 				}
 				break;
 			case StateType.Downloading:
+				context = this.state.explicit;
+				// On macOS, Downloading can arrive before update metadata exists. Keep the pending
+				// flag so we open the tooltip later (Downloaded/Ready) with the correct version.
+				if (this.pendingExplicitCheckResult && this.productService.releaseNotesUrl && this.state.update?.productVersion) {
+					showTooltip = true;
+					this.pendingExplicitCheckResult = false;
+				} else if (this.pendingExplicitCheckResult && !this.productService.releaseNotesUrl) {
+					this.pendingExplicitCheckResult = false;
+				}
+				break;
 			case StateType.Downloaded:
 			case StateType.Ready:
 			case StateType.Updating:
 			case StateType.Overwriting:
 				if (this.pendingExplicitCheckResult) {
-					showTooltip = true;
+					showTooltip = Boolean(this.productService.releaseNotesUrl && this.state.update.productVersion);
 					this.pendingExplicitCheckResult = false;
 				}
-				if (this.state.type === StateType.Downloading || this.state.type === StateType.Updating || this.state.type === StateType.Overwriting) {
+				if (this.state.type === StateType.Updating || this.state.type === StateType.Overwriting) {
 					context = this.state.explicit;
 				}
 				break;
