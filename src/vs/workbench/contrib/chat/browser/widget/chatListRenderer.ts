@@ -59,7 +59,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatPositionalTailSlot } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../common/chatProgressFormatting.js';
@@ -1452,6 +1452,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart?.kind === 'progressMessage') {
 				return undefined;
 			}
+			// Don't show the working-progress indicator for markdown-only
+			// responses — there is no thinking or tool activity to report,
+			// so flashing "Thinking"/"Working" is misleading.
+			if ((!lastPart || lastPart.kind === 'markdownContent' || lastPart.kind === 'references') && !workingParts.some(p => p.kind === 'toolInvocation' || p.kind === 'toolInvocationSerialized' || p.kind === 'thinking')) {
+				return undefined;
+			}
 			return { kind: 'working', state: workingState };
 		}
 
@@ -1494,7 +1500,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
-			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
+			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element) && workingParts.some(p => p.kind === 'toolInvocation' || p.kind === 'toolInvocationSerialized' || p.kind === 'thinking')) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
@@ -2248,17 +2254,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Appends the fixed positional tail slots (codeCitations, errorDetails,
-	 * changesSummary, turnPills, working) to the content array.  Both the
-	 * progressive and final rendering paths call this to ensure the content
-	 * array always has an identical structure, preventing index misalignment
-	 * in the diff algorithm.
+	 * Fixed positional tail slot.  Every entry appended by
+	 * {@link appendPositionalTailSlots} uses this single kind so that the
+	 * type system prevents accidental use as real content.
+	 */
+	private static readonly TAIL_SLOT: IChatPositionalTailSlot = { kind: 'positionalTailSlot' };
+
+	/**
+	 * Appends the fixed positional tail slots to the content array.  Both
+	 * the progressive and final rendering paths call this to ensure the
+	 * content array always has an identical structure, preventing index
+	 * misalignment in the diff algorithm.
 	 *
-	 * Each fallback object is intentionally "empty" so that its corresponding
-	 * render method (e.g. renderCodeCitations, renderChatErrorDetails) will
-	 * produce a no-content placeholder via renderNoContent.  If a render
-	 * method's empty-detection logic changes, the fallback here must be
-	 * updated to match.
+	 * Each slot is either the real data (provided by the caller or queried
+	 * from the element) or an {@link IChatPositionalTailSlot} placeholder
+	 * that the render method turns into a no-content invisible part.
+	 *
+	 * Canonical slot order (both paths MUST use this method so that the
+	 * content arrays always have the same length and order):
+	 *   1. codeCitations   (real or placeholder)
+	 *   2. errorDetails    (real or placeholder)
+	 *   3. changesSummary  (real or placeholder)
+	 *   4. turnPills       (real or placeholder)
+	 *   5. workingProgress (real or placeholder)
 	 */
 	private appendPositionalTailSlots(
 		element: IChatResponseViewModel,
@@ -2268,17 +2286,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		codeCitations?: IChatCodeCitations,
 		errorDetails?: IChatErrorDetailsPart,
 	): void {
-		content.push(codeCitations ?? { kind: 'codeCitations' as const, citations: [] });
-		content.push(errorDetails ?? { kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
+		const tail = ChatListItemRenderer.TAIL_SLOT;
+		content.push(codeCitations ?? tail);
+		content.push(errorDetails ?? tail);
 
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		content.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
+		content.push(fileChangesSummaryPart ?? tail);
 
 		const turnPillsPart = this.getChatTurnPillsPart(element);
-		content.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
+		content.push(turnPillsPart ?? tail);
 
 		const workingProgress = this.shouldShowWorkingProgress(element, content, moreContentAvailable, templateData);
-		content.push(workingProgress ?? { kind: 'working' as const });
+		content.push(workingProgress ?? tail);
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
@@ -2778,6 +2797,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
 				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
+			} else if (content.kind === 'positionalTailSlot') {
+				return this.renderNoContent(other => other.kind === 'positionalTailSlot');
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -2817,6 +2838,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
+		// Guard against non-response elements and empty messages.
+		// `message` is typed as `string` (non-optional), so this catches
+		// both undefined and empty-string cases.  Positional tail slot
+		// dummies never reach here — they have kind 'positionalTailSlot'.
 		if (!isResponseVM(context.element) || !content.errorDetails.message) {
 			return this.renderNoContent(other => other.kind === 'errorDetails' && other.errorDetails.message === content.errorDetails.message);
 		}
@@ -3981,6 +4006,9 @@ function isSubagentToolInvocation(invocation: IChatToolInvocation | IChatToolInv
 
 export function getWorkingProgressRelevantParts(parts: readonly IChatRendererContent[]): IChatRendererContent[] {
 	return parts.filter(part => {
+		if (part.kind === 'positionalTailSlot') {
+			return false;
+		}
 		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 			return !isSubagentToolInvocation(part);
 		}
