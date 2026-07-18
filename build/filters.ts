@@ -110,6 +110,12 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
+	// project scaffolds copied verbatim into the user's new project: they follow their own
+	// ecosystem's conventions (PEP 8 spaces for Python, spaces for ROS2 XML/CMake/ini)
+	'!extensions/roboagent-ros2/templates/**',
+	// parser tests embed real package.xml / setup.py / CMakeLists.txt fixtures as template
+	// literals; those must keep the indentation their own languages use
+	'!src/vs/workbench/contrib/roboagent/test/**',
 	'!build/monaco/**',
 	'!build/win32/**',
 	'!build/checker/**',
@@ -184,6 +190,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.disabled',
 	'!**/*.code-workspace',
 	'!**/*.js.map',
+	'!**/*.tsbuildinfo',
 	'!**/*.wasm',
 	'!**/*.tiff',
 	'!**/*.provisionprofile',
@@ -201,6 +208,10 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/simple-browser/media/codicon.css',
 	'!extensions/terminal-suggest/src/completions/upstream/**',
 	'!extensions/typescript-language-features/node-maintainer/**',
+	// project scaffolds become the user's own files — they carry no RoboAgent copyright
+	'!extensions/roboagent-ros2/templates/**',
+	// local dev convenience script (shell, like the excluded *.sh)
+	'!roboagent.run',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',

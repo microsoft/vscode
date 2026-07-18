@@ -136,6 +136,25 @@ export default tseslint.config(
 			]
 		},
 	},
+	// RoboAgent-authored sources carry this fork's own copyright, not Microsoft's
+	{
+		files: [
+			'src/vs/workbench/contrib/roboagent/**/*.{js,ts}',
+			'extensions/roboagent-ros2/src/**/*.{js,ts}',
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) RoboAgent. All rights reserved.',
+					' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
+			]
+		},
+	},
 	// TS
 	{
 		files: [

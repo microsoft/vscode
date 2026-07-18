@@ -23,6 +23,20 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+// RoboAgent-authored files (this fork's own contributions) carry the fork's copyright
+// rather than Microsoft's. Either header is accepted.
+const roboAgentCopyrightHeaderLines = [
+	'/*---------------------------------------------------------------------------------------------',
+	' *  Copyright (c) RoboAgent. All rights reserved.',
+	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+	' *--------------------------------------------------------------------------------------------*/',
+];
+
+function hasAcceptedCopyrightHeader(lines: string[]): boolean {
+	return [copyrightHeaderLines, roboAgentCopyrightHeaderLines]
+		.some(header => header.every((headerLine, i) => lines[i] === headerLine));
+}
+
 interface VinylFileWithLines extends VinylFile {
 	__lines: string[];
 }
@@ -49,11 +63,16 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	console.log('Starting hygiene...');
 	let errorCount = 0;
 
+	// Upstream forbids shipping an extension gallery in the OSS build (the branded build
+	// injects Microsoft's). RoboAgent deliberately ships Open VSX — a vendor-neutral registry
+	// a fork may use — so only a non-Open-VSX gallery is an error here.
+	const allowedGalleryHost = 'open-vsx.org';
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
+		const serviceUrl: string | undefined = product.extensionsGallery?.serviceUrl;
+		if (product.extensionsGallery && !serviceUrl?.includes(allowedGalleryHost)) {
+			console.error(`product.json: Contains an 'extensionsGallery' that is not ${allowedGalleryHost}`);
 			errorCount++;
 		}
 
@@ -122,12 +141,9 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
-			}
+		if (!hasAcceptedCopyrightHeader(lines)) {
+			console.error(file.relative + ': Missing or bad copyright statement');
+			errorCount++;
 		}
 
 		this.emit('data', file);
