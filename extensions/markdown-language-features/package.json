@@ -902,14 +902,14 @@
     "watch-markdown-editor": "node ./esbuild.markdownEditor.mts --watch",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
-    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
-    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
+  "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-13",
+    "@vscode/markdown-editor": "^0.0.2-16",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",
     "katex": "^0.16.33",

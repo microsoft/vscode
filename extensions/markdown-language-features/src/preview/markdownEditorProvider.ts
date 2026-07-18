@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Disposable } from '../util/dispose';
+import { MdLinkOpener } from '../util/openDocumentLink';
 
 /**
  * Experimental hybrid (WYSIWYG) Markdown editor backed by the
@@ -26,11 +27,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #mediaRoot: vscode.Uri;
 	readonly #extensionUri: vscode.Uri;
 	readonly #globalState: vscode.Memento;
+	readonly #linkOpener: MdLinkOpener;
 
-	constructor(extensionUri: vscode.Uri, globalState: vscode.Memento) {
+	constructor(extensionUri: vscode.Uri, globalState: vscode.Memento, linkOpener: MdLinkOpener) {
 		super();
 		this.#extensionUri = extensionUri;
 		this.#globalState = globalState;
+		this.#linkOpener = linkOpener;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 	}
 
@@ -59,6 +62,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					// Remember the edit/read-only choice as the global default for the
 					// next Markdown editor.
 					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
+					break;
+				}
+				case 'openLink': {
+					await this.#linkOpener.openDocumentLink(message.href as string, document.uri);
 					break;
 				}
 				case 'edit': {

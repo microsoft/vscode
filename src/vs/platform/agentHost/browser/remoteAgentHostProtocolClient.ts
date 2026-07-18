@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, AgentHostCodexAgentEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, AgentHostCodexAgentEnabledSettingId, AgentHostSystemProxyEnabledSettingId, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -37,11 +37,12 @@ import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostCodexEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, getAgentHostTerminalAutoApproveRulesConfig, SESSION_SYNC_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, AUTO_REPLY_SETTING_ID, PREFER_LONG_CONTEXT_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import { dirname } from '../../../base/common/resources.js';
+import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
@@ -94,6 +95,8 @@ function transportLostError(address: string): ProtocolError {
 
 interface IRemoteAgentHostExtensionCommandMap {
 	'shutdown': { params: undefined; result: void };
+	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
+	'diagnosticsFetch': { params: { url: string }; result: IAgentHostNetworkFetchResult };
 }
 
 interface IPendingRequest {
@@ -181,7 +184,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * {@link connect} and re-captured after a soft-reconnect that pulled
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
-	private _initializeResult: InitializeResult | undefined;
+	private readonly _initializeResult = observableValue<InitializeResult | undefined>('agentHostInitializeResult', undefined);
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -282,12 +285,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	/**
 	 * The latest `initialize` response from the host, or `undefined` if
-	 * the handshake has not completed yet. Callers read fields they care
-	 * about (e.g. `telemetry`, `completionTriggerCharacters`,
-	 * `defaultDirectory`) directly off this object — keeping the result
-	 * intact avoids adding a new getter every time the protocol grows.
+	 * the handshake has not completed yet. Exposed observably so callers can
+	 * react as advertised capabilities (telemetry, `completionTriggerCharacters`,
+	 * `terminalCommandPrefix`, ...) arrive.
 	 */
-	get initializeResult(): InitializeResult | undefined {
+	get initializeResult(): IObservable<InitializeResult | undefined> {
 		return this._initializeResult;
 	}
 
@@ -361,6 +363,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					return;
 				}
 				this._updatePreferLongContextEnabled();
+			}
+			if (e.affectsConfiguration(AgentHostSystemProxyEnabledSettingId)) {
+				if (this._state.kind !== AgentHostClientState.Connected) {
+					return;
+				}
+				this._updateSystemProxyEnabled();
 			}
 			if (e.affectsConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID) || e.affectsConfiguration(TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID)) {
 				if (this._state.kind !== AgentHostClientState.Connected) {
@@ -442,6 +450,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		});
 		this._serverSeq = result.serverSeq;
 
+		this._initializeResult.set(result, undefined);
+
 		// Hydrate root state from the initial snapshot
 		for (const snapshot of result.snapshots ?? []) {
 			if (isAhpRootChannel(snapshot.resource)) {
@@ -458,13 +468,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		}
 
-		this._initializeResult = result;
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateGlobalAutoApproveEnabled();
 		this._updateAutoReplyEnabled();
 		this._updatePreferLongContextEnabled();
+		this._updateSystemProxyEnabled();
 		this._updateTerminalAutoApproveRules();
 		this._updateCodexEnabled();
 		this._transitionTo({ kind: AgentHostClientState.Connected });
@@ -850,14 +860,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Empty when the remote host did not announce any.
 	 */
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
-		return this._initializeResult?.completionTriggerCharacters ?? [];
+		return this._initializeResult.get()?.completionTriggerCharacters ?? [];
 	}
 
 	/**
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params });
+		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
 		return { authenticated: true };
 	}
 
@@ -866,6 +876,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async shutdown(): Promise<void> {
 		await this._sendExtensionRequest('shutdown');
+	}
+
+	/**
+	 * List the endpoints the remote agent host suggests probing for connectivity.
+	 */
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._sendExtensionRequest('getNetworkDiagnosticsInfo');
+	}
+
+	/**
+	 * Probe connectivity from the remote agent host to a single `url`.
+	 */
+	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._sendExtensionRequest('diagnosticsFetch', { url });
 	}
 
 	/**
@@ -1364,6 +1388,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostPreferLongContextEnabledConfigKey]: enabled },
+		}, this._clientId, 0);
+	}
+
+	private _updateSystemProxyEnabled(): void {
+		const enabled = this._configurationService.getValue<boolean>(AgentHostSystemProxyEnabledSettingId) !== false;
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSystemProxyEnabledConfigKey]: enabled },
 		}, this._clientId, 0);
 	}
 

@@ -33,6 +33,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -348,6 +349,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidNotification = this._onDidNotification.event;
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
+			override readonly initializeResult = constObservable(undefined);
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
@@ -488,6 +490,7 @@ suite('AgentHostClientTools', () => {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
 			});
+			instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			instantiationService.stub(IAgentHostImportConversationStore, {
 				set: () => { },
@@ -587,6 +590,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -671,6 +675,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -710,6 +715,73 @@ suite('AgentHostClientTools', () => {
 				&& entry.action.toolCallId === 'tool-call-1'));
 		});
 
+		test('shows another client tool as cancellable progress without invoking or confirming it', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+			} as ChatAction);
+
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+			const invocation = (session as unknown as { progressObs: { get(): IChatProgress[] } })
+				.progressObs.get()
+				.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'tool-call-1');
+			assert.ok(invocation);
+
+			const actionsBeforeSkip = getToolCallConfirmationAndCompletionActions(connection);
+			const stateBeforeSkip = invocation.state.get().type;
+			const messageBeforeSkip = invocation.invocationMessage;
+			invocation.otherClientToolCall?.cancel();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				messageBeforeSkip,
+				messageAfterSkip: invocation.invocationMessage,
+				stateBeforeSkip,
+				stateAfterSkip: invocation.state.get().type,
+				invokedToolCallCount: toolsService.invokedToolCalls.length,
+				actionsBeforeSkip,
+				actionsAfterSkip: getToolCallConfirmationAndCompletionActions(connection),
+			}, {
+				messageBeforeSkip: 'Running Run Task on another client...',
+				messageAfterSkip: 'Run Task',
+				stateBeforeSkip: IChatToolInvocation.StateKind.Executing,
+				stateAfterSkip: IChatToolInvocation.StateKind.Completed,
+				invokedToolCallCount: 0,
+				actionsBeforeSkip: [],
+				actionsAfterSkip: [{
+					type: ActionType.ChatToolCallComplete,
+					approved: undefined,
+					success: false,
+					error: 'Run Task was skipped from another client',
+				}],
+			});
+		});
+
 		test('reports client tool prepare failures before confirmation as failed completion', async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new Error('prepare failed') });
 
@@ -744,6 +816,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -815,6 +888,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -863,6 +937,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -922,6 +997,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -953,6 +1029,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(subagentChat), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'sub-turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat), {
@@ -1017,7 +1094,7 @@ suite('AgentHostClientTools', () => {
 
 			// Default turn spawns the level-1 subagent.
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -1035,7 +1112,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-1 subagent spawns the level-2 subagent.
 			connection.applySessionAction(URI.parse(subagentChat1), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat1), {
@@ -1053,7 +1130,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-2 subagent runs a client-provided tool.
 			connection.applySessionAction(URI.parse(subagentChat2), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat2), {
@@ -1107,7 +1184,7 @@ suite('AgentHostClientTools', () => {
 
 			// Default turn spawns the level-1 subagent (no content block).
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -1121,7 +1198,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-1 subagent spawns the level-2 subagent (no content block).
 			connection.applySessionAction(URI.parse(subagentChat1), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat1), {
@@ -1135,7 +1212,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-2 subagent runs a client-provided tool.
 			connection.applySessionAction(URI.parse(subagentChat2), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat2), {

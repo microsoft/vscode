@@ -161,6 +161,17 @@ export function getMockLlmServerPath(): string {
 	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.ts');
 }
 
+export function getMockLlmServerUrl(mockServer: MockLlmServer): string {
+	const hostname = process.env.VSCODE_SMOKE_TEST_MOCK_HOST;
+	if (!hostname) {
+		return mockServer.url;
+	}
+
+	const url = new URL(mockServer.url);
+	url.hostname = hostname;
+	return url.toString().replace(/\/$/, '');
+}
+
 export function buildCopilotChatToken(mockUrl: string): string {
 	return Buffer.from(JSON.stringify({
 		token: 'smoketest-fake-token',
@@ -210,7 +221,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 		//     point at the mock LLM server.
 		GITHUB_PAT: 'smoketest-fake-pat',
 		IS_SCENARIO_AUTOMATION: '1',
-		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(mockServer.url) : undefined,
+		VSCODE_COPILOT_CHAT_TOKEN: mockServer ? buildCopilotChatToken(getMockLlmServerUrl(mockServer)) : undefined,
 		XDG_STATE_HOME: xdgStateHome,
 	};
 }

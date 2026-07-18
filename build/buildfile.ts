@@ -23,6 +23,7 @@ export const workerBackgroundTokenization = createModuleDescription('vs/workbenc
 export const workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+	createModuleDescription('vs/platform/localTranscription/node/localTranscriptionMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/platform/agentHost/node/agentHostMain'),
 	createModuleDescription('vs/platform/agentHost/node/diffWorkerMain'),

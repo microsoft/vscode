@@ -345,6 +345,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
+				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
 			};
 		}
 

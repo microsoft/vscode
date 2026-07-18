@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── pluginListWidget.ts                         # Agent plugins section
 ├── aiCustomizationIcons.ts                     # Icons
 └── media/
-    └── aiCustomizationManagement.css
+    └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
 
 src/vs/workbench/contrib/chat/common/
 ├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
@@ -70,6 +70,12 @@ The management editor opens as a compact modal editor. The modal title and welco
 The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
 
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
+
+When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
+
+Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
+
+Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
 
 ### IAICustomizationWorkspaceService
 
@@ -206,15 +212,21 @@ AHP Remote Server ────────────────────�
 
 **Key files:**
 
-- **`aiCustomizationItemSource.ts`** — The browser-side pipeline: `IAICustomizationListItem` (view model), `IAICustomizationItemSource` (data contract), `AICustomizationItemNormalizer` (maps `ICustomizationItem` → view model, inferring storage/grouping from URIs when the provider doesn't supply them), `ProviderCustomizationItemSource` (orchestrates provider + sync + normalizer), and shared utilities (`expandHookFileItems`, `getFriendlyName`, `isChatExtensionItem`).
+- **`aiCustomizationItemSource.ts`** — The browser-side pipeline: `IAICustomizationListItem` (view model), `IAICustomizationItemSource` (data contract for both customization rows and harness-provided source folders), `AICustomizationItemNormalizer` (maps `ICustomizationItem` → view model, inferring storage/grouping from URIs when the provider doesn't supply them), `ProviderCustomizationItemSource` (orchestrates provider + sync + normalizer), and shared utilities (`expandHookFileItems`, `getFriendlyName`, `isChatExtensionItem`).
 
 - **`promptsServiceCustomizationItemProvider.ts`** — Adapts `IPromptsService` to `ICustomizationItemProvider`. Reads agents, skills, instructions, hooks, and prompts from the core service, expands instruction categories and hook entries, applies harness-specific filters (storage sources, workspace subpaths, instruction file patterns), and returns `ICustomizationItem[]` with `storage` set from the authoritative promptsService metadata. Used as the default item provider for harnesses that don't supply their own.
 
 - **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
 
+- **`promptMigration.ts`** — Shared prompt-file migration utilities used by the management editor: prompt-to-skill content conversion, source-folder selection, collision-safe skill naming, and the per-file migrate/write/delete workflow with partial-failure reporting.
+
 ### MCP server list active-session controls
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Other VS Code-owned actions such as enable/disable, configuration, and install/uninstall stay on the local MCP row; model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
+
+Enablement has three explicit scopes. `Enable` / `Disable` persists at profile scope, `Enable (Workspace)` / `Disable (Workspace)` persists for the active project, and `Enable (Session)` / `Disable (Session)` dispatches only to the active agent-host session. Servers with an exact, unambiguous identifier or name match to an `IMcpService` entry, including extension-provided servers, use the existing local enablement model for profile/workspace state. Ambiguous matches remain agent-host-only so an action cannot target the wrong local server. Agent-host-only profile state is keyed by agent-host resource scheme (which includes local/remote host and provider identity) plus exact server name; workspace state additionally includes the session working directory so repositories inside the shared Agents window storage workspace remain independent. Workspace actions are hidden when the Sessions-aware active project root is absent, including workspace-less quick chats.
+
+A durable agent-host policy is persisted without immediately changing live sessions. Immediately before `ChatTurnStarted`, `AgentHostSessionHandler` asks `IAgentHostCustomizationService` to prepare that session's MCP servers. Preparation dispatches only preferences that are explicit on first use or changed since the session's previous preparation; unchanged policy is not reapplied, so a later session-scoped action may intentionally diverge. `EnabledProfile` on first preparation records the default without overwriting the server's current state, while resetting an explicit durable policy back to `EnabledProfile` enables the server before the next turn. `getMcpServers()` remains a pure query. Session customization enablement remains desired runtime state: providers with live MCP lifecycle support (currently Copilot and Claude) reconcile their observed SDK runtime before each turn and after runtime rebinds. Codex does not yet expose a live per-thread MCP enable/disable API, so its runtime cannot reconcile this state without recreating the thread.
 
 ### Structured Detail Preview
 
@@ -260,7 +272,9 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### MCP Active Session Status
 
-The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended to the **Workspace** group and counted with the rest of the section.
+
+The MCP list uses `WorkbenchList` as its sole scroll owner. Layout uses the widget's rendered content-box dimensions rather than the padded panel's outer dimensions, and the virtual delegate height matches each rendered row variant, including the taller two-line description row. These invariants keep the final row fully reachable at the bottom of the list.
 
 ### Sidebar Customizations Section
 

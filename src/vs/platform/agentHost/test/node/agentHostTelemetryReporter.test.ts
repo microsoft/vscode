@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
@@ -41,12 +42,15 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 	}
+	sendEnhancedGHTelemetryEventForContext(): void { }
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, _measurements?: TelemetryMeasurements): void {
 		this.internalEvents.push({ eventName, properties });
 	}
+	sendInternalMSFTTelemetryEventForContext(): void { }
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
 	setRestrictedTelemetryEnabled(): void { }
+	setInternalTelemetryContext(): void { }
 }
 
 suite('AgentHostTelemetryReporter', () => {
@@ -161,4 +165,41 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents[0].eventName, 'toolCallDetailsInternal');
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
 	});
+
+	test('skillContentRead emits plaintext skill metadata to enhanced + internal, maps plugin identity + hashes content, and no-ops without a name', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.skillContentRead({ name: '', path: '/skills/x/SKILL.md', content: 'body', source: 'project', pluginName: undefined, pluginVersion: undefined }); // dropped: no name
+		reporter.skillContentRead({
+			name: 'pdf', path: '/plugins/pdf/SKILL.md', content: 'skill body',
+			source: 'plugin', pluginName: 'pdf-plugin', pluginVersion: '1.2.3',
+		}); // emitted
+
+		const expected: IRestrictedCall = {
+			eventName: 'skillContentRead',
+			properties: {
+				skillName: 'pdf',
+				skillPath: '/plugins/pdf/SKILL.md',
+				skillExtensionId: 'pdf-plugin',
+				skillExtensionVersion: '1.2.3',
+				skillStorage: 'plugin',
+				skillContentHash: String(hash('skill body')),
+			},
+		};
+		assert.deepStrictEqual(service.enhancedEvents, [expected]);
+		assert.deepStrictEqual(service.internalEvents, [expected]);
+	});
+
+	test('skillContentRead drops the version when no plugin name is known, matching the extension', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.skillContentRead({ name: 'local', path: '/skills/local/SKILL.md', content: 'c', source: 'project', pluginName: undefined, pluginVersion: '9.9.9' });
+
+		assert.strictEqual(service.enhancedEvents.length, 1);
+		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionId, '');
+		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
+	});
 });
+

@@ -20,11 +20,11 @@ import {
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	ChatOriginKind,
+	ChatInteractivity,
 	type ActiveTurn,
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
-	type ChatInputRequest,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
@@ -55,12 +55,13 @@ export {
 	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
 	ChatInputQuestionKind as SessionInputQuestionKind,
 	ChatInputResponseKind as SessionInputResponseKind,
+	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -78,6 +79,9 @@ export {
 	type ToolCallPendingResultConfirmationState,
 	type ToolCallResponsePart,
 	type ToolCallResult,
+	type ToolCallRiskAssessment,
+	type ToolCallRiskAssessmentCompleteState,
+	type ToolCallRiskAssessmentLoadingState,
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
@@ -99,6 +103,8 @@ export {
 export interface UsageInfoMeta {
 	/** Per-turn credit cost reported by the backend. */
 	cost?: number;
+	/** The concrete model selected by Copilot Auto and the routing explanation. */
+	autoModeResolved?: IAutoModeResolvedInfo;
 	/** Copilot-specific usage breakdown, including nano-AIU totals. */
 	copilotUsage?: {
 		totalNanoAiu?: number;
@@ -130,6 +136,15 @@ export interface UsageInfoMeta {
 	 */
 	contextAttribution?: IContextAttributionData;
 	[key: string]: unknown;
+}
+
+export interface IAutoModeResolvedInfo {
+	readonly chosenModel: string;
+	readonly reasoningBucket?: 'low' | 'medium' | 'high';
+	readonly categoryScores?: Readonly<Record<string, number | undefined>>;
+	readonly predictedLabel?: string;
+	readonly confidence?: number;
+	readonly candidateModels?: readonly string[];
 }
 
 /**
@@ -184,6 +199,8 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	}
 	const result: Mutable<UsageInfoMeta> = {};
 	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
+	const autoModeResolved = readAutoModeResolvedInfo(meta['autoModeResolved']);
+	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
 	const copilotUsage = meta['copilotUsage'];
 	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
 		const rawUsage = copilotUsage as Record<string, unknown>;
@@ -202,6 +219,37 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const contextAttribution = readContextAttribution(meta['contextAttribution']);
 	if (contextAttribution) {
 		result.contextAttribution = contextAttribution;
+	}
+	return result;
+}
+
+function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['chosenModel'] !== 'string') {
+		return undefined;
+	}
+	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw['chosenModel'] };
+	const reasoningBucket = raw['reasoningBucket'];
+	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
+		result.reasoningBucket = reasoningBucket;
+	}
+	const categoryScores = raw['categoryScores'];
+	if (categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores)) {
+		const scores: Record<string, number> = {};
+		for (const [category, score] of Object.entries(categoryScores as Record<string, unknown>)) {
+			if (typeof score === 'number') {
+				scores[category] = score;
+			}
+		}
+		result.categoryScores = scores;
+	}
+	if (typeof raw['predictedLabel'] === 'string') { result.predictedLabel = raw['predictedLabel']; }
+	if (typeof raw['confidence'] === 'number') { result.confidence = raw['confidence']; }
+	if (Array.isArray(raw['candidateModels']) && raw['candidateModels'].every(candidate => typeof candidate === 'string')) {
+		result.candidateModels = raw['candidateModels'];
 	}
 	return result;
 }
@@ -270,6 +318,7 @@ export {
 	type ChatInputOption,
 	type ChatInputQuestion,
 	type ChatInputRequest,
+	type InputRequestResponsePart,
 } from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
@@ -638,9 +687,42 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	return summary;
 }
 
-export function createActiveTurn(id: string, message: Message): ActiveTurn {
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * `interactivity` is the general read-only mechanism (e.g. subagent worker
+ * chats are `ReadOnly`). An archived session is read-only too, so its
+ * interactive chats are downgraded to `ReadOnly`. `Hidden` chats stay hidden —
+ * archiving only downgrades `Full` chats. Absent interactivity defaults to
+ * `Full` for backward compatibility.
+ *
+ * The host uses this to enforce read-only turns off a single signal
+ * ({@link isChatReadOnly}) rather than special-casing archived; the same rule
+ * is mirrored client-side to hide the composer.
+ */
+export function effectiveChatInteractivity(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	if (sessionArchived) {
+		return ChatInteractivity.ReadOnly;
+	}
+	return interactivity ?? ChatInteractivity.Full;
+}
+
+/**
+ * Whether a chat rejects user-dispatched turns, given its own interactivity and
+ * its session's archived state. `true` for `ReadOnly` chats (including archived
+ * sessions' interactive chats). See {@link effectiveChatInteractivity}.
+ */
+export function isChatReadOnly(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): boolean {
+	return effectiveChatInteractivity(interactivity, sessionArchived) === ChatInteractivity.ReadOnly;
+}
+
+export function createActiveTurn(id: string, message: Message, startedAt: string): ActiveTurn {
 	return {
 		id,
+		startedAt,
 		message,
 		responseParts: [],
 		usage: undefined,
@@ -798,7 +880,7 @@ export function isAhpChatChannel(uri: string): boolean {
  * (working directory, active clients, config, customizations/MCP scope, …)
  * resolved for one chat and merged with that chat's conversation contents.
  *
- * The protocol moved turns and pending/input state off the session and onto a
+ * The protocol moved turns and pending state off the session and onto a
  * per-chat channel, and lets a chat override session defaults (e.g.
  * {@link ChatState.workingDirectory}). This composite recombines the session
  * with one of its chats — default or peer — so consumers read the chat's
@@ -816,8 +898,6 @@ export interface ISessionWithDefaultChat extends SessionState {
 	steeringMessage?: PendingMessage;
 	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on this chat. */
-	inputRequests?: ChatInputRequest[];
 	/** Draft input of this chat. */
 	draft?: Message;
 }
@@ -838,7 +918,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
-		inputRequests: chat?.inputRequests,
 		draft: chat?.draft,
 	};
 }
@@ -1088,6 +1167,19 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  * on resume) and never persist it themselves.
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/**
+ * Session-database metadata key recording whether a session is archived. Written by
+ * the AH orchestrator (`AgentSideEffects` on `SessionIsArchivedChanged`) and read by
+ * both the orchestrator (`AgentService` restore/list) and agents (e.g. `CopilotAgent`
+ * decides whether to recreate a missing worktree vs. resume read-only for history).
+ * {@link AH_META_IS_DONE_DB_KEY} is the legacy name kept for sessions persisted before
+ * the rename; readers fall back to it when {@link AH_META_IS_ARCHIVED_DB_KEY} is absent.
+ */
+export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
+
+/** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
+export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns

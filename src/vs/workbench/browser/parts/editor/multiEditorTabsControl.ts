@@ -104,6 +104,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		shrink: 80 as const,
 		fit: 120 as const
 	};
+	private static readonly STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH = 28 as const;
+	private static readonly STYLE_OVERRIDE_PINNED_TAB_SPACING = 4 as const;
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
@@ -112,6 +114,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
+	private stickyTabsBackground: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 	private addTabContainer: HTMLElement | undefined;
@@ -181,9 +184,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
+		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });
+
 		// Tabs Container
 		this.tabsContainer = $('.tabs-container', {
 			role: 'tablist',
+			'aria-multiselectable': 'true',
 			draggable: true
 		});
 		this._register(Gesture.addTarget(this.tabsContainer));
@@ -194,6 +200,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Scrollbar
 		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
 		this.tabsAndActionsContainer.appendChild(this.tabsScrollbar.getDomNode());
+		this.tabsScrollbar.getDomNode().appendChild(this.stickyTabsBackground);
 
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
@@ -1653,17 +1660,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// If not wrapping tabs, sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
 		if (!options.wrapTabs && isTabSticky && options.pinnedTabSizing !== 'normal') {
-			let stickyTabWidth = 0;
-			switch (options.pinnedTabSizing) {
-				case 'compact':
-					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
-					break;
-				case 'shrink':
-					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
-					break;
-			}
-
-			tabContainer.style.left = `${tabIndex * stickyTabWidth}px`;
+			tabContainer.style.left = `${tabIndex * this.getStickyTabWidth(options.pinnedTabSizing)}px`;
 		} else {
 			tabContainer.style.left = 'auto';
 		}
@@ -1746,7 +1743,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		tabContainer.classList.toggle('active', isActive);
 		tabContainer.classList.toggle('selected', isSelected);
-		tabContainer.setAttribute('aria-selected', isActive ? 'true' : 'false');
+		tabContainer.classList.toggle('multi-selected', isSelected && this.groupView.selectedEditors.length > 1);
+		tabContainer.setAttribute('aria-selected', isSelected ? 'true' : 'false');
 		tabContainer.tabIndex = isActive ? 0 : -1; // Only active tab can be focused into
 		tabActionBar.setFocusable(isActive);
 
@@ -1945,6 +1943,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
+		} else {
+			assertReturnsDefined(this.stickyTabsBackground).style.width = '0px';
 		}
 	}
 
@@ -2095,7 +2095,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		//
 		// Synopsis
 		// - allTabsWidth:   			sum of all tab widths
-		// - stickyTabsWidth:			sum of all sticky tab widths (unless `pinnedTabSizing: normal`)
+		// - stickyTabsWidth:			sum of all sticky tab slot widths (unless `pinnedTabSizing: normal`)
 		// - visibleContainerWidth: 	size of tab container
 		// - availableContainerWidth: 	size of tab container minus size of sticky tabs
 		//
@@ -2111,23 +2111,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const visibleTabsWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
 
-		// Compute width of sticky tabs depending on pinned tab sizing
-		// - compact: sticky-tabs * TAB_SIZES.compact
-		// -  shrink: sticky-tabs * TAB_SIZES.shrink
+		// Compute slot width of sticky tabs depending on pinned tab sizing
+		// - compact: sticky-tabs * compact slot width
+		// -  shrink: sticky-tabs * shrink slot width
 		// -  normal: 0 (sticky tabs inherit look and feel from non-sticky tabs)
 		let stickyTabsWidth = 0;
 		if (this.tabsModel.stickyCount > 0) {
-			let stickyTabWidth = 0;
-			switch (this.groupsView.partOptions.pinnedTabSizing) {
-				case 'compact':
-					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
-					break;
-				case 'shrink':
-					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
-					break;
-			}
-
+			const stickyTabWidth = this.getStickyTabWidth(this.groupsView.partOptions.pinnedTabSizing);
 			stickyTabsWidth = this.tabsModel.stickyCount * stickyTabWidth;
+
+			for (let tabIndex = 0; tabIndex < this.tabsModel.stickyCount; tabIndex++) {
+				const tab = this.getTabAtIndex(tabIndex);
+				if (tab) {
+					tab.style.left = `${tabIndex * stickyTabWidth}px`;
+				}
+			}
 		}
 
 		const activeTabAndIndex = this.tabsModel.activeEditor ? this.getTabAndIndex(this.tabsModel.activeEditor) : undefined;
@@ -2150,6 +2148,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
+		assertReturnsDefined(this.stickyTabsBackground).style.width = `${stickyTabsWidth}px`;
 
 		let activeTabPosX: number | undefined;
 		let activeTabWidth: number | undefined;
@@ -2230,6 +2229,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsScrollbar.setScrollPosition({
 				scrollLeft: adjustedActiveTabPosX
 			});
+		}
+	}
+
+	private getStickyTabWidth(pinnedTabSizing: IEditorPartOptions['pinnedTabSizing']): number {
+		const hasStyleOverride = Boolean(this.parent.closest('.style-override'));
+		const styleOverrideSpacing = hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_PINNED_TAB_SPACING : 0;
+
+		switch (pinnedTabSizing) {
+			case 'compact':
+				return (hasStyleOverride ? MultiEditorTabsControl.STYLE_OVERRIDE_COMPACT_PINNED_TAB_WIDTH : MultiEditorTabsControl.TAB_WIDTH.compact) + styleOverrideSpacing;
+			case 'shrink':
+				return MultiEditorTabsControl.TAB_WIDTH.shrink + styleOverrideSpacing;
+			default:
+				return 0;
 		}
 	}
 
@@ -2427,7 +2440,7 @@ registerThemingParticipant((theme, collector) => {
 			}
 
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-				outline: 1px dotted;
+				outline: 1px dashed;
 				outline-offset: -5px;
 			}
 

@@ -8,7 +8,8 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo } from '../common/state.js';
-import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type Turn } from './state.js';
+import type { McpAuthRequirement } from '../channels-session/state.js';
+import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ToolCallContributor, type ToolCallRiskAssessment, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface ChatTurnStartedAction {
 	type: ActionType.ChatTurnStarted;
 	/** Turn identifier */
 	turnId: string;
+	/** ISO 8601 timestamp when this turn started. */
+	startedAt: string;
 	/** The new message */
 	message: Message;
 	/** If this turn was auto-started from a queued message, the ID of that message */
@@ -187,6 +190,8 @@ export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	toolInput?: string;
 	/** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
 	confirmationTitle?: StringOrMarkdown;
+	/** Risk assessment that informed the confirmation requirement. */
+	riskAssessment?: ToolCallRiskAssessment;
 	/** File edits that this tool call will perform, for preview before confirmation */
 	edits?: { items: FileEdit[] };
 	/** Whether the agent host allows the client to edit the tool's input parameters before confirming */
@@ -269,6 +274,22 @@ export type ChatToolCallConfirmedAction =
  * if the implementing client disconnects or becomes unresponsive, and dispatch
  * this action with `result.success = false` and an appropriate error.
  *
+ * A client MAY also dispatch this action with a **failed** result (
+ * `result.success: false`) for a tool call currently in `auth-required`
+ * status, to cancel that invocation without completing the pending MCP
+ * authentication challenge. This always transitions the tool call straight
+ * to `completed`, preserving the fields it had before pausing for auth;
+ * `requiresResultConfirmation` is ignored for this transition; the
+ * cancellation can never enter `pending-result-confirmation`, since there is
+ * no real result to review.
+ *
+ * A **successful** result (`result.success: true`) is invalid for a tool
+ * call in `auth-required` status — execution never resumed after the
+ * challenge, so there's nothing that could have produced it. The reducer
+ * MUST reject/ignore it as a no-op, leaving the tool call in
+ * `auth-required`. The client must resolve the auth challenge
+ * (`chat/toolCallAuthResolved`) before completing successfully.
+ *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -320,6 +341,46 @@ export interface ChatToolCallContentChangedAction extends ToolCallActionBase {
 }
 
 /**
+ * A running tool call is paused pending MCP authentication. Transitions the
+ * tool call from `running` to `auth-required`.
+ *
+ * The server dispatches this when the MCP server backing the call responds
+ * with a 401/403 challenge mid-execution (see
+ * {@link McpAuthRequirement.reason | `insufficientScope`}). The host SHOULD
+ * pair this with `session/inputNeededSet` (kind `toolAuthentication`) so the
+ * block is visible at the session-summary level, mirroring
+ * {@link McpServerAuthRequiredState}'s own `InputNeeded` guidance.
+ *
+ * Only valid for tool calls contributed by an MCP server — the reducer is a
+ * no-op if the tool call's `contributor` is not
+ * {@link ToolCallContributorKind.MCP | MCP-kind}.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatToolCallAuthRequiredAction extends ToolCallActionBase {
+	type: ActionType.ChatToolCallAuthRequired;
+	/** The authentication challenge blocking this invocation. */
+	auth: McpAuthRequirement;
+}
+
+/**
+ * The authentication challenge blocking a tool call has been resolved (the
+ * client pushed a token via `authenticate` and the host validated it).
+ * Transitions the tool call from `auth-required` back to `running`,
+ * preserving the fields it had before pausing.
+ *
+ * The host SHOULD remove the corresponding `session/inputNeededSet` entry
+ * (kind `toolAuthentication`) once this is dispatched.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatToolCallAuthResolvedAction extends ToolCallActionBase {
+	type: ActionType.ChatToolCallAuthResolved;
+}
+
+/**
  * Turn finished — the assistant is idle.
  *
  * @category Chat Actions
@@ -329,6 +390,13 @@ export interface ChatTurnCompleteAction {
 	type: ActionType.ChatTurnComplete;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
 	/**
 	 * Additional provider-specific metadata for this action.
 	 *
@@ -353,6 +421,13 @@ export interface ChatTurnCancelledAction {
 	/** Turn identifier */
 	turnId: string;
 	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
+	/**
 	 * Additional provider-specific metadata for this action.
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -374,6 +449,13 @@ export interface ChatErrorAction {
 	type: ActionType.ChatError;
 	/** Turn identifier */
 	turnId: string;
+	/**
+	 * Elapsed turn duration in milliseconds, measured by the producer's own
+	 * clock. Clients MUST NOT derive this by subtracting timestamps — cross-
+	 * client clocks may differ — and MUST treat it as opaque, producer-supplied
+	 * data.
+	 */
+	duration: number;
 	/** Error details */
 	error: ErrorInfo;
 	/**
@@ -598,9 +680,9 @@ export interface ChatDraftChangedAction {
 /**
  * A session requested input from the user.
  *
- * Full-request upsert semantics: the `request` replaces any existing request
- * with the same `id`, or is appended if it is new. Answer drafts are preserved
- * unless `request.answers` is provided.
+ * Creates an unresolved {@link InputRequestResponsePart} in the active turn,
+ * or replaces the unresolved part with the same request `id`. Answer drafts
+ * are preserved unless `request.answers` is provided.
  *
  * @category Chat Actions
  * @version 1
@@ -631,10 +713,11 @@ export interface ChatInputAnswerChangedAction {
 }
 
 /**
- * A client accepted, declined, or cancelled a session input request.
+ * A client submitted an accept, decline, or cancel response to an input request.
  *
  * If accepted, the server uses `answers` (when provided) plus the request's
- * synced answer state to resume the blocked operation.
+ * synced answer state to resume the blocked operation. The reducer records the
+ * response and final answers on the existing {@link InputRequestResponsePart}.
  *
  * @category Chat Actions
  * @version 1
@@ -662,6 +745,8 @@ export type ChatAction =
 	| ChatToolCallCompleteAction
 	| ChatToolCallResultConfirmedAction
 	| ChatToolCallContentChangedAction
+	| ChatToolCallAuthRequiredAction
+	| ChatToolCallAuthResolvedAction
 	| ChatTurnCompleteAction
 	| ChatTurnCancelledAction
 	| ChatErrorAction

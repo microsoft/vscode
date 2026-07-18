@@ -33,6 +33,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -157,6 +158,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderFilesList(this.detailsElement));
+		this._register(dom.addDisposableListener(headerDomNode, 'click', () => {
+			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+		}));
 	}
 
 	private computeFileChangesDiffs({ requestId, sessionResource }: IChatFileChangesSummaryPart) {
@@ -214,8 +218,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 		const setExpansionState = () => {
 			container.setAttribute('aria-expanded', String(this.detailsElement.open));
-			chevron.classList.toggle('codicon-chevron-right', !this.detailsElement.open);
-			chevron.classList.toggle('codicon-chevron-down', this.detailsElement.open);
+			chevron.classList.toggle('expanded', this.detailsElement.open);
 		};
 		setExpansionState();
 
