@@ -131,11 +131,11 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl;
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		return this.impl.setExperimentProperty(name, value);
+	setExperimentProperty(name: string, value: string, triggerBufferFlush?: boolean): void {
+		return this.impl.setExperimentProperty(name, value, triggerBufferFlush);
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this.impl.setCommonProperty(name, value);
 	}
 

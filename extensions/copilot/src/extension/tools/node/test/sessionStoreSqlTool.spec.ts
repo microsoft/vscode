@@ -168,20 +168,6 @@ describe('SessionStoreSqlTool', () => {
 			expect(extractText(result)).toContain('Results:');
 		});
 
-		it('routes standup action correctly', async () => {
-			const { tool } = createToolInstance();
-			const cts = new CancellationTokenSource();
-
-			const result = await tool.invoke(
-				makeOptions({ action: 'standup', description: 'Generate standup' }),
-				cts.token,
-			);
-
-			const text = extractText(result);
-			// Standup should return either session data or an error — not a SQL result
-			expect(text).not.toContain('Blocked SQL');
-		});
-
 		it('routes reindex action correctly', async () => {
 			const { tool, debugLogService } = createToolInstance();
 			(debugLogService.listSessionIds as any).mockResolvedValue([]);
@@ -415,12 +401,6 @@ describe('SessionStoreSqlTool', () => {
 		it('returns correct messages for each action', () => {
 			const { tool } = createToolInstance();
 			const cts = new CancellationTokenSource();
-
-			const standup = tool.prepareInvocation(
-				{ input: { action: 'standup', description: 'test' } } as any,
-				cts.token,
-			);
-			expect(standup.invocationMessage).toContain('standup');
 
 			const reindex = tool.prepareInvocation(
 				{ input: { action: 'reindex', description: 'test' } } as any,

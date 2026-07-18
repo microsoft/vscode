@@ -21,7 +21,7 @@ parameters:
     type: string
     default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
   - name: nextVersion
-    displayName: '🚀 Release Version (eg: none, major, minor, patch, prerelease, or X.X.X)'
+    displayName: '🚀 Release Version (eg: none, auto, major, minor, patch, prerelease, or X.X.X)'
     type: string
     default: 'none'
 
@@ -51,6 +51,9 @@ extends:
         # Manually triggered → publish to latest or next
         ${{ if eq(parameters.nextVersion, 'none') }}:
           publishPackage: false
+        ${{ elseif eq(parameters.nextVersion, 'auto') }}:
+          # Use the version synced from extensions/copilot/package.json by build-chat-lib.yml
+          publishPackage: true
         ${{ elseif eq(parameters.nextVersion, 'prerelease') }}:
           publishPackage: true
           publishRequiresApproval: false

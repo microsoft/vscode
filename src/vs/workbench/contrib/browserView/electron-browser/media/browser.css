@@ -34,7 +34,7 @@
 	.browser-navbar {
 		display: flex;
 		align-items: center;
-		padding: 6px 8px;
+		padding: 6px 8px 3px 8px;
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -58,7 +58,8 @@
 	.browser-url-container {
 		flex: 1;
 		display: flex;
-		align-items: center;
+		align-items: stretch;
+		box-sizing: border-box;
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
@@ -69,10 +70,42 @@
 		}
 	}
 
+	.browser-pre-url-widgets {
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	.browser-remote-indicator {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 5px;
+		font-size: 12px;
+		white-space: nowrap;
+		background-color: var(--vscode-editorWidget-background);
+		color: var(--vscode-disabledForeground);
+		border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+
+		&.connected {
+			background-color: var(--vscode-statusBarItem-remoteBackground);
+			color: var(--vscode-statusBarItem-remoteForeground);
+		}
+
+		&.warning {
+			background-color: var(--vscode-statusBarItem-warningBackground);
+			color: var(--vscode-statusBarItem-warningForeground);
+		}
+
+		.codicon {
+			color: inherit;
+		}
+	}
+
 	.browser-url-bar-widgets {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		overflow: hidden;
 		padding: 2px;
 		gap: 2px;
 	}
@@ -109,8 +142,6 @@
 		font-size: 12px;
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-editorWidget-foreground);
-		border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
-		margin-bottom: 3px;
 
 		.browser-emulation-toolbar-groups {
 			display: flex;
@@ -278,7 +309,8 @@
 		display: flex;
 		align-items: center;
 		margin: 0;
-		flex-shrink: 0;
+		min-width: 0;
+		flex-shrink: 1;
 
 		.browser-share-toggle {
 			padding: 2px 4px;
@@ -288,6 +320,12 @@
 			white-space: nowrap;
 			gap: 4px;
 			outline: none !important;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 
 			&:focus-visible {
 				outline: 1px solid var(--vscode-focusBorder) !important;
@@ -323,11 +361,11 @@
 	}
 
 	.browser-container-wrapper {
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
 		position: relative;
-		margin-top: 1px;
 		box-sizing: border-box;
+		overflow: hidden;
 	}
 
 	.browser-container {
@@ -460,7 +498,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: 100% 100%;
+		background-size: contain;
 		background-repeat: no-repeat;
 	}
 
@@ -565,6 +603,13 @@
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
 		}
+
+		&.hint {
+			color: var(--vscode-descriptionForeground);
+			font-style: italic;
+			white-space: pre-wrap;
+			margin-top: 6px;
+		}
 	}
 
 	.browser-find-widget-wrapper {
@@ -586,7 +631,7 @@
 			border-radius: 0;
 			border: none;
 			top: 0 !important;
-			padding: 2px 8px 6px 12px;
+			padding: 4px 8px 4px 12px;
 			transition: none;
 			background: none !important;
 
@@ -597,6 +642,7 @@
 			.monaco-sash {
 				width: 2px !important;
 				height: calc(100% - 4px);
+				margin-top: 2px;
 				border-radius: var(--vscode-cornerRadius-circle);
 
 				&::before {
@@ -679,15 +725,15 @@
 		align-items: center;
 		position: relative;
 		flex-shrink: 0;
-		margin-left: 1px;
+		margin: 1px 0 1px 1px;
 	}
 
 	.browser-site-info-indicator {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 24px;
-		height: 24px;
+		width: 23px;
+		height: 23px;
 		border-radius: var(--vscode-cornerRadius-small);
 		cursor: pointer;
 		background-color: var(--vscode-statusBarItem-errorBackground);
@@ -707,7 +753,7 @@
 
 	.browser-url-display {
 		flex: 1;
-		min-width: 0;
+		min-width: 60px;
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
@@ -719,6 +765,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		outline: none !important;
+
+		&:focus-within {
+			text-overflow: clip;
+		}
 
 		&:empty::before {
 			content: attr(data-placeholder);

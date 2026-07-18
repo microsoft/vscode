@@ -6,12 +6,15 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../common/agentHostFileSystemService.js';
 import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { CustomizationType, SkillCustomization } from '../common/state/sessionState.js';
+import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
+import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
+import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
+
 
 /**
  * Generic completion provider that contributes slash completions for skills
@@ -29,7 +32,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
-		const leading = extractLeadingSlashToken(params.text, params.offset);
+		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
 		}
@@ -46,33 +49,74 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-
+		const skillsSeen = new Set<string>();
 		return candidates
-			.filter(skill => !typed.length || skill.name.startsWith(typed))
+			.filter(skill => {
+				const uri = skill.uri;
+				if ((!typed.length || skill.slashCommandName.startsWith(typed)) && !skillsSeen.has(uri)) {
+					skillsSeen.add(uri);
+					return true;
+				}
+				return false;
+			})
 			.map(skill => ({
-				insertText: '/' + skill.name + ' ',
+				insertText: '/' + skill.slashCommandName + ' ',
 				rangeStart: leading.rangeStart,
 				rangeEnd: leading.rangeEnd,
 				attachment: {
 					type: MessageAttachmentKind.Simple,
-					label: '/' + skill.name,
-					_meta: {
-						uri: skill.uri.toString(),
+					label: '/' + skill.slashCommandName,
+					_meta: toSkillCompletionAttachmentMeta({
+						uri: skill.uri,
 						name: skill.name,
-						displayName: skill.name,
-						...(skill.description !== undefined ? { description: skill.description } : {}),
-					},
+						displayName: skill.slashCommandName,
+						description: skill.description,
+					}),
 				},
 			}));
 	}
 
-	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SkillCustomization[]> {
+	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
 		if (!agent.getSessionCustomizations) {
 			return [];
 		}
 		const customizations = await agent.getSessionCustomizations(session);
-		return customizations
-			.filter(c => c.enabled)
-			.flatMap(c => (c.children ?? []).filter(child => child.type === CustomizationType.Skill));
+		const result: SlashCommmandCandidate[] = [];
+		for (const c of customizations) {
+			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+				continue;
+			}
+			for (const child of c.children) {
+				if (child.type === CustomizationType.Skill) {
+					result.push(this._toSlashCommandCandidate(c, child));
+				}
+			}
+		}
+		return result;
 	}
+
+	private _toSlashCommandCandidate(container: PluginCustomization | DirectoryCustomization, skill: SkillCustomization): SlashCommmandCandidate {
+		// see getCanonicalPluginCommandId
+		let slashCommandName = skill.name;
+		if (container.type === CustomizationType.Plugin && !isSyncedCustomization(container) && skill.name !== container.name) {
+			slashCommandName = `${container.name}:${skill.name}`;
+		}
+		return {
+			slashCommandName: slashCommandName,
+			name: skill.name,
+			description: skill.description,
+			uri: skill.uri,
+		};
+	}
+}
+
+function isSyncedCustomization(container: PluginCustomization): boolean {
+	return container.uri.startsWith(SYNCED_CUSTOMIZATION_SCHEME + ':');
+}
+
+interface SlashCommmandCandidate {
+	readonly slashCommandName: string;
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly uri: string;
 }

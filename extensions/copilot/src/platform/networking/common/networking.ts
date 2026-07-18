@@ -119,7 +119,8 @@ export interface IEndpointBody {
 		budget_tokens?: number;
 	};
 	output_config?: {
-		effort?: 'low' | 'medium' | 'high';
+		/** Validated against the endpoint's declared `reasoning_effort` levels, not a hardcoded set. */
+		effort?: string;
 	};
 
 	/** ChatCompletions API for Anthropic models */
@@ -148,6 +149,26 @@ export function stringifyUrlOrRequestMetadata(urlOrRequestMetadata: string | Req
 		return urlOrRequestMetadata;
 	}
 	return JSON.stringify(urlOrRequestMetadata);
+}
+
+/**
+ * Whether the given value is {@link RequestMetadata} (routed through CAPI) rather
+ * than a literal URL string (fetched directly, e.g. BYOK / custom endpoints).
+ *
+ * This is the exact discriminant used by `networkRequest`: a `RequestMetadata`
+ * object is dispatched via {@link ICAPIClientService.makeRequest}, whereas a
+ * `string` URL is sent straight to {@link IFetcherService.fetch}.
+ */
+export function isCAPIRequestMetadata(urlOrRequestMetadata: string | RequestMetadata): urlOrRequestMetadata is RequestMetadata {
+	return typeof urlOrRequestMetadata !== 'string';
+}
+
+/**
+ * Whether requests for this endpoint are routed through CAPI (the Copilot proxy)
+ * rather than fetched directly from a literal URL (BYOK / custom endpoints).
+ */
+export function isCAPIEndpoint(endpoint: IEndpoint): boolean {
+	return isCAPIRequestMetadata(endpoint.urlOrRequestMetadata);
 }
 
 export interface IEmbeddingsEndpoint extends IEndpoint {
@@ -251,6 +272,8 @@ export type IChatRequestTelemetryProperties = {
 	parentHeaderRequestId?: string;
 	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The conversation turn index, matching the panel.request turn measurement. */
+	turnIndex?: string;
 	/** The 0-based iteration number of the tool-calling loop that produced this request. */
 	iterationNumber?: string;
 };
@@ -269,7 +292,9 @@ export interface ITokenPriceTier {
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
-	readonly cacheReadTokenPrice: number;
+	readonly cacheReadTokenPrice: number | undefined;
+	/** Cost in AICs per million cache-write tokens */
+	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
 	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
@@ -313,6 +338,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly showInModelPicker: boolean;
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
+	readonly warningText?: Record<string, string>;
+	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**
@@ -322,6 +349,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
+	readonly modelPickerCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
@@ -502,7 +530,7 @@ function networkRequest(
 		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
-	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
@@ -518,7 +546,7 @@ function networkRequest(
 		});
 		return requestPromise;
 	} else {
-		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata);
 	}
 }
 

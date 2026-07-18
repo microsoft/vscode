@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import type { ChangesetSummary, URI } from './state/sessionState.js';
+import type { Changeset, ISessionGitState, URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -27,11 +27,14 @@ import type { ChangesetSummary, URI } from './state/sessionState.js';
  * is disposed (the reverse-lookup is just a string-prefix scan).
  */
 
-/** Stable id of the catalogue entry for the session-wide changeset. */
-const SESSION_CHANGESET_ID = 'session';
+/** /** Stable id of the catalogue entry for the branch changeset. */
+const BRANCH_CHANGESET_ID = 'branch';
 
 /** Stable id of the catalogue entry for the uncommitted-changes changeset. */
 const UNCOMMITTED_CHANGESET_ID = 'uncommitted';
+
+/** Stable id of the catalogue entry for the session-wide changeset. */
+const SESSION_CHANGESET_ID = 'session';
 
 /** Path prefix used by per-turn changeset URIs (`turn/<turnId>`). */
 const TURN_CHANGESET_PREFIX = 'turn/';
@@ -48,22 +51,14 @@ const COMPARE_ORIGINAL_TEMPLATE_VARIABLE = '{originalTurnId}';
 /** Template variable name for the modified turn in the compare-turns URI template. */
 const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 
-/**
- * Reserved id used in place of an `originalTurnId` to mean "the
- * session's baseline checkpoint" (captured before the first turn).
- *
- * Compare-turns URIs of the form
- * `<sessionUri>/changeset/compare/baseline/<modifiedTurnId>` ask the
- * server to diff from the baseline ref (stored in session metadata
- * under `META_CHECKPOINT_BASE_REF`) to `modifiedTurnId`'s checkpoint.
- * The sentinel is only valid on the `original` side; using it as a
- * `modifiedTurnId` or as a `turnId` for a per-turn changeset URI is
- * rejected by the corresponding builders.
- */
-export const BASELINE_TURN_ID = 'baseline';
+/** Localized human-readable label for the branch changeset entry. */
+export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "All Changes");
+
+/** Localized human-readable description for the session-wide changeset entry. */
+export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
 
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
@@ -71,23 +66,41 @@ export const uncommittedChangesetLabel = (): string => localize('uncommittedChan
 /** Localized human-readable description for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetDescription = (): string => localize('uncommittedChangeset.description', "Show uncommitted changes in this session");
 
+/** Localized human-readable label for the per-turn changeset template entry. */
+export const thisTurnChangesetLabel = (): string => localize('thisTurnChangeset.label', "This Turn");
+
+/** Localized human-readable description for the per-turn changeset template entry. */
+export const thisTurnChangesetDescription = (): string => localize('thisTurnChangeset.description', "Show changes made in this turn");
+
+/** Localized human-readable label for the compare-turns changeset template entry. */
+export const compareTurnsChangesetLabel = (): string => localize('compareTurnsChangeset.label', "Compare Turns");
+
+/** Localized human-readable description for the compare-turns changeset template entry. */
+export const compareTurnsChangesetDescription = (): string => localize('compareTurnsChangeset.description', "Show changes made between different turns");
+
 /**
  * Returns the description shown next to the `Branch Changes` catalogue
- * entry. When both `branchName` and `baseBranchName` are known
- * (typical worktree-isolation case), formats as `${branchName} → ${baseBranchName}`.
- * Falls back to `branchName` alone when the base branch is unknown
- * (non-worktree session, or a session whose working copy has no
- * `refs/remotes/origin/HEAD`). Returns `undefined` only when no branch
- * name is known at all, so callers can omit the description entirely.
+ * entry. Prefers `${branchName} → ${baseBranchName}` when both values
+ * are known (typical worktree-isolation case). If `baseBranchName` is
+ * unknown, falls back to `${branchName} → ${upstreamBranchName}` when an
+ * upstream is available. Finally falls back to `branchName` alone.
+ * Returns `undefined` only when no branch name is known at all, so
+ * callers can omit the description entirely.
  */
-export function formatSessionChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
-	if (!branchName || !baseBranchName) {
-		return branchName;
+export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
+	const { baseBranchName, branchName, upstreamBranchName } = gitState;
+
+	// Use branch name
+	if (baseBranchName && branchName) {
+		return `${branchName} → ${baseBranchName}`;
 	}
-	if (branchName === baseBranchName) {
-		return branchName;
+
+	// Use upstream branch name
+	if (upstreamBranchName && branchName) {
+		return `${branchName} → ${upstreamBranchName}`;
 	}
-	return `${branchName} → ${baseBranchName}`;
+
+	return branchName;
 }
 
 /** Marker injected into a changeset URI's path. */
@@ -95,12 +108,17 @@ const CHANGESET_PATH_SEGMENT = '/changeset/';
 
 /** Discriminates the well-known changeset URI shapes. */
 export const enum ChangesetKind {
-	Session = 'session',
+	Branch = 'branch',
 	Uncommitted = 'uncommitted',
+	Session = 'session',
 	Turn = 'turn',
-	Compare = 'compare',
+	Compare = 'compare-turns',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
+}
+
+export function buildBranchChangesetUri(sessionUri: URI): URI {
+	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${BRANCH_CHANGESET_ID}`;
 }
 
 /** Returns the subscribable URI for the session-wide changeset. */
@@ -127,9 +145,6 @@ export function buildTurnChangesetUri(sessionUri: URI, turnId: string): URI {
 	if (!turnId || turnId.includes('/')) {
 		throw new Error(`buildTurnChangesetUri: turnId must be non-empty and not contain '/' (got ${JSON.stringify(turnId)})`);
 	}
-	if (turnId === BASELINE_TURN_ID) {
-		throw new Error(`buildTurnChangesetUri: '${BASELINE_TURN_ID}' is reserved for the original side of compare-turns URIs`);
-	}
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${TURN_CHANGESET_PREFIX}${turnId}`;
 }
 
@@ -147,10 +162,6 @@ export function buildCompareTurnsChangesetUriTemplate(sessionUri: URI): URI {
  * Returns the subscribable URI for the compare-turns changeset between
  * `originalTurnId` (the "from" endpoint) and `modifiedTurnId` (the "to"
  * endpoint). Diff direction is `originalTurnId → modifiedTurnId`.
- *
- * Pass {@link BASELINE_TURN_ID} as `originalTurnId` to diff from the
- * session's baseline checkpoint. The sentinel is not accepted on the
- * `modified` side.
  */
 export function buildCompareTurnsChangesetUri(sessionUri: URI, originalTurnId: string, modifiedTurnId: string): URI {
 	if (!originalTurnId || originalTurnId.includes('/')) {
@@ -158,9 +169,6 @@ export function buildCompareTurnsChangesetUri(sessionUri: URI, originalTurnId: s
 	}
 	if (!modifiedTurnId || modifiedTurnId.includes('/')) {
 		throw new Error(`buildCompareTurnsChangesetUri: modifiedTurnId must be non-empty and not contain '/' (got ${JSON.stringify(modifiedTurnId)})`);
-	}
-	if (modifiedTurnId === BASELINE_TURN_ID) {
-		throw new Error(`buildCompareTurnsChangesetUri: '${BASELINE_TURN_ID}' is only valid as originalTurnId`);
 	}
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${COMPARE_CHANGESET_PREFIX}${originalTurnId}/${modifiedTurnId}`;
 }
@@ -194,11 +202,14 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 		return undefined;
 	}
 	const sessionUri = uri.slice(0, idx);
-	if (changesetId === SESSION_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Session };
+	if (changesetId === BRANCH_CHANGESET_ID) {
+		return { sessionUri, changesetId, kind: ChangesetKind.Branch };
 	}
 	if (changesetId === UNCOMMITTED_CHANGESET_ID) {
 		return { sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
+	}
+	if (changesetId === SESSION_CHANGESET_ID) {
+		return { sessionUri, changesetId, kind: ChangesetKind.Session };
 	}
 	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
 		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
@@ -281,9 +292,55 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * compare-turns diffs construct the URI themselves from two known
  * turn ids and subscribe directly.
  */
-export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
+export function buildDefaultChangesetCatalog(sessionUri: URI, gitState?: ISessionGitState): Changeset[] {
+	if (!gitState) {
+		return [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session
+		},
+		{
+			label: thisTurnChangesetLabel(),
+			description: thisTurnChangesetDescription(),
+			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			changeKind: ChangesetKind.Turn
+		}] satisfies Changeset[];
+	}
+
 	return [
-		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
-		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() }
-	];
+		{
+			label: branchChangesetLabel(),
+			description: gitState
+				? formatBranchChangesetDescription(gitState)
+				: undefined,
+			uriTemplate: buildBranchChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Branch,
+			capabilities: { review: {} }
+		},
+		{
+			label: uncommittedChangesetLabel(),
+			description: uncommittedChangesetDescription(),
+			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Uncommitted
+		},
+		{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session
+		},
+		{
+			label: thisTurnChangesetLabel(),
+			description: thisTurnChangesetDescription(),
+			uriTemplate: buildTurnChangesetUriTemplate(sessionUri),
+			changeKind: ChangesetKind.Turn
+		},
+		{
+			label: compareTurnsChangesetLabel(),
+			description: compareTurnsChangesetDescription(),
+			uriTemplate: buildCompareTurnsChangesetUriTemplate(sessionUri),
+			changeKind: ChangesetKind.Compare
+		}
+	] satisfies Changeset[];
 }

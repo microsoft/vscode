@@ -20,6 +20,7 @@ import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -27,11 +28,14 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, NeverShowAgainScope } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
@@ -43,6 +47,58 @@ import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } fro
  * vendor across the chat stack (see `ILanguageModelProviderDescriptor.isDefault`).
  */
 export const COPILOT_VENDOR_ID = 'copilot';
+
+/** Whether a missing model is conclusively absent from a vendor's live model list. Empty Copilot results remain transient while token-backed discovery completes. */
+export function isLanguageModelVendorAbsenceConclusive(vendor: string, hasLiveModels: boolean, hasResolved: boolean): boolean {
+	return hasLiveModels || (hasResolved && vendor !== COPILOT_VENDOR_ID);
+}
+
+/**
+ * Vendor ids of the BYOK language-model providers that ship in-built with the GitHub Copilot Chat
+ * extension. Each provider's vendor id is `providerName.toLowerCase()` (see
+ * `extensions/copilot/src/extension/byok/vscode-node/*Provider.ts`). This list is intentionally
+ * hardcoded: the in-built provider set is stable and known ahead of time, which lets us report these
+ * providers by name while bucketing every other (third-party) provider as `3p-extension`.
+ */
+const BUILT_IN_BYOK_VENDOR_IDS = new Set<string>([
+	'openai',
+	'anthropic',
+	'gemini',
+	'ollama',
+	'openrouter',
+	'azure',
+	'xai',
+	'customoai',
+	'customendpoint',
+]);
+
+/**
+ * Bucket reported for any non-Copilot provider that is not an in-built BYOK provider, i.e. a model
+ * contributed by a third-party extension. We never report the third-party vendor id directly to avoid
+ * logging potentially identifying values.
+ */
+export const THIRD_PARTY_PROVIDER_TELEMETRY_NAME = '3p-extension';
+
+const BUILT_IN_BYOK_EXTENSION_IDS = [
+	'github.copilot-chat',
+	'github.copilot',
+];
+
+/**
+ * Normalizes a non-Copilot model vendor into a non-identifying provider name suitable for telemetry:
+ * the in-built BYOK vendor id (e.g. `openai`, `ollama`) when contributed by the built-in Copilot
+ * extensions, or {@link THIRD_PARTY_PROVIDER_TELEMETRY_NAME} otherwise. Returns `undefined` for the
+ * first-party Copilot vendor (or no vendor) so callers skip logging first-party usage.
+ */
+export function getByokProviderTelemetryName(vendor: string | undefined, extension: ExtensionIdentifier | undefined): string | undefined {
+	if (!vendor || vendor === COPILOT_VENDOR_ID) {
+		return undefined;
+	}
+	if (BUILT_IN_BYOK_VENDOR_IDS.has(vendor) && extension && BUILT_IN_BYOK_EXTENSION_IDS.some(id => ExtensionIdentifier.equals(extension, id))) {
+		return vendor;
+	}
+	return THIRD_PARTY_PROVIDER_TELEMETRY_NAME;
+}
 
 export const enum ChatMessageRole {
 	System,
@@ -197,14 +253,18 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
+	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
-	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly cacheWriteCost?: number;
+	readonly outputCost?: number;
 	readonly longContextInputCost?: number;
-	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextCacheWriteCost?: number;
+	readonly longContextOutputCost?: number;
 	readonly priceCategory?: string;
+	readonly category?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -229,10 +289,44 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly targetChatSessionType?: string;
 	/**
+	 * Optional grouping hint for the model picker. When set, the picker buckets this model
+	 * under a sub-group within its vendor, identified by this vendor id — e.g. agent-host models,
+	 * which all share one vendor, grouped by their upstream provider — instead of a single
+	 * vendor-wide bucket. The display name is resolved from the vendor registry
+	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
+	 * Presentation-only; it does not affect model selection or routing.
+	 */
+	readonly modelGroup?: { readonly id: string };
+	/**
+	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
+	 * original model is registered under in the renderer's LM service
+	 * (`toModelIdentifier(vendor, group, id)` — `<vendor>/<group>/<id>` or `<vendor>/<id>`).
+	 * This is exactly the id the "Manage Models" view keys visibility by; it is carried
+	 * across the agent-host bridge and surfaced here so the model picker can honour the
+	 * model's visibility toggle. Absent for native agent-host models and non-agent-host
+	 * models.
+	 */
+	readonly byokModelIdentifier?: string;
+	/**
 	 * An optional JSON schema describing the per-model configuration options.
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
 	readonly configurationSchema?: ILanguageModelConfigurationSchema;
+	/**
+	 * Optional warning text to display in the model picker hover as a warning banner.
+	 * The keys are warning categories (e.g. "data_retention") and the values are markdown strings.
+	 */
+	readonly warningText?: IStringDictionary<string>;
+	/**
+	 * Optional promotional information for this model. Positive discounts surface
+	 * promotional UI; non-positive discounts only feature the model in the picker.
+	 */
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -250,6 +344,52 @@ export namespace ILanguageModelChatMetadata {
 			return true;
 		}
 		return name === asQualifiedName(metadata);
+	}
+
+	export function hasPromoDiscount(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent > 0;
+	}
+
+	/**
+	 * Documentation link explaining how Auto model selection works.
+	 * NOTE: Also defined in extensions/copilot/src/extension/conversation/common/languageModelAccess.ts — keep in sync.
+	 */
+	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
+
+	/**
+	 * Builds the shared description shown for the Auto model, rendered as Markdown
+	 * (it contains a "Learn More" link). The discount sentence is only included
+	 * when a positive discount is provided.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
+	 * omitted or not positive, the discount sentence is left out entirely.
+	 */
+	export function getAutoModelDescription(discountPercent?: number): string {
+		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
+		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
+		if (typeof discountPercent === 'number' && discountPercent > 0) {
+			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
+			return `${base} ${discount} ${learnMore}`;
+		}
+		return `${base} ${learnMore}`;
+	}
+
+	/**
+	 * The "Manage Models" identifier that an agent-host copy of an extension-provided
+	 * BYOK model is toggled under, or `undefined` when the model is not such a copy.
+	 *
+	 * Agent-host BYOK models make a round trip that rewrites their id (the node agent host
+	 * re-advertises the extension model under the agent-host vendor). Their original LM
+	 * service identifier — `toModelIdentifier(vendor, group, id)`, i.e. `<vendor>/<group>/<id>`
+	 * or `<vendor>/<id>`, which is what the Manage Models view stores when hiding the model —
+	 * is carried across the bridge and surfaced on {@link ILanguageModelChatMetadata.byokModelIdentifier}.
+	 * This returns it, so callers can match the copy against the user's visibility toggles.
+	 *
+	 * Returns `undefined` for models that are not agent-host BYOK copies (native harness
+	 * models and non-agent-host models), which are matched by their own identifier instead.
+	 */
+	export function getAgentHostByokManageModelsIdentifier(metadata: ILanguageModelChatMetadata): string | undefined {
+		return metadata.byokModelIdentifier;
 	}
 }
 
@@ -597,6 +737,16 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		deprecation: {
+			type: 'object',
+			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
+			properties: {
+				link: {
+					type: 'string',
+					description: localize('vscode.extension.contributes.languageModels.deprecation.link', "A URL opened when the user clicks the deprecation link shown next to the provider name. Use a 'vscode:extension/<publisher>.<name>' URI to open a replacement extension in the Extensions view.")
+				}
+			}
+		},
 		when: {
 			type: 'string',
 			description: localize('vscode.extension.contributes.languageModels.when', "Condition which must be true to show this language model chat provider in the Manage Models list.")
@@ -604,10 +754,30 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+	/**
+	 * Marks a provider as deprecated. The Manage Models view renders a link
+	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
+	 * next to the provider name. Optional so existing provider descriptors are unaffected.
+	 */
+	readonly deprecation?: { readonly link?: string };
+};
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
+}
+
+/**
+ * Resolves a provider `deprecation.link` for opening inside the current build. Contributions point
+ * at the replacement extension with a stable `vscode:extension/<id>` URI, but the URL service only
+ * routes URIs whose scheme matches this build's `urlProtocol` (e.g. `code-oss`, `vscode-insiders`).
+ * The `vscode:` scheme is therefore rewritten to the current protocol so the extensions URL handler
+ * opens the extension; without this the opener falls back to treating the URI as a (non-existent)
+ * file resource and fails. Other schemes (http(s), command) are returned unchanged.
+ */
+export function resolveProviderDeprecationLink(link: string, urlProtocol: string | undefined): URI {
+	const uri = URI.parse(link);
+	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
 }
 
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
@@ -638,6 +808,11 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  * Auto should never appear in user-curated lists (MRU, pinned).
  */
 const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
+
+export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
+	return model?.metadata.id === 'auto' || model?.identifier === AUTO_MODEL_IDENTIFIER;
+}
+
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 
@@ -648,6 +823,54 @@ interface IChatControlResponse {
 		readonly free?: Record<string, { readonly label: string; readonly featured?: boolean }>;
 		readonly paid?: Record<string, { readonly label: string; readonly featured?: boolean; readonly minVSCodeVersion?: string }>;
 	};
+}
+
+/**
+ * Builds the per-model configuration submenu actions from a model's
+ * {@link ILanguageModelConfigurationSchema}. The current value is read from
+ * `currentConfig` and selections are routed through `setValue`, allowing the
+ * caller to decide whether changes apply globally or to a per-editor override.
+ */
+export function createModelConfigurationActions(
+	schema: ILanguageModelConfigurationSchema | undefined,
+	currentConfig: IStringDictionary<unknown>,
+	setValue: (key: string, value: unknown) => void,
+): IAction[] {
+	if (!schema?.properties) {
+		return [];
+	}
+
+	const actions: IAction[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 1) {
+			continue;
+		}
+		const currentValue = currentConfig[key] ?? propSchema.default;
+		const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+			?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
+				.replace(/^./, s => s.toUpperCase());
+		const defaultValue = propSchema.default;
+		const enumItemLabels = propSchema.enumItemLabels;
+		const enumDescriptions = propSchema.enumDescriptions;
+		const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
+			const itemLabel = enumItemLabels?.[index] ?? String(value);
+			const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
+			const tooltip = enumDescriptions?.[index] ?? '';
+			return {
+				id: `configureModel.${key}.${value}`,
+				label: displayLabel,
+				class: undefined,
+				enabled: true,
+				tooltip,
+				checked: currentValue === value,
+				run: () => setValue(key, value)
+			};
+		});
+		actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
+	}
+
+	return actions;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -661,6 +884,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+
+	/** Vendors for which a deprecation notice has already been shown this session. */
+	private readonly _deprecationNoticeShownVendors = new Set<string>();
 
 	private readonly _onDidChangeLanguageModelVendors = this._store.add(new Emitter<string[]>());
 	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
@@ -708,6 +934,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
 		@IProductService private readonly _productService: IProductService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
@@ -789,6 +1018,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				displayName: item.displayName,
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
+				deprecation: item.deprecation,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};
@@ -1098,9 +1328,69 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (!provider) {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
+		if (metadata) {
+			this._logProviderUsageTelemetry(metadata);
+			this._maybeShowProviderDeprecationNotice(metadata);
+		}
 		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
+	}
+
+	/**
+	 * When a chat request is made against a deprecated provider (one that contributes a
+	 * `deprecation.link`), prompt the user once per session to install the replacement
+	 * extension. The notification can be dismissed, and offers a "Don't Show Again" choice that
+	 * is persisted across sessions via the notification service's `neverShowAgain` support.
+	 */
+	private _maybeShowProviderDeprecationNotice(metadata: ILanguageModelChatMetadata): void {
+		const vendor = this._vendors.get(metadata.vendor);
+		const link = vendor?.deprecation?.link;
+		if (!link) {
+			return;
+		}
+		if (this._deprecationNoticeShownVendors.has(metadata.vendor)) {
+			return;
+		}
+		this._deprecationNoticeShownVendors.add(metadata.vendor);
+
+		const providerName = (vendor.displayName || metadata.vendor).replace(/\s*\(deprecated\)\s*$/i, '');
+		this._notificationService.prompt(
+			Severity.Info,
+			localize('chat.providerDeprecation.message', "The internal {0} language model provider is being deprecated. Please migrate to the official extension.", providerName),
+			[{
+				label: localize('chat.providerDeprecation.install', "Install Extension"),
+				run: () => { this._openerService.open(resolveProviderDeprecationLink(link, this._productService.urlProtocol)); }
+			}],
+			{
+				neverShowAgain: { id: `chat.providerDeprecation.${metadata.vendor}`, scope: NeverShowAgainScope.APPLICATION }
+			}
+		);
+	}
+
+	/**
+	 * Reports which in-built BYOK provider (or third-party extension) backs a model request. First-party
+	 * Copilot models are intentionally not reported here (see {@link getByokProviderTelemetryName}).
+	 */
+	private _logProviderUsageTelemetry(metadata: ILanguageModelChatMetadata | undefined): void {
+		const provider = getByokProviderTelemetryName(metadata?.vendor, metadata?.extension);
+		if (!provider) {
+			return;
+		}
+		type LanguageModelRequestEvent = {
+			provider: string;
+			isBYOK: boolean;
+		};
+		type LanguageModelRequestClassification = {
+			provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Normalized non-Copilot model provider: an in-built BYOK vendor id (for models contributed by the built-in Copilot extensions) or "3p-extension" for any third-party extension provider.' };
+			isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model is a BYOK model.' };
+			owner: 'vritant24';
+			comment: 'Tracks which non-Copilot language-model provider is used per request to understand adoption of in-built Copilot BYOK providers vs third-party extension providers.';
+		};
+		this._telemetryService.publicLog2<LanguageModelRequestEvent, LanguageModelRequestClassification>('chat.languageModelRequest', {
+			provider,
+			isBYOK: !!metadata?.isBYOK,
+		});
 	}
 
 	private _resolveModelConfigurationWithDefaults(modelId: string, metadata: ILanguageModelChatMetadata | undefined): IStringDictionary<unknown> | undefined {
@@ -1156,10 +1446,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		let group: ILanguageModelsProviderGroup | undefined;
 
-		// First try to find a group that already has config for this model
+		// First try to find a group that already has config for this model.
 		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
-		// If not found, find any group for this vendor
+		// Otherwise find the group that actually *defines* this model. Several
+		// groups can share the same `vendor` (e.g. multiple `customendpoint`
+		// providers like DeepSeek and MyCustom), so matching by vendor alone would
+		// write the config to the first group of that vendor — not the one the
+		// model belongs to. Resolve via the model→group map instead. See #322872.
+		if (!group) {
+			const vendorGroups = this._modelsGroups.get(metadata.vendor);
+			const containingGroup = vendorGroups?.find(vg => vg.modelIdentifiers.includes(modelId) && vg.group)?.group;
+			if (containingGroup) {
+				group = allGroups.find(g => g.vendor === containingGroup.vendor && g.name === containingGroup.name) ?? containingGroup;
+			}
+		}
+
+		// As a last resort (model not yet resolved into any group), fall back to
+		// any group for this vendor.
 		if (!group) {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
@@ -1225,43 +1529,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	getModelConfigurationActions(modelId: string): IAction[] {
 		const metadata = this._modelCache.get(modelId);
-		const schema = metadata?.configurationSchema;
-		if (!schema?.properties) {
-			return [];
-		}
-
-		const actions: IAction[] = [];
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
-
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
-				continue;
-			}
-			const currentValue = currentConfig[key] ?? propSchema.default;
-			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
-					.replace(/^./, s => s.toUpperCase());
-			const defaultValue = propSchema.default;
-			const enumItemLabels = propSchema.enumItemLabels;
-			const enumDescriptions = propSchema.enumDescriptions;
-			const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
-				const itemLabel = enumItemLabels?.[index] ?? String(value);
-				const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
-				const tooltip = enumDescriptions?.[index] ?? '';
-				return {
-					id: `configureModel.${key}.${value}`,
-					label: displayLabel,
-					class: undefined,
-					enabled: true,
-					tooltip,
-					checked: currentValue === value,
-					run: () => this.setModelConfiguration(modelId, { [key]: value })
-				};
-			});
-			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
-		}
-
-		return actions;
+		return createModelConfigurationActions(
+			metadata?.configurationSchema,
+			currentConfig,
+			(key, value) => this.setModelConfiguration(modelId, { [key]: value })
+		);
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {
@@ -2018,7 +2291,20 @@ export class LanguageModelsService implements ILanguageModelsService {
 		for (const g of vendorGroups) {
 			const name = g.group?.name ?? fallbackName;
 			if (name === groupName) {
-				result.push(...g.modelIdentifiers);
+				for (const id of g.modelIdentifiers) {
+					// Exclude agent-host BYOK copies. They are not shown as rows in this
+					// group (they surface under their real provider), so group-level
+					// visibility toggles (`isGroupHidden` / `setGroupHidden`) must not
+					// touch them — otherwise hiding the agent-host group would flip the
+					// hidden state of these copies in the underlying model set even though
+					// the UI never lists them here. Their visibility is owned by the real
+					// provider row and honoured in the picker via the reconstructed id.
+					const metadata = this._modelCache.get(id);
+					if (metadata && ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+						continue;
+					}
+					result.push(id);
+				}
 			}
 		}
 		return result;

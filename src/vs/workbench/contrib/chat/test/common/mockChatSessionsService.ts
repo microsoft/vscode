@@ -136,6 +136,20 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		return typeof this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const sessionType = getChatSessionType(sessionResource);
+		const controller = this.sessionItemControllers.get(sessionType)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
@@ -170,6 +184,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 			return undefined;
 		}
 		return provider.provideChatInputCompletions(sessionResource, params, token);
+	}
+
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
+		const sessionType = getChatSessionType(sessionResource);
+		return this.contentProviders.get(sessionType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
 	}
 
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
@@ -238,6 +257,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.requiresCustomModels ?? false;
 	}
 
+	supportsAutoModelForSessionType(chatSessionType: string): boolean {
+		return !!this.contributions.find(c => c.type === chatSessionType)?.supportsAutoModel;
+	}
+
+	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
+		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
+	}
+
 	supportsDelegationForSessionType(chatSessionType: string): boolean {
 		return this.contributions.find(c => c.type === chatSessionType)?.supportsDelegation !== false;
 	}
@@ -250,6 +277,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		throw new Error('Not implemented');
 	}
 
+	sessionSupportsRename(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	async renameChatSession(_sessionResource: URI, _title: string, _token: CancellationToken): Promise<void> {
+		throw new Error('Not implemented');
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}
@@ -258,8 +293,37 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
-	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
-		// noop
+	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
+		const chatSessionType = getChatSessionType(sessionResource);
+		const controllerData = this.sessionItemControllers.get(chatSessionType);
+		if (!controllerData?.controller.deleteChatSessionItem) {
+			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
+		}
+		await controllerData.initialRefresh;
+		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
+	private readonly _resourceAliases = new ResourceMap<URI>(); // real -> untitled
+	private readonly _realResources = new ResourceMap<URI>(); // untitled -> real
+
+	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
+		this._resourceAliases.set(realResource, untitledResource);
+	}
+
+	setMaterializedSessionResource(untitledResource: URI, realResource: URI): void {
+		this._realResources.set(untitledResource, realResource);
+	}
+
+	getMaterializedSessionResource(untitledResource: URI): URI | undefined {
+		return this._realResources.get(untitledResource);
+	}
+
+	clearMaterializedSessionResource(sessionResource: URI): void {
+		this._realResources.delete(sessionResource);
+		const untitled = this._resourceAliases.get(sessionResource);
+		if (untitled) {
+			this._realResources.delete(untitled);
+		}
 	}
 
 	fireSessionCommitted(_original: URI, _committed: URI): void {

@@ -363,7 +363,15 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		audience?: string,
 		clientSecret?: string,
 	): Promise<string | undefined> {
+		const authContext: IMcpServerAuthContext = { authorizationServer, clientId, resource, audience };
 		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource, audience }, true);
+		// Only HTTP servers authenticate, so the server URL is always known here. A token is only released
+		// to a server whose current URL matches the one the user consented to, so changing the URL while
+		// keeping the same id requires re-consent.
+		if (server.launch.type !== McpServerTransportType.HTTP) {
+			return undefined;
+		}
+		const mcpServerUrl = server.launch.uri.toString(true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -373,15 +381,15 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		let session: AuthenticationSession;
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
-			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
+			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowedForUrl(providerId, matchingAccountPreferenceSession.account.label, server.id, mcpServerUrl)) {
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopes, server.id, server.label);
-				this._serverAuthTracking.track(providerId, serverId, scopes);
+				this._serverAuthTracking.track(providerId, serverId, scopes, authContext);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
-			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
+			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowedForUrl(providerId, sessions[0].account.label, server.id, mcpServerUrl)) {
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopes, server.id, server.label);
-				this._serverAuthTracking.track(providerId, serverId, scopes);
+				this._serverAuthTracking.track(providerId, serverId, scopes, authContext);
 				return sessions[0].accessToken;
 			}
 		}
@@ -428,10 +436,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			);
 		}
 
-		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
+		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true, url: mcpServerUrl }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
 		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopes, server.id, server.label);
-		this._serverAuthTracking.track(providerId, serverId, scopes);
+		this._serverAuthTracking.track(providerId, serverId, scopes, authContext);
 		return session.accessToken;
 	}
 
@@ -466,7 +474,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			return;
 		}
 
-		for (const { serverId, scopes } of serversUsingProvider) {
+		for (const { serverId, scopes, context } of serversUsingProvider) {
 			const server = this._servers.get(serverId);
 			const serverDefinition = this._serverDefinitions.get(serverId);
 
@@ -480,9 +488,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				continue;
 			}
 
-			// Validate if the session is still available
+			// Validate if the session is still available. Replay the authorization server, client
+			// id, resource, and audience captured when the session was established so the silent
+			// token request targets the same authority the user signed in against — dropping the
+			// authorization server here would fall back to the provider's default authority (e.g.
+			// the Microsoft provider's `organizations` tenant) and can tear down a working server.
 			try {
-				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, undefined, true);
+				await this._getSessionForProvider(serverId, serverDefinition, providerId, scopes, context.authorizationServer, true, context.clientId, context.resource, context.audience);
 			} catch (e) {
 				if (UserInteractionRequiredError.is(e)) {
 					// Session is no longer valid, stop the server
@@ -631,21 +643,36 @@ class ExtHostMcpServerLaunch extends Disposable implements IMcpMessageTransport 
 }
 
 /**
+ * The context needed to re-acquire a token for a tracked MCP server, captured when the
+ * session was first established. The tracker holds this opaquely and replays it verbatim on
+ * re-validation so the silent token request targets the same authority / resource / audience
+ * that the original sign-in used. Dropping the authorization server here would let the provider
+ * fall back to a default authority (e.g. the Microsoft provider's `organizations` tenant) and
+ * request a token against the wrong tenant.
+ */
+export interface IMcpServerAuthContext {
+	readonly authorizationServer?: URI;
+	readonly clientId?: string;
+	readonly resource?: string;
+	readonly audience?: string;
+}
+
+/**
  * Tracks which MCP servers are using which authentication providers.
  * Organized by provider ID for efficient lookup when auth sessions change.
  */
-class McpServerAuthTracker {
-	// Provider ID -> Array of serverId and scopes used
-	private readonly _tracking = new Map<string, Array<{ serverId: number; scopes: string[] }>>();
+export class McpServerAuthTracker {
+	// Provider ID -> Array of tracked servers (serverId, scopes, and the auth context to replay)
+	private readonly _tracking = new Map<string, Array<{ serverId: number; scopes: string[]; context: IMcpServerAuthContext }>>();
 
 	/**
 	 * Track authentication for a server with a specific provider.
 	 * Replaces any existing tracking for this server/provider combination.
 	 */
-	track(providerId: string, serverId: number, scopes: string[]): void {
+	track(providerId: string, serverId: number, scopes: string[], context: IMcpServerAuthContext): void {
 		const servers = this._tracking.get(providerId) || [];
 		const filtered = servers.filter(s => s.serverId !== serverId);
-		filtered.push({ serverId, scopes });
+		filtered.push({ serverId, scopes, context });
 		this._tracking.set(providerId, filtered);
 	}
 
@@ -666,7 +693,7 @@ class McpServerAuthTracker {
 	/**
 	 * Get all servers using a specific authentication provider.
 	 */
-	get(providerId: string): ReadonlyArray<{ serverId: number; scopes: string[] }> | undefined {
+	get(providerId: string): ReadonlyArray<{ serverId: number; scopes: string[]; context: IMcpServerAuthContext }> | undefined {
 		return this._tracking.get(providerId);
 	}
 

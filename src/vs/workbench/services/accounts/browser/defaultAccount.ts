@@ -8,8 +8,8 @@ import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../.
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
@@ -57,13 +57,13 @@ interface IDefaultAccountConfig {
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
-const enum DefaultAccountStatus {
+export const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
 
-const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
+export const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MANAGED_SETTINGS_REQUEST_TIMEOUT_MS = 5000;
@@ -124,6 +124,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this.defaultAccountProvider?.managedSettingsFetchStatus ?? null; }
 	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
+	get managedSettingsRawResponse(): unknown { return this.defaultAccountProvider?.managedSettingsRawResponse ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -275,6 +276,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	get managedSettingsFetchStatus(): ManagedSettingsFetchStatus { return this._managedSettingsFetchStatus; }
 	get managedSettingsFetchedAt(): number | null { return this._policyData?.managedSettingsFetchedAt ?? null; }
 
+	private _managedSettingsRawResponse: unknown = null;
+	get managedSettingsRawResponse(): unknown { return this._managedSettingsRawResponse; }
+
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
@@ -359,12 +363,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return;
 		}
 
-		try {
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			this.logService.debug('[DefaultAccount] Installed extensions registered.');
-		} catch (error) {
-			this.logService.error('[DefaultAccount] Error while waiting for installed extensions to be registered', getErrorMessage(error));
-		}
+		// Wait until the default account authentication provider is available instead of
+		// waiting for all installed extensions to be registered. In desktop remote
+		// connections extensions are only registered after the connection is established,
+		// so waiting for `whenInstalledExtensionsRegistered` can deadlock initialization.
+		await this.whenDefaultAccountAuthenticationProviderAvailable();
 
 		this.logService.debug('[DefaultAccount] Starting initialization');
 		await this.doUpdateDefaultAccount();
@@ -421,6 +424,52 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}));
 	}
 
+	private async whenDefaultAccountAuthenticationProviderAvailable(): Promise<void> {
+		const provider = this.getDefaultAccountAuthenticationProvider();
+
+		this.logService.debug('[DefaultAccount] Waiting for default account authentication provider to be available.');
+		const disposables = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				// Check if the provider is available.
+				// If available, resolve immediately. Otherwise, wait for it to be declared or registered.
+				if (this.isAccountProviderAvailable(provider)) {
+					this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
+					resolve();
+					return;
+				}
+
+				// Resolve as soon as the default account authentication provider is declared or
+				// registered, but wait no longer than installed extensions being registered.
+				disposables.add(Event.any(this.authenticationService.onDidChangeDeclaredProviders, this.authenticationService.onDidRegisterAuthenticationProvider)(() => {
+					if (this.isAccountProviderAvailable(provider)) {
+						this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
+						resolve();
+					}
+				}));
+
+				// Explicitly activate the provider's extension so that the authentication
+				// provider gets registered. In desktop remote connections extensions are only
+				// registered after the connection is established, so without this the provider
+				// would never become available.
+				if (this.environmentService.remoteAuthority) {
+					void this.authenticationService.getSessions(provider.id, undefined, {}, true);
+				}
+
+				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+					disposables.dispose();
+					this.logService.debug('[DefaultAccount] Installed extensions registered.');
+					resolve();
+				}, error => {
+					this.logService.error('[DefaultAccount] Error while waiting for installed extensions to be registered', getErrorMessage(error));
+					resolve();
+				});
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}
+
 	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
 		if (!this.initialized) {
 			await this.initPromise;
@@ -464,13 +513,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProvider.id);
 
-		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProvider.id);
-		if (!declaredProvider) {
-			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProvider);
+		if (!this.isAccountProviderAvailable(defaultAccountProvider)) {
+			this.logService.info(`[DefaultAccount] Authentication provider is not available.`, defaultAccountProvider);
 			return null;
 		}
 
 		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, options);
+	}
+
+	private isAccountProviderAvailable(accountProvider: IDefaultAccountAuthenticationProvider): boolean {
+		return this.authenticationService.declaredProviders.some(p => p.id === accountProvider.id)
+			|| this.authenticationService.isAuthenticationProviderRegistered(accountProvider.id);
 	}
 
 	private setDefaultAccount(account: IDefaultAccountData | null): void {
@@ -826,9 +879,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this._managedSettingsFetchStatus = 'ok';
 			return {
 				data: {
-					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
-					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
-					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
+					managedSettings: accountPolicyData.policyData.managedSettings,
 				},
 				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
 			};
@@ -866,12 +917,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		try {
 			const data = await asJson<IManagedSettingsResponse>(response);
 			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
+			this._managedSettingsRawResponse = data ?? null;
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
-			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
-			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
-			const strictSet = adapted.strictKnownMarketplaces !== undefined;
-			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet) {
+			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
+			if (managedSettingsCount === 0) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');

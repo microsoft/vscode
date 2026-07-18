@@ -58,7 +58,7 @@
 	width: 36px;
 	height: 4px;
 	margin: 8px auto 4px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	flex-shrink: 0;
 }
@@ -119,7 +119,7 @@
 .host-picker-sheet-section-title {
 	padding: 12px 16px 4px;
 	font-size: 11px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
 	color: var(--vscode-descriptionForeground);
@@ -268,7 +268,7 @@
 	background: transparent;
 	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
 	font-size: 14px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-align: left;
 	cursor: pointer;
 	touch-action: manipulation;

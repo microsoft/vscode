@@ -431,6 +431,8 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private _currentPadding: { top: number; right: number; bottom: number; left: number } = { top: 0, right: 0, bottom: 0, left: 0 };
 
+	override get input(): BrowserEditorInput | undefined { return super.input as BrowserEditorInput | undefined; }
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -567,7 +569,10 @@ export class BrowserEditor extends EditorPane {
 		// When closing a tab, the model gets disposed before the editor input is cleared.
 		// So we make sure we don't keep a reference to the disposed model.
 		this._inputDisposables.add(this._model.onWillDispose(() => {
-			this._model = undefined;
+			if (this._model === model) {
+				this._model = undefined;
+				this._onDidChangeModel.fire({ model: undefined, isNew: false });
+			}
 		}));
 
 		this._inputDisposables.add(this._model.onWillNavigate(() => {
@@ -619,6 +624,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	ensureBrowserFocus(): void {
 		originalHtmlElementFocus.call(this._browserContainer);
+		this.window.document.getSelection()?.removeAllRanges();
 	}
 
 	/**
@@ -744,8 +750,10 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
-		this._model = undefined;
-		this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		if (this._model) {
+			this._model = undefined;
+			this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		}
 
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();

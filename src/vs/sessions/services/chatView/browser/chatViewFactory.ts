@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AbstractChatView } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 export const IChatViewFactory = createDecorator<IChatViewFactory>('chatViewFactory');
 
@@ -22,7 +22,7 @@ export interface IChatViewFactory {
 	 * Creates a "new chat" view that lets the user pick a workspace and
 	 * start a new chat. This is the view the grid is seeded with on startup.
 	 */
-	createNewChatView(isNewChatInSession: boolean): AbstractChatView;
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView;
 
 	/**
 	 * Creates a chat view that hosts a chat widget for an active session.

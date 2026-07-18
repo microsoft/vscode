@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CustomFetcher } from '@vscode/extension-telemetry';
+import * as vscode from 'vscode';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
@@ -50,13 +51,19 @@ export class TelemetryService extends BaseTelemetryService {
 			customFetcher
 		);
 
-		// Lazy getter for the experiment flag.
-		// Uses IInstantiationService to get IExperimentationService lazily to avoid circular dependency:
-		// TelemetryService -> IExperimentationService -> ITelemetryService
-		// The flag is only evaluated on the first telemetry event, by which time both services are initialized.
-		const useNewTelemetryLibGetter = () => {
+		// The experiment flag is read lazily on the first telemetry event (to avoid the circular
+		// dependency TelemetryService -> IExperimentationService -> ITelemetryService) and then
+		// cached.
+		let cachedUseNewTelemetryLib: boolean | undefined;
+		const computeUseNewTelemetryLib = () => {
 			const expService = instantiationService.invokeFunction(accessor => accessor.get(IExperimentationService));
 			return configService.getExperimentBasedConfig(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH, expService);
+		};
+		const useNewTelemetryLibGetter = () => {
+			if (cachedUseNewTelemetryLib === undefined) {
+				cachedUseNewTelemetryLib = computeUseNewTelemetryLib();
+			}
+			return cachedUseNewTelemetryLib;
 		};
 
 		const ghTelemetrySender = new GitHubTelemetrySender(
@@ -77,6 +84,16 @@ export class TelemetryService extends BaseTelemetryService {
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setTelemetryService(this);
 		}
+
+		// Refresh the cached experiment flag when ExP treatments change so a runtime treatment flip
+		// takes effect without requiring a window reload. We only recompute once
+		// the flag has been read at least once, preserving the lazy initialization above (so the
+		// experimentation service is not pulled on before the first telemetry event).
+		this._disposables.push(configService.onDidChangeConfiguration(e => {
+			if (cachedUseNewTelemetryLib !== undefined && e.affectsConfiguration(ConfigKey.TeamInternal.UseVSCodeTelemetryLibForGH.fullyQualifiedId)) {
+				cachedUseNewTelemetryLib = computeUseNewTelemetryLib();
+			}
+		}));
 
 		// Subscribe to fetch telemetry events on Insiders only to track request counts and latency per call site
 		if (envService.isPreRelease()) {
@@ -102,6 +119,21 @@ export class TelemetryService extends BaseTelemetryService {
 					statusCode: event.statusCode,
 				});
 			});
+		}
+	}
+
+	// __GDPR__COMMON__ "capi.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	override setSharedProperty(name: string, value: string): void {
+		super.setSharedProperty(name, value);
+
+		// Forward CAPI assignment context to VS Code's core telemetry pipeline
+		// so it appears on all VS Code telemetry events, not just the Copilot extension's.
+		// The proposed API is accessed dynamically because the extension's `vscode` module types
+		// come from a shim that does not expose it, and it may be unavailable on older hosts.
+		if (name === 'capi.assignmentcontext') {
+			const setProperty: ((name: string, value: string) => void) | undefined =
+				(vscode.env as Record<string, unknown>)['setTelemetryExperimentProperty'] as ((name: string, value: string) => void) | undefined;
+			setProperty?.(name, value);
 		}
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IReader, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -76,16 +76,20 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		return this.readEnabledWithWorkspaceKey(key, key, reader);
+	}
+
+	readEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, reader?: IReader): ContributionEnablementState {
 		const wsMap = this._workspaceState.read(reader);
-		if (wsMap.has(key)) {
-			return wsMap.get(key)!
+		if (workspaceKey !== undefined && wsMap.has(workspaceKey)) {
+			return wsMap.get(workspaceKey)!
 				? ContributionEnablementState.EnabledWorkspace
 				: ContributionEnablementState.DisabledWorkspace;
 		}
 
 		const profileMap = this._profileState.read(reader);
-		if (profileMap.has(key)) {
-			return profileMap.get(key)!
+		if (profileMap.has(profileKey)) {
+			return profileMap.get(profileKey)!
 				? ContributionEnablementState.EnabledProfile
 				: ContributionEnablementState.DisabledProfile;
 		}
@@ -94,31 +98,46 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		this.setEnabledWithWorkspaceKey(key, key, state, tx);
+	}
+
+	setEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, state: ContributionEnablementState, tx?: ITransaction): void {
 		switch (state) {
 			case ContributionEnablementState.EnabledProfile: {
 				// Enabled-profile is the default: remove key from profile state,
 				// and also remove any workspace override.
-				this._deleteFromMap(this._profileState, key, tx);
-				this._deleteFromMap(this._workspaceState, key, tx);
+				this._deleteFromMap(this._profileState, profileKey, tx);
+				if (workspaceKey !== undefined) {
+					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
+				}
 				break;
 			}
 			case ContributionEnablementState.DisabledProfile: {
 				// Store disabled in profile, remove workspace override.
-				this._setInMap(this._profileState, key, false, tx);
-				this._deleteFromMap(this._workspaceState, key, tx);
+				this._setInMap(this._profileState, profileKey, false, tx);
+				if (workspaceKey !== undefined) {
+					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
+				}
 				break;
 			}
 			case ContributionEnablementState.EnabledWorkspace: {
 				// Workspace override: always store explicitly.
-				this._setInMap(this._workspaceState, key, true, tx);
+				if (workspaceKey === undefined) {
+					throw new Error('Cannot enable a contribution for a workspace without a workspace key.');
+				}
+				this._setInMap(this._workspaceState, workspaceKey, true, tx);
 				break;
 			}
 			case ContributionEnablementState.DisabledWorkspace: {
 				// Workspace override: always store explicitly.
-				this._setInMap(this._workspaceState, key, false, tx);
+				if (workspaceKey === undefined) {
+					throw new Error('Cannot disable a contribution for a workspace without a workspace key.');
+				}
+				this._setInMap(this._workspaceState, workspaceKey, false, tx);
 				break;
 			}
 		}
+
 	}
 
 	remove(key: string): void {
@@ -144,5 +163,65 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		const next = new Map(current);
 		next.delete(key);
 		memento.set(next, tx);
+	}
+}
+
+export class CollisionEnablementModel implements IEnablementModel {
+
+	constructor(
+		private readonly _base: IEnablementModel,
+		private readonly _collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
+	) { }
+
+	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		const baseState = this._base.readEnabled(key, reader);
+
+		if (!isContributionEnabled(baseState)) {
+			return baseState;
+		}
+
+		const group = this._collisionGroups.read(reader).get(key);
+		if (!group) {
+			return baseState;
+		}
+
+		for (const otherId of group) {
+			if (otherId === key) {
+				return baseState;
+			}
+			if (isContributionEnabled(this._base.readEnabled(otherId, reader))) {
+				return ContributionEnablementState.DisabledProfile;
+			}
+		}
+		return baseState;
+	}
+
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const isEnabling = state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.EnabledWorkspace;
+		const group = isEnabling ? this._collisionGroups.get().get(key) : undefined;
+
+		if (!group) {
+			this._base.setEnabled(key, state, tx);
+			return;
+		}
+
+		const updateGroup = (innerTx: ITransaction) => {
+			this._base.setEnabled(key, state, innerTx);
+			for (const otherId of group) {
+				if (otherId !== key) {
+					this._base.setEnabled(otherId, ContributionEnablementState.DisabledWorkspace, innerTx);
+				}
+			}
+		};
+
+		if (tx) {
+			updateGroup(tx);
+		} else {
+			transaction(innerTx => updateGroup(innerTx));
+		}
+	}
+
+	remove(key: string): void {
+		this._base.remove(key);
 	}
 }

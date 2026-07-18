@@ -100,6 +100,32 @@ suite('CommandAutoApprover', () => {
 			assert.strictEqual(approver.shouldAutoApprove('node index.js'), 'noMatch');
 		});
 
+		test('respects forwarded terminal auto-approve rule config', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: false } }),
+				approver.shouldAutoApprove('python script.py', { autoApproveRules: { python: true } }),
+				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: null } }),
+				approver.shouldAutoApprove('npm run build', { autoApproveRules: { '/^npm run build$/': { approve: true, matchCommandLine: true } } }),
+				approver.shouldAutoApprove('echo hello', { autoApproveRules: { echo: true, '/^echo hello$/': { approve: false, matchCommandLine: true } } }),
+			], [
+				'denied',
+				'approved',
+				'noMatch',
+				'approved',
+				'denied',
+			]);
+		});
+
+		test('uses forwarded terminal auto-approve rules instead of fallback defaults', () => {
+			assert.deepStrictEqual([
+				approver.shouldAutoApprove('echo hello', { autoApproveRules: {} }),
+				approver.shouldAutoApprove('rm file.txt', { autoApproveRules: {} }),
+			], [
+				'noMatch',
+				'noMatch',
+			]);
+		});
+
 		// Transient env vars
 		test('denies transient environment variable assignments', () => {
 			assert.strictEqual(approver.shouldAutoApprove('FOO=bar some-command'), 'denied');

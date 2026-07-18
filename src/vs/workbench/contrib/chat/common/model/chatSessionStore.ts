@@ -32,8 +32,9 @@ import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatModelInputState, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
 import { LocalChatSessionUri } from './chatUri.js';
+import { stringifyEntryWithFallback } from './objectMutationLog.js';
 
-const maxPersistedSessions = 50;
+const maxPersistedSessions = 400;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
@@ -245,7 +246,7 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		try {
-			const content = JSON.stringify(session, undefined, 2);
+			const content = stringifyEntryWithFallback(session);
 			const storageLocation = this.getTransferredSessionStorageLocation(session.sessionResource);
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 		} catch (e) {
@@ -390,7 +391,7 @@ export class ChatSessionStore extends Disposable {
 					await this.fileService.writeFile(storageLocation.log, content);
 				}
 			} else {
-				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(JSON.stringify(session)));
+				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(stringifyEntryWithFallback(session)));
 			}
 
 			// Write succeeded, update index

@@ -221,6 +221,58 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(instance.shellType, PosixShellType.Zsh);
 		});
 
+		test('should detect Command Code agent shell type from its OSC title', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('\u2733 Command Code \u00b7 my-project');
+			strictEqual(instance.shellType, GeneralShellType.CommandCode);
+		});
+
+		test('should fire onWillDispose before xterm disposal and onDisposed after xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+
+			store.add(instance.onWillDispose(() => disposalOrder.push('onWillDispose')));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
+		});
+
+		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
+			const instance = await createTerminalInstance();
+			const xterm = await instance.xtermReadyPromise;
+			const disposalOrder: string[] = [];
+			let addonDisposeCount = 0;
+
+			const addon = {
+				activate: () => { },
+				dispose: () => {
+					addonDisposeCount++;
+					disposalOrder.push('addon');
+				}
+			};
+			xterm!.raw.loadAddon(addon);
+			store.add(instance.onWillDispose(() => {
+				disposalOrder.push('onWillDispose');
+				addon.dispose();
+			}));
+			store.add(xterm!.onDidDispose(() => disposalOrder.push('xterm')));
+			store.add(instance.onDisposed(() => disposalOrder.push('onDisposed')));
+
+			instance.dispose();
+
+			deepStrictEqual(
+				{ disposalOrder, addonDisposeCount },
+				{ disposalOrder: ['onWillDispose', 'addon', 'xterm', 'onDisposed'], addonDisposeCount: 1 }
+			);
+		});
+
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];
@@ -515,6 +567,11 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
 			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
 		});
+		test('should use ${sequence} for Command Code agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.CommandCode, sequence: 'Fix Parser Bug', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Fix Parser Bug');
+		});
 		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot', shellLaunchConfig: { titleTemplate: '${process}' } }));
@@ -563,6 +620,7 @@ suite('Workbench - TerminalInstance', () => {
 			cwd?: string;
 			remoteAuthority?: string;
 			fileExists?: boolean;
+			fileServiceCanHandle?: boolean;
 		}): Pick<ITerminalInstance, 'getCwdResource' | 'capabilities' | 'remoteAuthority'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 
@@ -575,6 +633,7 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Mock file service
 			mockFileService = {
+				canHandleResource: async (_resource: URI) => options.fileServiceCanHandle !== false,
 				exists: async (resource: URI) => options.fileExists !== false
 			};
 
@@ -601,6 +660,9 @@ suite('Workbench - TerminalInstance', () => {
 						resource = await mockPathService.fileURI(cwd);
 					} else {
 						resource = URI.file(cwd);
+					}
+					if (!await mockFileService.canHandleResource(resource)) {
+						return undefined;
 					}
 					if (await mockFileService.exists(resource)) {
 						return resource;
@@ -670,6 +732,21 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should handle empty cwd string', async () => {
 			const instance = createMockTerminalInstance({ cwd: '' });
+
+			const result = await instance.getCwdResource();
+			strictEqual(result, undefined);
+		});
+
+		test('should return undefined when fileService cannot handle the resource (VS Code web ENOPRO scenario)', async () => {
+			// Simulates server-linux-x64-web where remoteAuthority is falsy from the
+			// terminal's perspective, so URI.file() is produced but the browser
+			// FileService has no file:// provider registered.
+			const testCwd = '/workspace/my-project';
+			const instance = createMockTerminalInstance({
+				cwd: testCwd,
+				fileExists: true,
+				fileServiceCanHandle: false  // file:// provider absent
+			});
 
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);

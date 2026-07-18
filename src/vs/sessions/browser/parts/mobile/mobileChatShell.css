@@ -49,7 +49,7 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 	touch-action: manipulation;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	padding: 0;
 }
 
@@ -73,9 +73,9 @@
 	width: auto;
 	height: 28px;
 	padding: 0 10px;
-	border-radius: 14px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	gap: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	font-variant-numeric: tabular-nums;
 	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
@@ -115,7 +115,7 @@
 	min-width: 0;
 	text-align: center;
 	font-size: 16px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -415,7 +415,7 @@
 	min-height: 36px;
 	padding: 2px 6px;
 	font-size: 17px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
 	gap: 4px;
@@ -591,7 +591,7 @@
 	min-height: 30px;
 	min-width: 0;
 	padding: 2px 6px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid transparent;
 	color: var(--vscode-foreground);
@@ -844,7 +844,7 @@
 	min-height: 52px;
 	padding: 0 4px;
 	border: none;
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	background: none;
 	color: var(--vscode-foreground);
 	font-size: 16px;
@@ -955,7 +955,7 @@
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter
 	.monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
 	min-height: 36px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	padding: 0 12px;
 	font-size: 14px;
 	width: 100%;

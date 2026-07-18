@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
-import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -36,8 +36,8 @@ class AutopilotTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptio
 		throw new Error('fetch should not be called in these tests');
 	}
 
-	public testShouldAutopilotContinue(result: IToolCallSingleResult): string | undefined {
-		return this.shouldAutopilotContinue(result);
+	public testShouldAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
+		return this.shouldAutopilotContinue(result, token);
 	}
 
 	public testShouldAutoRetry(response: ChatResponse): boolean {
@@ -169,35 +169,35 @@ describe('ToolCallingLoop autopilot', () => {
 	}
 
 	describe('shouldAutopilotContinue', () => {
-		it('should return a nudge message when task_complete was not called', () => {
+		it('should return a nudge message when task_complete was not called', async () => {
 			const loop = createLoop('autopilot');
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toContain('task_complete');
 		});
 
-		it('should return undefined when task_complete was called in a previous round', () => {
+		it('should return undefined when task_complete was called in a previous round', async () => {
 			const loop = createLoop('autopilot');
 			loop.addToolCallRound(createMockRound(['task_complete']));
 
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toBeUndefined();
 		});
 
-		it('should stop after MAX_AUTOPILOT_ITERATIONS', () => {
+		it('should stop after MAX_AUTOPILOT_ITERATIONS', async () => {
 			const loop = createLoop('autopilot');
 
-			// Iterate 5 times (MAX_AUTOPILOT_ITERATIONS = 5)
-			for (let i = 0; i < 5; i++) {
-				const msg = loop.testShouldAutopilotContinue(createMockSingleResult());
+			// Iterate 3 times (MAX_AUTOPILOT_ITERATIONS = 3)
+			for (let i = 0; i < 3; i++) {
+				const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
 				expect(msg).toContain('task_complete');
 			}
 
-			// 6th call should return undefined — hit the cap
-			const msg = loop.testShouldAutopilotContinue(createMockSingleResult());
+			// 4th call should return undefined — hit the cap
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg).toBeUndefined();
 		});
 
-		it('should bail when prior nudge produced no tool calls', () => {
+		it('should bail when prior nudge produced no tool calls', async () => {
 			const loop = createLoop('autopilot');
 
 			// Simulate that we already nudged once and set the flag
@@ -205,23 +205,23 @@ describe('ToolCallingLoop autopilot', () => {
 
 			// Should bail — the previous nudge produced no tool calls, so further nudges
 			// would just waste tokens (the model is effectively done).
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(result).toBeUndefined();
 		});
 
-		it('should skip the nudge when the model returned a text-only response (no tool calls)', () => {
+		it('should skip the nudge when the model returned a text-only response (no tool calls)', async () => {
 			const loop = createLoop('autopilot');
-			const result = loop.testShouldAutopilotContinue(createMockSingleResult({
+			const result = await loop.testShouldAutopilotContinue(createMockSingleResult({
 				round: createMockRound([], 'Here is a summary of what I did.'),
 			}));
 			expect(result).toBeUndefined();
 		});
 
-		it('should allow another nudge after autopilotStopHookActive is reset', () => {
+		it('should allow another nudge after autopilotStopHookActive is reset', async () => {
 			const loop = createLoop('autopilot');
 
 			// First nudge
-			const msg1 = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const msg1 = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg1).toContain('task_complete');
 
 			// Simulate the run() loop setting the flag then the model making progress
@@ -230,8 +230,75 @@ describe('ToolCallingLoop autopilot', () => {
 			loop.setAutopilotStopHookActive(false);
 
 			// Second nudge should work
-			const msg2 = loop.testShouldAutopilotContinue(createMockSingleResult());
+			const msg2 = await loop.testShouldAutopilotContinue(createMockSingleResult());
 			expect(msg2).toContain('task_complete');
+		});
+	});
+
+	describe('shouldAutopilotContinue with advanced autopilot', () => {
+		function enableAdvancedAutopilot(loop: AutopilotTestToolCallingLoop): void {
+			const cfg = (loop as any)._configurationService;
+			vi.spyOn(cfg, 'getNonExtensionConfig').mockImplementation((key: unknown) =>
+				key === 'chat.autopilot.advanced.enabled' ? true : undefined
+			);
+		}
+
+		function stubClassifier(loop: AutopilotTestToolCallingLoop, result: { done: boolean; impossible?: boolean; reason: string } | undefined): void {
+			vi.spyOn(loop as any, '_runAutopilotGoalClassifier').mockResolvedValue(result);
+		}
+
+		it('returns undefined when the classifier reports the goal is complete', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: true, reason: 'all done' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toBeUndefined();
+		});
+
+		it('returns undefined when the classifier reports the goal is impossible', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, impossible: true, reason: 'requires unavailable API' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toBeUndefined();
+		});
+
+		it('returns a nudge with the classifier reason when the goal is incomplete', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, reason: 'tests are missing' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('tests are missing');
+			expect(msg).toContain('not yet complete');
+		});
+
+		it('ignores task_complete as a stop signal — the classifier still decides', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			// Even though task_complete was called, advanced autopilot defers to the classifier.
+			loop.addToolCallRound(createMockRound(['task_complete']));
+			stubClassifier(loop, { done: false, reason: 'still missing tests' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('still missing tests');
+		});
+
+		it('falls back to a generic nudge (not task_complete) when the classifier fails', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, undefined);
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult());
+			expect(msg).toContain('Keep working autonomously');
+			expect(msg).not.toContain('task_complete');
+		});
+
+		it('overrides the text-only completion shortcut so the classifier decides', async () => {
+			const loop = createLoop('autopilot');
+			enableAdvancedAutopilot(loop);
+			stubClassifier(loop, { done: false, reason: 'still incomplete' });
+			const msg = await loop.testShouldAutopilotContinue(createMockSingleResult({
+				round: createMockRound([], 'Here is a summary.'),
+			}));
+			expect(msg).toContain('still incomplete');
 		});
 	});
 

@@ -7,10 +7,12 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
-import type { IAgentSubscription } from '../common/state/agentSubscription.js';
+import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
@@ -29,18 +31,25 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
+	readonly onMcpNotification = Event.None;
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
 
+	readonly initializeResult: IObservable<InitializeResult | undefined> = constObservable(undefined);
+
 	get rootState(): IAgentSubscription<RootState> { return notSupported(); }
 
-	getSubscription<T extends StateComponents>(_kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
+	getSubscription<T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
-	dispatch(_channel: string, _action: SessionAction | TerminalAction | IRootConfigChangedAction): void { notSupported(); }
+	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined { return undefined; }
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
+	dispatch(_channel: string, _action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void { notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }
+	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return notSupported(); }
+	async diagnosticsFetch(_url: string): Promise<IAgentHostNetworkFetchResult> { return notSupported(); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return notSupported(); }
@@ -50,8 +59,12 @@ export class NullAgentHostService implements IAgentHostService {
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }
 	async getInspectInfo(_tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> { return undefined; }
 	async disposeSession(_session: URI): Promise<void> { }
+	async createChat(_session: URI, _chat: URI): Promise<void> { notSupported(); }
+	async disposeChat(_chat: URI): Promise<void> { }
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }
+	async invokeChangesetOperation(_params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> { return notSupported(); }
+	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { return notSupported(); }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return notSupported(); }
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return notSupported(); }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return notSupported(); }

@@ -1,0 +1,85 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Styles for the "Open Subagent" pill contributed into the subagent block header
+	(`MenuId.ChatSubagentContent`, rendered by `OpenSubagentChatActionViewItem`).
+	The pill is a standalone chip that mirrors the chat file/diff pill
+	(`chat-codeblock-pill-widget`) — a colorless, bordered chip — instead of the
+	filled secondary button. `OpenSubagentChatActionViewItem` renders directly onto
+	its action-item container (`.action-item`), so styling targets that element. */
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	box-sizing: border-box;
+	width: fit-content;
+	padding: 2px 3px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	line-height: 1em;
+	font-size: var(--vscode-bodyFontSize-xSmall);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+	background: none;
+	cursor: pointer;
+	white-space: nowrap;
+	text-decoration: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.focused {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Progress: the leading conversation icon is swapped for a spinner while the
+	subagent is still running. Preferred signal is the pill's own
+	`chat-subagent-running` class, toggled from the resolved subagent chat's own
+	`SessionStatus.InProgress` status; the parent `.chat-subagent-part`'s
+	`chat-thinking-active` is kept as a fallback but stops early (the spawning tool
+	call completes as soon as the subagent is dispatched). Selectors are scoped
+	under the pill widget so they win over the actionbar's `.action-item .codicon`
+	sizing/visibility rules. */
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	width: 12px;
+	height: 12px;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .chat-subagent-pill-spinner.codicon {
+	display: none;
+}
+
+.monaco-workbench .chat-subagent-part.chat-thinking-active .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .chat-subagent-pill-spinner.codicon,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-running .chat-subagent-pill-icon .chat-subagent-pill-spinner.codicon {
+	display: inline-flex;
+}
+
+.monaco-workbench .chat-subagent-part.chat-thinking-active .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-icon .chat-subagent-pill-open-icon,
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-running .chat-subagent-pill-icon .chat-subagent-pill-open-icon {
+	display: none;
+}
+
+/* Single chip: in the Agents window the subagent's title is shown inside the
+	pill, so hide the duplicate inline title text on the subagent block header (the
+	pill is only contributed in the Agents window, so this is scoped to
+	`.agent-sessions-workbench`). */
+.agent-sessions-workbench .chat-subagent-part.chat-subagent-has-chat .chat-used-context-label .monaco-button-mdlabel {
+	display: none;
+}

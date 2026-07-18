@@ -9,10 +9,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IChatPromptSlashCommand, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { AICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -31,10 +30,6 @@ const visibleSections = new Set<AICustomizationManagementSection>([
 	AICustomizationManagementSection.Plugins,
 ]);
 
-const defaultFilter: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
-};
-
 function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly isSessionsWindow = false;
@@ -46,9 +41,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly hasOverrideProjectRoot = constObservable(false);
 		override getActiveProjectRoot(): URI {
 			return URI.file('/workspace');
-		}
-		override getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
-			return defaultFilter;
 		}
 		override async commitFiles(): Promise<void> { }
 		override async deleteFiles(): Promise<void> { }
@@ -91,11 +83,13 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
+			migratePromptFiles: () => { },
 			prefillChat: () => { },
 		},
 		createMockCommandService(),
 		workspaceService,
 		NullHoverService,
+		'Local',
 	));
 	page.rebuildCards(visibleSections);
 }

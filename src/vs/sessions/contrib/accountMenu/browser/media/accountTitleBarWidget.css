@@ -38,7 +38,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-icon {
 	flex: 0 0 auto;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize);
 	color: inherit;
 }
 
@@ -72,7 +72,7 @@
 /* Spacing between titlebar-right action items (account widget, update indicator, etc.) */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
-	gap: 5px;
+	gap: 6px;
 }
 
 /* Badge on account icon */
@@ -84,12 +84,12 @@
 	justify-content: center;
 	min-width: 18px;
 	height: 16px;
-	padding: 0 5px;
-	border-radius: 8px;
+	padding: 0 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	font-size: 10px;
-	font-weight: 700;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 }
@@ -169,8 +169,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 }
 
@@ -187,7 +187,7 @@
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-label {
-	padding: 3px;
+	padding: 4px;
 	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
 }
 
@@ -209,7 +209,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions .monaco-button {
 	height: 22px;
 	padding: 0 8px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 20px;
 	border-radius: var(--vscode-cornerRadius-medium);
 }
@@ -228,7 +228,7 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-summary {
 	padding: 12px 16px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 }
@@ -254,7 +254,7 @@
 	padding: 3px 16px;
 	justify-content: flex-start;
 	border-radius: 0;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 }
@@ -292,9 +292,9 @@
 	padding: 0 28px 0 0;
 	border-top: none;
 	background: none;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
-	font-weight: 400;
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -304,12 +304,12 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
 	margin-left: auto;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 15px;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .contributed-detail {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 15px;
 }
 
@@ -321,8 +321,8 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
 	padding: 4px 8px 2px;
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 }
@@ -349,7 +349,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -357,8 +357,8 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .header-label {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-weight: 400;
-	font-size: 11px;
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-agents-fontSize-label2);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .monaco-action-bar {
@@ -378,7 +378,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > div.description {
 	margin: 0;
 	padding: 0 2px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -389,8 +389,8 @@
 	margin: 0;
 	padding: 0 12px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 1;
 }
 

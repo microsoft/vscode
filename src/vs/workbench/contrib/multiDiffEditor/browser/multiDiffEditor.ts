@@ -7,7 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -77,6 +77,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 			MultiDiffEditorWidget,
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+			undefined,
 		));
 
 		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
@@ -94,12 +95,13 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay?.updateResource(input.resource);
-		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
+		// Apply the view model and any restored view state together so the widget's
+		// automatic first-change navigation sees the restored state instead of
+		// navigating to the first file.
 		const viewState = this.loadEditorViewState(input, context);
-		if (viewState) {
-			this._multiDiffEditorWidget!.setViewState(viewState);
-		}
+		this._multiDiffEditorWidget!.setViewModel(this._viewModel, { preserveFocus: options?.preserveFocus, viewState });
+
 		this._applyOptions(options);
 	}
 
@@ -233,7 +235,7 @@ class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 		this.headerClickToCollapse = IsSessionsWindowContext.getValue(contextKeyService) === true;
 	}
 
-	createResourceLabel(element: HTMLElement): IResourceLabel {
+	createResourceLabel(element: HTMLElement, _kind: MultiDiffEditorItemLabelKind): IResourceLabel {
 		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
 		return {
 			setUri(uri, options = {}) {

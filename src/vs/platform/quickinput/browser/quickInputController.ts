@@ -9,9 +9,10 @@ import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
@@ -43,6 +44,9 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 const $ = dom.$;
 
 const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
+const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
+const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
+const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'];
 
 type QuickInputViewState = {
 	readonly top?: number;
@@ -80,6 +84,7 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -682,6 +687,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	private show(controller: IQuickInput) {
+		this.completeCloseAnimation();
 		const ui = this.getUI(true);
 		const oldController = this.controller;
 		this.controller = controller;
@@ -749,7 +755,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	isVisible(): boolean {
-		return !!this.ui && this.ui.container.style.display !== 'none';
+		return !!this.controller;
 	}
 
 	private setVisibilities(visibilities: Visibilities) {
@@ -812,7 +818,13 @@ export class QuickInputController extends Disposable {
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {
-			container.style.display = 'none';
+			if (dom.hasParentWithClass(container, QUICK_INPUT_MOTION_ANCESTOR_CLASSES)) {
+				container.inert = true;
+				container.classList.add(QUICK_INPUT_MOTION_CLOSING_CLASS);
+				this.closeAnimation.value = disposableTimeout(() => this.completeCloseAnimation(), QUICK_INPUT_CLOSE_ANIMATION_DURATION);
+			} else {
+				container.style.display = 'none';
+			}
 		}
 		if (!focusChanged) {
 			let currentElement = this.previousFocusElement;
@@ -827,6 +839,25 @@ export class QuickInputController extends Disposable {
 			}
 		}
 		controller.didHide(reason);
+	}
+
+	private completeCloseAnimation(): void {
+		if (!this.closeAnimation.value) {
+			return;
+		}
+
+		this.closeAnimation.clear();
+		const container = this.ui?.container;
+		if (container) {
+			container.inert = false;
+			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
+			container.style.display = 'none';
+		}
+	}
+
+	override dispose(): void {
+		this.completeCloseAnimation();
+		super.dispose();
 	}
 
 	focus() {
@@ -906,28 +937,34 @@ export class QuickInputController extends Disposable {
 				const isElement = dom.isHTMLElement(target);
 				const anchorWindow = isElement ? dom.getWindow(target) : dom.getActiveWindow();
 				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
-				let anchor = getAnchorRect(target);
+				const verticalPadding = 6 + 26 + 16; // Accounts for input box and padding
 
+				let anchor = getAnchorRect(target);
+				let preferredAnchorPosition = AnchorPosition.ABOVE;
 				let listHeightRatio = 0.2;
+				let maxListHeight = 200;
+
 				if (this.controller.anchorPosition === 'overlay') {
 					width = anchor.width + 12;
 					listHeightRatio = 0.4;
 					anchor = {
-						...anchor,
-						top: anchor.top - 7 - anchor.height,
+						top: anchor.top - 7,
 						left: anchor.left - 7,
+						width: anchor.width,
+						height: 0
 					};
+					maxListHeight = Math.min(400, container.bottom - anchor.top - verticalPadding);
+					preferredAnchorPosition = AnchorPosition.BELOW;
 				} else {
 					width = 380;
 				}
 
-				const maxListHeight = listHeightRatio * 1000;
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
-				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
-				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+				const containerHeight = Math.floor(listHeight) + verticalPadding;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
 					style.right = `${right}px`;

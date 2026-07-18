@@ -19,9 +19,10 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
-import '../common/agentHost.config.contribution.js';
+import '../common/agentHostEnablementService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -34,7 +35,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private readonly _onWillShutdown = this._register(new Emitter<void>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
+	/**
+	 * Enterprise OTel policy forwarded by the renderer (see `AgentHostOTelPolicyIpcChannel`).
+	 * The main-process config service lacks the managed-settings (`AccountPolicyService`) policy
+	 * layer, so the renderer — which has it — sends the resolved values here before requesting
+	 * the connection that lazily spawns the host. Used as the `policySettings` of
+	 * `buildAgentHostOTelEnv` in `start()`, falling back to main-process policy when absent.
+	 */
+	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
+
 	constructor(
+		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
@@ -43,6 +54,16 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		super();
 
 		this._register(this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire()));
+
+		// Capture the enterprise OTel policy the renderer forwards before it requests a
+		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
+		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
+			this._otelPolicyFromRenderer = sanitizeAgentHostOTelPolicySettings(policy);
+		};
+		validatedIpcMain.on(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeListener(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
+		}));
 
 		// Listen for new windows to establish a direct MessagePort connection to the agent host
 		const onWindowConnection = (e: IpcMainEvent, nonce: string) => this._onWindowConnection(e, nonce);
@@ -66,27 +87,38 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// PATH and other vars from the user's login shell (macOS/Linux GUI launches).
 		const shellEnv = await this._resolveShellEnv();
 
-		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when the user points the SDK path
-		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
-		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
-		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
-			|| process.env[AgentHostClaudeSdkPathEnvVar]
-			|| '';
-
-		// Codex agent is opt-in: enabled when the user points the binary-path
-		// setting at a locally-installed `codex` CLI, or when the env var is
-		// already set on the parent process (developer override).
-		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
-			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
-			|| '';
-		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
-		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
+			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
+		}, process.env);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
-		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
+		// for user settings, while enterprise policy values win over inherited env —
+		// see `buildAgentHostOTelEnv` for the precedence.
+		//
+		// Policy source: prefer the renderer-forwarded policy (its config service
+		// includes the managed-settings `AccountPolicyService` layer that the main
+		// process cannot see); fall back to the main-process policy for the keys it
+		// can resolve (e.g. native MDM via the policy channel).
+		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyFromRenderer ?? {
+			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
+			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
+			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
+			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
+			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
+			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
+			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
+		};
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
@@ -94,7 +126,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env);
+		}, process.env, policySettings);
 
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
@@ -103,6 +135,11 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		if (this._environmentMainService.disableTelemetry) {
 			args.push('--disable-telemetry');
 		}
+
+		// Forward the host's resolved telemetry identifiers so the agent host
+		// reuses the same persisted machineId/sqmId/devDeviceId instead of
+		// recomputing them live (which can diverge). See `agentHostTelemetryEnv`.
+		const telemetryIdEnv = buildAgentHostTelemetryIdEnv(this._telemetryIds);
 
 		this.utilityProcess.start({
 			type: 'agentHost',
@@ -116,11 +153,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
-				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
-				...(codexBinaryPath ? { [AgentHostCodexAgentBinaryPathEnvVar]: codexBinaryPath } : {}),
-				...(codexHome ? { [AgentHostCodexAgentCodexHomeEnvVar]: codexHome } : {}),
-				...(Array.isArray(codexArgs) && codexArgs.length > 0 ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(codexArgs) } : {}),
+				...sdkEnv,
 				...otelEnv,
+				...telemetryIdEnv,
 			}
 		});
 

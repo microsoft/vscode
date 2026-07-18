@@ -30,6 +30,7 @@
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
 	gap: 6px;
 	cursor: default;
 	opacity: 1;
@@ -122,13 +123,13 @@
 	min-width: 14px;
 	height: 14px;
 	line-height: 14px;
-	padding: 0 3px;
+	padding: 0 4px;
 	box-sizing: border-box;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
@@ -138,4 +139,33 @@
 	.command-center .agent-sessions-titlebar-container {
 		transition: none;
 	}
+}
+
+/* Approved state: a transient green confirmation shown after the user approves
+	one or more sessions' pending actions from the sessions list. It stays
+	clickable (activating whatever the underlying state would do). */
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 14%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved:hover {
+	color: var(--vscode-charts-green);
+	border-color: var(--vscode-charts-green);
+	background-color: color-mix(in srgb, var(--vscode-charts-green) 22%, transparent);
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-approved .agent-sessions-titlebar-pill {
+	opacity: 1;
+	justify-content: center;
+}
+
+.command-center .agent-sessions-titlebar-approved-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }

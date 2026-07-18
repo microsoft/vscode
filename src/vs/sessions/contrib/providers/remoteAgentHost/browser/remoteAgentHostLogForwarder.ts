@@ -11,6 +11,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel, type IOtlpLogRecord, type OtlpLogLevelName } from '../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
 import { AgentHostClientState, type RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { formatHostBuildInfo, readHostBuildInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
 
 /**
@@ -45,6 +46,8 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	private readonly _channelLabel: string;
 	private _outputChannel: IOutputChannel | undefined;
 	private _channelRegistered = false;
+	/** Whether the one-time host build-info header has been written. */
+	private _buildInfoHeaderWritten = false;
 	/** Tracks whatever needs to be torn down for a single subscribe cycle. */
 	private readonly _subscriptionStore = this._register(new MutableDisposable<DisposableStore>());
 	private _currentLevel: OtlpLogLevelName | undefined;
@@ -108,7 +111,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 			return;
 		}
 
-		const template = this._client.initializeResult?.telemetry?.logs;
+		const template = this._client.initializeResult.get()?.telemetry?.logs;
 		if (!template) {
 			return;
 		}
@@ -128,6 +131,7 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 		// Output channel is registered lazily so hosts without an OTLP
 		// logs channel never produce an empty entry in the picker.
 		this._ensureChannelRegistered();
+		this._writeHostBuildInfoHeader();
 
 		const store = new DisposableStore();
 		this._subscriptionStore.value = store;
@@ -242,6 +246,29 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 		}
 	}
 
+	/**
+	 * Write a one-time header line with the host's build info (version,
+	 * commit, date, quality) read from the connected client's root state.
+	 * Lets the user see which build is hosting the agent host in the
+	 * forwarded Output channel. No-op when the root state has not arrived
+	 * or carries no build info, and only ever writes once.
+	 */
+	private _writeHostBuildInfoHeader(): void {
+		if (this._buildInfoHeaderWritten) {
+			return;
+		}
+		const rootState = this._client.rootState.value;
+		if (!rootState || rootState instanceof Error) {
+			return;
+		}
+		const buildInfo = readHostBuildInfo(rootState);
+		if (!buildInfo) {
+			return;
+		}
+		this._buildInfoHeaderWritten = true;
+		this._appendLine(`Agent host version ${formatHostBuildInfo(buildInfo)}`);
+	}
+
 	private _appendLine(text: string): void {
 		if (!this._outputChannel) {
 			this._outputChannel = this._outputService.getChannel(this._channelId);
@@ -260,7 +287,10 @@ function formatRecord(record: IOtlpLogRecord): string {
 	// from the OTLP nanosecond integer string.
 	const timestamp = formatTimestamp(record.timeUnixNano);
 	const severity = record.severityText.toUpperCase().padEnd(5);
-	return `[${timestamp}] [${severity}] ${record.body}`;
+	const attributes = record.attributes && Object.keys(record.attributes).length > 0
+		? ` ${JSON.stringify(record.attributes)}`
+		: '';
+	return `[${timestamp}] [${severity}] ${record.body}${attributes}`;
 }
 
 function formatTimestamp(timeUnixNano: string): string {

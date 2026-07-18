@@ -69,6 +69,22 @@
 	margin-bottom: 0;
 }
 
+/* Quick chat composer: no workspace to pick, so hide the picker row entirely. */
+.new-chat-widget-content.quick-chat .new-session-workspace-picker-container {
+	display: none;
+}
+
+/* Quick chat composer header: the "New Chat" + inline session-type picker row.
+ * Hidden unless the composer is in quick-chat mode. Scoped under the content so
+ * it outranks the base `.session-workspace-picker { display: flex }` rule. */
+.new-chat-widget-content .new-session-quick-chat-header {
+	display: none;
+}
+
+.new-chat-widget-content.quick-chat .new-session-quick-chat-header {
+	display: flex;
+}
+
 .new-chat-widget-content {
 	width: 100%;
 	max-width: 800px;
@@ -87,7 +103,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
-	gap: 4px;
+	gap: 2px;
 	min-height: 28px;
 	justify-content: space-between;
 }
@@ -98,9 +114,14 @@
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
 	display: flex;
-	gap: 4px;
+	gap: 2px;
 	min-width: 0;
 	overflow: hidden;
+}
+
+/* Collapse the controls-row picker host when empty so it adds no flex gap. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-session-type-picker-host:empty {
+	display: none;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
@@ -173,21 +194,23 @@
 
 /* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
 .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
-	gap: 4px;
+	gap: 2px;
 }
 
 /* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
  * (e.g. session control pickers and repo config pickers) so they align with the
- * mode/model picker font in the input toolbar. */
+ * model picker font in the input toolbar. */
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
-	padding: 3px 6px;
-	font-size: 11px;
+	padding: 3px 8px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+	width: auto;
+	height: auto;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
@@ -200,16 +223,20 @@
 	display: none;
 }
 
-
-.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > * + *,
-.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
+ * lack the chevron that visually balances the 7px left padding, so use
+ * symmetric horizontal padding and drop the picker min-width that would
+ * otherwise leave the icon left-aligned inside a 30px box. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
+	min-width: 0;
 }
 
-.new-chat-widget-container .sessions-chat-attach-button + .sessions-chat-config-toolbar {
-	padding-left: 4px;
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
+	padding: 3px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 /* Pickers row - two equal halves */
@@ -230,7 +257,7 @@
 }
 
 .session-workspace-picker-label {
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 	line-height: 1.25;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
@@ -245,12 +272,12 @@
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
 	height: auto;
 	padding: 4px;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 	line-height: 1.25;
 	border: none;
 	background-color: transparent;
 	color: var(--vscode-foreground);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	touch-action: manipulation;
 }
 
@@ -262,12 +289,12 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron),
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.codicon-chevron-down) {
-	font-size: 16px;
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: var(--vscode-codiconFontSize, 16px);
 	margin: 0;
 }
 
@@ -276,7 +303,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	margin-left: 6px;
 	line-height: 1;
 	transform: translateY(1px);
@@ -308,7 +335,7 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-width: 0;
 	overflow: hidden;
 }
@@ -362,8 +389,8 @@
 	}
 }
 
-.sessions-chat-picker-slot .action-label .codicon {
-	font-size: 12px;
+.interactive-input-part .sessions-chat-picker-slot .action-label .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so codicons here size naturally to their font-size, matching pickers (like Copilot CLI)
@@ -394,30 +421,18 @@
 
 .sessions-chat-picker-slot .action-label.warning {
 	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.warning .codicon {
 	color: var(--vscode-problemsWarningIcon-foreground) !important;
 }
 
-.sessions-chat-picker-slot .action-label.warning:hover {
-	color: var(--vscode-problemsWarningIcon-foreground);
-	opacity: 1;
-}
-
 .sessions-chat-picker-slot .action-label.info {
 	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 0.75;
 }
 
 .sessions-chat-picker-slot .action-label.info .codicon {
 	color: var(--vscode-problemsInfoIcon-foreground) !important;
-}
-
-.sessions-chat-picker-slot .action-label.info:hover {
-	color: var(--vscode-problemsInfoIcon-foreground);
-	opacity: 1;
 }
 
 /* Tab bar styles live with the platform widget

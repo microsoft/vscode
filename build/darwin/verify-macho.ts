@@ -40,11 +40,23 @@ const FILES_TO_SKIP = [
 	// ripgrep-universal: single-arch binaries in per-platform directories
 	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/**',
+	// OS proxy resolver: universal app has separate x64 and arm64 packages
+	'**/node_modules/@vscode/os-proxy-resolver-darwin-*/**',
+	'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**',
 	// MXC SDK ships per-arch native binaries under bin/<arch>; the package
 	// includes both arm64 and x64 trees regardless of host arch.
 	'**/node_modules/@microsoft/mxc-sdk/bin/**',
 	'**/node_modules.asar.unpacked/@microsoft/mxc-sdk/bin/**',
+	// Copilot SDK tgrep prebuilds: single-arch binaries in per-platform directories
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/**',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/**',
+	// onnxruntime-node (on-device transcription) ships only a darwin/arm64 binary,
+	// not darwin/x64; the universal app carries the arm64 binary as-is.
+	'**/node_modules.asar.unpacked/onnxruntime-node/bin/**',
 ];
+
 
 function isFileSkipped(file: string): boolean {
 	return FILES_TO_SKIP.some(pattern => minimatch(file, pattern));

@@ -365,6 +365,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': 'some',
 				agentsWindow: { default: 'all' },
+				experiment: {
+					mode: 'startup'
+				}
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
@@ -807,6 +810,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
 			},
+			[LayoutSettings.MODERN_UI]: {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental'],
+				'description': localize('modernUI', "Controls whether the experimental Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design."),
+				experiment: { mode: 'auto' },
+			},
 		}
 	});
 
@@ -1023,6 +1033,29 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);
+
+// Migrate the previous standalone experiments (`workbench.experimental.floatingPanels`
+// and `workbench.experimental.styleOverrides`) onto the consolidated
+// `workbench.experimental.modernUI` toggle. Either of the old settings being on
+// enables the unified Modern UI Update experiment.
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.experimental.floatingPanels', migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.floatingPanels', { value: undefined }]];
+			if (value === true && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
+			}
+			return result;
+		}
+	}, {
+		key: 'workbench.experimental.styleOverrides', migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.styleOverrides', { value: undefined }]];
+			if (Array.isArray(value) && value.length > 0 && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
 			}
 			return result;
 		}

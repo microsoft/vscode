@@ -67,11 +67,11 @@ export class InterceptingTelemetryService implements ITelemetryService {
 		this._baseService.publicLogError2(eventName, data);
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		this._baseService.setExperimentProperty(name, value);
+	setExperimentProperty(name: string, value: string, triggerBufferFlush?: boolean): void {
+		this._baseService.setExperimentProperty(name, value, triggerBufferFlush);
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this._baseService.setCommonProperty(name, value);
 	}
 }

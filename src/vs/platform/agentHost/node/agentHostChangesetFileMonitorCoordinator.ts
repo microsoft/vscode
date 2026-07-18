@@ -6,14 +6,14 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../common/changesetUri.js';
 import { parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
-import { IAgentHostChangesetService } from './agentHostChangesetService.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from './agentHostGitService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	constructor(
@@ -79,12 +79,12 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _activeTurnSequencer = new SequencerByKey<string>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
-		private readonly _changesets: IAgentHostChangesetService,
-		private readonly _configurationService: IAgentConfigurationService,
-		private readonly _fileMonitorService: IAgentHostFileMonitorService,
-		private readonly _gitService: IAgentHostGitService,
-		private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostFileMonitorService private readonly _fileMonitorService: IAgentHostFileMonitorService,
+		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -138,6 +138,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 
 	private _hasWatchInterest(sessionStr: string): boolean {
 		return this._watchInterestReferences.has(sessionStr)
+			|| this._watchInterestReferences.has(buildBranchChangesetUri(sessionStr))
 			|| this._watchInterestReferences.has(buildUncommittedChangesetUri(sessionStr))
 			|| this._watchInterestReferences.has(buildSessionChangesetUri(sessionStr));
 	}
@@ -238,9 +239,14 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (activeSessions.length === 0) {
 			return;
 		}
+
+		const workingDirectory = URI.parse(rootStr);
+
 		for (const session of activeSessions) {
-			this._changesets.refreshUncommittedChangeset(session);
-			this._changesets.refreshSessionChangeset(session);
+			// Refresh the git state for each active session. If there are multiple
+			// sessions on the same root, trigger the git state refresh for each
+			// individual session as the git state refresh will be throttled downstream.
+			void this._gitStateService.refreshSessionGitState(session, workingDirectory);
 		}
 	}
 

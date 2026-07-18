@@ -11,20 +11,22 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
-import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 const REMOTE_NOT_SUPPORTED = (op: string) => new Error(`${op} is not supported when the agent host runs on a remote.`);
@@ -63,18 +65,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
-		const enabled = isAgentHostEnabled(configurationService);
+		const enabled = agentHostEnablementService.enabled;
 		const connection = remoteAgentService.getConnection();
 		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
 		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via "${AgentHostEnabledSettingId}" or web runtime. Not connecting.`);
+			this._logService.info(`${LOG_PREFIX} Disabled via "chat.agentHost.enabled" or web runtime. Not connecting.`);
 			this.setAuthenticationPending(false);
 			return;
 		}
@@ -152,6 +154,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.clientId ?? '';
 	}
 
+	get initializeResult(): IObservable<InitializeResult | undefined> {
+		return this._protocolClient?.initializeResult ?? constObservable(undefined);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -164,20 +170,40 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.onDidAction ?? Event.None;
 	}
 
-	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
-		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource);
+	get onMcpNotification(): Event<IMcpNotification> {
+		return this._protocolClient?.onMcpNotification ?? Event.None;
+	}
+
+	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
 	}
 
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this._protocolClient?.getInflightSessionCreate(resource);
+	}
+
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._protocolClient?.getActiveSubscriptions() ?? [];
+	}
+
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this._protocolClient?.dispatch(channel, action);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._requireClient().authenticate(params);
+	}
+
+	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+		return this._requireClient().getNetworkDiagnosticsInfo();
+	}
+
+	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
+		return this._requireClient().diagnosticsFetch(url);
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -208,12 +234,28 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeSession(session);
 	}
 
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
+		return this._requireClient().createChat(session, chat, options);
+	}
+
+	disposeChat(chat: URI): Promise<void> {
+		return this._requireClient().disposeChat(chat);
+	}
+
 	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._requireClient().createTerminal(params);
 	}
 
 	disposeTerminal(terminal: URI): Promise<void> {
 		return this._requireClient().disposeTerminal(terminal);
+	}
+
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._requireClient().invokeChangesetOperation(params);
+	}
+
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return this._requireClient().handleMcpRequest(channel, method, params);
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {

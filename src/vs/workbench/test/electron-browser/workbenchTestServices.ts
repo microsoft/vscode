@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -103,7 +103,9 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(_options?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents; preferredSessionType?: { providerId?: string; sessionTypeId: string } }): Promise<void> { }
+	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
+
+	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
@@ -168,6 +170,16 @@ export class TestNativeHostService implements INativeHostService {
 	async openGPUInfoWindow(): Promise<void> { }
 	async openContentTracingWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async resolveProxyWithPackage() { return []; }
+	async readProxyConfigWithPackage() {
+		return {
+			environment: {},
+			autoDetect: false,
+			wpadDhcp: { state: 'unsupported' as const },
+			wpadDns: { state: 'disabled' as const },
+			configuredPac: { state: 'unconfigured' as const }
+		};
+	}
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }

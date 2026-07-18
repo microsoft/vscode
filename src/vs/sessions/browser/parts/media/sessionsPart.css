@@ -15,7 +15,7 @@
 }
 
 .monaco-workbench .part.sessionspart .session-view,
-.monaco-workbench .part.sessionspart .session-view > .session-view-content {
+.monaco-workbench .part.sessionspart .session-view .session-view-content {
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 	position: relative;
@@ -29,7 +29,10 @@
 	top: 0;
 }
 
-/* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar. */
+/* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar.
+ * The chat view spans the full leaf width (so the transcript scrollbar stays at the right edge), so the progress bar is centered and
+ * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
+ * starting in the empty side gutters. */
 .monaco-workbench .part.sessionspart .chat-view {
 	position: relative;
 }
@@ -39,6 +42,8 @@
 	top: 0;
 	left: 0;
 	right: 0;
+	margin: 0 auto;
+	max-width: var(--session-view-centered-content-max-width);
 	z-index: 10;
 }
 

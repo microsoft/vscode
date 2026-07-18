@@ -22,6 +22,9 @@ import './sessions.common.main.js';
 import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
+// Per-session layout controller (desktop / web desktop layout).
+import './contrib/layout/browser/sessions.layout.contribution.js';
+
 //#endregion
 
 
@@ -93,6 +96,7 @@ import '../platform/webContentExtractor/electron-browser/webContentExtractorServ
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
+import '../workbench/services/localTranscription/electron-browser/localTranscriptionService.js';
 
 import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -139,6 +143,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
+
+// Surveys
+import '../workbench/contrib/surveys/browser/survey.contribution.js';
 
 // Process Explorer
 import '../workbench/contrib/processExplorer/electron-browser/processExplorer.contribution.js';
@@ -208,11 +215,12 @@ import './electron-browser/sessions.desktop.contribution.js';
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/wslRemoteAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
-
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 // Chat
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
@@ -223,6 +231,7 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
 import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)

@@ -1375,9 +1375,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let worktreeTurnIndex = 1;
 		let worktreeAgeBucketMs: string | undefined = undefined;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 			// isolationMode mode will be initialized only for new sessions.
 			const isolationMode = _sessionIsolation.get(id);
 			isolation = isNewSession ? isolationMode : undefined;
@@ -1611,7 +1614,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
 			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
-			await persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService, creditsUsed);
+			await persistCopilotCLIResponseModelId(session.object.sessionId, request.id, responseModelId, model?.model === 'auto', this.chatSessionMetadataStore, this.logService, creditsUsed);
 
 			if (isUntitled && request.command !== 'remote' && !token.isCancellationRequested) {
 				this.scheduleUntitledSessionSwap(id, request.id, request.prompt, session.object.sessionId, chatSessionContext.chatSessionItem);
@@ -1665,7 +1668,15 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// Delete old information stored for untitled session id.
 			_sessionBranch.delete(untitledSessionId);
 			_sessionIsolation.delete(untitledSessionId);
-			this.sessionItemProvider.untitledSessionIdMapping.delete(untitledSessionId);
+			// IMPORTANT: keep `untitledSessionIdMapping[untitledSessionId] -> sdkSessionId`.
+			// The workbench's open chat widget remains bound to the untitled
+			// URI even after the swap event, so a follow-up message arrives
+			// at `getOrCreateSession` with the untitled URI. We rely on this
+			// mapping to forward that follow-up to the existing SDK session
+			// instead of spawning a brand new one. The reverse mapping
+			// (`sdkToUntitledUriMapping`) must still be cleared so that
+			// `toChatSessionItem` reports the canonical SDK URI for the
+			// session after the swap.
 			this.sessionItemProvider.sdkToUntitledUriMapping.delete(sdkSessionId);
 			this.folderRepositoryManager.deleteNewSessionFolder(untitledSessionId);
 			this.sessionItemProvider.swap(chatSessionItem, { resource: SessionIdForCLI.getResource(sdkSessionId), label: requestPrompt });
@@ -1919,7 +1930,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptFile = new ChatVariablesCollection(request.references).find(isPromptFile);
+		const promptFile = new ChatVariablesCollection(request.references).find(v => isPromptFile(v.reference));
 		if (!promptFile || !URI.isUri(promptFile.reference.value)) {
 			return undefined;
 		}
@@ -1933,9 +1944,16 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string; permissionLevel?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
-		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
-		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
-		const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+		const parsedId = SessionIdForCLI.parse(resource);
+		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+		const id = existingSessionId ?? parsedId;
+		// Only treat the request as a new session when the resource is actually
+		// an untitled placeholder. Without this guard, a stale `isUntitled`
+		// flag combined with a swap-mapping that has already been cleaned up
+		// (see `scheduleUntitledSessionSwap`) causes a follow-up turn against
+		// a real session id to spawn a brand-new SDK session.
+		const isResourceUntitled = isUntitledSessionId(parsedId);
+		const isNewSession = chatSessionContext.isUntitled && isResourceUntitled && !existingSessionId;
 
 		const { workspaceInfo, cancelled, trusted } = await this.getOrInitializeWorkingDirectory(chatSessionContext, stream, request.toolInvocationToken, token, options.newBranch);
 		const workingDirectory = getWorkingDirectory(workspaceInfo);
@@ -2042,9 +2060,12 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}> {
 		let folderInfo: FolderRepositoryInfo;
 		if (chatSessionContext) {
-			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource));
-			const id = existingSessionId ?? SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = chatSessionContext.isUntitled && !existingSessionId;
+			const parsedId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+			const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(parsedId);
+			const id = existingSessionId ?? parsedId;
+			// Mirror the guard in `getOrCreateSession`: only count as a new
+			// session when the resource is actually an untitled placeholder.
+			const isNewSession = chatSessionContext.isUntitled && isUntitledSessionId(parsedId) && !existingSessionId;
 
 			if (isNewSession) {
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
@@ -2203,7 +2224,7 @@ export function registerCLIChatCommands(
 		);
 		return siblings.length > 0;
 	}
-	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean }): Promise<void> {
+	async function deleteSessionById(sessionId: string, options?: { keepWorktree?: boolean; sessionLabel?: string }): Promise<void> {
 		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 
@@ -2218,7 +2239,7 @@ export function registerCLIChatCommands(
 					if (!repository) {
 						throw new Error(l10n.t('No active repository found to delete worktree.'));
 					}
-					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath, { label: options?.sessionLabel });
 				} catch (error) {
 					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
 				}
@@ -2244,7 +2265,7 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 				copilotcliSessionItemProvider.notifySessionsChange();
 			}
 		}
@@ -2275,7 +2296,7 @@ export function registerCLIChatCommands(
 				const sessionId = copilotcliSessionItemProvider.untitledSessionIdMapping.get(id) ?? id;
 				const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(sessionId);
 				const keepWorktree = !!worktreePath && await shouldKeepWorktreeForOtherSessions(sessionId, worktreePath);
-				await deleteSessionById(sessionId, { keepWorktree });
+				await deleteSessionById(sessionId, { keepWorktree, sessionLabel: sessionItem.label });
 			}
 		}
 

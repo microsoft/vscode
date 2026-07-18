@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -12,7 +13,7 @@ import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './mo
 import { ChatResponseResource } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
-import { getExplicitFileOrImageAttachmentSummary, isImageVariableEntry } from './attachments/chatVariableEntries.js';
+import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
 	readonly id: string;
@@ -21,7 +22,7 @@ export interface IChatExtractedImage {
 	readonly mimeType: string;
 	readonly data: VSBuffer;
 	readonly source: string;
-	readonly caption: string | undefined;
+	readonly caption: string | IMarkdownString | undefined;
 }
 
 export interface IChatExtractedImageCollection {
@@ -71,8 +72,7 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
-	const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-	const caption = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+	const caption = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 	const pushImage = (mimeType: string, data: VSBuffer, outputIndex: number) => {
 		const ext = getExtensionForMimeType(mimeType);
 		const permalinkBasename = ext ? `file${ext}` : 'file.bin';
@@ -140,7 +140,7 @@ export async function extractImagesFromToolInvocationMessages(
 				mimeType,
 				data,
 				source: localize('chatImageExtraction.toolSource', "Tool: {0}", toolInvocation.toolId),
-				caption: message.value,
+				caption: message,
 			});
 		}
 	}
@@ -208,8 +208,14 @@ export function coerceImageBuffer(value: unknown): Uint8Array | undefined {
 export function extractImagesFromChatRequest(
 	request: IChatRequestViewModel,
 ): IChatExtractedImage[] {
+	return extractImagesFromChatVariables(request.variables);
+}
+
+export function extractImagesFromChatVariables(
+	variables: readonly IChatRequestVariableEntry[],
+): IChatExtractedImage[] {
 	const images: IChatExtractedImage[] = [];
-	for (const variable of request.variables) {
+	for (const variable of variables) {
 		if (!isImageVariableEntry(variable)) {
 			continue;
 		}

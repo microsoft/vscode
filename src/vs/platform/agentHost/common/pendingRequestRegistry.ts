@@ -20,8 +20,20 @@ import { CancellationError } from '../../../base/common/errors.js';
  */
 export class PendingRequestRegistry<T> {
 	private readonly _entries = new Map<string, DeferredPromise<T>>();
+	/**
+	 * Results delivered via {@link respondOrBuffer} before any deferred was
+	 * parked under the same key. A subsequent {@link register} consumes the
+	 * buffered value and resolves immediately, tolerating a completion that
+	 * races ahead of the handler that awaits it.
+	 */
+	private readonly _earlyResults = new Map<string, T>();
 
 	registerAndFire(key: string, fire: () => void): Promise<T> {
+		if (this._earlyResults.has(key)) {
+			const buffered = this._earlyResults.get(key) as T;
+			this._earlyResults.delete(key);
+			return Promise.resolve(buffered);
+		}
 		const deferred = new DeferredPromise<T>();
 		this._entries.set(key, deferred);
 		fire();
@@ -41,6 +53,11 @@ export class PendingRequestRegistry<T> {
 	 * leaking forever.
 	 */
 	register(key: string): Promise<T> {
+		if (this._earlyResults.has(key)) {
+			const buffered = this._earlyResults.get(key) as T;
+			this._earlyResults.delete(key);
+			return Promise.resolve(buffered);
+		}
 		const existing = this._entries.get(key);
 		if (existing && !existing.isSettled) {
 			existing.error(new CancellationError());
@@ -61,6 +78,25 @@ export class PendingRequestRegistry<T> {
 	}
 
 	/**
+	 * Like {@link respond}, but if no deferred is parked under `key`, buffer
+	 * the value so a subsequent {@link register} / {@link registerAndFire}
+	 * for the same key resolves immediately. Use when the completion may
+	 * legitimately arrive before the awaiting handler registers (the
+	 * Copilot client-tool round-trip, whose SDK handler and the workbench
+	 * completion race).
+	 */
+	respondOrBuffer(key: string, value: T): void {
+		if (!this.respond(key, value)) {
+			this._earlyResults.set(key, value);
+		}
+	}
+
+	/** Whether a result arrived before a request registered under `key`. */
+	hasBufferedResult(key: string): boolean {
+		return this._earlyResults.has(key);
+	}
+
+	/**
 	 * Resolve every parked deferred with `denyValue` and clear the registry.
 	 *
 	 * Designed for the permission-deny path: a "deny" answer is itself a
@@ -75,6 +111,7 @@ export class PendingRequestRegistry<T> {
 			}
 		}
 		this._entries.clear();
+		this._earlyResults.clear();
 	}
 
 	/**
@@ -94,5 +131,6 @@ export class PendingRequestRegistry<T> {
 			}
 		}
 		this._entries.clear();
+		this._earlyResults.clear();
 	}
 }

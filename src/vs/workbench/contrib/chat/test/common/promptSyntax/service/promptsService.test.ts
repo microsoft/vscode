@@ -20,7 +20,7 @@ import { IModelService } from '../../../../../../../editor/common/services/model
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -194,6 +194,7 @@ suite('PromptsService', () => {
 
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
+			getConnection: () => null,
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
@@ -211,6 +212,29 @@ suite('PromptsService', () => {
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	suite('IAgentSource.isEquals', () => {
+		test('returns true for equivalent local sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.local };
+			const right: IAgentSource = { storage: PromptsStorage.local };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns true for equivalent extension sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+			const right: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns false for different plugin source URIs', () => {
+			const left: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-a') };
+			const right: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-b') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), false);
+		});
 	});
 
 	suite('parse', () => {
@@ -784,6 +808,12 @@ suite('PromptsService', () => {
 				'Must find correct instruction files.',
 			);
 		});
+
+		test('exposes onDidChangeAgentInstructions', async () => {
+			const disposable = service.onDidChangeAgentInstructions(() => { });
+			await new Promise(resolve => setTimeout(resolve, 0));
+			disposable.dispose();
+		});
 	});
 
 	suite('getCustomAgents', () => {
@@ -814,6 +844,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
@@ -873,6 +904,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					tools: ['tool1', 'tool2'],
@@ -894,6 +926,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
@@ -954,6 +987,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Code review agent.',
 					argumentHint: 'Provide file path or code snippet to review',
@@ -975,6 +1009,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					description: 'Documentation generator.',
 					argumentHint: 'Specify function or class name to document',
@@ -1048,6 +1083,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md').toString(),
 					name: 'github-agent',
 					description: 'GitHub Copilot specialized agent.',
 					target: Target.GitHubCopilot,
@@ -1069,6 +1105,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md').toString(),
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
@@ -1090,6 +1127,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md').toString(),
 					name: 'generic-agent',
 					description: 'Generic agent without target.',
 					agentInstructions: {
@@ -1169,6 +1207,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md').toString(),
 					name: 'copilot-agent',
 					description: 'Copilot agent with same tool names.',
 					target: Target.GitHubCopilot,
@@ -1191,6 +1230,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md').toString(),
 					name: 'claude-agent',
 					description: 'Claude agent with tools and model.',
 					target: Target.Claude,
@@ -1214,6 +1254,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md').toString(),
 					name: 'claude-agent2',
 					description: 'Claude agent with various tools.',
 					target: Target.Claude,
@@ -1274,6 +1315,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md').toString(),
 					name: 'demonstrate',
 					description: 'Demonstrate agent.',
 					tools: ['demo-tool'],
@@ -1347,6 +1389,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md').toString(),
 					name: 'restricted-agent',
 					description: 'Agent with restricted access.',
 					agents: ['subagent1', 'subagent2'],
@@ -1368,6 +1411,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md').toString(),
 					name: 'no-access-agent',
 					description: 'Agent with no access to subagents, skills, or instructions.',
 					agents: [],
@@ -1389,6 +1433,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md').toString(),
 					name: 'full-access-agent',
 					description: 'Agent with full access.',
 					agents: ['*'],
@@ -3598,6 +3643,48 @@ suite('PromptsService', () => {
 			assert.strictEqual(anotherSkillCommand.storage, PromptsStorage.local);
 		});
 
+		test('should deduplicate skills with the same name from symlinked locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'slash-commands-symlinked-skills';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// `npx skills` installs to `~/.agents/skills` and symlinks
+			// `~/.claude/skills` to it, so the same skill is discovered under two
+			// default user locations. They must collapse to a single slash command.
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/.agents/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+				{
+					path: '/home/user/.claude/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const deployCommands = slashCommands.filter(cmd => cmd.name === 'deploy');
+			assert.strictEqual(deployCommands.length, 1, 'Duplicated skill should appear only once as a slash command');
+		});
+
 		test('should include skills from user storage as slash commands', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
@@ -4389,6 +4476,55 @@ suite('PromptsService', () => {
 				'Frontmatter skill name should not appear as slash command');
 			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'run-ci'), undefined,
 				'Unprefixed skill name should not appear as slash command');
+
+			testPluginsObservable.set([], undefined);
+		});
+
+		test('plugin skill slash command prefix uses plugin label when install path is a pinned SHA', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const pluginUri = URI.file('/cache/agentPlugins/github/datadog/sha_b003fcad48c3a935ffe04b6218f5cf58fe2b6760');
+			const skillUri = URI.joinPath(pluginUri, 'skills', 'ddsetup', 'SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "ddsetup"',
+						'description: "Set up Datadog"',
+						'---',
+						'Datadog setup skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: pluginUri,
+				label: 'datadog',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ddsetup' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			assert.deepStrictEqual(slashCommands
+				.filter(command => command.uri.toString() === skillUri.toString())
+				.map(command => ({ name: command.name, description: command.description, type: command.type, storage: command.storage })), [{
+					name: 'datadog:ddsetup',
+					description: 'Set up Datadog',
+					type: PromptsType.skill,
+					storage: PromptsStorage.plugin,
+				}]);
 
 			testPluginsObservable.set([], undefined);
 		});

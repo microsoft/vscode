@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -298,6 +299,138 @@ suite('SyncedCustomizationBundler', () => {
 		assert.strictEqual(newContent.value.toString(), 'second version');
 	});
 
+	test('unchanged rebundle reuses the previous result without touching the tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Drop a sentinel file into the tree. A destructive rebundle would wipe it;
+		// a skipped rebundle leaves it untouched.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// The exact same result object is returned and the sentinel survives,
+		// proving the delete + rewrite was skipped.
+		assert.strictEqual(result2, result1);
+		const survived = await fileService.readFile(sentinel);
+		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('changed rebundle deletes the previous tree', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/changing.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.ok(result1);
+
+		// Sentinel that should be removed when the tree is rebuilt.
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('remove me'));
+
+		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		// A fresh result is produced and the sentinel is gone.
+		assert.notStrictEqual(result2, result1);
+		assert.notStrictEqual(result2!.ref.nonce, result1.ref.nonce);
+		let threw = false;
+		try {
+			await fileService.readFile(sentinel);
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'sentinel should be deleted when content changes');
+	});
+
+	test('unchanged MCP-only rebundle reuses the previous result', async () => {
+		const bundler = createBundler();
+		const server = { name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'srv' } } as const;
+
+		const result1 = await bundler.bundle([], [server]);
+		assert.ok(result1);
+
+		const sentinel = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/sentinel.txt' });
+		await fileService.writeFile(sentinel, VSBuffer.fromString('keep me'));
+
+		const result2 = await bundler.bundle([], [server]);
+
+		assert.strictEqual(result2, result1);
+		const survived = await fileService.readFile(sentinel);
+		assert.strictEqual(survived.value.toString(), 'keep me');
+	});
+
+	test('reused rebundle still detects a later content change', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/evolving.md', 'v1');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		// Second bundle is identical and should be reused (skip path).
+		const result2 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		assert.strictEqual(result2, result1);
+
+		// A change after a reused rebundle must still trigger a rebuild — the
+		// reuse path must not poison the cached nonce/result.
+		await fileService.writeFile(uri, VSBuffer.fromString('v2'));
+		const result3 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.notStrictEqual(result3, result1);
+		assert.notStrictEqual(result3!.ref.nonce, result1!.ref.nonce);
+		const written = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/evolving.md' }));
+		assert.strictEqual(written.value.toString(), 'v2');
+	});
+
+	test('lastNonce is unchanged after a reused rebundle', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/stable.md', 'unchanged content');
+
+		const result1 = await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+
+		assert.strictEqual(bundler.lastNonce, result1!.ref.nonce);
+	});
+
+	test('removing a file from the set rebuilds the tree', async () => {
+		const bundler = createBundler();
+		const uriA = await seedFile('/test/keep.md', 'A');
+		const uriB = await seedFile('/test/drop.md', 'B');
+
+		await bundler.bundle([
+			{ uri: uriA, type: PromptsType.instructions },
+			{ uri: uriB, type: PromptsType.instructions },
+		]);
+
+		// Re-bundle with only the first file — the dropped file should be gone.
+		await bundler.bundle([{ uri: uriA, type: PromptsType.instructions }]);
+
+		const kept = await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/keep.md' }));
+		assert.strictEqual(kept.value.toString(), 'A');
+
+		let threw = false;
+		try {
+			await fileService.readFile(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/drop.md' }));
+		} catch {
+			threw = true;
+		}
+		assert.ok(threw, 'dropped file should be removed when the file set changes');
+	});
+
+	test('changed MCP-only rebundle rewrites .mcp.json', async () => {
+		const bundler = createBundler();
+		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
+
+		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
+		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+
+		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
+		assert.deepStrictEqual(parsed, {
+			mcpServers: { srv: { type: McpServerType.LOCAL, command: 'v2' } },
+		});
+	});
+
 	test('bundle description includes file count', async () => {
 		const bundler = createBundler();
 		const uriA = await seedFile('/test/a.md', 'A');
@@ -311,5 +444,89 @@ suite('SyncedCustomizationBundler', () => {
 		]);
 		assert.ok(result);
 		assert.ok(result.ref.nonce, 'should produce a nonce reflecting the bundled files');
+	});
+
+	test('writes MCP servers into .mcp.json', async () => {
+		const bundler = createBundler();
+
+		const result = await bundler.bundle([], [
+			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+		]);
+		assert.ok(result, 'a bundle with only MCP servers should still produce a result');
+
+		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
+		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
+		assert.deepStrictEqual(parsed, {
+			mcpServers: { 'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+		});
+	});
+
+	test('MCP server bundle nonce is stable and order-independent', async () => {
+		const bundler = createBundler();
+		const a = { name: 'a', configuration: { type: McpServerType.LOCAL, command: 'a' } } as const;
+		const b = { name: 'b', configuration: { type: McpServerType.LOCAL, command: 'b' } } as const;
+
+		const result1 = await bundler.bundle([], [a, b]);
+		const result2 = await bundler.bundle([], [b, a]);
+		assert.strictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('MCP server bundle nonce changes when a server changes', async () => {
+		const bundler = createBundler();
+		const result1 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
+		const result2 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
+	});
+
+	test('getOrigin recovers provenance of flattened files by synced URI', async () => {
+		const bundler = createBundler();
+		const extUri = await seedFile('/ext/rule.md', 'ext rule');
+		const skillMd = await seedFile('/plugins/my-skill/SKILL.md', '# skill');
+
+		await bundler.bundle([
+			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
+			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }) },
+		]);
+
+		const ruleDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.deepStrictEqual(bundler.getOrigin(ruleDest), {
+			uri: extUri,
+			source: 'extension',
+			extensionId: 'pub.ext',
+			pluginUri: undefined,
+		});
+
+		// Skills preserve their directory: skills/{skillName}/SKILL.md.
+		const skillDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/skills/my-skill/SKILL.md' });
+		assert.deepStrictEqual(bundler.getOrigin(skillDest), {
+			uri: skillMd,
+			source: 'plugin',
+			extensionId: undefined,
+			pluginUri: URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' }),
+		});
+
+		assert.strictEqual(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/unknown.md' })), undefined);
+	});
+
+	test('getOrigin has no entry for files without a source', async () => {
+		const bundler = createBundler();
+		const uri = await seedFile('/test/rule.md', 'rule');
+		await bundler.bundle([{ uri, type: PromptsType.instructions }]);
+		const dest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/rule.md' });
+		assert.strictEqual(bundler.getOrigin(dest), undefined);
+	});
+
+	test('getOrigin map refreshes on each bundle', async () => {
+		const bundler = createBundler();
+		const first = await seedFile('/test/first.md', 'first');
+		await bundler.bundle([{ uri: first, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.first' }]);
+		const firstDest = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/first.md' });
+		assert.ok(bundler.getOrigin(firstDest));
+
+		const second = await seedFile('/test/second.md', 'second');
+		await bundler.bundle([{ uri: second, type: PromptsType.instructions, source: 'plugin' }]);
+		// The previous file is no longer part of the bundle, so its origin is gone.
+		assert.strictEqual(bundler.getOrigin(firstDest), undefined);
+		assert.ok(bundler.getOrigin(URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/rules/second.md' })));
 	});
 });

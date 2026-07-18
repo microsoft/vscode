@@ -6,9 +6,11 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -106,7 +108,13 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, shouldShimmerForTool(this.toolInvocation));
+		const shouldShimmer = shouldShimmerForTool(this.toolInvocation, content);
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, shouldShimmer ? true : undefined, true, this.getProgressIcon(), this.toolInvocation, shouldShimmer);
+	}
+
+	private getProgressIcon(): ThemeIcon {
+		const icon = this.getIcon();
+		return ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin')) ? Codicon.check : icon;
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

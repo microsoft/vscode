@@ -267,6 +267,32 @@ export function redactToken(text: string): string {
 }
 
 /**
+ * Match the `ws://127.0.0.1:PORT[?tkn=TOKEN]` URL emitted by `code agent host`
+ * on stdout/stderr. Shared by SSH and WSL agent-host transports — both spawn
+ * the CLI inside a posix shell and scrape its first line of output to discover
+ * the WebSocket endpoint.
+ */
+const AGENT_HOST_WS_URL_RE = /ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/;
+
+/**
+ * Extract the `ws://` URL printed by `code agent host` from a line or buffer
+ * of mixed output. Returns the full URL plus its parsed components, or
+ * `undefined` if no match is found.
+ */
+export function extractAgentHostWebSocketURL(text: string): { url: string; host: string; port: number; token: string | undefined } | undefined {
+	const match = text.match(AGENT_HOST_WS_URL_RE);
+	if (!match) {
+		return undefined;
+	}
+	return {
+		url: match[0],
+		host: '127.0.0.1',
+		port: parseInt(match[1], 10),
+		token: match[2] || undefined,
+	};
+}
+
+/**
  * Path to the per-quality agent host lockfile written by `code agent host`.
  *
  * Mirrors the Rust CLI's launcher path layout (see

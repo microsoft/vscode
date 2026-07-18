@@ -6,11 +6,40 @@
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
+import { URI } from '../../base/common/uri.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
+
+/**
+ * Progress emitted while an agent-host provider is establishing a connection.
+ */
+export interface IAgentHostConnectProgress {
+	readonly connectionKey: string;
+	readonly message: string;
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	readonly state: McpServerState;
+	readonly logOutputChannelId?: string;
+	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
+	start(): Promise<void>;
+	/** Stops the server. Providers that cannot control lifecycle may no-op. */
+	stop(): Promise<void>;
+	setEnabled(enabled: boolean): void;
+}
 
 /**
  * Extended sessions provider for agent host providers (local and remote).
@@ -20,6 +49,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**
@@ -36,6 +67,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * it. Present on remote providers that manage their own transport.
 	 */
 	disconnect?(): Promise<void>;
+
+	/**
+	 * When `true`, the workspace picker keeps this provider's browse
+	 * action(s) enabled even while {@link connectionStatus} reports
+	 * `disconnected` — the assumption being that clicking the action
+	 * itself triggers a connect attempt (e.g. booting a stopped WSL
+	 * distro). The `incompatible` state is still treated as unavailable
+	 * because the user can't recover from it via a click.
+	 */
+	readonly canConnectOnDemand?: boolean;
 
 	// -- Dynamic Session Config --
 
@@ -94,6 +135,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
 
+	/** Authenticate against the backing agent-host connection. */
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
 	// -- Custom Agents --
 
 	/**
@@ -124,6 +168,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getWorkingDirectory(sessionId: string): string | undefined;
 
 	/**
+	 * Returns the MCP servers exposed by the session as rich objects whose
+	 * methods dispatch protocol-level toggle and lifecycle actions.
+	 * Returns an empty array when the session is unknown or exposes no MCP
+	 * servers.
+	 */
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+
+	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so
 	 * providers that don't expose custom agents can omit it.
 	 * @param sessionId The ID of the session.
@@ -131,6 +183,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 *              and use the provider's default behavior.
 	 */
 	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
+
+	/**
+	 * Returns the agent-host annotations channel for a session so that
+	 * sessions-layer features (e.g. agent feedback) can subscribe to and
+	 * dispatch annotation actions against the session's
+	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
+	 * session is unknown or the host connection is unavailable.
+	 */
+	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
 }
 

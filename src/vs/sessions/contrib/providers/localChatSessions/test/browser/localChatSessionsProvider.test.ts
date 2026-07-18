@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -22,7 +23,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IGitService } from '../../../../../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -54,6 +55,18 @@ class MockChatService extends Disposable {
 	/** When a query matches an entry here, sendRequest reports a rejection. */
 	readonly rejectQueries = new Set<string>();
 
+	/** In-progress state wired into every model created by startNewLocalSession. */
+	readonly newSessionInProgress = observableValue<boolean>('newSessionInProgress', false);
+
+	/** When set, sendRequest returns a completion promise resolved via resolveCompletion(). */
+	deferCompletion = false;
+	private readonly _completeResolvers: Array<() => void> = [];
+	resolveCompletion(): void {
+		for (const resolve of this._completeResolvers.splice(0)) {
+			resolve();
+		}
+	}
+
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
@@ -62,7 +75,7 @@ class MockChatService extends Disposable {
 
 	startNewLocalSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): IChatModelReference {
 		const resource = URI.parse(`vscode-local-chat://chat/${++this._counter}`);
-		const model = createMockModel(resource);
+		const model = createMockModel(resource, { requestInProgress: this.newSessionInProgress });
 		this._models.set(resource.toString(), model);
 		return { object: model, dispose: () => { } };
 	}
@@ -84,7 +97,10 @@ class MockChatService extends Disposable {
 		if (this.rejectQueries.has(query)) {
 			return { kind: 'rejected', reason: 'test-rejected' };
 		}
-		return { kind: 'sent', data: { responseCompletePromise: Promise.resolve(), responseCreatedPromise: Promise.resolve({}) } };
+		const responseCompletePromise = this.deferCompletion
+			? new Promise<void>(resolve => this._completeResolvers.push(resolve))
+			: Promise.resolve();
+		return { kind: 'sent', data: { responseCompletePromise, responseCreatedPromise: Promise.resolve({}) } };
 	}
 
 	async getLocalSessionHistory() { return []; }
@@ -175,6 +191,48 @@ suite('LocalChatSessionsProvider', () => {
 
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), [LocalSessionType.id]);
+	});
+
+	test('keeps empty Copilot resolution pending until live Copilot models arrive', () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService } = createFixture(store);
+		const models = new Map<string, ILanguageModelChatMetadata>();
+		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
+			override getLanguageModelIds(): string[] { return [...models.keys()]; }
+			override lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined { return models.get(identifier); }
+			override hasResolvedVendor(): boolean { return true; }
+		}());
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const emptyCopilot = provider.getModelsSnapshot('session', 'copilot/remembered');
+		const emptyByok = provider.getModelsSnapshot('session', 'ollama/remembered');
+
+		models.set('copilot/other', {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'other',
+			name: 'Other',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'other',
+			maxInputTokens: 1,
+			maxOutputTokens: 1,
+			isUserSelectable: true,
+			isDefaultForLocation: {},
+		});
+		const liveCopilot = provider.getModelsSnapshot('session', 'copilot/remembered');
+
+		assert.deepStrictEqual({
+			emptyCopilot: emptyCopilot.desiredModelResolution,
+			emptyByok: emptyByok.desiredModelResolution,
+			liveCopilot: liveCopilot.desiredModelResolution,
+			models: liveCopilot.models.map(model => model.identifier),
+			modelTarget: liveCopilot.modelTarget,
+		}, {
+			emptyCopilot: { kind: 'pending', identifier: 'copilot/remembered' },
+			emptyByok: { kind: 'unavailable', identifier: 'ollama/remembered' },
+			liveCopilot: { kind: 'unavailable', identifier: 'copilot/remembered' },
+			models: ['copilot/other'],
+			modelTarget: undefined,
+		});
 	});
 
 	test('resolveWorkspace handles only file uris', () => {
@@ -297,6 +355,118 @@ suite('LocalChatSessionsProvider', () => {
 		assert.strictEqual(provider.getSessions()[0].status.get(), SessionStatus.Completed);
 	});
 
+	test('marks the session unread when a tracked turn completes', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+
+		const inProgress = observableValue<boolean>('inProgress', false);
+		chatService.registerModel(createMockModel(session.resource, { requestInProgress: inProgress }));
+		chatService.fireSubmitRequest(session.resource);
+
+		// A freshly-tracked, idle session is read; a completed turn flips it unread.
+		const readBefore = provider.getSessions()[0].isRead.get();
+		inProgress.set(true, undefined);
+		inProgress.set(false, undefined);
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: true,
+			readAfter: false,
+		});
+	});
+
+	test('does not mark unread when the model was never in progress', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+
+		const inProgress = observableValue<boolean>('inProgress', false);
+		chatService.registerModel(createMockModel(session.resource, { requestInProgress: inProgress }));
+		// Tracking starts (idle) — no in-progress → idle transition occurs.
+		chatService.fireSubmitRequest(session.resource);
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), true);
+	});
+
+	test('marks the session unread when the first turn completes after navigating away', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		// The first turn is still running when send resolves, and only completes
+		// later (deferred) — mimicking the user leaving mid-turn.
+		chatService.deferCompletion = true;
+		chatService.newSessionInProgress.set(true, undefined);
+		await commitNewSession(provider);
+
+		const readBefore = provider.getSessions()[0].isRead.get();
+		chatService.newSessionInProgress.set(false, undefined);
+		chatService.resolveCompletion();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: true,
+			readAfter: false,
+		});
+	});
+
+	test('setSessionReadState clears unread across every chat in the group', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService } = createFixture(store);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+
+		// A completed turn on the child makes the whole group unread.
+		const childInProgress = observableValue<boolean>('childInProgress', false);
+		chatService.registerModel(createMockModel(childResource, { requestInProgress: childInProgress }));
+		chatService.fireSubmitRequest(childResource);
+		childInProgress.set(true, undefined);
+		childInProgress.set(false, undefined);
+
+		const readBefore = provider.getSessions()[0].isRead.get();
+		await provider.setSessionReadState(session.sessionId, true);
+
+		assert.deepStrictEqual({
+			readBefore,
+			readAfter: provider.getSessions()[0].isRead.get(),
+		}, {
+			readBefore: false,
+			readAfter: true,
+		});
+	});
+
+	test('a stored session persisted before isRead existed loads as unread', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, storage } = createFixture(store);
+
+		storage.store('sessions.localChat.migrated', true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		storage.store(STORAGE_KEY_SESSIONS, JSON.stringify([{
+			uri: URI.parse('vscode-local-chat://chat/legacy').toJSON(),
+			title: 'Legacy',
+			createdAt: 1_000,
+			lastMessageDate: 2_000,
+			workingDirectory: TEST_FOLDER.toJSON(),
+		}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+		await Event.toPromise(provider.onDidChangeSessions);
+
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
+	});
+
 	test('Event.None and exports remain stable', () => {
 		assert.strictEqual(LocalSessionType.id, 'local');
 		assert.strictEqual(LOCAL_SESSION_ENABLED_SETTING, 'sessions.chat.localAgent.enabled');
@@ -311,7 +481,7 @@ suite('LocalChatSessionsProvider', () => {
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 
 		const session = await commitNewSession(provider);
-		assert.strictEqual(session.capabilities.supportsMultipleChats, true);
+		assert.strictEqual(session.capabilities.get().supportsMultipleChats, true);
 		assert.strictEqual(session.chats.get().length, 1);
 	});
 
@@ -373,6 +543,35 @@ suite('LocalChatSessionsProvider', () => {
 		await provider.deleteChat(session.sessionId, childResource);
 		assert.strictEqual(dialog.confirmCount, 1);
 		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+	});
+
+	test('deleteChat with skipConfirmation deletes without showing the dialog', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, dialog } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 2);
+
+		const deleted = await provider.deleteChat(session.sessionId, childResource, { skipConfirmation: true });
+		assert.strictEqual(deleted, true);
+		assert.strictEqual(dialog.confirmCount, 0);
+		assert.strictEqual(provider.getSessions().length, 1);
+		assert.strictEqual(provider.getSessions()[0].chats.get().length, 1);
+	});
+
+	test('deleteChat returns false when the confirmation is cancelled', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, dialog } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const session = await commitNewSession(provider);
+		const childResource = await addChat(provider, session);
+
+		dialog.confirmResult = false;
+		const deleted = await provider.deleteChat(session.sessionId, childResource);
+		assert.strictEqual(deleted, false);
 	});
 
 	test('deleteChat with an unknown chat URI is a no-op', async () => {

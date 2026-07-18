@@ -4,15 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-
-export const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Keeps the "N feedback items" attachment in the chat input in sync with the
@@ -29,13 +26,22 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(e => {
+			if (this._isAgentHostSession(e.sessionResource)) {
+				return;
+			}
 			this._updateAttachment(e.sessionResource);
 			this._ensureAcceptListener(e.sessionResource);
 		}));
+	}
+
+	private _isAgentHostSession(sessionResource: URI): boolean {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
 	private async _updateAttachment(sessionResource: URI): Promise<void> {
@@ -44,7 +50,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 			return;
 		}
 
-		const feedbackItems = this._agentFeedbackService.getFeedback(sessionResource);
+		const feedbackItems = this._agentFeedbackService.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
 		const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
 
 		if (feedbackItems.length === 0) {
@@ -52,66 +58,11 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 			return;
 		}
 
-		const value = this._buildFeedbackValue(feedbackItems);
-
-		const entry: IAgentFeedbackVariableEntry = {
-			kind: 'agentFeedback',
-			id: attachmentId,
-			name: feedbackItems.length === 1
-				? localize('agentFeedback.one', "1 comment")
-				: localize('agentFeedback.many', "{0} comments", feedbackItems.length),
-			icon: Codicon.comment,
-			sessionResource,
-			feedbackItems: feedbackItems.map(f => ({
-				id: f.id,
-				text: f.text,
-				resourceUri: f.resourceUri,
-				range: f.range,
-				codeSelection: f.codeSelection,
-				diffHunks: f.diffHunks,
-				sourcePRReviewCommentId: f.sourcePRReviewCommentId,
-				replies: f.replies,
-			})),
-			value,
-		};
+		const entry = createAgentFeedbackVariableEntry(sessionResource, feedbackItems);
 
 		// Upsert
 		widget.attachmentModel.delete(attachmentId);
 		widget.attachmentModel.addContext(entry);
-	}
-
-	/**
-	 * Builds a rich string value for the agent feedback attachment from
-	 * the selection and diff context already stored on each feedback item.
-	 */
-	private _buildFeedbackValue(feedbackItems: IAgentFeedbackVariableEntry['feedbackItems']): string {
-		const parts: string[] = ['The following comments were made on the code changes:'];
-		for (const item of feedbackItems) {
-			const fileName = basename(item.resourceUri);
-			const lineRef = item.range.startLineNumber === item.range.endLineNumber
-				? `${item.range.startLineNumber}`
-				: `${item.range.startLineNumber}-${item.range.endLineNumber}`;
-
-			let part = `[${fileName}:${lineRef}]`;
-			if (item.sourcePRReviewCommentId) {
-				part += `\n(PR review comment, thread ID: ${item.sourcePRReviewCommentId} — resolve this thread when addressed)`;
-			}
-			if (item.codeSelection) {
-				part += `\nSelection:\n\`\`\`\n${item.codeSelection}\n\`\`\``;
-			}
-			if (item.diffHunks) {
-				part += `\nDiff Hunks:\n\`\`\`diff\n${item.diffHunks}\n\`\`\``;
-			}
-			part += `\nComment: ${item.text}`;
-			if (item.replies?.length) {
-				for (const reply of item.replies) {
-					part += `\nReply: ${reply}`;
-				}
-			}
-			parts.push(part);
-		}
-
-		return parts.join('\n\n');
 	}
 
 	/**
@@ -129,7 +80,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 		}
 
 		this._widgetListeners.set(key, widget.onDidSubmitAgent(() => {
-			this._agentFeedbackService.clearFeedback(sessionResource);
+			this._agentFeedbackService.markFeedbackSubmitted(sessionResource);
 			this._widgetListeners.deleteAndDispose(key);
 		}));
 	}

@@ -230,6 +230,21 @@ suite('BrowserUrlBarWidget', () => {
 		);
 	});
 
+	test('clicking the already-focused display does not auto-open the picker', () => {
+		const { widget, picker, display } = makeHarness();
+		widget.focusUrlInput();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(picker.visible, false);
+	});
+
+	test('first click after mouse focus opens the picker', () => {
+		const { picker, display } = makeHarness();
+		display.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+		display.focus();
+		display.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		assert.strictEqual(picker.visible, true);
+	});
+
 	test('accepting the "Go to" item navigates to the typed value', () => {
 		const { widget, picker, navigated } = makeHarness();
 		widget.openUrlPicker();
@@ -484,5 +499,53 @@ suite('BrowserUrlBarWidget', () => {
 		refresh.fire();
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.ok(picker.items.some(i => i.type !== 'separator' && i.id === 'sugg-2'), 'refreshed suggestion present');
+	});
+
+	test('streamed-in suggestions are never auto-focused; the default item stays active', async () => {
+		const { widget, picker } = makeHarness();
+		mountSuggestionProvider(widget, {
+			async getSuggestions() {
+				return [{ id: 'tab-1', label: 'A tab', apply() { } }];
+			},
+		});
+
+		widget.openUrlPicker();
+		picker.type('https://typed.test/');
+		// The synchronous default item ("Go to <value>") is the active item.
+		assert.strictEqual(picker.activeItems[0]?.id, 'https://typed.test/');
+
+		// Once the asynchronous suggestion streams in, focus must NOT jump to it.
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.ok(picker.items.some(i => i.type !== 'separator' && i.id === 'tab-1'), 'suggestion streamed in');
+		assert.strictEqual(picker.activeItems[0]?.id, 'https://typed.test/');
+	});
+
+	test('background refresh preserves the user selection but typing resets to the default', async () => {
+		const { widget, picker } = makeHarness();
+		const refresh = new Emitter<void>();
+		store.add(refresh);
+		mountSuggestionProvider(widget, {
+			onDidChange: refresh.event,
+			async getSuggestions() {
+				return [{ id: 'tab-1', label: 'A tab', apply() { } }];
+			},
+		});
+
+		widget.openUrlPicker();
+		picker.type('https://typed.test/');
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		// User arrow-keys onto the streamed-in suggestion.
+		const suggestion = picker.items.find((i): i is IQuickPickItem => i.type !== 'separator' && i.id === 'tab-1')!;
+		picker.activeItems = [suggestion];
+
+		// A background provider refresh must keep the user's selection.
+		refresh.fire();
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(picker.activeItems[0]?.id, 'tab-1', 'background refresh preserves selection');
+
+		// Typing, however, resets focus back to the default "Go to" item.
+		picker.type('https://typed.test/x');
+		assert.strictEqual(picker.activeItems[0]?.id, 'https://typed.test/x', 'typing resets to the default item');
 	});
 });

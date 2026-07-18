@@ -8,7 +8,7 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationOtherClientData, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMcpAuthenticationRequiredServer, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export interface IStreamingToolCallOptions {
@@ -35,8 +35,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
 	public isAttachedToThinking: boolean = false;
+	public otherClientToolCall?: IChatToolInvocationOtherClientData;
 
-	private _toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData;
+	private _toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData;
 	private readonly _toolSpecificDataKind = observableValue<string | undefined>(this, undefined);
 	public readonly toolSpecificDataKind: IObservable<string | undefined> = this._toolSpecificDataKind;
 
@@ -134,25 +135,33 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
-				confirm: reason => {
-					if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
-						this._state.set({
-							type: IChatToolInvocation.StateKind.Cancelled,
-							reason: reason.type,
-							parameters: this.parameters,
-							confirmationMessages: this.confirmationMessages,
-						}, undefined);
-					} else {
-						this._state.set({
-							type: IChatToolInvocation.StateKind.Executing,
-							confirmed: reason,
-							progress: this._progress,
-							parameters: this.parameters,
-							confirmationMessages: this.confirmationMessages,
-						}, undefined);
-					}
-				}
+				confirm: reason => this._confirm(reason),
 			});
+		}
+	}
+
+	/**
+	 * Shared confirmation handler used by every `WaitingForConfirmation` state
+	 * this invocation can enter (initial construction, transition out of
+	 * streaming, and re-arming via {@link requestConfirmation}). Denials/skips
+	 * cancel; anything else moves to executing.
+	 */
+	private _confirm(reason: ConfirmedReason): void {
+		if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
+			this._state.set({
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: reason.type,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
+			}, undefined);
+		} else {
+			this._state.set({
+				type: IChatToolInvocation.StateKind.Executing,
+				confirmed: reason,
+				progress: this._progress,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
+			}, undefined);
 		}
 	}
 
@@ -185,6 +194,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public notifyToolSpecificDataChanged(): void {
 		const current = this._state.get();
 		this._state.set({ ...current }, undefined);
+	}
+
+	public updateConfirmationMessages(confirmationMessages: IToolConfirmationMessages): void {
+		const current = this._state.get();
+		if (current.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return;
+		}
+		this.confirmationMessages = confirmationMessages;
+		this._state.set({ ...current, confirmationMessages }, undefined);
 	}
 
 	/**
@@ -236,28 +254,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this.toolSpecificData = preparedInvocation.toolSpecificData;
 		}
 
-		const confirm = (reason: ConfirmedReason) => {
-			if (reason.type === ToolConfirmKind.Denied || reason.type === ToolConfirmKind.Skipped) {
-				this._state.set({
-					type: IChatToolInvocation.StateKind.Cancelled,
-					reason: reason.type,
-					parameters: this.parameters,
-					confirmationMessages: this.confirmationMessages,
-				}, undefined);
-			} else {
-				this._state.set({
-					type: IChatToolInvocation.StateKind.Executing,
-					confirmed: reason,
-					progress: this._progress,
-					parameters: this.parameters,
-					confirmationMessages: this.confirmationMessages,
-				}, undefined);
-			}
-		};
-
 		// Transition to the appropriate state
 		if (autoConfirmed) {
-			confirm(autoConfirmed);
+			this._confirm(autoConfirmed);
 		} else if (!this.confirmationMessages?.title) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
@@ -271,9 +270,42 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: this.parameters,
 				confirmationMessages: this.confirmationMessages,
-				confirm,
+				confirm: reason => this._confirm(reason),
 			}, undefined);
 		}
+	}
+
+	/** Moves an active invocation into confirmation while preserving the same tool card. */
+	public requestConfirmation(preparedInvocation: IPreparedToolInvocation): void {
+		const currentType = this._state.get().type;
+		if (currentType === IChatToolInvocation.StateKind.Streaming) {
+			this.transitionFromStreaming(preparedInvocation, this.parameters, undefined);
+			return;
+		}
+		if (currentType === IChatToolInvocation.StateKind.Completed
+			|| currentType === IChatToolInvocation.StateKind.Cancelled
+			|| currentType === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			return;
+		}
+
+		if (preparedInvocation.invocationMessage) {
+			this.invocationMessage = preparedInvocation.invocationMessage;
+		}
+		this.pastTenseMessage = preparedInvocation.pastTenseMessage;
+		this.confirmationMessages = preparedInvocation.confirmationMessages;
+		this.presentation = preparedInvocation.presentation;
+		this.toolSpecificData = preparedInvocation.toolSpecificData;
+
+		if (!this.confirmationMessages?.title) {
+			return; // nothing to confirm
+		}
+
+		this._state.set({
+			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			parameters: this.parameters,
+			confirmationMessages: this.confirmationMessages,
+			confirm: reason => this._confirm(reason),
+		}, undefined);
 	}
 
 	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
@@ -325,6 +357,35 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		return this._state.get();
+	}
+
+	public setAuthenticationRequired(server: IChatMcpAuthenticationRequiredServer, cancel: () => void = () => { }): void {
+		const state = this._state.get();
+		if (state.type !== IChatToolInvocation.StateKind.Executing && state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
+		this._state.set({
+			type: IChatToolInvocation.StateKind.WaitingForAuthentication,
+			server,
+			cancel,
+			confirmed: state.confirmed,
+			parameters: state.parameters,
+			confirmationMessages: state.confirmationMessages,
+		}, undefined);
+	}
+
+	public setAuthenticationResolved(): void {
+		const state = this._state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
+		this._state.set({
+			type: IChatToolInvocation.StateKind.Executing,
+			confirmed: state.confirmed,
+			progress: this._progress,
+			parameters: state.parameters,
+			confirmationMessages: state.confirmationMessages,
+		}, undefined);
 	}
 
 	public acceptProgress(step: IToolProgressStep) {

@@ -47,8 +47,7 @@
 }
 
 .new-chat-in-session .sessions-chat-editor .monaco-editor,
-.new-chat-in-session .sessions-chat-editor .monaco-editor .overflow-guard,
-.new-chat-in-session .sessions-chat-editor .monaco-editor-background {
+.new-chat-in-session .sessions-chat-editor .monaco-editor .overflow-guard {
 	border-radius: var(--vscode-cornerRadius-large, 8px) var(--vscode-cornerRadius-large, 8px) 0 0;
 }
 
@@ -81,13 +80,13 @@
 .new-chat-in-session .sessions-chat-toolbar .action-label {
 	height: 16px;
 	padding: 3px 6px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
 .new-chat-in-session .new-chat-bottom-container .action-label .codicon,
 .new-chat-in-session .sessions-chat-toolbar .action-label .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .new-chat-in-session .sessions-chat-dropdown-label {

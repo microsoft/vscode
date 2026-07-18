@@ -221,7 +221,7 @@ export class BufferReader implements IReader {
 	}
 }
 
-export class BufferWriter implements IWriter {
+export class BufferWriter implements IWriter, IDisposable {
 
 	private buffers: VSBuffer[] = [];
 
@@ -231,6 +231,11 @@ export class BufferWriter implements IWriter {
 
 	write(buffer: VSBuffer): void {
 		this.buffers.push(buffer);
+	}
+
+	dispose(): void {
+		// Release the buffers so a thrown serialization error's stack can't pin them.
+		this.buffers.length = 0;
 	}
 }
 
@@ -367,9 +372,13 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
-		serialize(writer, header);
-		serialize(writer, body);
-		return this.sendBuffer(writer.buffer);
+		try {
+			serialize(writer, header);
+			serialize(writer, body);
+			return this.sendBuffer(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 	}
 
 	private sendBuffer(message: VSBuffer): number {
@@ -609,7 +618,18 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				};
 
 				this.handlers.set(id, handler);
-				this.sendRequest(request);
+
+				try {
+					this.sendRequest(request);
+				} catch (err) {
+					// `sendRequest` can throw synchronously while serializing the
+					// request (e.g. an oversized argument). The handler was just
+					// registered but no request went out and it's only removed on a
+					// response, so without this it would leak (along with the rejected
+					// promise and error it retains). Clean up and reject.
+					this.handlers.delete(id);
+					e(err);
+				}
 			};
 
 			let uninitializedPromise: CancelablePromise<void> | null = null;
@@ -660,6 +680,8 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
+				const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
+				this.handlers.set(id, handler);
 				const doRequest = () => {
 					this.activeRequests.add(emitter);
 					this.sendRequest(request);
@@ -686,9 +708,6 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			}
 		});
 
-		const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
-		this.handlers.set(id, handler);
-
 		return emitter.event;
 	}
 
@@ -712,9 +731,13 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
-		serialize(writer, header);
-		serialize(writer, body);
-		return this.sendBuffer(writer.buffer);
+		try {
+			serialize(writer, header);
+			serialize(writer, body);
+			return this.sendBuffer(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 	}
 
 	private sendBuffer(message: VSBuffer): number {
@@ -996,8 +1019,12 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 
 	constructor(protocol: IMessagePassingProtocol, ctx: TContext, ipcLogger: IIPCLogger | null = null) {
 		const writer = new BufferWriter();
-		serialize(writer, ctx);
-		protocol.send(writer.buffer);
+		try {
+			serialize(writer, ctx);
+			protocol.send(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 
 		this.channelClient = new ChannelClient(protocol, ipcLogger);
 		this.channelServer = new ChannelServer(protocol, ctx, ipcLogger);

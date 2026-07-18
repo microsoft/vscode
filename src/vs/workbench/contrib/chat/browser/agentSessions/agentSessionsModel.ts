@@ -29,7 +29,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -150,6 +150,10 @@ interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
+}
+
+export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
+	return isAgentHostTarget(session.providerType);
 }
 
 export function isAgentSession(obj: unknown): obj is IAgentSession {
@@ -690,11 +694,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
+		const sessionsWithChangedArchivedState: IInternalAgentSession[] = [];
+		for (const [, session] of sessions) {
+			const previousSession = this._sessions.get(session.resource);
+			if (previousSession && this.isArchived(previousSession) !== this.isArchived(session)) {
+				sessionsWithChangedArchivedState.push(session);
+			}
+		}
+
 		this._sessions = sessions;
 		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
+		for (const session of sessionsWithChangedArchivedState) {
+			this._onDidChangeSessionArchivedState.fire(session);
+		}
 		this._onDidChangeSessions.fire();
 	}
 
@@ -747,6 +762,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+			return Boolean(session.archived);
+		}
 		return this.resolveStateEntry(session)?.archived ?? Boolean(session.archived);
 	}
 
@@ -757,6 +775,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		if (archived === this.isArchived(session)) {
 			return; // no change
+		}
+
+		if (this.chatSessionsService.canSetChatSessionItemArchived(session.resource)) {
+			this.chatSessionsService.setChatSessionItemArchived(session.resource, archived);
+			return;
 		}
 
 		const state = this.resolveStateEntry(session) ?? {};
