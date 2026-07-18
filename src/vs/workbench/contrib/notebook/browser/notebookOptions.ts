@@ -25,7 +25,7 @@ export const OutputInnerContainerTopPadding = 4;
 
 export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more generic name, not display
 	showCellStatusBar: ShowCellStatusBarType;
-	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarLocation: 'left' | 'right' | 'hidden';
 	cellToolbarInteraction: string;
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
@@ -159,7 +159,7 @@ export class NotebookOptions extends Disposable {
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedRunButton) ?? false;
 		const dragAndDropEnabled = overrides?.dragAndDropEnabled ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.dragAndDropEnabled) ?? true;
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
+		const cellToolbarLocation = this._migrateCellToolbarSetting();
 		const cellToolbarInteraction = overrides?.cellToolbarInteraction ?? this.configurationService.getValue<string>(NotebookSetting.cellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean | undefined>(NotebookSetting.compactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
@@ -347,6 +347,61 @@ export class NotebookOptions extends Disposable {
 		return this._editorTopPadding;
 	}
 
+	private _migrateCellToolbarSetting(): 'left' | 'right' | 'hidden' {
+		const currentValue = this.configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation);
+
+		// If it's already a string (new format), validate and return it
+		if (typeof currentValue === 'string') {
+			if (currentValue === 'left' || currentValue === 'right' || currentValue === 'hidden') {
+				return currentValue;
+			}
+			// Invalid string value, default to 'right'
+			return 'right';
+		}
+
+		// If it's an object (old format), migrate it
+		if (currentValue && typeof currentValue === 'object') {
+			const defaultValue = currentValue['default'];
+			let migratedValue: 'left' | 'right' | 'hidden' = 'right';
+
+			if (defaultValue === 'left' || defaultValue === 'right' || defaultValue === 'hidden') {
+				migratedValue = defaultValue;
+			}
+
+			// Perform the migration by updating the setting to the new format
+			const setting = this.configurationService.inspect(NotebookSetting.cellToolbarLocation);
+
+			if (setting.application !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.APPLICATION);
+			}
+
+			if (setting.user !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.USER);
+			}
+
+			if (setting.userLocal !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.USER_LOCAL);
+			}
+
+			if (setting.userRemote !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.USER_REMOTE);
+			}
+
+			if (setting.workspace !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.WORKSPACE);
+			}
+
+			if (setting.workspaceFolder !== undefined) {
+				this.configurationService.updateValue(NotebookSetting.cellToolbarLocation, migratedValue, ConfigurationTarget.WORKSPACE_FOLDER);
+			}
+
+			return migratedValue;
+		}
+
+		// No value set, return default
+		return 'right';
+	}
+
 	private _migrateDeprecatedSetting(deprecatedKey: string, key: string): void {
 		const deprecatedSetting = this.configurationService.inspect(deprecatedKey);
 
@@ -477,7 +532,7 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (cellToolbarLocation) {
-			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(NotebookSetting.cellToolbarLocation) ?? { 'default': 'right' };
+			configuration.cellToolbarLocation = this._migrateCellToolbarSetting();
 		}
 
 		if (cellToolbarInteraction && !this.overrides?.cellToolbarInteraction) {
@@ -741,32 +796,8 @@ export class NotebookOptions extends Disposable {
 	computeCellToolbarLocation(viewType?: string): 'right' | 'left' | 'hidden' {
 		const cellToolbarLocation = this._layoutConfiguration.cellToolbarLocation;
 
-		if (typeof cellToolbarLocation === 'string') {
-			if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
-				return cellToolbarLocation;
-			}
-		} else {
-			if (viewType) {
-				const notebookSpecificSetting = cellToolbarLocation[viewType] ?? cellToolbarLocation['default'];
-				let cellToolbarLocationForCurrentView: 'right' | 'left' | 'hidden' = 'right';
-
-				switch (notebookSpecificSetting) {
-					case 'left':
-						cellToolbarLocationForCurrentView = 'left';
-						break;
-					case 'right':
-						cellToolbarLocationForCurrentView = 'right';
-						break;
-					case 'hidden':
-						cellToolbarLocationForCurrentView = 'hidden';
-						break;
-					default:
-						cellToolbarLocationForCurrentView = 'right';
-						break;
-				}
-
-				return cellToolbarLocationForCurrentView;
-			}
+		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
+			return cellToolbarLocation;
 		}
 
 		return 'right';
