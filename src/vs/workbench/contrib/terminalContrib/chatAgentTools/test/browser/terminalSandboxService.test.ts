@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -15,7 +16,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
@@ -72,6 +73,7 @@ suite('TerminalSandboxService - network domains', () => {
 	}
 
 	class MockRemoteAgentService {
+		connection: IRemoteAgentConnection | null = null;
 		remoteEnvironment: IRemoteAgentEnvironment | null = {
 			os: OperatingSystem.Linux,
 			tmpDir: URI.file('/tmp'),
@@ -97,8 +99,8 @@ suite('TerminalSandboxService - network domains', () => {
 			isUnsupportedGlibc: false
 		};
 
-		getConnection() {
-			return null;
+		getConnection(): IRemoteAgentConnection | null {
+			return this.connection;
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
@@ -330,6 +332,109 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
 		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
 		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should install sandbox dependencies with the detected package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm',
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap', 'socat'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo pacman -S --needed --noconfirm 'bubblewrap' 'socat'`);
+	});
+
+	test('should install sandbox dependencies with the remote host package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo apt-get install -y',
+		};
+		const remoteStatus: ISandboxDependencyStatus = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: false,
+			dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm',
+		};
+		const channel: IChannel = {
+			call: async <T>(command: string): Promise<T> => {
+				strictEqual(command, 'checkSandboxDependencies');
+				return remoteStatus as T;
+			},
+			listen: () => Event.None,
+		};
+		remoteAgentService.connection = {
+			withChannel: async <T extends IChannel, R>(_channelName: string, callback: (channel: T) => Promise<R>): Promise<R> => callback(channel as T),
+		} as IRemoteAgentConnection;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let sentCommand: string | undefined;
+		const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+		const terminal: ISandboxDependencyInstallTerminal = {
+			sendText: async command => {
+				sentCommand = command;
+				commandFinishedEmitter.fire({ exitCode: 0 });
+			},
+			focus: () => { },
+			capabilities: {
+				get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+				onDidAddCapability: Event.None,
+			},
+			onDidInputData: Event.None,
+			onDisposed: Event.None,
+		};
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => terminal,
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, 0);
+		strictEqual(sentCommand, `sudo pacman -S --needed --noconfirm 'bubblewrap'`);
+	});
+
+	test('should not create a terminal without a supported package manager', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
+			socatInstalled: true,
+		};
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		let terminalCreated = false;
+
+		const result = await sandboxService.installMissingSandboxDependencies(['bubblewrap'], undefined, CancellationToken.None, {
+			createTerminal: async () => {
+				terminalCreated = true;
+				throw new Error('Unexpected terminal creation');
+			},
+			focusTerminal: async () => { },
+		});
+
+		strictEqual(result.exitCode, undefined);
+		strictEqual(terminalCreated, false);
 	});
 
 	test('should run the approved bubblewrap remediation command', async () => {
