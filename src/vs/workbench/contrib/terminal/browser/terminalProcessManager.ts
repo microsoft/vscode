@@ -129,6 +129,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _cwdWorkspaceFolder: IWorkspaceFolder | undefined;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
+	get daemonId(): string | undefined { return this._process?.daemonId; }
 	get shouldPersist(): boolean { return !!this.reconnectionProperties || (this._process ? this._process.shouldPersist : false); }
 	get hasWrittenData(): boolean { return this._hasWrittenData; }
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
@@ -301,6 +302,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						remoteAuthority: this.remoteAuthority,
 						os: this.os
 					});
+					if (shellLaunchConfig.attachPersistentProcess?.daemonId) {
+						shellLaunchConfig.persistentDaemon = true;
+					}
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
 							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),

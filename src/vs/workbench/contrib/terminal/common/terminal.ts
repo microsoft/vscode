@@ -271,6 +271,7 @@ export interface ITerminalProcessInfo {
 	readonly initialCwd: string;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentProcessId: number | undefined;
+	readonly daemonId: string | undefined;
 	readonly shouldPersist: boolean;
 	readonly hasWrittenData: boolean;
 	readonly hasChildProcesses: boolean;
@@ -497,6 +498,7 @@ export const enum TerminalCommandId {
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
 	RevealCommand = 'workbench.action.terminal.revealCommand',
+	NewStateful = 'workbench.action.terminal.newStateful',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

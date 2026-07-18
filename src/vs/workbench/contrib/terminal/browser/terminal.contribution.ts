@@ -47,6 +47,7 @@ import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
 import { TerminalViewPane } from './terminalView.js';
 import { AgentHostTerminalService, IAgentHostTerminalService } from './agentHostTerminalService.js';
+import { ITerminalDataMonitorService, TerminalDataMonitorService } from './terminalDataMonitor.js';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -58,6 +59,8 @@ registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
 registerSingleton(IAgentHostTerminalService, AgentHostTerminalService, InstantiationType.Delayed);
+// STC: Monitors daemon terminal output even when no UI panel is visible
+registerSingleton(ITerminalDataMonitorService, TerminalDataMonitorService, InstantiationType.Delayed);
 
 // Register workbench contributions
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
