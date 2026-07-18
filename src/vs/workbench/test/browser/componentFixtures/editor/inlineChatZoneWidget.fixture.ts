@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
@@ -227,6 +227,14 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly onDidChangeEntitlement = Event.None;
+				override readonly onDidChangeSentiment = Event.None;
+				// A signed-in, set-up user so the model picker renders normally
+				// (no Restricted / Sign In state) in this fixture.
+				override readonly sentiment = { completed: true };
+				override readonly entitlement = ChatEntitlement.Pro;
+				override readonly anonymous = false;
+				override readonly hasByokModels = false;
 				override readonly quotas = {};
 				override readonly onDidChangeQuotaRemaining = Event.None;
 				override readonly onDidChangeUsageBasedBilling = Event.None;
@@ -248,6 +256,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override getOptionGroupsForSessionType() { return undefined; }
 				override getCustomAgentTargetForSessionType() { return Target.Undefined; }
 				override requiresCustomModelsForSessionType() { return false; }
+				override supportsAutoModelForSessionType() { return true; }
 				override getChatSessionContribution() { return undefined; }
 				override getCapabilitiesForSessionType() { return undefined; }
 				override getSessionOptions() { return undefined; }
@@ -313,6 +322,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;
 				override getActiveNotification() { return undefined; }
+				override announceRendered() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;

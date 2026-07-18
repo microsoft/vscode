@@ -38,7 +38,7 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings, FLOATING_PANEL_MARGIN, Position } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ViewContainerMenuActions } from './viewMenuActions.js';
@@ -628,7 +628,21 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 				this.paneview.flipOrientation(dimension.height, dimension.width);
 			}
 
-			this.paneview.layout(dimension.height, dimension.width);
+			// In Modern UI (floating panels) reserve a small bottom gap so the last
+			// pane does not sit flush against the part edge, matching the 4px
+			// horizontal margins on the pane headers. Add 1px for the part's bottom
+			// border so the visible gap lines up with the horizontal margins.
+			// Exception: when the panel is at the TOP, the bottom of the panel
+			// faces the editor card. A 1px inner gap keeps the pane content off the
+			// border, while the CSS inter-card margins (panel 4px + editor 4px)
+			// provide the remaining separation. This totals 10px (1 inner + 1 border
+			// + 4 + 4), matching the bottom panel's bottom-to-status-bar gap
+			// (5 inner + 1 border + 4 CSS = 10px) for visual consistency.
+			const bottomGap = !this.layoutService.isFloatingPanelsEnabled() ? 0
+				: (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel
+					&& this.layoutService.getPanelPosition() === Position.TOP) ? 1
+					: FLOATING_PANEL_MARGIN + 1;
+			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
 		}
 
 		this.dimension = dimension;

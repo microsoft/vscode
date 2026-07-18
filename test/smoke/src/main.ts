@@ -29,7 +29,9 @@ import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
 import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
 import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
+import { setup as setupChatSandboxTests } from './areas/chat/chatSandbox.test';
 import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test';
+import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
 import { setup as setupAgentsWindowTests } from './areas/agentsWindow/agentsWindow.test';
 
@@ -50,7 +52,8 @@ const opts = minimist(args, {
 		'remote',
 		'web',
 		'headless',
-		'tracing'
+		'tracing',
+		'skip-stable-build'
 	],
 	default: {
 		verbose: false
@@ -61,6 +64,7 @@ const opts = minimist(args, {
 	headless?: boolean;
 	web?: boolean;
 	tracing?: boolean;
+	'skip-stable-build'?: boolean;
 	build?: string;
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
@@ -133,7 +137,19 @@ function getTestTypeSuffix(): string {
 	}
 }
 
-const testDataPath = path.join(os.tmpdir(), `vscsmoke-${getTestTypeSuffix()}`);
+function getTmpDir(): string {
+	const tmpDir = os.tmpdir();
+	if (process.platform === 'win32') {
+		try {
+			return fs.realpathSync.native(tmpDir);
+		} catch {
+			// ignore and fall back to the short path
+		}
+	}
+	return tmpDir;
+}
+
+const testDataPath = path.join(getTmpDir(), `vscsmoke-${getTestTypeSuffix()}`);
 if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 }
@@ -348,7 +364,7 @@ async function setup(): Promise<void> {
 	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
-	if (!opts.web && !opts.remote && opts.build) {
+	if (!opts.web && !opts.remote && opts.build && !opts['skip-stable-build']) {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
@@ -422,7 +438,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
+	if (!opts.web) { setupChatSandboxTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
+	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }
 	if (!opts.web && !opts.remote) { setupAgentsWindowTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });

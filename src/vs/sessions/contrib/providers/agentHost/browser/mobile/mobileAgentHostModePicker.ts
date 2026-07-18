@@ -11,11 +11,12 @@ import { IObservable } from '../../../../../../base/common/observable.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
+import { createChatPhoneInputSessionContext } from './mobileChatPhoneInputTarget.js';
 
 /**
  * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout
  * viewports the desktop action-widget popover is replaced with the same
- * combined Mode + Model bottom sheet used by the workbench chip and the
+ * combined Mode + Model bottom sheet used by the workbench picker button and the
  * empty new-chat picker (see {@link IChatPhoneInputPresenter}). On
  * desktop the inherited `_showPicker` falls through to the base
  * implementation, so this class is safe to keep through viewport-class
@@ -34,24 +35,26 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
-			return;
+	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void): boolean {
+		if (!anchor) {
+			return false;
 		}
 		// Guard applies to both the phone sheet and the desktop popover —
 		// either path can dispatch through `setSessionConfigValue`.
 		if (this._isCurrentlyResolvingConfig()) {
-			return;
+			return false;
 		}
 		if (this._phonePresenter.enabled.get()) {
-			// The presenter's agent-host branch reads mode + model
-			// directly from the active session's provider, so we don't
-			// need to pass chat-input delegates here.
-			const trigger = this._triggerElement;
-			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
-				.finally(() => trigger.focus());
-			return;
+			this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
+				kind: 'session',
+				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get()),
+			})
+				.finally(() => {
+					anchor.focus();
+					onHide?.();
+				});
+			return true;
 		}
-		super._showPicker();
+		return super._showPicker(anchor, onHide);
 	}
 }

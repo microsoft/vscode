@@ -13,7 +13,7 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService, IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -113,10 +113,11 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
-		override readonly capabilities = capabilities;
+		override readonly capabilities = constObservable(capabilities);
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(options.changes ?? []);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([createMockBranchChangeset(options.changes ?? [])]);
@@ -128,7 +129,6 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
-		override isSessionRead(_session: ISession): boolean { return true; }
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:

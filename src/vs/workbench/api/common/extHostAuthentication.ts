@@ -1016,11 +1016,10 @@ export class TokenStore implements Disposable {
 				// log
 			}
 		}
-		const scopes = token.scope
-			? token.scope.split(' ')
-			: claims?.scope
-				? claims.scope.split(' ')
-				: [];
+		// An explicit empty `token.scope` is authoritative (createSession/refresh stamp the requested scopes onto the token); only fall back to the JWT claims when scope is genuinely absent.
+		const scopes = token.scope !== undefined
+			? (token.scope ? token.scope.split(' ') : [])
+			: (claims?.scope ? claims.scope.split(' ') : []);
 		return {
 			id: stringHash(token.access_token, 0).toString(),
 			accessToken: token.access_token,

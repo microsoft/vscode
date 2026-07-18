@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingSidebarSiblingToEditorStatus } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -615,6 +615,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.element.classList.toggle('floating-part-outer-left', outerGutter.left);
 		this.element.classList.toggle('floating-part-outer-right', outerGutter.right);
 
+		// Mirror the panel's outer-edge state onto the workbench container so the
+		// horizontal grid sash highlight can match the panel card's doubled outer
+		// gutter by selecting a direct class, rather than a `:has()` query on the
+		// workbench root (which would force selector invalidation across the whole
+		// workbench on every DOM change). Updated here in lockstep with the part-level
+		// classes above, so the timing is identical.
+		if (this.partId === Parts.PANEL_PART) {
+			const workbenchContainer = this.layoutService.getContainer(getWindow(this.element));
+			workbenchContainer.classList.toggle('floating-panel-outer-left', outerGutter.left);
+			workbenchContainer.classList.toggle('floating-panel-outer-right', outerGutter.right);
+		}
+
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height, top, left);
 
@@ -640,6 +652,59 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	/**
+	 * Returns true when this sidebar/aux bar is in the same grid row as the editor
+	 * (a sibling), meaning it abuts the panel above or below rather than the window edge.
+	 * Delegates to the shared formula exported from layoutService.ts.
+	 */
+	private isSidebarSiblingToEditor(): boolean {
+		const { sideBar, auxBar } = getFloatingSidebarSiblingToEditorStatus(this.layoutService);
+		return this.partId === Parts.SIDEBAR_PART ? sideBar : auxBar;
+	}
+
+	/**
+	 * Returns the top margin (in pixels) this part should receive when floating panels
+	 * are enabled. Only the bottom-panel and sibling side bars (when the panel is at the
+	 * top) need a top margin; all other parts sit flush with the title bar.
+	 */
+	private getFloatingPartTopMargin(panelVisible: boolean, margin: number): number {
+		// Bottom panel: needs a top margin only when the editor is visible (inter-card gap).
+		// When maximized (editor hidden) the panel is flush with the title bar — no top margin.
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.BOTTOM) {
+			return this.layoutService.isVisible(Parts.EDITOR_PART, getWindow(this.element)) ? margin : 0;
+		}
+		// Sidebar / aux bar that is in the same grid row as the editor (sibling) and the panel
+		// is at the top: needs a top margin matching the editor's gap from the panel card.
+		if (panelVisible &&
+			this.layoutService.getPanelPosition() === Position.TOP &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return margin;
+		}
+		return 0;
+	}
+
+	/**
+	 * Returns whether this part's bottom edge faces the window edge rather than another
+	 * floating card. When the status bar is hidden and this returns `true`, a doubled
+	 * bottom margin is applied so the outer gap matches the doubled side gutters.
+	 */
+	private isFloatingPartAtWindowBottomEdge(panelVisible: boolean): boolean {
+		// Panel at TOP: its bottom faces the editor card, not the window edge.
+		if (this.partId === Parts.PANEL_PART && this.layoutService.getPanelPosition() === Position.TOP) {
+			return false;
+		}
+		// A sidebar/aux bar that is a sibling to the editor sits above a bottom panel row,
+		// so its bottom faces the panel card rather than the window edge.
+		const panelAtBottom = panelVisible && this.layoutService.getPanelPosition() === Position.BOTTOM;
+		if (panelAtBottom &&
+			(this.partId === Parts.SIDEBAR_PART || this.partId === Parts.AUXILIARYBAR_PART) &&
+			this.isSidebarSiblingToEditor()) {
+			return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
@@ -655,13 +720,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		const borderTotal = 2; // 1px border on each side
 		const margin = FLOATING_PANEL_MARGIN;
-		const topMargin = this.partId === Parts.PANEL_PART ? margin : 0; // side bars are flush with the title bar
+		const panelVisible = this.layoutService.isVisible(Parts.PANEL_PART);
+		const topMargin = this.getFloatingPartTopMargin(panelVisible, margin);
+		const isAtWindowBottom = this.isFloatingPartAtWindowBottomEdge(panelVisible);
+		const bottomMargin = !this.layoutService.isVisible(Parts.STATUSBAR_PART, getWindow(this.element)) && isAtWindowBottom
+			? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		const outerGutter = this.getFloatingOuterGutterEdges();
 		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : margin;
+		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
 		return {
 			width: leftMargin + rightMargin + borderTotal,
-			height: topMargin + margin + borderTotal
+			height: topMargin + bottomMargin + borderTotal
 		};
 	}
 

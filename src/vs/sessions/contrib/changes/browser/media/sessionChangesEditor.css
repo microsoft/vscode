@@ -1,0 +1,317 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.session-changes-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-agentsPanel-foreground);
+}
+
+.session-changes-editor-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 35px;
+	min-height: 35px;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-changes-editor-header-left,
+.session-changes-editor-header-right {
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.session-changes-editor-header-left {
+	flex: 1 1 auto;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-changes-editor-header-left > .monaco-toolbar,
+.session-changes-editor-header-left .monaco-action-bar,
+.session-changes-editor-header-left .actions-container,
+.session-changes-editor-header-left .action-item {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.session-changes-editor-header-left > .monaco-toolbar:first-child {
+	flex: 0 1 auto;
+}
+
+.session-changes-editor-header-left > .monaco-toolbar:last-child {
+	flex: 1 1 auto;
+}
+
+.session-changes-editor-header-left .action-label > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-left .action-label {
+	font-size: var(--vscode-agents-fontSize-label1);
+	align-items: center;
+	min-width: 0;
+	max-width: 100%;
+
+	> span {
+		margin-left: 2px;
+	}
+
+	> .codicon {
+		font-size: var(--vscode-codiconFontSize-compact) !important;
+		padding-left: var(--vscode-spacing-size40);
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+	}
+}
+
+/* Diff-stats item (rich "N files +X -Y" rendering) styling, keyed off the item's
+ * own marker class so it applies in both the classic internal changes-editor
+ * header and the single-pane editor-group header (where it renders inside
+ * `.editor-group-header-primary`). It remains fully interactive/clickable, so no
+ * hover-background override is needed here -- it keeps the normal toolbar hover. */
+.changes-diff-stats-action-rich {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.changes-diff-stats-action-rich .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	max-width: 100%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-agents-fontSize-label1);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Reset the picker-chevron overrides so the diff-stats icon/labels lay out via `gap`. */
+.changes-diff-stats-action-rich .action-label > span {
+	margin-left: 0;
+	min-width: 0;
+}
+
+.changes-diff-stats-action-rich .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact) !important;
+	padding-left: 0;
+	width: auto;
+	height: auto;
+	flex-shrink: 0;
+}
+
+.changes-diff-stats-action-rich .changes-diff-stats-files {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.changes-diff-stats-action-rich .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+	flex-shrink: 0;
+}
+
+.changes-diff-stats-action-rich .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+	flex-shrink: 0;
+}
+
+/* Branch Changes picker (label + chevron) styling, keyed off the item's own
+ * marker class so its chevron stays compact and vertically centered in both the
+ * classic internal changes-editor header and the single-pane editor-group header. */
+.changes-picker-action-rich .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	max-width: 100%;
+	font-size: var(--vscode-agents-fontSize-label1);
+}
+
+.changes-picker-action-rich .action-label > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.changes-picker-action-rich .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact) !important;
+	width: auto;
+	height: auto;
+	padding-left: 0;
+	flex-shrink: 0;
+}
+
+.session-changes-editor-header-right {
+	flex: 0 2 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size40);
+}
+
+.session-changes-editor-header-right .monaco-button,
+.session-changes-editor-header-right .monaco-button-dropdown,
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button {
+	width: auto;
+	min-width: 0;
+}
+
+.session-changes-editor-header-right .monaco-button {
+	height: 26px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right > .monaco-button,
+.session-changes-editor-header-right > .monaco-button-dropdown {
+	flex: 0 1 auto;
+}
+
+.session-changes-editor-header-right > .monaco-button.secondary,
+.session-changes-editor-header-right > .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
+	flex: 0 0 auto;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown {
+	display: flex;
+	align-items: center;
+	height: 26px;
+	overflow: hidden;
+}
+
+.session-changes-editor-header-right .monaco-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+	flex: 1 1 auto;
+	overflow: hidden;
+}
+
+.session-changes-editor-header-right .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size40);
+	min-width: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.session-changes-editor-header-right .monaco-button.secondary.monaco-text-button.codicon {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-codiconFontSize) !important;
+}
+
+/* Compact the ChangesActionsBar buttons to 24px (2px shorter than the classic
+ * 26px header buttons) so the changes-editor header stays compact without extra
+ * header padding. Keyed off the bar's marker class. In the editor tabs title the
+ * 20px override below (scoped to the toolbar action-item context) wins on
+ * specificity, so this 24px baseline effectively applies to the classic internal
+ * changes-editor header. */
+.changes-actions-bar .monaco-button,
+.changes-actions-bar .monaco-button-dropdown {
+	height: 24px;
+	box-sizing: border-box;
+}
+
+/* The Create Pull Request bar is rendered as a toolbar action item
+ * (`.action-item.changes-actions-bar` inside a `.monaco-action-bar`) in the editor
+ * tabs title (the editor-actions area of the docked tab bar), where the classic
+ * `.session-changes-editor-header-right` normalization does not reach. Scope these to
+ * the action-item context so the classic internal changes-editor header and the aux-bar
+ * Changes view are left untouched. */
+.monaco-action-bar .action-item.changes-actions-bar {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	/* Small breathing room so the button isn't flush against neighbouring toolbar icons. */
+	margin-left: var(--vscode-spacing-size20);
+	margin-right: var(--vscode-spacing-size20);
+}
+
+/* Normalize the button bar height so it sits comfortably in the editor tabs title. Overrides the
+ * default ChangesActionsBar button height without affecting the classic internal
+ * changes-editor header (which renders the bar on a plain div, not inside a
+ * `.monaco-action-bar .action-item`). */
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button,
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
+	height: 26px;
+	min-height: 26px;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
+	display: flex;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button:not(.monaco-dropdown-button) {
+	flex: 1 1 auto;
+	flex-wrap: wrap;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button-dropdown-separator,
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+}
+
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The generic actionbar rule `.monaco-action-bar .action-item .codicon { width:
+ * 16px; height: 16px }` clamps every codicon — including the button elements
+ * themselves (which carry the `codicon` class), squashing the secondary icon
+ * buttons and detaching the split-button chevron. Un-clamp them (higher
+ * specificity than the base rule) so the buttons size to their own content. */
+.monaco-action-bar .action-item.changes-actions-bar .codicon {
+	width: auto;
+	height: 24px;
+	flex-shrink: 0;
+	color: var(--vscode-button-foreground) !important;
+}
+
+.session-changes-editor-body {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}

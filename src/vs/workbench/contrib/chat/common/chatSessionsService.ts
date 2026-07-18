@@ -83,6 +83,12 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly longContextCacheCost?: number;
 	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly capabilities?: {
@@ -186,6 +192,12 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly agentHostProviderId?: string;
 	/**
+	 * Whether this type needs a GitHub Copilot account and so is unusable until the user signs in. Set by
+	 * Copilot-backed types (Copilot CLI / agent host, cloud agent) where BYOK isn't supported. Defaults to false, so
+	 * third-party types that don't depend on Copilot stay usable while signed out.
+	 */
+	readonly requiresCopilotSignIn?: boolean;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -251,6 +263,7 @@ export interface IChatSessionFileChange {
 	readonly originalUri?: URI;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly reviewed?: boolean;
 }
 
 export interface IChatSessionFileChange2 {
@@ -259,6 +272,7 @@ export interface IChatSessionFileChange2 {
 	readonly modifiedUri?: URI;
 	readonly insertions: number;
 	readonly deletions: number;
+	readonly reviewed?: boolean;
 }
 
 export type IChatSessionHistoryItem = {
@@ -269,14 +283,18 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	isTerminalRequest?: boolean;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	elapsedMs?: number;
+	completedAt?: number;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -290,8 +308,20 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
 export interface IChatSessionServerRequest {
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly isTerminalRequest?: boolean;
+}
+
+/**
+ * Whether `text` runs as a terminal command for the given command `prefix`
+ * (e.g. `!`) — it starts with the prefix and has a non-empty command after it.
+ * Mirrors the agent host's bang parser, where a lone `!` (or `!` followed only
+ * by whitespace) is forwarded to the agent rather than executed.
+ */
+export function isTerminalCommandPrompt(text: string, prefix: string | undefined): boolean {
+	return !!prefix && text.startsWith(prefix) && text.slice(prefix.length).trim().length > 0;
 }
 
 /**
@@ -400,6 +430,9 @@ export interface IChatSession extends IDisposable {
 
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
+	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Optional. Compute completion items for an input being composed in this
@@ -554,6 +587,11 @@ export interface IChatSessionItemController {
 	 * as a result of the deletion.
 	 */
 	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
+
+	/**
+	 * Set the authoritative archived state for the session identified by `resource`.
+	 */
+	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -695,6 +733,16 @@ export interface IChatSessionsService {
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
+	/**
+	 * Whether the registered item controller owns archived state for the session.
+	 */
+	canSetChatSessionItemArchived(sessionResource: URI): boolean;
+
+	/**
+	 * Sets archived state by delegating to the registered item controller.
+	 */
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
+
 	// #endregion
 
 	// #region Content provider support
@@ -705,6 +753,8 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+	/** Resolves a parsed response Markdown URI through its session content provider. */
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**
 	 * Compute completion items for an input being composed in the chat
@@ -759,6 +809,12 @@ export interface IChatSessionsService {
 	 * state instead of "Auto".
 	 */
 	supportsAutoModelForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Whether the session type needs a Copilot account and so is unusable until the user signs in (BYOK isn't
+	 * supported). Defaults to false, so third-party types stay usable while signed out.
+	 */
+	requiresCopilotSignInForSessionType(chatSessionType: string): boolean;
 
 	/**
 	 * Returns whether the session type supports delegation.

@@ -5,8 +5,37 @@
 
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import type { ToolDefinition, URI } from '../../common/state/sessionState.js';
+import type { StringOrMarkdown, ToolDefinition, URI } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
+
+/**
+ * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
+ * owning group can tailor its past-tense message to what the tool returned
+ * (for example a count parsed from the textual result). Absent while the tool
+ * is still running.
+ */
+export interface IServerToolDisplayResult {
+	/** The textual tool result (the string the group's `execute` returned). */
+	readonly text?: string;
+	/** Whether the tool completed successfully. */
+	readonly success: boolean;
+}
+
+/**
+ * Display strings for a server tool, authored by the group that owns the tool
+ * so every provider renders it identically (instead of each provider's display
+ * layer re-deriving the strings from the tool name). Each field is optional: a
+ * provider uses the returned value where present and falls back to its own
+ * generic display otherwise.
+ */
+export interface IServerToolDisplay {
+	/** Human-readable tool name (e.g. "List Comments"). */
+	readonly displayName?: string;
+	/** Present-tense message shown while the tool runs (e.g. "Checking comments"). */
+	readonly invocationMessage?: StringOrMarkdown;
+	/** Past-tense message shown once the tool completes (e.g. "Checked 3 comments"). */
+	readonly pastTenseMessage?: StringOrMarkdown;
+}
 
 /**
  * A group of related server tools owned and executed by the agent host. Each
@@ -42,7 +71,21 @@ export interface IServerToolGroup {
 	 * @throws if {@link toolName} is not owned by this group or the arguments
 	 * are invalid.
 	 */
-	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string;
+	execute(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+
+	/**
+	 * Display strings for {@link toolName} (one of this group's
+	 * {@link definitions}), authored here so every provider renders this tool
+	 * identically rather than re-deriving the strings from the tool name. The
+	 * caller passes the parsed tool arguments and, once the tool has completed,
+	 * its {@link IServerToolDisplayResult result}. Returns `undefined` (or
+	 * individually-absent fields) to let the provider fall back to its generic
+	 * display. Optional: a group without bespoke display omits this.
+	 *
+	 * `toolName` is the bare tool name (the provider strips any transport
+	 * prefix such as Claude's `mcp__<server>__` before calling).
+	 */
+	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined;
 }
 
 /**
@@ -91,7 +134,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		return this._groupByToolName.get(toolName)?.requiresConfirmation?.(toolName) ?? false;
 	}
 
-	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string {
+	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);

@@ -136,6 +136,20 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
+	canSetChatSessionItemArchived(sessionResource: URI): boolean {
+		const sessionType = getChatSessionType(sessionResource);
+		return typeof this.sessionItemControllers.get(sessionType)?.controller.setChatSessionItemArchived === 'function';
+	}
+
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void {
+		const sessionType = getChatSessionType(sessionResource);
+		const controller = this.sessionItemControllers.get(sessionType)?.controller;
+		if (!controller?.setChatSessionItemArchived) {
+			throw new Error(`Session ${sessionResource.toString()} does not support archiving`);
+		}
+		controller.setChatSessionItemArchived(sessionResource, archived);
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
@@ -170,6 +184,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 			return undefined;
 		}
 		return provider.provideChatInputCompletions(sessionResource, params, token);
+	}
+
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
+		const sessionType = getChatSessionType(sessionResource);
+		return this.contentProviders.get(sessionType)?.resolveChatResponseUri?.(sessionResource, href, kind) ?? href;
 	}
 
 	async getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined> {
@@ -240,6 +259,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	supportsAutoModelForSessionType(chatSessionType: string): boolean {
 		return !!this.contributions.find(c => c.type === chatSessionType)?.supportsAutoModel;
+	}
+
+	requiresCopilotSignInForSessionType(chatSessionType: string): boolean {
+		return !!this.contributions.find(c => c.type === chatSessionType)?.requiresCopilotSignIn;
 	}
 
 	supportsDelegationForSessionType(chatSessionType: string): boolean {

@@ -9,11 +9,15 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
+import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
+import { SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
 
 /**
@@ -43,14 +47,8 @@ export interface IChatGroupContext {
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
 
-	/** Close (hide) the given chat from the tab strip; it remains reopenable. */
-	closeChat(resource: URI): void;
-
-	/** Permanently delete the given chat. */
-	deleteChat(resource: URI): void;
-
-	/** Rename the given chat. */
-	renameChat(resource: URI, title: string): void;
+	/** Start a new chat within this group. */
+	newChat(): void;
 
 	/** A chat tab drag has started for the given chat. */
 	onTabDragStart(resource: URI): void;
@@ -80,6 +78,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _barContainer: HTMLElement;
+	private readonly _readOnlyBanner: SessionReadOnlyBanner;
 	private readonly _contentContainer: HTMLElement;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
@@ -97,6 +96,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	constructor(
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -105,6 +105,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		this._compositeBar = this._register(instantiationService.createInstance(ChatCompositeBar));
 		this._barContainer.appendChild(this._compositeBar.element);
+
+		// Read-only status banner, shown flush below this group's tab bar when the
+		// group's active chat is non-interactive, in place of the composer which
+		// is hidden for read-only chats.
+		this._readOnlyBanner = this._register(new SessionReadOnlyBanner());
+		this._barContainer.appendChild(this._readOnlyBanner.domNode);
 
 		this._contentContainer = $('.chat-group-view-content');
 		this.element.appendChild(this._contentContainer);
@@ -125,15 +131,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 
 		const delegate: IChatCompositeBarDelegate = {
-			sessionId: context.session.sessionId,
+			session: context.session,
 			chats: context.chats,
 			activeChatResource: context.activeChatResource,
 			mainChatResource: context.mainChatResource,
 			visible: context.tabsVisible,
 			openChat: resource => context.openChat(resource),
-			closeChat: resource => context.closeChat(resource),
-			deleteChat: resource => context.deleteChat(resource),
-			renameChat: (resource, title) => context.renameChat(resource, title),
+			newChat: () => context.newChat(),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),
 		};
@@ -151,7 +155,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
 				desiredKind = 'newSession';
-			} else if (!chat || chat.status.read(reader) === SessionStatus.Untitled) {
+			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
 				desiredKind = 'newChatInSession';
 			} else {
 				desiredKind = 'chat';
@@ -170,6 +174,31 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 			if (chat) {
 				view.setChat(chat, session.sessionId);
+			}
+
+			// Show the read-only banner in place of the composer when the group's
+			// active chat is non-interactive (e.g. a subagent transcript or an
+			// archived session).
+			const readOnly = !!chat && chat.interactivity.read(reader) !== ChatInteractivity.Full;
+			if (readOnly) {
+				const archived = session.isArchived.read(reader);
+				if (archived) {
+					this._readOnlyBanner.setContent({
+						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+						action: {
+							label: localize('sessionReadOnlyBanner.restore', "Restore"),
+							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, session),
+						},
+					});
+				} else {
+					this._readOnlyBanner.setContent({ message: localize('sessionReadOnlyBanner.message', "This chat is read-only") });
+				}
+			}
+			// Only re-layout when the banner's visibility (and thus its
+			// contribution to the bar height) actually changes.
+			if (this._readOnlyBanner.visible !== readOnly) {
+				this._readOnlyBanner.setVisible(readOnly);
+				this._layoutChildren();
 			}
 		}));
 	}
@@ -220,7 +249,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
-		const barHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
+		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
+		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
+		const barHeight = tabsHeight + bannerHeight;
 		size(this._barContainer, width, barHeight);
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
 	}

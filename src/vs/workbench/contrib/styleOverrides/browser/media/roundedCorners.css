@@ -59,14 +59,40 @@
 }
 
 /* List / tree rows (including the notification center list rows) */
-.style-override .monaco-list .monaco-list-row,
-.style-override .notifications-list-container .monaco-list-row {
+.style-override .monaco-list .monaco-list-row:not(.separator),
+.style-override .notifications-list-container .monaco-list-row:not(.separator) {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
 /* Action bar labels / keybindings (toolbar icon buttons) */
 .style-override .monaco-action-bar .action-label,
 .style-override .monaco-action-bar .action-item .keybinding {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/*
+ * Split buttons (dropdown action items — e.g. the extension list/editor
+ * "Install"/"Disable" buttons). These connect a primary action label to a
+ * trailing dropdown chevron with a 1px separator between them. Rounding each
+ * label on all corners (via the rule above) puts radii on the inner seam where
+ * the two segments meet. Round only the outer edges of the pair — left corners
+ * on the primary label, right corners on the chevron — so the seam stays flat.
+ */
+.style-override .monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+}
+
+.style-override .monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown .action-label {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 !important;
+}
+
+.style-override .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+}
+
+/* Update indicator (title-bar "Update" button — base CSS uses medium, but as a
+ * control it belongs to the controls tier). */
+.style-override .monaco-action-bar .update-indicator {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
@@ -106,17 +132,36 @@
 	border-radius: 0 !important;
 }
 
-/* Scrollbar sliders */
+/* Scrollbar sliders (panels, editor, lists — all consistent) */
 .style-override .monaco-scrollable-element > .scrollbar > .slider {
 	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
 /*
- * The editor's own scrollbars sit flush against the viewport edge (next to the
- * minimap); rounding their sliders looks odd, so keep those square.
+ * Diff editor "fake united slider": when the overview ruler is shown, the diff
+ * editor draws its own combined viewport slider (`.diffViewport`, spanning both
+ * overview rulers). The modified editor's real scrollbar slider sits over the
+ * right edge of that band. Rounding all four corners floats the right corners
+ * clear of the joined viewport and breaks the combined widget, so round only
+ * the left corners (facing the editor) and keep the right side flat/flush.
+ *
+ * Gate on `:has(> .diffOverview)` so this only applies when the combined slider
+ * is actually present: with `diffEditor.renderOverviewRuler` off there is no
+ * `.diffViewport`, so the real slider is the sole scrollbar and should stay
+ * rounded on all corners like every other scrollbar. The
+ * `modified-in-monaco-diff-editor` class lives on the `.monaco-editor` root, so
+ * target the slider as a descendant.
  */
-.style-override .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
-	border-radius: 0 !important;
+.style-override .monaco-diff-editor:has(> .diffOverview) .modified-in-monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small) !important;
+}
+
+/* Terminal uses xterm.js' own scrollbar (.xterm-scrollable-element) */
+.style-override .xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	/* Inset the slider so both left and right rounded corners are visible */
+	left: 1px !important;
+	width: calc(100% - 1px) !important;
 }
 
 /* =============================================================================
@@ -138,7 +183,6 @@
 .style-override .monaco-grid-view .part.sidebar,
 .style-override .monaco-grid-view .part.panel,
 .style-override .monaco-grid-view .part.auxiliarybar {
-	border-radius: var(--vscode-cornerRadius-medium) !important;
 	overflow: hidden;
 }
 
@@ -232,3 +276,34 @@
 	border-radius: var(--vscode-sash-size);
 }
 
+.style-override.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .terminal-tabs-chat-entry .terminal-tabs-entry {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .terminal-resize-overlay {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
+ * Short numeric count badges (e.g. Search result and tree item counts) are small
+ * and roughly circular, so a full-circle radius reads as a clean round dot. (The
+ * activity-bar badge is a separate `.badge .badge-content` element, not a
+ * `.monaco-count-badge`, so it is unaffected by these rules.)
+ */
+.style-override.monaco-workbench .monaco-count-badge:not(.long) {
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/*
+ * Long text badges (`.long`, e.g. the Run and Debug call-stack "Running" /
+ * "Paused" state labels) are wide pills. A full-circle radius turns them into
+ * stadium-shaped capsules; the controls-tier radius keeps them as rectangular
+ * pills, matching the base `countBadge.css` intent where `.long` is squared off.
+ */
+.style-override.monaco-workbench .monaco-count-badge.long {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}

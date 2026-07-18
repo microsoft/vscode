@@ -18,7 +18,7 @@ import { IThemeService, Themable } from '../../../platform/theme/common/themeSer
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChatViewOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
@@ -107,7 +107,6 @@ export class ChatGroupsView extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(themeService);
@@ -232,7 +231,7 @@ export class ChatGroupsView extends Themable {
 		this._groups = groups;
 		this._restoreAssignment = assignment;
 		this._restoreOrder = order;
-		this._restoreInitialIds = new Set(session.openChats.get().map(c => c.resource.toString()));
+		this._restoreInitialIds = new Set(session.visibleChatTabs.get().map(c => c.resource.toString()));
 		this._restorePending = true;
 		this._activeGroup = indexToEntry.get(saved.activeGroupIndex) ?? groups[0];
 		for (const group of this._groups) {
@@ -248,7 +247,7 @@ export class ChatGroupsView extends Themable {
 		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, '');
 
 		const chats = derived<readonly IChat[]>(reader => {
-			const all = session.openChats.read(reader);
+			const all = session.visibleChatTabs.read(reader);
 			const ids = resourceIds.read(reader);
 			const result: IChat[] = [];
 			for (const idStr of ids) {
@@ -264,17 +263,12 @@ export class ChatGroupsView extends Themable {
 			if (!session.isCreated.read(reader)) {
 				return false;
 			}
-			const groupChats = chats.read(reader);
-			if (groupChats.length > 1 || this._groupCount.read(reader) > 1) {
+			// With more than one group the tab strip is always shown so each group
+			// stays interactive; with a lone group it follows the session's rule.
+			if (this._groupCount.read(reader) > 1) {
 				return true;
 			}
-			// Show the tab strip for a lone chat whose title diverges from the
-			// session title, so both independent titles stay visible.
-			if (groupChats.length === 1) {
-				const chatTitle = groupChats[0].title.read(reader);
-				return !!chatTitle && chatTitle !== session.title.read(reader);
-			}
-			return false;
+			return session.shouldShowChatTabs.read(reader);
 		});
 
 		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
@@ -288,9 +282,7 @@ export class ChatGroupsView extends Themable {
 			mainChatResource: this._mainChatResource!,
 			tabsVisible,
 			openChat: resource => this._openChat(entry, resource),
-			closeChat: resource => this._closeChat(resource),
-			deleteChat: resource => this._deleteChat(resource),
-			renameChat: (resource, title) => this._renameChat(resource, title),
+			newChat: () => this._newChat(entry),
 			onTabDragStart: () => { },
 			onTabDragEnd: () => { },
 		};
@@ -306,7 +298,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 
-		const chats = session.openChats.read(reader);
+		const chats = session.visibleChatTabs.read(reader);
 		const activeChat = session.activeChat.read(reader);
 		const orderedIds = chats.map(c => c.resource.toString());
 		const validIds = new Set(orderedIds);
@@ -519,24 +511,11 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	private _closeChat(resource: URI): void {
-		if (this._session) {
-			const chat = this._session.openChats.get().find(c => c.resource.toString() === resource.toString());
-			if (chat) {
-				this._sessionsService.closeChat(this._session, chat).catch(onUnexpectedError);
-			}
-		}
-	}
-
-	private _deleteChat(resource: URI): void {
-		if (this._session) {
-			this._sessionsManagementService.deleteChat(this._session, resource).catch(onUnexpectedError);
-		}
-	}
-
-	private _renameChat(resource: URI, title: string): void {
-		if (this._session) {
-			this._sessionsManagementService.renameChat(this._session, resource, title).catch(onUnexpectedError);
+	private _newChat(entry: IGroupEntry): void {
+		this._setActiveGroup(entry);
+		const session = this._session;
+		if (session && !session.isArchived.get()) {
+			this._sessionsService.openNewChatInSession(session).catch(onUnexpectedError);
 		}
 	}
 

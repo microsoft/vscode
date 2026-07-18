@@ -57,6 +57,57 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('carries allowedMcpServers as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			allowedMcpServers: [
+				{ serverName: 'github' },
+				{ serverUrl: 'https://mcp.example.com/*' },
+				{ serverCommand: ['npx', '-y', 'server'] },
+			],
+		}), {
+			managedSettings: {
+				allowedMcpServers: '[{"serverName":"github"},{"serverUrl":"https://mcp.example.com/*"},{"serverCommand":["npx","-y","server"]}]',
+			},
+		});
+	});
+
+	test('carries an empty allowedMcpServers array as a JSON string', () => {
+		assert.deepStrictEqual(adaptManagedSettings({ allowedMcpServers: [] }), {
+			managedSettings: { allowedMcpServers: '[]' },
+		});
+	});
+
+	test('carries deniedMcpServers as a canonical JSON string under a single key', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			deniedMcpServers: [
+				{ serverName: 'blocked' },
+				{ serverUrl: 'https://*.untrusted.example.com/*' },
+			],
+		}), {
+			managedSettings: {
+				deniedMcpServers: '[{"serverName":"blocked"},{"serverUrl":"https://*.untrusted.example.com/*"}]',
+			},
+		});
+	});
+
+	test('flattens scalar telemetry leaves and carries resourceAttributes and headers as single JSON keys', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			telemetry: {
+				enabled: true,
+				serviceName: 'acme-copilot',
+				resourceAttributes: { 'deployment.environment': 'prod', 'service.namespace': 'acme' },
+				headers: { 'x-api-key': 'secret' },
+			},
+		}), {
+			managedSettings: {
+				'telemetry.enabled': true,
+				'telemetry.serviceName': 'acme-copilot',
+				'telemetry.resourceAttributes': '{"deployment.environment":"prod","service.namespace":"acme"}',
+				'telemetry.headers': '{"x-api-key":"secret"}',
+			},
+		});
+	});
+
 	test('encodes github marketplaces as a { name: shorthand } JSON dict', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			extraKnownMarketplaces: {
@@ -188,5 +239,16 @@ suite('adaptManagedSettings', () => {
 		} as IManagedSettingsResponse), {
 			managedSettings: {},
 		});
+	});
+
+	test('resilience: telemetry map keys that could pollute the prototype are dropped', () => {
+		// JSON.parse yields an OWN enumerable `__proto__` data property on the nested map.
+		const response = JSON.parse('{"telemetry":{"resourceAttributes":{"__proto__":"polluted","constructor":"x","service.namespace":"acme"}}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual(adaptManagedSettings(response), {
+			managedSettings: {
+				'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+			},
+		});
+		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
 	});
 });

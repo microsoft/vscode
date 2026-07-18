@@ -6,9 +6,10 @@
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
-import { ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions as ISessionsProviderSendRequestOptions } from './sessionsProvider.js';
 
 /**
  * Options for sending a request through the sessions management service.
@@ -54,6 +55,36 @@ export interface ICreateNewSessionOptions {
 	 * chosen provider advertises for the folder URI.
 	 */
 	readonly sessionTypeId?: string;
+	/**
+	 * Optional model identifier to apply to the new session via
+	 * {@link ISessionsProvider.setModel}. If the provider throws, the
+	 * stranded draft is disposed and the error propagates.
+	 */
+	readonly modelId?: string;
+	/**
+	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
+	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
+	 * provider does not implement the setter.
+	 */
+	readonly modeId?: string;
+	/**
+	 * Optional permission level (typically a value from
+	 * `ChatPermissionLevel`) to apply via
+	 * {@link ISessionsProvider.setPermissionLevel}. Skipped if the provider
+	 * does not implement the setter.
+	 */
+	readonly permissionLevel?: string;
+	/**
+	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
+	 * via {@link ISessionsProvider.setIsolationMode}. Skipped if the
+	 * provider does not implement the setter.
+	 */
+	readonly isolationMode?: string;
+	/**
+	 * Optional git branch to apply via {@link ISessionsProvider.setBranch}.
+	 * Skipped if the provider does not implement the setter.
+	 */
+	readonly branch?: string;
 }
 
 /**
@@ -118,6 +149,23 @@ export interface IActiveSession extends ISession {
 
 	/** The closed (hidden from the tab strip) but still reopenable chats. Deleted chats drop out. */
 	readonly closedChats: IObservable<readonly IChat[]>;
+
+	/** The most recently closed chat, or `undefined` if none. */
+	readonly lastClosedChat: IChat | undefined;
+
+	/**
+	 * The chats shown as tabs in the tab strip: {@link openChats} with subagent
+	 * (tool-origin) chats hidden by default, in the provider's order. A subagent
+	 * surfaces as a tab only once explicitly opened.
+	 */
+	readonly visibleChatTabs: IObservable<readonly IChat[]>;
+
+	/**
+	 * Whether the chat tab strip should be shown: the session has more than one
+	 * chat (counting closed, non-tool chats), or its single remaining chat has a
+	 * title that diverged from the session title.
+	 */
+	readonly shouldShowChatTabs: IObservable<boolean>;
 }
 
 /**
@@ -170,6 +218,14 @@ export interface ISessionsManagementService {
 	getSessionTypesForFolder(folderUri: URI): IProviderSessionType[];
 
 	/**
+	 * Get all session types offered for quick chats, across every provider that
+	 * sets {@link ISessionsProvider.supportsQuickChats}. Returns one entry per
+	 * (provider × advertised type) so the UI can let the user pick a type when
+	 * creating a quick chat.
+	 */
+	getQuickChatSessionTypes(): IProviderSessionType[];
+
+	/**
 	 * Resolve a workspace URI to a workspace using the first provider whose
 	 * {@link ISessionsProvider.resolveWorkspace} succeeds. Returns `undefined`
 	 * when no registered provider can resolve the URI.
@@ -218,6 +274,14 @@ export interface ISessionsManagementService {
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	/**
+	 * Fires when the in-progress new session is discarded via
+	 * {@link discardNewSession}: either the composer draft is abandoned without
+	 * sending, or {@link sendRequest} sends into an existing session (which
+	 * discards any pending draft first). Sending the draft itself via
+	 * {@link sendNewChatRequest} clears it without firing this event.
+	 */
+	readonly onDidDiscardNewSession: Event<ISession>;
 
 	// -- New Session --
 
@@ -242,6 +306,20 @@ export interface ISessionsManagementService {
 	 * make it active/visible — the `ISessionsService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
+
+	/**
+	 * Create a new **quick chat**: a workspace-less session not scoped to any
+	 * folder (`ISession.workspace` resolves to `undefined`).
+	 *
+	 * When `options.providerId` is omitted, picks the first registered provider
+	 * (by `order`) that sets {@link ISessionsProvider.supportsQuickChats}. When
+	 * `options.sessionTypeId` is omitted, defaults to the chosen provider's
+	 * first advertised quick-chat session type.
+	 *
+	 * Tracks the created session as the new session and returns it. Does not
+	 * make it active/visible — the `ISessionsService` shows it.
+	 */
+	createQuickChat(options?: ICreateNewSessionOptions): ISession;
 
 	/**
 	 * Create (or reuse an existing untitled) chat in the given session via its
@@ -292,10 +370,11 @@ export interface ISessionsManagementService {
 	 * The started session appears in the sessions list once the provider
 	 * commits it, while the user's current view is left untouched. Intended for
 	 * callers outside the new-session composer that want to kick off a session
-	 * programmatically. Rejects (after disposing the stranded draft) if the send
-	 * fails.
+	 * programmatically. Returns the committed session, or `undefined` if the
+	 * service was disposed during the send. Rejects (after disposing the
+	 * stranded draft) if the send fails.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void>;
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.
@@ -314,6 +393,21 @@ export interface ISessionsManagementService {
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
 
+	/**
+	 * Mark a session as read or unread through its provider, which owns and
+	 * persists the read state and reflects it on {@link ISession.isRead}.
+	 */
+	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
+
+	/** Mark a session as read through its provider. */
+	markRead(session: ISession): Promise<void>;
+
+	/** Mark a session as unread through its provider. */
+	markUnread(session: ISession): Promise<void>;
+
+	/** Mark all of the given sessions as read through their providers. */
+	markAllRead(sessions: readonly ISession[]): Promise<void>;
+
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 
@@ -327,7 +421,7 @@ export interface ISessionsManagementService {
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
 	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI): Promise<void>;
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

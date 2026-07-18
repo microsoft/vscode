@@ -31,6 +31,7 @@ import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -40,7 +41,6 @@ import { ISessionFileChange } from '../../../services/sessions/common/session.js
 
 interface ICommentItemActions {
 	editAction: Action;
-	convertAction: Action | undefined;
 	removeAction: Action;
 	addReplyAction: Action;
 }
@@ -81,6 +81,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
 	private readonly _activeReplyInputs = new Map<string, { container: HTMLElement; textarea: HTMLTextAreaElement }>();
+	private readonly _actionBarElements = new Map<string, HTMLElement>();
 
 	private _position: IOverlayWidgetPosition | null = null;
 	private _isExpanded: boolean = false;
@@ -205,6 +206,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		clearNode(this._bodyNode);
 		this._itemElements.clear();
 		this._activeReplyInputs.clear();
+		this._actionBarElements.clear();
 
 		for (const comment of this._commentItems) {
 			const item = $('div.agent-feedback-widget-item');
@@ -237,7 +239,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			const actionBarContainer = $('div.agent-feedback-widget-item-actions');
 			const actionBar = this._eventStore.add(new ActionBar(actionBarContainer));
 
-			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined!, addReplyAction: undefined! };
+			const itemActions: ICommentItemActions = { editAction: undefined!, removeAction: undefined!, addReplyAction: undefined! };
 
 			itemActions.addReplyAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.addReply',
@@ -257,26 +259,15 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			));
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
 
-			if (comment.canConvertToAgentFeedback) {
-				itemActions.convertAction = this._eventStore.add(new Action(
-					'agentFeedback.widget.convert',
-					nls.localize('convertComment', "Accept"),
-					ThemeIcon.asClassName(Codicon.check),
-					true,
-					() => this._convertToAgentFeedback(comment),
-				));
-				actionBar.push(itemActions.convertAction, { icon: true, label: false });
-			}
-			if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created) {
-				const acceptAction = this._eventStore.add(new Action(
-					'agentFeedback.widget.accept',
-					nls.localize('acceptComment', "Accept"),
-					ThemeIcon.asClassName(Codicon.check),
-					true,
-					() => { this._acceptFeedback(comment); return Promise.resolve(); },
-				));
-				actionBar.push(acceptAction, { icon: true, label: false });
-			}
+			// Comments that can be accepted — either convertible PR review
+			// comments or `created` agent feedback — render their Accept /
+			// Remove affordances in the always-visible bottom button bar, so
+			// those actions are omitted from the hover toolbar to avoid a
+			// duplicate affordance. The convert ("Accept") action is never
+			// shown in the hover toolbar.
+			const showActionButtonsBar = comment.canConvertToAgentFeedback
+				|| (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created);
+
 			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
 				nls.localize('removeComment', "Remove"),
@@ -284,7 +275,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				true,
 				() => this._removeComment(comment),
 			));
-			actionBar.push(itemActions.removeAction, { icon: true, label: false });
+			if (!showActionButtonsBar) {
+				actionBar.push(itemActions.removeAction, { icon: true, label: false });
+			}
 
 			itemHeader.appendChild(actionBarContainer);
 			item.appendChild(itemHeader);
@@ -301,6 +294,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			if (comment.replies?.length) {
 				item.appendChild(this._renderReplies(comment.replies));
+			}
+
+			if (showActionButtonsBar) {
+				this._renderActionButtons(comment, item);
 			}
 
 			this._eventStore.add(addDisposableListener(item, 'mouseenter', () => {
@@ -406,6 +403,76 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		return repliesNode;
 	}
 
+	/**
+	 * Renders the Accept / Remove button bar shown at the bottom of a
+	 * `created` agent feedback comment or a PR review comment. Clicking either
+	 * button performs the action and removes the bar. For PR review comments
+	 * "Accept" converts the comment into agent feedback; for agent feedback it
+	 * marks the comment as accepted.
+	 */
+	private _renderActionButtons(comment: ISessionEditorComment, item: HTMLElement): void {
+		const buttonBar = $('div.agent-feedback-widget-actions-bar');
+
+		const buttonStore = new DisposableStore();
+		this._eventStore.add(buttonStore);
+
+		// Prevent clicks on the button bar from bubbling up to the item click
+		// handler (which would navigate/reveal the comment).
+		buttonStore.add(addDisposableListener(buttonBar, 'click', e => e.stopPropagation()));
+
+		const dismiss = () => {
+			buttonStore.dispose();
+			buttonBar.remove();
+			this._actionBarElements.delete(comment.id);
+			// Move focus back to the widget so keyboard/screen reader users
+			// don't lose their place when the (now removed) button is gone.
+			this._domNode.focus({ preventScroll: true });
+			this._editor.layoutOverlayWidget(this);
+		};
+
+		const isPRComment = comment.source === SessionEditorCommentSource.PRReview;
+		const acceptTooltip = isPRComment
+			? nls.localize('acceptPRFeedbackTooltip', "Share PR comment with agent")
+			: nls.localize('acceptAgentFeedbackTooltip', "Share comment with agent");
+		const deleteTooltip = isPRComment
+			? nls.localize('deletePRFeedbackTooltip', "Remove and mark as resolved on GitHub")
+			: nls.localize('deleteAgentFeedbackTooltip', "Remove agent comment");
+
+		const acceptButton = buttonStore.add(new Button(buttonBar, {
+			title: acceptTooltip,
+			buttonBackground: 'var(--vscode-charts-purple)',
+			buttonHoverBackground: 'color-mix(in srgb, var(--vscode-charts-purple) 85%, var(--vscode-foreground))',
+			buttonForeground: 'var(--vscode-button-foreground)',
+			buttonBorder: 'var(--vscode-charts-purple)',
+		}));
+		acceptButton.label = nls.localize('acceptFeedbackButton', "Accept");
+		buttonStore.add(acceptButton.onDidClick(() => {
+			if (comment.canConvertToAgentFeedback) {
+				this._convertToAgentFeedback(comment);
+			} else {
+				this._acceptFeedback(comment);
+			}
+			dismiss();
+		}));
+
+		const deleteButton = buttonStore.add(new Button(buttonBar, {
+			title: deleteTooltip,
+			secondary: true,
+			buttonSecondaryBackground: 'var(--vscode-button-secondaryBackground)',
+			buttonSecondaryHoverBackground: 'var(--vscode-button-secondaryHoverBackground)',
+			buttonSecondaryForeground: 'var(--vscode-button-secondaryForeground)',
+			buttonSecondaryBorder: 'var(--vscode-button-secondaryBorder)',
+		}));
+		deleteButton.label = nls.localize('deleteFeedbackButton', "Delete");
+		buttonStore.add(deleteButton.onDidClick(() => {
+			this._removeComment(comment);
+			dismiss();
+		}));
+
+		item.appendChild(buttonBar);
+		this._actionBarElements.set(comment.id, buttonBar);
+	}
+
 	private _removeComment(comment: ISessionEditorComment): void {
 		if (comment.source === SessionEditorCommentSource.PRReview) {
 			this._codeReviewService.resolvePRReviewThread(this._sessionResource!, comment.sourceId);
@@ -418,9 +485,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -479,9 +543,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Disable item actions while replying so the action bar doesn't conflict.
 		actions.editAction.enabled = false;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = false;
-		}
 		actions.removeAction.enabled = false;
 		actions.addReplyAction.enabled = false;
 
@@ -496,7 +557,14 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			textarea.value = initialText;
 		}
 		replyContainer.appendChild(textarea);
-		itemNode.appendChild(replyContainer);
+		// Keep the action button bar (Accept/Remove) as the very last element so
+		// the reply composer appears above it.
+		const actionsBar = this._actionBarElements.get(comment.id);
+		if (actionsBar) {
+			itemNode.insertBefore(replyContainer, actionsBar);
+		} else {
+			itemNode.appendChild(replyContainer);
+		}
 		this._activeReplyInputs.set(comment.id, { container: replyContainer, textarea });
 
 		// Ensure the draft store has an entry so subsequent rebuilds know to
@@ -528,9 +596,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const cleanup = () => {
 			replyStore.dispose();
 			actions.editAction.enabled = true;
-			if (actions.convertAction) {
-				actions.convertAction.enabled = true;
-			}
 			actions.removeAction.enabled = true;
 			actions.addReplyAction.enabled = true;
 			this._activeReplyInputs.delete(comment.id);
@@ -630,9 +695,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 		// Re-enable actions
 		actions.editAction.enabled = true;
-		if (actions.convertAction) {
-			actions.convertAction.enabled = true;
-		}
 		actions.removeAction.enabled = true;
 		actions.addReplyAction.enabled = true;
 
@@ -969,7 +1031,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
  * Groups feedback items and creates combined widgets for nearby items.
  * Widgets start collapsed and expand when navigated to.
  */
-class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
+export class AgentFeedbackEditorWidgetContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.editorWidgetContribution';
 

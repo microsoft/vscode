@@ -6,6 +6,7 @@
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
+import type { IStatelessNextEditModelTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -16,11 +17,13 @@ import { AnnotatedStringReplacement, StringEdit, StringReplacement } from '../..
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { checkEditConsistency, EditDataWithIndex, NesRebaseConfigs, tryRebase } from '../common/editRebase';
-import { NextEditFetchRequest } from './nextEditProvider';
+import type { NextEditFetchRequest } from './nextEditProvider';
 import { RebaseFailureInfo, type RebaseResult } from './rebaseResult';
 
 export interface CachedEditOpts {
 	isFromCursorJump: boolean;
+	/** Model attribution for the request that produced this edit. */
+	modelTelemetry: IStatelessNextEditModelTelemetry;
 	/**
 	 * For cursor jump edits, this is the edit window around the original cursor position
 	 * (before the jump), allowing the edit to be served from cache when the cursor is
@@ -45,10 +48,39 @@ export interface CachedEditOpts {
 	 * `rebasedEditIndex` into the bundle) can be attributed to the right model patch.
 	 */
 	patchIndices?: readonly (number | undefined)[];
+	/**
+	 * The document the cached edit actually applies to, when it differs from the
+	 * document the entry is keyed under (cross-file NES). `undefined` means the edit
+	 * targets the owning/key document (the common same-file case).
+	 *
+	 * Used to cache an `A -> suggestion-in-B` association: the entry is keyed and
+	 * gated against the active document A (content + edit window), but the edit it
+	 * carries lands in document B.
+	 */
+	targetDocId?: DocumentId;
+	/**
+	 * The target document's content at the time the cross-file edit was produced
+	 * (i.e. the content the {@link CachedEdit.edit} offsets index into). Only set
+	 * together with {@link targetDocId}. The read path must serve the edit only when
+	 * the target document's live content still equals this snapshot; otherwise the
+	 * edit's offsets are stale and would resolve against the wrong content.
+	 */
+	targetDocumentBeforeEdit?: StringText;
 }
 
 export interface CachedEdit {
 	docId: DocumentId;
+	/**
+	 * The document the cached edit actually applies to, when it differs from {@link docId}
+	 * (cross-file NES). `undefined` means the edit targets the owning/key document
+	 * {@link docId} (the common same-file case). @see CachedEditOpts.targetDocId
+	 */
+	targetDocId?: DocumentId;
+	/**
+	 * The target document's content at the time the cross-file edit was produced.
+	 * Only set together with {@link targetDocId}. @see CachedEditOpts.targetDocumentBeforeEdit
+	 */
+	targetDocumentBeforeEdit?: StringText;
 	documentBeforeEdit: StringText;
 	editWindow?: OffsetRange;
 	/**
@@ -79,6 +111,8 @@ export interface CachedEdit {
 	 * edits, addressed by `rebasedEditIndex`, can be attributed to the right patch.
 	 */
 	patchIndices?: readonly (number | undefined)[];
+	/** Model attribution for the request that produced this edit. */
+	modelTelemetry: IStatelessNextEditModelTelemetry;
 	source: NextEditFetchRequest;
 	cacheTime: number;
 	/**
@@ -156,12 +190,12 @@ export class NextEditCache extends Disposable {
 		return docCache.setKthNextEdit(documentContents, editWindow, nextEdit, nextEdits, userEditSince, subsequentN, source, opts);
 	}
 
-	public setNoNextEdit(docId: DocumentId, documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest) {
+	public setNoNextEdit(docId: DocumentId, documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest, modelTelemetry: IStatelessNextEditModelTelemetry) {
 		const docCache = this._documentCaches.get(docId);
 		if (!docCache) {
 			return;
 		}
-		docCache.setNoNextEdit(documentContents, editWindow, source);
+		docCache.setNoNextEdit(documentContents, editWindow, source, modelTelemetry);
 	}
 
 	private _getNesRebaseConfigs(): NesRebaseConfigs {
@@ -259,7 +293,7 @@ class DocumentEditCache {
 
 	public setKthNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, nextEdit: StringReplacement, nextEdits: StringReplacement[] | undefined, userEditSince: StringEdit | undefined, subsequentN: number, source: NextEditFetchRequest, opts: CachedEditOpts): CachedEdit {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, patchIndex: opts.patchIndex, patchIndices: opts.patchIndices, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
+		const cachedEdit: CachedEdit = { docId: this.docId, targetDocId: opts.targetDocId, targetDocumentBeforeEdit: opts.targetDocumentBeforeEdit, edit: nextEdit, edits: nextEdits, detailedEdits: [], userEditSince, subsequentN, patchIndex: opts.patchIndex, patchIndices: opts.patchIndices, modelTelemetry: opts.modelTelemetry, source, documentBeforeEdit: documentContents, editWindow, originalEditWindow: opts.originalEditWindow, cacheTime: Date.now(), isFromCursorJump: opts.isFromCursorJump, cursorOffsetAtCacheTime: opts.cursorOffset };
 		if (userEditSince) {
 			if (!checkEditConsistency(cachedEdit.documentBeforeEdit.value, userEditSince, this._doc.value.get().value, this._logger.createSubLogger('setKthNextEdit'))) {
 				cachedEdit.userEditSince = undefined;
@@ -278,9 +312,9 @@ class DocumentEditCache {
 		return cachedEdit;
 	}
 
-	public setNoNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest) {
+	public setNoNextEdit(documentContents: StringText, editWindow: OffsetRange | undefined, source: NextEditFetchRequest, modelTelemetry: IStatelessNextEditModelTelemetry) {
 		const key = this._getKey(documentContents.value);
-		const cachedEdit: CachedEdit = { docId: this.docId, edit: undefined, edits: [], detailedEdits: [], source, documentBeforeEdit: documentContents, editWindow, cacheTime: Date.now(), isFromCursorJump: false };
+		const cachedEdit: CachedEdit = { docId: this.docId, edit: undefined, edits: [], detailedEdits: [], modelTelemetry, source, documentBeforeEdit: documentContents, editWindow, cacheTime: Date.now(), isFromCursorJump: false };
 		const existing = this._sharedCache.get(key);
 		if (existing) {
 			this.evictedCachedEdit(existing);
@@ -309,7 +343,10 @@ class DocumentEditCache {
 			// If the cursor moved farther from the edit's start line than it was at cache time,
 			// reject the cached edit so the same suggestion is not shown again.
 			// Only applies to non-rebased, non-subsequent edits.
+			// Skipped for cross-file entries: their `edit` is in the target document's
+			// coordinate space, so transforming it against this (active) document is meaningless.
 			if (cacheCursorDistanceCheck
+				&& !cachedEdit.targetDocId
 				&& cachedEdit.edit
 				&& (cachedEdit.subsequentN === undefined || cachedEdit.subsequentN === 0)
 				&& cachedEdit.cursorOffsetAtCacheTime !== undefined

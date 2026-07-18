@@ -38,7 +38,7 @@ import {
 	type IStateSnapshot,
 	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -282,6 +282,10 @@ export interface IProtocolServerConfig {
 	 */
 	readonly completionTriggerCharacters?: readonly string[];
 	/**
+	 * Prefix that marks a user message as a host terminal command.
+	 */
+	readonly terminalCommandPrefix?: string;
+	/**
 	 * Optional emitter to use as the source for the OTLP logs channel
 	 * advertised via `InitializeResult.telemetry.logs`. When present, this
 	 * handler will route `subscribe`/`unsubscribe` requests on
@@ -344,11 +348,10 @@ export class ProtocolServerHandler extends Disposable {
 			// stamped while no client is connected are failed immediately by
 			// the provider, so they never reach this path.
 			if (envelope.action.type === ActionType.ChatToolCallStart || envelope.action.type === ActionType.ChatToolCallReady) {
-				// Chat-action envelopes are emitted on the chat channel URI;
-				// the disconnect-grace machinery keys by session URI, so
-				// resolve back to the owning session before checking.
-				const session = isAhpChatChannel(envelope.channel) ? (parseDefaultChatUri(envelope.channel) ?? envelope.channel) : envelope.channel;
-				this._checkOrphanedClientToolCalls(session);
+				if (!isAhpChatChannel(envelope.channel)) {
+					throw new Error(`[ProtocolServer] Chat tool-call action emitted on non-chat channel: ${envelope.channel}`);
+				}
+				this._checkOrphanedClientToolCalls(parseRequiredSessionUriFromChatUri(envelope.channel), envelope.channel);
 			}
 		}));
 
@@ -544,6 +547,7 @@ export class ProtocolServerHandler extends Disposable {
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters,
+				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 			},
 		};
@@ -761,12 +765,13 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 		for (const session of this._stateManager.getSessionUris()) {
-			if (resubscribed.has(session)) {
-				continue;
-			}
 			const state = this._stateManager.getSessionState(session);
 			if (state && this._isActiveClient(state, client.clientId)) {
-				this._releaseActiveClientForSession(session, client.clientId);
+				for (const chat of state.chats) {
+					if (!resubscribed.has(session) && !resubscribed.has(chat.resource)) {
+						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
+					}
+				}
 			}
 		}
 	}
@@ -782,7 +787,9 @@ export class ProtocolServerHandler extends Disposable {
 			// calls) if it never returns; an explicit unsubscribe or a
 			// reconnect without resubscription removes it sooner.
 			if (isActive || ownsPendingToolCall) {
-				this._startClientToolCallDisconnectTimeout(clientId, session);
+				for (const chat of state?.chats ?? []) {
+					this._startClientToolCallDisconnectTimeout(clientId, session, chat.resource);
+				}
 			}
 		}
 	}
@@ -813,9 +820,9 @@ export class ProtocolServerHandler extends Disposable {
 	 * clients. Used by the explicit-unsubscribe and reconnect-reconciliation
 	 * paths to drop a client that has left a session.
 	 */
-	private _releaseActiveClientForSession(session: string, clientId: string): void {
-		this._clearClientToolCallDisconnectTimeout(clientId, session);
-		this._completeDisconnectedClientToolCalls(clientId, session);
+	private _releaseActiveClientForSession(session: string, clientId: string, chatChannel: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
+		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
 		this._removeActiveClient(session, clientId);
 	}
 
@@ -872,17 +879,17 @@ export class ProtocolServerHandler extends Disposable {
 	 * to the first arm, so re-arms triggered by later orphaned tool calls in the
 	 * same session shrink the remaining window instead of resetting it.
 	 */
-	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+	private _startClientToolCallDisconnectTimeout(clientId: string, session: string, chatChannel: string): void {
 		const record = this._ensureGraceRecord(clientId);
 		if (!record) {
 			// Client is connected; the grace machinery does not apply.
 			return;
 		}
-		record.disconnectTimeouts.deleteAndDispose(session);
+		record.disconnectTimeouts.deleteAndDispose(chatChannel);
 		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
-		record.disconnectTimeouts.set(session, disposableTimeout(() => {
-			this._releaseActiveClientForSession(session, clientId);
+		record.disconnectTimeouts.set(chatChannel, disposableTimeout(() => {
+			this._releaseActiveClientForSession(session, clientId, chatChannel);
 		}, delay));
 	}
 
@@ -895,8 +902,8 @@ export class ProtocolServerHandler extends Disposable {
 	 * connected at stamp time) are failed immediately by the provider, so they
 	 * never reach a pending state here.
 	 */
-	private _checkOrphanedClientToolCalls(session: string): void {
-		const state = this._stateManager.getSessionState(session);
+	private _checkOrphanedClientToolCalls(session: string, chatChannel: string): void {
+		const state = this._stateManager.getSessionState(chatChannel);
 		const orphanOwners = new Set<string>();
 		for (const { clientId } of this._pendingClientToolCalls(state)) {
 			const ownerRecord = this._clients.get(clientId);
@@ -905,7 +912,7 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 		for (const ownerId of orphanOwners) {
-			this._startClientToolCallDisconnectTimeout(ownerId, session);
+			this._startClientToolCallDisconnectTimeout(ownerId, session, chatChannel);
 		}
 	}
 
@@ -1016,15 +1023,15 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
-	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+	private _clearClientToolCallDisconnectTimeout(clientId: string, channel: string): void {
 		const record = this._clients.get(clientId);
 		if (record?.state === 'grace') {
-			record.disconnectTimeouts.deleteAndDispose(session);
+			record.disconnectTimeouts.deleteAndDispose(channel);
 		}
 	}
 
-	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
-		const state = this._stateManager.getSessionState(session);
+	private _completeDisconnectedClientToolCalls(clientId: string, session: string, chatChannel: string): void {
+		const state = this._stateManager.getSessionState(chatChannel);
 		const activeTurn = state?.activeTurn;
 		if (!state || !activeTurn) {
 			return;
@@ -1035,7 +1042,7 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
 			if (toolCall.status === ToolCallStatus.Streaming) {
-				this._stateManager.dispatchServerAction(session, {
+				this._stateManager.dispatchServerAction(chatChannel, {
 					type: ActionType.ChatToolCallReady,
 					turnId: activeTurn.id,
 					toolCallId: toolCall.toolCallId,
@@ -1043,7 +1050,7 @@ export class ProtocolServerHandler extends Disposable {
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				});
 			}
-			this._stateManager.dispatchServerAction(session, {
+			this._stateManager.dispatchServerAction(chatChannel, {
 				type: ActionType.ChatToolCallComplete,
 				turnId: activeTurn.id,
 				toolCallId: toolCall.toolCallId,
@@ -1133,13 +1140,12 @@ export class ProtocolServerHandler extends Disposable {
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					model: params.model,
-					agent: params.agent,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
 					activeClient: params.activeClient,
+					progressToken: params.progressToken,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -1172,7 +1178,6 @@ export class ProtocolServerHandler extends Disposable {
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				{
-					...(params.model ? { model: params.model } : {}),
 					...(params.source ? { fork: { source: URI.parse(params.source.chat), turnId: params.source.turnId } } : {}),
 				},
 			);
@@ -1211,10 +1216,9 @@ export class ProtocolServerHandler extends Disposable {
 					title: s.summary ?? 'Session',
 					status,
 					activity: s.activity,
-					createdAt: s.startTime,
-					modifiedAt: s.modifiedTime,
+					createdAt: new Date(s.startTime).toISOString(),
+					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
 					changes: s.changes,
 				};
@@ -1241,26 +1245,18 @@ export class ProtocolServerHandler extends Disposable {
 			return this._agentService.completions(params);
 		},
 		fetchTurns: async (_client, params) => {
-			const state = this._stateManager.getSessionState(params.channel);
+			const state = this._stateManager.getChatState(params.channel);
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
-			const turns = state.turns;
-			const limit = Math.min(params.limit ?? 50, 100);
-
-			let endIndex = turns.length;
-			if (params.before) {
-				const idx = turns.findIndex(t => t.id === params.before);
-				if (idx !== -1) {
-					endIndex = idx;
-				}
+			if (params.cursor && params.cursor !== state.turnsNextCursor) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unrecognized fetchTurns cursor`);
 			}
-
-			const startIndex = Math.max(0, endIndex - limit);
-			return {
-				turns: turns.slice(startIndex, endIndex),
-				hasMore: startIndex > 0,
-			};
+			this._stateManager.dispatchServerAction(params.channel, {
+				type: ActionType.ChatTurnsLoaded,
+				turns: [],
+			});
+			return {};
 		},
 		resourceList: async (_client, params) => {
 			return this._agentService.resourceList(URI.parse(params.uri));
@@ -1405,10 +1401,14 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'shutdown':
 				return this._agentService.shutdown();
+			case 'getNetworkDiagnosticsInfo':
+				return this._agentService.getNetworkDiagnosticsInfo();
+			case 'diagnosticsFetch':
+				return this._agentService.diagnosticsFetch((params as { url: string }).url);
 			default:
 				return undefined;
 		}
@@ -1484,7 +1484,14 @@ export class ProtocolServerHandler extends Disposable {
 				return;
 			}
 			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
-			this._releaseActiveClientForSession(sub.uri, client.clientId);
+			if (isAhpChatChannel(sub.uri)) {
+				this._releaseActiveClientForSession(parseRequiredSessionUriFromChatUri(sub.uri), client.clientId, sub.uri);
+			} else {
+				const state = this._stateManager.getSessionState(sub.uri);
+				for (const chat of state?.chats ?? []) {
+					this._releaseActiveClientForSession(sub.uri, client.clientId, chat.resource);
+				}
+			}
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);
 		}

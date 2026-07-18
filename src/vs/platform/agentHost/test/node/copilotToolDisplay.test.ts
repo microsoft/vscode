@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -66,6 +66,11 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['tool_search_tool_regex', 'Search Tools'],
 			['parallel_validation', 'Validate Changes'],
 			['codeql_checker', 'CodeQL Security Scan'],
+			['addComment', 'Add Comment'],
+			['listComments', 'List Comments'],
+			['deleteComments', 'Delete Comments'],
+			['resolveComments', 'Resolve Comments'],
+			['viewUnreviewedComments', 'View Comments'],
 		];
 
 		for (const [toolName, displayName] of cases) {
@@ -191,6 +196,33 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
+	test('confirmation title reflects sandbox bypass for shell requests', () => {
+		const sandboxed = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+		} as ITypedPermissionRequest, wd);
+		const bypass = getPermissionDisplay({
+			kind: 'shell',
+			fullCommandText: 'npm test',
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
+	test('confirmation title reflects sandbox bypass for custom-tool shell requests', () => {
+		const bypass = getPermissionDisplay({
+			kind: 'custom-tool',
+			toolName: 'bash',
+			args: { command: 'echo hi' },
+			requestSandboxBypass: true,
+		} as ITypedPermissionRequest, wd);
+
+		assert.strictEqual(bypass.permissionKind, 'shell');
+		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	});
+
 });
 
 suite('getPermissionDisplay — read permission display', () => {
@@ -214,6 +246,38 @@ suite('getPermissionDisplay — read permission display', () => {
 			toolInput: undefined,
 			permissionKind: 'read',
 			permissionPath: '/Users/connor/Downloads/context7-copilot-debug-main.json',
+		});
+	});
+});
+
+suite('getPermissionDisplay — write permission display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes creating a file from editing one', () => {
+		const request = {
+			kind: 'write',
+			fileName: '/repo/project/package.json',
+		} as ITypedPermissionRequest;
+
+		assert.deepStrictEqual({
+			create: getPermissionDisplay(request, URI.file('/repo/project'), true),
+			edit: getPermissionDisplay(request, URI.file('/repo/project'), false),
+		}, {
+			create: {
+				confirmationTitle: 'Create file?',
+				invocationMessage: { markdown: 'Creating [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
+			edit: {
+				confirmationTitle: 'Write file?',
+				invocationMessage: { markdown: 'Editing [package.json](file:///repo/project/package.json)' },
+				toolInput: '{"path":"/repo/project/package.json"}',
+				permissionKind: 'write',
+				permissionPath: '/repo/project/package.json',
+			},
 		});
 	});
 });
@@ -264,6 +328,60 @@ suite('view tool — view_range display', () => {
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: [10, 20, 30] }).includes(','));
 		// non-array
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: 'whatever' }).includes(','));
+	});
+});
+
+suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function invocation(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getInvocationMessage(toolName, getToolDisplayName(toolName), parameters);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	function pastTense(toolName: string, parameters: Record<string, unknown> | undefined): string {
+		const result = getPastTenseMessage(toolName, getToolDisplayName(toolName), parameters, true);
+		return typeof result === 'string' ? result : result.markdown;
+	}
+
+	test('agent-coordination tools use a single message (past tense) for both invocation and completion', () => {
+		// read/write agents surface the agent id, and the invocation message
+		// matches the past-tense message (these tools are fast).
+		assert.strictEqual(invocation('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(pastTense('read_agent', { agent_id: 'math-helper' }), 'Read agent `math-helper`');
+		assert.strictEqual(invocation('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+		assert.strictEqual(pastTense('write_agent', { agent_id: 'math-helper', message: 'hi' }), 'Wrote to agent `math-helper`');
+	});
+
+	test('agent tools fall back to a generic phrase without an agent id', () => {
+		assert.strictEqual(invocation('read_agent', {}), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', undefined), 'Wrote to agent');
+	});
+
+	test('agent tools ignore a malformed (non-string) agent id instead of throwing', () => {
+		// agent_id comes from untrusted JSON, so a non-string must not reach the
+		// markdown inline-code formatter (which would throw).
+		assert.strictEqual(invocation('read_agent', { agent_id: 123 }), 'Read agent');
+		assert.strictEqual(pastTense('write_agent', { agent_id: '' }), 'Wrote to agent');
+	});
+
+	test('list_agents shares one message; task keeps distinct present/past phrases', () => {
+		// list_agents is a fast agent-coordination tool: one message.
+		assert.strictEqual(invocation('list_agents', {}), 'Listed agents');
+		assert.strictEqual(pastTense('list_agents', {}), 'Listed agents');
+		// task delegates to a (possibly slow) subagent, so it keeps a present-tense invocation.
+		assert.strictEqual(invocation('task', {}), 'Delegating task');
+		assert.strictEqual(pastTense('task', {}), 'Delegated task');
+	});
+
+	test('unhandled tools fall back to just the display name', () => {
+		// Known tool with no tailored message: uses its friendly display name.
+		assert.strictEqual(invocation('store_memory', {}), 'Store Memory');
+		assert.strictEqual(pastTense('store_memory', {}), 'Store Memory');
+		// Unknown tool: display name is the raw tool name.
+		assert.strictEqual(invocation('some_new_tool', {}), 'some_new_tool');
+		assert.strictEqual(pastTense('some_new_tool', {}), 'some_new_tool');
 	});
 });
 
@@ -413,6 +531,34 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 		test('write_bash failure returns a non-empty error message', () => {
 			const msg = getPastTenseMessage('write_bash', 'Write Shell Input', { command: 'echo hello' }, false);
 			assert.ok(getText(msg).length > 0);
+		});
+	});
+
+	suite('feedback comment tools (delegated to the shared server-tool group)', () => {
+
+		function text(msg: ReturnType<typeof getInvocationMessage> | ReturnType<typeof getPastTenseMessage>): string {
+			return typeof msg === 'string' ? msg : msg.markdown;
+		}
+
+		// Exhaustive per-tool/count coverage lives in serverToolGroups.test.ts.
+		// These smoke checks only assert that the Copilot display functions
+		// delegate to the shared group instead of falling through to the
+		// generic `Using/Used "<tool>"` fallback.
+		test('Copilot display delegates to the shared group', () => {
+			const listResult = JSON.stringify({ comments: [{ id: 'a' }, { id: 'b' }] });
+			assert.deepStrictEqual({
+				displayName: getToolDisplayName('listComments'),
+				invoke: text(getInvocationMessage('listComments', 'List Comments', undefined)),
+				past: text(getPastTenseMessage('listComments', 'List Comments', undefined, true, listResult)),
+			}, {
+				displayName: 'List Comments',
+				invoke: 'Checking comments',
+				past: 'Checked 2 comments',
+			});
+		});
+
+		test('failed feedback tool still uses the generic failure message', () => {
+			assert.strictEqual(text(getPastTenseMessage('listComments', 'List Comments', undefined, false)), '"List Comments" failed');
 		});
 	});
 
@@ -660,5 +806,31 @@ suite('apply_patch tool display', () => {
 		// not as a JSON object — exercise the string fallback path.
 		assert.deepStrictEqual(getEditFilePaths(multiFilePatch), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
 		assert.deepStrictEqual(getEditFilePaths(singleFilePatch), ['/repo/src/foo.ts']);
+	});
+});
+
+suite('getShellIntention', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads the description argument of shell tools, and ignores non-shell tools', () => {
+		assert.deepStrictEqual({
+			bash: getShellIntention('bash', { command: 'ls', description: 'List files' }),
+			powershell: getShellIntention('powershell', { command: 'Get-ChildItem', description: 'List files' }),
+			shellNoDescription: getShellIntention('bash', { command: 'ls' }),
+			shellEmptyDescription: getShellIntention('bash', { command: 'ls', description: '' }),
+			// The `task` (subagent) tool also has a `description` argument, but it is
+			// the subagent task description, not a shell intention — must be ignored.
+			taskTool: getShellIntention('task', { description: 'Explore the codebase' }),
+			viewTool: getShellIntention('view', { path: '/repo/file.ts', description: 'why' }),
+			noArgs: getShellIntention('bash', undefined),
+		}, {
+			bash: 'List files',
+			powershell: 'List files',
+			shellNoDescription: undefined,
+			shellEmptyDescription: undefined,
+			taskTool: undefined,
+			viewTool: undefined,
+			noArgs: undefined,
+		});
 	});
 });

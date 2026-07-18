@@ -19,7 +19,9 @@ import './sessions.common.main.js';
 
 //#region --- workbench parts
 
-import '../workbench/browser/parts/dialogs/dialog.web.contribution.js';
+// Agents window uses a phone-aware dialog handler (bottom sheets on phone)
+// in place of the standard web dialog handler.
+import './browser/parts/dialogs/mobileDialog.web.contribution.js';
 
 //#endregion
 
@@ -74,6 +76,7 @@ import '../workbench/services/configurationResolver/browser/configurationResolve
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/power/browser/powerService.js';
+import '../workbench/services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -168,6 +171,7 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';

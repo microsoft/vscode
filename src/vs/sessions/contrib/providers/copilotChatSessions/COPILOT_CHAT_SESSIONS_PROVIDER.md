@@ -50,7 +50,7 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - Implements `ISession`
 - Manages dynamic option groups from `IChatSessionsService.getOptionGroupsForSessionType()` with `when` clause visibility
 - No-ops for isolation/branch/client mode (cloud-managed)
-- Provides `getModelOptionGroup()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
+- Provides `getModelOptionsSnapshot()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
 - Watches context key changes to dynamically show/hide option groups
 
 **`ClaudeCodeNewSession`** — For Claude agent sessions (local `file://` workspaces):
@@ -89,6 +89,10 @@ For multi-chat sessions (`capabilities.supportsMultipleChats === true`), `create
 
 The provider never opens the chat widget itself; widget opening is owned by the management service.
 
+## Delete Flow
+
+For Copilot CLI sessions, `_deleteAgentSessions()` delegates to the extension-host command `agents.github.copilot.cli.deleteSessions` and passes both the session resource and current session label. The extension may later hit the Git extension's force-delete confirmation when removing a dirty worktree, so the label must be preserved in that command payload to identify which session owns the worktree.
+
 ## New-Session Picker Contribution Model
 
 **File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsActions.ts`
@@ -111,11 +115,11 @@ Model picker widgets that back the new-chat `/models` slash command also inject 
 
 ### Model Picker
 
-The model picker is no longer contributed per provider. The sessions core contributes a single `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) into `Menus.NewSessionConfig` that wraps the shared workbench `ModelPickerActionItem`. It reads the available models from the active session's provider via `ISessionsProvider.getModels(sessionId)`, the picker presentation options via `ISessionsProvider.getModelPickerOptions(sessionId)`, remembers the last used model per provider per session type, and applies the selection through `ISessionsProvider.setModel(sessionId, modelId)`.
+The model picker is no longer contributed per provider. Each `NewChatInputWidget` owns a scoped `SessionModelSelectionModel`, while the sessions-core `ModelPicker` (`contrib/chat/browser/modelPicker.ts`) is a presentation and telemetry adapter over that model. The coordinator reads `ISessionsProvider.getModelsSnapshot(sessionId, restoredModelId)` and `getModelPickerOptions(sessionId)`, remembers the last used model under the canonical per-provider/per-session-type key, and applies transitions through `ISessionsProvider.setModel(sessionId, modelId)`. Omitted `showAutoModel` defaults to `true`.
 
-This provider returns models from `getModels` based on the active session:
+This provider returns a model snapshot from `getModelsSnapshot` based on the active session:
 - **CLI / Claude** sessions return registered language models whose `targetChatSessionType` matches the session type.
-- **Cloud** sessions synthesize `ILanguageModelChatMetadataAndIdentifier` entries from the extension-host `models` option group; `setModel` additionally persists the choice as the option-group value so the extension host honours it.
+- **Cloud** sessions synthesize `ILanguageModelChatMetadataAndIdentifier` entries from the extension-host `models` option group and resolve the snapshot once option groups have loaded, regardless of model-id syntax; `setModel` additionally persists the choice as the option-group value so the extension host honours it.
 
 `getModelPickerOptions` returns grouped models with featured models shown and no "Manage Models" action (that action is offered only by the local provider).
 

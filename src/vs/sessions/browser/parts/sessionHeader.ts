@@ -14,8 +14,8 @@ import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { localize } from '../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
+import { getUntitledSessionTitle } from '../../services/sessions/common/session.js';
 import { ActionRunner, IAction } from '../../../base/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -91,7 +91,6 @@ export class SessionHeader extends Disposable {
 
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
-	private readonly _readStateSignal: IObservable<void>;
 	private readonly _metaActionsSignal: IObservable<void>;
 
 	private readonly _statusIcon: SessionStatusIcon;
@@ -114,12 +113,9 @@ export class SessionHeader extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
-
-		this._readStateSignal = observableSignalFromEvent(this, this._sessionsListModelService.onDidChange);
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 
@@ -308,7 +304,6 @@ export class SessionHeader extends Disposable {
 		}
 
 		store.add(autorun(reader => {
-			this._readStateSignal.read(reader);
 			this._updateHeader(session, reader);
 		}));
 
@@ -323,12 +318,13 @@ export class SessionHeader extends Disposable {
 		// The pull request is surfaced in the meta row, so in terminal/default states the
 		// title shows the read/unread dot indicator (no session type or PR icon).
 		const status = session.status.read(reader);
-		const isRead = this._sessionsListModelService.isSessionRead(session);
+		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		// Session title
-		this._titleTextEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
+		// Session title — quick chats use "New Chat" as the untitled fallback.
+		const isQuickChat = session.isQuickChat?.read(reader) ?? false;
+		this._titleTextEl.textContent = session.title.read(reader) || getUntitledSessionTitle(isQuickChat);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable());
 
 		// Meta row: contributed action pills (workspace folder · diff stats · pull request).
@@ -359,7 +355,7 @@ export class SessionHeader extends Disposable {
 	 * signal that gates the `Rename...` context menu action in the sessions list.
 	 */
 	private _isTitleEditable(): boolean {
-		return !!this._session && (this._session.capabilities.supportsRename ?? false);
+		return !!this._session && (this._session.capabilities.get().supportsRename ?? false);
 	}
 
 	startTitleEditing(): void {
@@ -381,11 +377,10 @@ export class SessionHeader extends Disposable {
 		}
 
 		const initialTitle = session.title.get();
-		// When the stored title is empty the header shows a localized fallback
-		// ("New Session"). Reflect that as a placeholder rather than seeding the
-		// input with it, so the user neither sees a blank field nor accidentally
-		// commits the fallback string.
-		const fallbackTitle = localize('agentSessions.newSession', "New Session");
+		// When the stored title is empty the header shows a localized fallback.
+		// Reflect that as a placeholder rather than seeding the input with it, so
+		// the user neither sees a blank field nor accidentally commits the fallback.
+		const fallbackTitle = getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
 		const input = document.createElement('input');
 		input.type = 'text';
