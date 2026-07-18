@@ -148,9 +148,12 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._windowId = targetWindow.vscodeWindowId;
 		this._show(targetWindow);
 
-		if (this._anchorState) {
+		// Only re-apply a still-connected anchor. Unhide happens in `_updateVisibility`
+		// once a connected anchor is bound (see https://github.com/microsoft/vscode/issues/323890).
+		if (this._anchorState?.anchorElement.isConnected) {
 			this.overlayLayout.setAnchorElement(this._anchorState.anchorElement, { clippingContainer: this._anchorState.clippingContainer });
 		}
+		this._updateVisibility();
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -200,6 +203,18 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._anchorState = { anchorElement, clippingContainer };
 		// Force the overlay layout to be created if it doesn't exist
 		this.overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
+		this._updateVisibility();
+	}
+
+	private _updateVisibility(): void {
+		if (!this._overlayLayout) {
+			return;
+		}
+
+		// Keep retained iframes hidden until a connected CSS anchor is bound so they
+		// do not briefly paint at the browser default size (~300×150).
+		const shouldShow = !!this._owner && !!this._anchorState?.anchorElement.isConnected;
+		this._overlayLayout.content.style.visibility = shouldShow ? 'visible' : 'hidden';
 	}
 
 	private _show(targetWindow: CodeWindow) {
@@ -274,9 +289,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._shouldShowFindWidgetOnRestore = false;
 		}
 
-		if (this._overlayLayout) {
-			this._overlayLayout.content.style.visibility = 'visible';
-		}
+		// Do not unhide here: callers bind the CSS anchor after `claim`/`_show`.
+		// Showing early lets retained iframes flash at the default size (#323890).
 	}
 
 	public setHtml(html: string) {
