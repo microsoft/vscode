@@ -314,6 +314,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._isPickable(schema)) {
 				continue;
 			}
+			if (property === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {
+				continue;
+			}
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
 				continue;
 			}

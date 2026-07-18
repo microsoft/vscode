@@ -9,7 +9,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -108,8 +108,7 @@ function findSubagentChat(sessionsService: ISessionsService, resource: string, r
 }
 
 /**
- * Toolbar context forwarded by the subagent header (`ChatSubagentContentPart`):
- * the subagent's chat resource plus its agent name (shown as the pill prefix).
+ * Toolbar context forwarded by the subagent header (`ChatSubagentContentPart`).
  * A bare resource string is also accepted for backwards compatibility.
  */
 interface IOpenSubagentChatContext {
@@ -123,14 +122,6 @@ function contextChatResource(context: unknown): string | undefined {
 	}
 	if (context && typeof context === 'object' && typeof (context as IOpenSubagentChatContext).chatResource === 'string') {
 		return (context as IOpenSubagentChatContext).chatResource;
-	}
-	return undefined;
-}
-
-function contextAgentName(context: unknown): string | undefined {
-	if (context && typeof context === 'object') {
-		const agentName = (context as IOpenSubagentChatContext).agentName;
-		return typeof agentName === 'string' && agentName ? agentName : undefined;
 	}
 	return undefined;
 }
@@ -181,7 +172,6 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	private _resolvedTitle: string | undefined;
 	private readonly _titleTracker = this._register(new MutableDisposable());
-	private _prefixElement: HTMLElement | undefined;
 	private _labelElement: HTMLElement | undefined;
 
 	constructor(
@@ -209,7 +199,6 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		container.append(icon, this._labelElement);
 		this._labelElement.textContent = this._labelText();
 
-		this._updatePrefix();
 		this._updateTitleTracker();
 		this.updateTooltip();
 		this.updateEnabled();
@@ -217,31 +206,7 @@ class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 
 	override setActionContext(newContext: unknown): void {
 		super.setActionContext(newContext);
-		this._updatePrefix();
 		this._updateTitleTracker();
-	}
-
-	/**
-	 * Renders the pill prefix (the subagent's agent name, falling back to
-	 * "Subagent") before the chip, within the enclosing toolbar container.
-	 */
-	private _updatePrefix(): void {
-		const toolbar = this.element?.closest('.chat-subagent-open-chat-toolbar');
-		if (!toolbar) {
-			return;
-		}
-		if (!this._prefixElement) {
-			this._prefixElement = $('span.chat-subagent-pill-prefix');
-			toolbar.insertBefore(this._prefixElement, toolbar.firstChild);
-			this._register(toDisposable(() => {
-				this._prefixElement?.remove();
-				this._prefixElement = undefined;
-			}));
-		}
-		const agentName = contextAgentName(this._context);
-		this._prefixElement.textContent = agentName
-			? agentName.charAt(0).toUpperCase() + agentName.slice(1)
-			: localize('chat.subagent.prefix', "Subagent");
 	}
 
 	/**

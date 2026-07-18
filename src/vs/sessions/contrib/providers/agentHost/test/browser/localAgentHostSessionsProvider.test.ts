@@ -1287,7 +1287,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(session => session.title.get() === 'Model Catalog Session');
 		assert.ok(session);
 
-		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
+		const snapshot = provider.getModelsSnapshot(session.sessionId);
+		assert.deepStrictEqual({
+			models: snapshot.models.map(model => model.identifier),
+			modelTarget: snapshot.modelTarget,
+		}, {
+			models: ['matching'],
+			modelTarget: 'agent-host-copilotcli',
+		});
 	});
 
 	test('setModel updates existing session model and lets draft debounce persist it', () => {
@@ -1983,9 +1990,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
-	test('createNewSession seeds autoApprove from chat.defaultConfiguration and forwards it to resolveSessionConfig', async () => {
+	test('createNewSession maps allowAll from chat.defaultConfiguration to autoApprove', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove'], title: 'Auto-approve' } } },
 			values: { autoApprove: 'autoApprove' },
@@ -2021,7 +2028,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession forwards seeded config to eager createSession', async () => {
 		const config = new TestConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
@@ -2044,7 +2051,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession clamps seeded autoApprove to default when policy disables global auto-approve', async () => {
 		const config = createPolicyRestrictedConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -2250,7 +2257,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Case 1: policy restricts auto-approve — remembered 'autoApprove' is clamped to 'default'
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
-		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'autoApprove' });
+		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
 		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
 
@@ -2336,7 +2343,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession uses configured chat.defaultConfiguration when there is no remembered pick', async () => {
 		const config = createSchemaDefaultConfigurationService();
-		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'autoApprove' });
+		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot', approvals: 'allowAll' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);

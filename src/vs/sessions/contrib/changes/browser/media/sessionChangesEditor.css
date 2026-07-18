@@ -279,7 +279,7 @@
 	max-width: 100%;
 }
 
-.monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown > .monaco-button:not(.monaco-dropdown-button) {
+.monaco-action-bar .action-item.changes-actions-bar .monaco-button:not(.monaco-dropdown-button) {
 	flex: 1 1 auto;
 	flex-wrap: wrap;
 	min-width: 0;

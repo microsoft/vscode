@@ -223,6 +223,17 @@ export function setup(logger: Logger) {
 		this.timeout(5 * 60 * 1000);
 
 		let mockServer: MockLlmServer;
+		let claudeModelPrepared = false;
+
+		const prepareClaudeModel = async (app: Application, label: string): Promise<void> => {
+			if (claudeModelPrepared) {
+				await app.workbench.agentsWindow.selectSessionType('Claude');
+				return;
+			}
+
+			await warmUpClaudeModel(app, logger, label);
+			claudeModelPrepared = true;
+		};
 
 		// Shell-tool scenarios for each session type. Each entry carries
 		// everything the registration step and the corresponding test need —
@@ -286,7 +297,7 @@ export function setup(logger: Logger) {
 				scenarioFactory: shellEchoScenario,
 				// Pre-pay the Claude cold-start cost so the real assertion
 				// below runs against a warm pipeline (see warmUpClaudeModel).
-				warmUp: (app, label) => warmUpClaudeModel(app, logger, label),
+				warmUp: prepareClaudeModel,
 			},
 			// Note: there is intentionally no "Local" entry. The Local agent
 			// in the Agents Window does not include `run_in_terminal` in its
@@ -432,7 +443,7 @@ export function setup(logger: Logger) {
 						// spawn the SDK subprocess and load plugins — collectively often
 						// >60s on macOS arm64 CI. A throwaway prompt absorbs that cost so
 						// the real assertion below runs against a warm pipeline.
-						await warmUpClaudeModel(app, logger, 'Agents Window/Claude');
+						await prepareClaudeModel(app, 'Agents Window/Claude');
 					}
 
 					logger.log(`[Agents Window/${session.name}] selecting session type '${session.name}'`);

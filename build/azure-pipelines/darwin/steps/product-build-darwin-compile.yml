@@ -73,6 +73,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - task: PipAuthenticate@1
+    inputs:
+      artifactFeeds: Monaco/vscode
+    displayName: Setup Python Package Authentication
+
   - script: |
       set -e
       c++ --version

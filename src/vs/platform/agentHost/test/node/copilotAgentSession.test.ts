@@ -43,6 +43,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
@@ -185,6 +186,9 @@ class MockCopilotSession {
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
 				};
+			},
+			listTools: async (_params: { serverName: string }) => {
+				return { tools: [] };
 			},
 			disable: async (params: { serverName: string }) => {
 				this.mcpDisableCalls.push(params);
@@ -1701,7 +1705,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.ok(session.respondToPermissionRequest('tc-create', false));
-			assert.strictEqual((await resultPromise).kind, 'reject');
+			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
@@ -1903,7 +1907,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'reject');
+			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
@@ -2193,7 +2197,7 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.ok(session.respondToPermissionRequest('tc-assisted-bypass', false));
 
-			assert.strictEqual((await resultPromise).kind, 'reject');
+			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
 		});
 
 		test('does not send when the SDK rejects the requested permission mode', async () => {
@@ -5490,6 +5494,62 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('sending a message optimistically marks an enabled server as Starting', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				// The server is settled (failed) before the turn; the SDK reconnects
+				// enabled servers in the background on send without a live event.
+				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+			});
+
+			const beforeSend = session.topLevelMcpCustomizations()[0]?.state;
+			await session.send('hello');
+			const afterSend = session.topLevelMcpCustomizations()[0]?.state;
+
+			assert.deepStrictEqual({ beforeSend, afterSend }, {
+				beforeSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
+				afterSend: { kind: McpServerStatus.Starting },
+			});
+		});
+
+		test('startMcpServer optimistically marks the server Starting before the blocking reconnect', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				// Settled (failed) before the explicit restart; the disable->enable
+				// reconnect is a background SDK operation with no live "starting" event.
+				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+			});
+
+			const beforeStart = session.topLevelMcpCustomizations()[0]?.state;
+			await session.startMcpServer(id);
+			// The trailing inventory refresh is fire-and-forget, so right after the
+			// awaited enable the optimistic Starting is observable.
+			const afterStart = session.topLevelMcpCustomizations()[0]?.state;
+
+			assert.deepStrictEqual({ beforeStart, afterStart }, {
+				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
+				afterStart: { kind: McpServerStatus.Starting },
+			});
+		});
+
 		test('peer chat MCP desired enablement uses parent session customizations', async () => {
 			const parentSessionUri = AgentSession.uri('copilot', 'parent-session');
 			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
@@ -5797,6 +5857,11 @@ suite('CopilotAgentSession', () => {
 				serverName: 'github',
 				serverUrl: 'https://api.githubcopilot.com/mcp',
 				reason: 'upscope',
+				staticClientConfig: {
+					clientId: 'configured-client-id',
+					clientSecret: 'configured-client-secret',
+					publicClient: false,
+				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://api.githubcopilot.com/mcp',
 					resource_name: 'GitHub MCP Server',
@@ -5818,6 +5883,10 @@ suite('CopilotAgentSession', () => {
 				state: {
 					kind: McpServerStatus.AuthRequired,
 					reason: McpAuthRequiredReason.InsufficientScope,
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
 					resource: {
 						resource: 'https://api.githubcopilot.com/mcp',
 						resource_name: 'GitHub MCP Server',
@@ -5843,6 +5912,10 @@ suite('CopilotAgentSession', () => {
 				serverName: 'github',
 				serverUrl: 'https://mcp.example.com',
 				reason: 'initial',
+				staticClientConfig: {
+					clientId: 'public-client-id',
+					publicClient: true,
+				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://mcp.example.com',
 					resource_name: 'Lookalike MCP',
@@ -5861,11 +5934,13 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				resolved,
 				result: await authPromise,
+				oauthClient: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.oauthClient : undefined,
 				requiredScopes: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.requiredScopes : undefined,
 				supportedScopes: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.resource.scopes_supported : undefined,
 			}, {
 				resolved: true,
 				result: { kind: 'token', accessToken: 'interactive-token' },
+				oauthClient: { clientId: 'public-client-id' },
 				requiredScopes: undefined,
 				supportedScopes: ['repo'],
 			});
@@ -5926,6 +6001,71 @@ suite('CopilotAgentSession', () => {
 				servers: [{ name: 'late', status: 'connected' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+		});
+
+		test('a failed MCP server logs at error with structured attributes and preserves the failure detail', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, { logService });
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'db',
+				status: 'failed',
+				error: 'connection refused',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			const signal = await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)) as IAgentActionSignal;
+			const action = signal.action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+			const record = logService.errors.find(e => String(e.first).includes('MCP server \'db\''));
+
+			assert.deepStrictEqual({
+				state: action.customization.type === 'mcpServer' ? action.customization.state : undefined,
+				body: record ? String(record.first).replace(/^\[Copilot:[^\]]*\]\s*/, '') : undefined,
+				attributes: record?.args[0] instanceof OtelData ? record.args[0].attributes : undefined,
+			}, {
+				state: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'connection refused' } },
+				body: 'MCP server \'db\' failed (error): connection refused',
+				attributes: { mcpEvent: 'statusChanged', mcpServer: 'db', mcpStatus: 'failed', mcpState: 'error', errorType: 'mcp-server-failed' },
+			});
+		});
+
+		test('an MCP lifecycle change logs at info with the SDK-reported metadata', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, { logService });
+
+			mockSession.fire('session.mcp_servers_loaded', {
+				servers: [{ name: 'docs', status: 'connected', source: 'plugin', transport: 'stdio', pluginName: 'acme', pluginVersion: '1.2.3' }],
+			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const record = logService.infos.find(i => i.message.includes('MCP server \'docs\''));
+			assert.deepStrictEqual(record?.args[0] instanceof OtelData ? record.args[0].attributes : undefined, {
+				mcpEvent: 'loaded',
+				mcpServer: 'docs',
+				mcpStatus: 'connected',
+				mcpState: 'ready',
+				mcpSource: 'plugin',
+				mcpTransport: 'stdio',
+				mcpPlugin: 'acme',
+				mcpPluginVersion: '1.2.3',
+			});
+		});
+
+		test('an unchanged MCP status is not logged twice', async () => {
+			const logService = new CapturingLogService();
+			// Seeding the same server keeps the first log deterministic regardless
+			// of when the rpc seed and the live events interleave.
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				logService,
+				configureMockSession: m => { m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] }; },
+			});
+
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: 'docs', status: 'connected' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: 'docs', status: 'connected' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await timeout(0);
+
+			const docsLogs = logService.infos.filter(i => i.message.includes('MCP server \'docs\''));
+			assert.strictEqual(docsLogs.length, 1);
 		});
 	});
 

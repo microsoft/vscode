@@ -36,6 +36,7 @@ export type ChatPhoneInputPresenterRequest =
 	| {
 		readonly kind: 'session';
 		readonly getSessionContext: () => IChatPhoneInputSessionContext | undefined;
+		readonly selectModel: (modelIdentifier: string) => boolean;
 	};
 
 /**

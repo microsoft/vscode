@@ -36,7 +36,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
-import { isAutoApprovalsEnabled, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, isAutoApproveValueVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAssistedPermissionsEnabled, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -670,8 +670,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (this._property !== SessionConfigKey.AutoApprove) {
 			return items;
 		}
-		const autoApprovalsEnabled = isAutoApprovalsEnabled(this._configurationService);
-		return items.filter(item => isAutoApproveValueVisible(item.value, autoApprovalsEnabled));
+		const assistedPermissionsEnabled = isAssistedPermissionsEnabled(this._configurationService);
+		return items.filter(item => isPermissionLevelVisible(item.value, assistedPermissionsEnabled));
 	}
 
 	private _fromCompletion(item: SessionConfigValueItem): IConfigPickerItem {
@@ -707,7 +707,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	 */
 	private async _confirmAndSetValue(backendSession: URI, item: IConfigPickerItem): Promise<void> {
 		const value = item.value;
-		if (this._property === SessionConfigKey.AutoApprove && !isAutoApproveValueVisible(value, isAutoApprovalsEnabled(this._configurationService))) {
+		if (this._property === SessionConfigKey.AutoApprove && !isPermissionLevelVisible(value, isAssistedPermissionsEnabled(this._configurationService))) {
 			return;
 		}
 		if (this._property === SessionConfigKey.AutoApprove) {

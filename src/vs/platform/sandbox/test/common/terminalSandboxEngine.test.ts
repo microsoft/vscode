@@ -787,7 +787,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('checkForSandboxingPrereqs reports missing dependencies', async () => {
-		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true, dependencyInstallCommand: 'sudo pacman -S --needed --noconfirm' };
 		const host = createHost({
 			checkSandboxDependencies: () => Promise.resolve(status),
 		});
@@ -797,6 +797,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result.enabled, true);
 		strictEqual(result.failedCheck, 'dependencies');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap');
+		strictEqual(result.canInstallMissingDependencies, true);
 
 		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
 		const result2 = await engine.checkForSandboxingPrereqs(true);

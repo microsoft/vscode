@@ -51,7 +51,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
@@ -1910,6 +1910,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					id: opts.sessionResource.authority + '/' + server.id,
 					name: server.name,
 					resource: state.resource.resource,
+					oauthClient: state.oauthClient,
 					authorizationServers: state.resource.authorization_servers,
 					supportedScopes: state.resource.scopes_supported,
 					requiredScopes: state.requiredScopes,
@@ -2335,6 +2336,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
 					mcpServerName: server.name,
 					mcpServerUrl: server.resource,
+					oauthClient: server.oauthClient,
 					scopes: server.requiredScopes ?? [],
 					agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
 					authenticate: request => this._config.connection.authenticate(request),
@@ -3139,7 +3141,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const toolInput = tc.toolInput;
 		const sessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
 		const terminalCommandUri = URI.parse(terminalUri);
-		const terminalInstance = this._ensureTerminalInstance(terminalUri, backendSession);
+		const terminalInstance = this._ensureTerminalInstance(terminalUri, sessionId);
 		const existing = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData as IChatTerminalToolInvocationData
 			: undefined;
@@ -3555,18 +3557,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Attaches to an existing server-side terminal via the agent host
 	 * terminal service and registers it with the terminal chat service.
 	 *
-	 * Returns the `terminalToolSessionId` to use for the tool invocation.
+	 * Returns the terminal instance created or reused by the terminal service.
 	 */
-	private async _ensureTerminalInstance(terminalUri: string, backendSession: URI): Promise<string> {
-		const terminalToolSessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
-		const parsedUri = URI.parse(terminalUri);
-		await this._agentHostTerminalService.reviveTerminal(
+	private _ensureTerminalInstance(terminalUri: string, terminalToolSessionId: string): Promise<ITerminalInstance> {
+		return this._agentHostTerminalService.reviveTerminal(
 			this._config.connection,
-			parsedUri,
+			URI.parse(terminalUri),
 			terminalToolSessionId
 		);
-
-		return terminalToolSessionId;
 	}
 
 	/** Maps a UI session resource to a backend provider URI. */

@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isEditorLocalAgentEnabled, isRememberedSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, isEditorLocalAgentEnabled, isRememberedSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType, resolveDefaultNewChatSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
@@ -37,6 +37,22 @@ suite('ChatConfiguration defaults', () => {
 		} satisfies IChatSessionsExtensionPoint)));
 		return service;
 	}
+
+	test('default permission configuration maps Allow All to the Agent Host value', () => {
+		assert.deepStrictEqual({
+			default: getChatPermissionLevelFromDefaultConfiguration('default'),
+			assisted: getChatPermissionLevelFromDefaultConfiguration('assisted'),
+			allowAll: getChatPermissionLevelFromDefaultConfiguration('allowAll'),
+			legacyAutoApprove: getChatPermissionLevelFromDefaultConfiguration('autoApprove'),
+			invalid: getChatPermissionLevelFromDefaultConfiguration('invalid'),
+		}, {
+			default: ChatPermissionLevel.Default,
+			assisted: ChatPermissionLevel.Assisted,
+			allowAll: ChatPermissionLevel.AutoApprove,
+			legacyAutoApprove: ChatPermissionLevel.AutoApprove,
+			invalid: undefined,
+		});
+	});
 
 	test('editor default returns local when agent host disabled and local enabled', () => {
 		const configurationService = new TestConfigurationService();
