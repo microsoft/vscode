@@ -273,10 +273,9 @@
 	/* Complete response only */
 	display: block;
 	opacity: 0;
-	visibility: hidden;
 	padding-top: 6px;
 	height: 22px;
-	transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+	transition: opacity 0.1s ease-in-out;
 }
 
 /* Show toolbar on hover and last response. Keep it visible when keyboard focus moves inside the response. */
@@ -286,8 +285,7 @@
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
-	visibility: visible;
-	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	transition: opacity 0.1s ease-in-out;
 }
 
 /* Style the internal toolbar element to use flexbox */
@@ -3801,20 +3799,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		font-size: var(--vscode-fontSize-label3);
 		line-height: var(--vscode-fontSize-label3);
 		opacity: 0.7;
-		visibility: visible;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
 		opacity: 0;
-		visibility: hidden;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
-	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus-visible {
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus {
 		opacity: 0.7;
-		visibility: visible;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.interactive-item-container.interactive-request .chat-attached-context {
