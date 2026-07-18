@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -39,6 +41,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super();
 
@@ -88,11 +91,16 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				// About
 				else {
 					const aboutDialogDetails = createNativeAboutDialogDetails(this.productService, await this.nativeHostService.getOSProperties());
+					const aboutOptions = this.productService.releaseNotesUrl ? {
+						releaseNotesLabel: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+					} : undefined;
 
-					if (this.useCustomDialog) {
-						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
-					} else {
-						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
+					const aboutResult = this.useCustomDialog ?
+						await this.browserImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy, aboutOptions) :
+						await this.nativeImpl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy, aboutOptions);
+
+					if (aboutResult === 'releaseNotes') {
+						await this.commandService.executeCommand('update.showCurrentReleaseNotes');
 					}
 				}
 			} catch (error) {

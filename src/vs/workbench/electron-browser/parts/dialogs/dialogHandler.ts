@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { AbstractDialogHandler, AboutDialogResult, IAboutDialogOptions, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
@@ -64,20 +64,33 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		throw new Error('Unsupported'); // we have no native API for password dialogs in Electron
 	}
 
-	async about(title: string, details: string, detailsToCopy: string): Promise<void> {
+	async about(title: string, details: string, detailsToCopy: string, options?: IAboutDialogOptions): Promise<AboutDialogResult> {
+		const buttons = [
+			localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+		];
+		if (options?.releaseNotesLabel) {
+			buttons.push(options.releaseNotesLabel);
+		}
+		buttons.push(localize('okButton', "OK"));
+
 		const { response } = await this.nativeHostService.showMessageBox({
 			type: 'info',
 			message: title,
 			detail: `\n${details}`,
-			buttons: [
-				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
-				localize('okButton', "OK")
-			],
+			buttons,
+			cancelId: buttons.length - 1,
 			targetWindowId: getActiveWindow().vscodeWindowId
 		});
 
 		if (response === 0) {
 			this.clipboardService.writeText(detailsToCopy);
+			return 'copy';
 		}
+
+		if (options?.releaseNotesLabel && response === 1) {
+			return 'releaseNotes';
+		}
+
+		return 'ok';
 	}
 }

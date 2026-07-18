@@ -321,9 +321,18 @@ export interface IDialogHandler {
 
 	/**
 	 * Present the about dialog to the user.
+	 *
+	 * @param options.releaseNotesLabel when provided, shows a Release Notes button
+	 * and resolves to `'releaseNotes'` when that button is pressed.
 	 */
-	about(title: string, details: string, detailsToCopy: string): Promise<void>;
+	about(title: string, details: string, detailsToCopy: string, options?: IAboutDialogOptions): Promise<AboutDialogResult>;
 }
+
+export interface IAboutDialogOptions {
+	readonly releaseNotesLabel?: string;
+}
+
+export type AboutDialogResult = 'copy' | 'ok' | 'releaseNotes';
 
 enum DialogKind {
 	Confirmation = 1,
@@ -452,7 +461,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
 	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
-	abstract about(title: string, details: string, detailsToCopy: string): Promise<void>;
+	abstract about(title: string, details: string, detailsToCopy: string, options?: IAboutDialogOptions): Promise<AboutDialogResult>;
 }
 
 /**

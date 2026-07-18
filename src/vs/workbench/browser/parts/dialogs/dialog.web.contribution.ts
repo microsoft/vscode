@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -27,6 +29,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IDialogService private dialogService: IDialogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private productService: IProductService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super();
 
@@ -59,7 +62,17 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 					result = await this.impl.value.prompt(args.prompt);
 				} else {
 					const aboutDialogDetails = createBrowserAboutDialogDetails(this.productService);
-					await this.impl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
+					const aboutResult = await this.impl.value.about(
+						aboutDialogDetails.title,
+						aboutDialogDetails.details,
+						aboutDialogDetails.detailsToCopy,
+						this.productService.releaseNotesUrl ? {
+							releaseNotesLabel: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+						} : undefined
+					);
+					if (aboutResult === 'releaseNotes') {
+						await this.commandService.executeCommand('update.showCurrentReleaseNotes');
+					}
 				}
 			} catch (error) {
 				result = error;

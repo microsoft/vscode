@@ -12,8 +12,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType } from '../../../../platform/update/common/update.js';
-import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IUpdateService, State as UpdateState, StateType, AvailableForDownload, Downloading, Downloaded, Ready } from '../../../../platform/update/common/update.js';
+import { INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
@@ -229,6 +229,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.state = updateService.state;
@@ -259,13 +260,15 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
+		const previousState = this.state;
+		this.state = state;
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
 			case StateType.Idle:
 				// Themed dialog shown from the last focused window; the windowless macOS case is handled by the main process.
 				if (state.notAvailable && !state.error && await this.hostService.hadLastFocus()) {
-					this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
+					await this.showNoUpdatesAvailableDialog();
 				}
 				break;
 
@@ -300,7 +303,49 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 
-		this.state = state;
+		// When the title bar update UI is disabled, offer release notes in a dialog after an explicit check finds an update.
+		if (
+			previousState.type === StateType.CheckingForUpdates &&
+			previousState.explicit &&
+			this.productService.releaseNotesUrl &&
+			this.configurationService.getValue<boolean>('update.titleBar') === false &&
+			await this.hostService.hadLastFocus() &&
+			(state.type === StateType.AvailableForDownload ||
+				state.type === StateType.Downloading ||
+				state.type === StateType.Downloaded ||
+				state.type === StateType.Ready)
+		) {
+			await this.showUpdateAvailableDialog(state);
+		}
+	}
+
+	private async showNoUpdatesAvailableDialog(): Promise<void> {
+		const releaseNotesUrl = this.productService.releaseNotesUrl;
+		await this.dialogService.prompt({
+			type: severity.Info,
+			message: nls.localize('noUpdatesAvailable', "There are currently no updates available."),
+			buttons: releaseNotesUrl ? [{
+				label: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes"),
+				run: () => this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, this.productService.version))
+			}] : undefined,
+			cancelButton: releaseNotesUrl ? nls.localize('ok', "OK") : undefined
+		});
+	}
+
+	private async showUpdateAvailableDialog(state: AvailableForDownload | Downloading | Downloaded | Ready): Promise<void> {
+		const productVersion = state.update?.productVersion;
+		await this.dialogService.prompt({
+			type: severity.Info,
+			message: nls.localize('updateAvailable', "An update is available."),
+			detail: productVersion
+				? nls.localize('updateAvailableDetail', "{0} version {1} is available.", this.productService.nameLong, productVersion)
+				: undefined,
+			buttons: [{
+				label: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes"),
+				run: () => this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion ?? this.productService.version))
+			}],
+			cancelButton: nls.localize('ok', "OK")
+		});
 	}
 
 	private registerGlobalActivityActions(): void {
@@ -439,7 +484,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
 					const { result } = await dialogService.prompt<UserDataSyncStoreType>({
-						type: Severity.Info,
+						type: severity.Info,
 						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
 						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 						buttons: [

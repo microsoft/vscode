@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult, IAboutDialogOptions, AboutDialogResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
@@ -73,22 +73,33 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
 
-	async about(title: string, details: string, detailsToCopy: string): Promise<void> {
+	async about(title: string, details: string, detailsToCopy: string, options?: IAboutDialogOptions): Promise<AboutDialogResult> {
+		const buttons = [
+			localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
+		];
+		if (options?.releaseNotesLabel) {
+			buttons.push(options.releaseNotesLabel);
+		}
+		buttons.push(localize('ok', "OK"));
 
 		const { button } = await this.doShow(
 			Severity.Info,
 			title,
-			[
-				localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"),
-				localize('ok', "OK")
-			],
+			buttons,
 			details,
-			1
+			buttons.length - 1
 		);
 
 		if (button === 0) {
 			this.clipboardService.writeText(detailsToCopy);
+			return 'copy';
 		}
+
+		if (options?.releaseNotesLabel && button === 1) {
+			return 'releaseNotes';
+		}
+
+		return 'ok';
 	}
 
 	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions, token?: CancellationToken): Promise<IDialogResult> {

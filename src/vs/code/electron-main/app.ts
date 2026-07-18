@@ -1349,7 +1349,13 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Show a native "no updates available" dialog from the main process only in windowless macOS case.
-		this._register(new NotAvailableUpdateDialog(updateService, accessor.get(IDialogMainService), accessor.get(IWindowsMainService)));
+		this._register(new NotAvailableUpdateDialog(
+			updateService,
+			accessor.get(IDialogMainService),
+			accessor.get(IWindowsMainService),
+			accessor.get(IProductService),
+			accessor.get(INativeHostMainService),
+		));
 
 		// Metered Connection
 		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);

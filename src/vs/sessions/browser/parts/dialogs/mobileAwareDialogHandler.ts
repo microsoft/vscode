@@ -6,7 +6,7 @@
 import Severity from '../../../../base/common/severity.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { localize } from '../../../../nls.js';
-import { AbstractDialogHandler, DialogType, IConfirmation, IConfirmationResult, IInput, IInputResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { AbstractDialogHandler, AboutDialogResult, DialogType, IAboutDialogOptions, IConfirmation, IConfirmationResult, IInput, IInputResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BrowserDialogHandler } from '../../../../workbench/browser/parts/dialogs/dialogHandler.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -79,8 +79,8 @@ export class MobileAwareDialogHandler extends AbstractDialogHandler {
 		return this._desktop.input(input);
 	}
 
-	about(title: string, details: string, detailsToCopy: string): Promise<void> {
-		return this._desktop.about(title, details, detailsToCopy);
+	about(title: string, details: string, detailsToCopy: string, options?: IAboutDialogOptions): Promise<AboutDialogResult> {
+		return this._desktop.about(title, details, detailsToCopy, options);
 	}
 
 	private _toSheetButtons(labels: string[], cancelIndex: number): IMobileDialogSheetButton[] {

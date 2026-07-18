@@ -80,6 +80,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
+	private pendingExplicitCheckResult = false;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -159,7 +160,14 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private async onStateChange(startup = false) {
 		if (this.configurationService.getValue<boolean>(UPDATE_TITLE_BAR_SETTING) === false) {
 			this.context.set(false);
+			this.pendingExplicitCheckResult = false;
 			return;
+		}
+
+		if (this.state.type === StateType.CheckingForUpdates && this.state.explicit) {
+			this.pendingExplicitCheckResult = true;
+		} else if (this.state.type === StateType.Idle) {
+			this.pendingExplicitCheckResult = false;
 		}
 
 		// Tooltip already shown or window not last focused: only sync content and indicator visibility.
@@ -188,10 +196,24 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Idle:
 				showTooltip = !!this.state.error;
 				break;
+			case StateType.AvailableForDownload:
+				if (this.pendingExplicitCheckResult) {
+					showTooltip = true;
+					this.pendingExplicitCheckResult = false;
+				}
+				break;
 			case StateType.Downloading:
+			case StateType.Downloaded:
+			case StateType.Ready:
 			case StateType.Updating:
 			case StateType.Overwriting:
-				context = this.state.explicit;
+				if (this.pendingExplicitCheckResult) {
+					showTooltip = true;
+					this.pendingExplicitCheckResult = false;
+				}
+				if (this.state.type === StateType.Downloading || this.state.type === StateType.Updating || this.state.type === StateType.Overwriting) {
+					context = this.state.explicit;
+				}
 				break;
 			case StateType.Cancelling:
 				context = true;

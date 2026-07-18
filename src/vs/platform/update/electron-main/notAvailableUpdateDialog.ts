@@ -7,6 +7,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { localize } from '../../../nls.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
+import { IProductService } from '../../product/common/productService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IUpdateService, StateType } from '../common/update.js';
 
@@ -21,6 +23,8 @@ export class NotAvailableUpdateDialog extends Disposable {
 		updateService: IUpdateService,
 		dialogMainService: IDialogMainService,
 		windowsMainService: IWindowsMainService,
+		productService: IProductService,
+		nativeHostMainService: INativeHostMainService,
 	) {
 		super();
 
@@ -33,9 +37,24 @@ export class NotAvailableUpdateDialog extends Disposable {
 				return;
 			}
 
-			dialogMainService.showMessageBox({
+			const releaseNotesUrl = productService.releaseNotesUrl;
+			const buttons = releaseNotesUrl
+				? [
+					localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes"),
+					localize('ok', "OK")
+				]
+				: [localize('ok', "OK")];
+
+			void dialogMainService.showMessageBox({
 				type: 'info',
 				message: localize('noUpdatesAvailable', "There are currently no updates available."),
+				buttons,
+				cancelId: buttons.length - 1,
+			}).then(({ response }) => {
+				if (releaseNotesUrl && response === 0) {
+					return nativeHostMainService.openExternal(undefined, releaseNotesUrl);
+				}
+				return undefined;
 			});
 		}));
 	}

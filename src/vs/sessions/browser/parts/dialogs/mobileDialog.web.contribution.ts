@@ -5,6 +5,8 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -35,6 +37,7 @@ export class MobileDialogHandlerContribution extends Disposable implements IWork
 		@IDialogService private dialogService: IDialogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private productService: IProductService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super();
 
@@ -67,7 +70,17 @@ export class MobileDialogHandlerContribution extends Disposable implements IWork
 					result = await this.impl.value.prompt(args.prompt);
 				} else {
 					const aboutDialogDetails = createBrowserAboutDialogDetails(this.productService);
-					await this.impl.value.about(aboutDialogDetails.title, aboutDialogDetails.details, aboutDialogDetails.detailsToCopy);
+					const aboutResult = await this.impl.value.about(
+						aboutDialogDetails.title,
+						aboutDialogDetails.details,
+						aboutDialogDetails.detailsToCopy,
+						this.productService.releaseNotesUrl ? {
+							releaseNotesLabel: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+						} : undefined
+					);
+					if (aboutResult === 'releaseNotes') {
+						await this.commandService.executeCommand('update.showCurrentReleaseNotes');
+					}
 				}
 			} catch (error) {
 				result = error;
