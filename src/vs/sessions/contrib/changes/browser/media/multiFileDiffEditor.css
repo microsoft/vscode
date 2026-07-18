@@ -47,6 +47,35 @@
 	line-height: 22px;
 }
 
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title.modified {
+	display: flex;
+	align-items: center;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title.modified > .monaco-icon-label {
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40);
+	margin-left: var(--vscode-spacing-size60);
+	font-size: var(--vscode-agents-fontSize-body2);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .session-changes-file-stats .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions-container {
 	gap: 4px;
 }

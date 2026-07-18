@@ -837,6 +837,10 @@ suite('stateToProgressAdapter', () => {
 				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
 				auth: {
 					reason: McpAuthRequiredReason.InsufficientScope,
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
 					resource: {
 						resource: 'https://mcp.example.com',
 						resource_name: 'Example MCP',
@@ -863,6 +867,10 @@ suite('stateToProgressAdapter', () => {
 					id: 'frontend/mcp-1',
 					name: 'Example MCP',
 					resource: 'https://mcp.example.com',
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
 					authorizationServers: ['https://auth.example.com'],
 					supportedScopes: ['repo'],
 					requiredScopes: ['repo'],

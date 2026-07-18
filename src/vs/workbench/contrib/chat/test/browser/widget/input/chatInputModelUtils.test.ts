@@ -12,28 +12,24 @@ import {
 	filterModelsForSession,
 	findBestMatchingModel,
 	findDefaultModel,
+	findReplacementForProvisionalModel,
 	getAgentHostByokManageModelsIdentifier,
 	hasModelsTargetingSession,
 	isModelHiddenInPicker,
 	isModelSupportedForInlineChat,
 	isModelSupportedForMode,
 	isModelValidForSession,
-	getModelPickerUnavailableReason,
-	ModelPickerUnavailableReason,
 	mergeModelsWithCache,
-	resolveConfiguredModel,
 	resolveModelFromSyncState,
 	shouldDropAgnosticDraftModel,
 	shouldPersistModelSelection,
 	shouldResetModelToDefault,
 	shouldResetOnModelListChange,
-	shouldRestoreLateArrivingModel,
 	shouldRestorePersistedModel,
 	shouldRestorePerTypeModelOnSessionSwitch,
-	shouldShowCacheBreakHint,
 	shouldSuppressModelPersistenceOnSessionSwitch,
 	shouldWaitForSessionModel,
-} from '../../../../browser/widget/input/chatModelSelectionLogic.js';
+} from '../../../../browser/widget/input/chatInputModelUtils.js';
 
 /**
  * Test helper that composes the full startup pipeline: merge live+cache → sort → filter by session/mode.
@@ -115,7 +111,7 @@ function createVendorModel(
 	return { identifier: `${vendor}/${id}`, metadata: model.metadata };
 }
 
-suite('ChatModelSelectionLogic', () => {
+suite('ChatInputModelUtils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -461,6 +457,16 @@ suite('ChatModelSelectionLogic', () => {
 			const result = findDefaultModel([terminalDefault, regular], ChatAgentLocation.Chat);
 			// Falls back to first model since none is default for Chat
 			assert.strictEqual(result?.metadata.id, 'terminal-default');
+		});
+
+		test('replaces only the current provisional model when a location default arrives', () => {
+			const provisional = createModel('byok', 'BYOK');
+			const defaultModel = createDefaultModelForLocation('auto', 'Auto', ChatAgentLocation.Chat);
+			assert.deepStrictEqual([
+				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional], ChatAgentLocation.Chat)?.identifier,
+				findReplacementForProvisionalModel(provisional.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
+				findReplacementForProvisionalModel(defaultModel.identifier, provisional.identifier, [provisional, defaultModel], ChatAgentLocation.Chat)?.identifier,
+			], [undefined, defaultModel.identifier, undefined]);
 		});
 	});
 
@@ -1038,63 +1044,6 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
-	suite('late-arriving model restoration', () => {
-
-		test('restores explicitly-chosen model that arrives late', () => {
-			const model = createModel('gpt', 'GPT');
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', false, model, ChatAgentLocation.Chat),
-				true,
-			);
-		});
-
-		test('restores model that was default and is still default for location', () => {
-			const model = createDefaultModelForLocation('gpt', 'GPT', ChatAgentLocation.Chat);
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', true, model, ChatAgentLocation.Chat),
-				true,
-			);
-		});
-
-		test('does NOT restore model that was default but is no longer default', () => {
-			const model = createModel('gpt', 'GPT'); // not default for any location
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', true, model, ChatAgentLocation.Chat),
-				false,
-			);
-		});
-
-		test('does NOT restore model that is not user-selectable', () => {
-			const model = createModel('internal', 'Internal', { isUserSelectable: false });
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/internal', false, model, ChatAgentLocation.Chat),
-				false,
-			);
-		});
-
-		test('restores model with isUserSelectable=undefined (defaults to selectable)', () => {
-			const model = createModel('undef-sel', 'Undef-Sel', { isUserSelectable: undefined });
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/undef-sel', false, model, ChatAgentLocation.Chat),
-				true,
-			);
-		});
-
-		test('restores model arriving late at a different location where it is default', () => {
-			const model = createDefaultModelForLocation('gpt', 'GPT', ChatAgentLocation.Terminal);
-			// User is in Terminal — model is default there
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', true, model, ChatAgentLocation.Terminal),
-				true,
-			);
-			// But not in Chat
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', true, model, ChatAgentLocation.Chat),
-				false,
-			);
-		});
-	});
-
 	suite('full startup pipeline (computeAvailableModels)', () => {
 
 		test('startup with only cached models returns filtered cache', () => {
@@ -1566,10 +1515,7 @@ suite('ChatModelSelectionLogic', () => {
 
 			// Step 2: Models arrive via onDidChangeLanguageModels
 			const arrivedModel = createModel('gpt', 'GPT');
-			assert.strictEqual(
-				shouldRestoreLateArrivingModel('copilot/gpt', false, arrivedModel, ChatAgentLocation.Chat),
-				true,
-			);
+			assert.strictEqual(shouldRestorePersistedModel('copilot/gpt', false, [arrivedModel], ChatAgentLocation.Chat).shouldRestore, true);
 		});
 
 		test('extension reload: selected model flickers out then back', () => {
@@ -1740,151 +1686,6 @@ suite('ChatModelSelectionLogic', () => {
 				fallback?.metadata.isBYOK,
 				true,
 				'reset fallback should not be a BYOK model',
-			);
-		});
-	});
-
-	suite('resolveConfiguredModel', () => {
-
-		test('returns undefined for empty or whitespace configured value', () => {
-			const gpt = createModel('gpt', 'GPT');
-			assert.strictEqual(resolveConfiguredModel(undefined, [gpt]), undefined);
-			assert.strictEqual(resolveConfiguredModel('', [gpt]), undefined);
-			assert.strictEqual(resolveConfiguredModel('   ', [gpt]), undefined);
-		});
-
-		test('resolves "auto" (case-insensitive) to the synthetic auto model', () => {
-			const auto = createModel('auto', 'Auto');
-			const gpt = createModel('gpt', 'GPT');
-			assert.strictEqual(resolveConfiguredModel('auto', [gpt, auto])?.metadata.id, 'auto');
-			assert.strictEqual(resolveConfiguredModel('AUTO', [gpt, auto])?.metadata.id, 'auto');
-		});
-
-		test('returns undefined for "auto" when no auto model exists', () => {
-			const gpt = createModel('gpt', 'GPT');
-			assert.strictEqual(resolveConfiguredModel('auto', [gpt]), undefined);
-		});
-
-		test('resolves a full model id (case-insensitive)', () => {
-			const gpt = createModel('gpt-5', 'GPT-5');
-			const claude = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus' });
-			assert.strictEqual(resolveConfiguredModel('claude-opus-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
-			assert.strictEqual(resolveConfiguredModel('CLAUDE-OPUS-4.6', [gpt, claude])?.metadata.id, 'claude-opus-4.6');
-		});
-
-		test('resolves a family name to the highest-version model in that family', () => {
-			const opus45 = createModel('claude-opus-4.5', 'Claude Opus 4.5', { family: 'opus', version: '4.5' });
-			const opus46 = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
-			const opus410 = createModel('claude-opus-4.10', 'Claude Opus 4.10', { family: 'opus', version: '4.10' });
-			const gemini = createModel('gemini-2', 'Gemini 2', { family: 'gemini', version: '2.0' });
-			assert.strictEqual(resolveConfiguredModel('opus', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
-			assert.strictEqual(resolveConfiguredModel('OPUS', [opus45, opus46, opus410, gemini])?.metadata.id, 'claude-opus-4.10');
-			assert.strictEqual(resolveConfiguredModel('gemini', [opus45, opus46, opus410, gemini])?.metadata.id, 'gemini-2');
-		});
-
-		test('full id match takes precedence over family match', () => {
-			const opusLatest = createModel('opus', 'Opus alias', { family: 'opus', version: '1.0' });
-			const opusNewer = createModel('claude-opus-4.6', 'Claude Opus 4.6', { family: 'opus', version: '4.6' });
-			// The configured value "opus" matches the model whose id is exactly "opus"
-			// rather than being treated as a family lookup.
-			assert.strictEqual(resolveConfiguredModel('opus', [opusNewer, opusLatest])?.metadata.id, 'opus');
-		});
-
-		test('returns undefined when nothing matches', () => {
-			const gpt = createModel('gpt-5', 'GPT-5', { family: 'gpt' });
-			assert.strictEqual(resolveConfiguredModel('nonexistent', [gpt]), undefined);
-		});
-	});
-
-	suite('getModelPickerUnavailableReason', () => {
-		const gpt = createModel('gpt-4o', 'GPT-4o');
-
-		function reason(opts: { trustInitialized?: boolean; trusted?: boolean; pickerModels?: ILanguageModelChatMetadataAndIdentifier[]; liveModelIds?: Iterable<string>; requiresSetup?: boolean }): ModelPickerUnavailableReason | undefined {
-			return getModelPickerUnavailableReason({
-				trustInitialized: opts.trustInitialized ?? true,
-				trusted: opts.trusted ?? true,
-				pickerModels: opts.pickerModels ?? [],
-				liveModelIds: opts.liveModelIds ?? [],
-				requiresSetup: opts.requiresSetup ?? false,
-			});
-		}
-
-		test('untrusted with no usable models is Restricted', () => {
-			assert.strictEqual(reason({ trusted: false }), ModelPickerUnavailableReason.Restricted);
-		});
-
-		test('trusted with no usable models and setup required is SetupRequired', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: true }), ModelPickerUnavailableReason.SetupRequired);
-		});
-
-		test('trusted with no usable models and setup not required is available (e.g. anonymous/Auto)', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: false }), undefined);
-		});
-
-		test('undefined until trust has initialized', () => {
-			assert.strictEqual(reason({ trustInitialized: false, trusted: false, requiresSetup: true }), undefined);
-		});
-
-		test('a live, picker-offered model wins over setup-required when trusted (e.g. BYOK)', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), undefined);
-		});
-
-		test('Restricted Mode disables even a live, picker-offered model (e.g. BYOK)', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true, pickerModels: [gpt], liveModelIds: [gpt.identifier] }), ModelPickerUnavailableReason.Restricted);
-		});
-
-		test('cached models that are not live do not mask an unavailable state', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: [] }), ModelPickerUnavailableReason.SetupRequired);
-		});
-
-		test('models live for another surface but not offered by this picker do not mask the unavailable state', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [], liveModelIds: ['agentHost/claude'] }), ModelPickerUnavailableReason.SetupRequired);
-		});
-
-		test('restricted takes precedence over setup required', () => {
-			assert.strictEqual(reason({ trusted: false, requiresSetup: true }), ModelPickerUnavailableReason.Restricted);
-		});
-
-		test('accepts a Set of live ids', () => {
-			assert.strictEqual(reason({ trusted: true, requiresSetup: true, pickerModels: [gpt], liveModelIds: new Set([gpt.identifier]) }), undefined);
-		});
-	});
-
-	suite('shouldShowCacheBreakHint', () => {
-
-		function show(opts: { dismissed?: boolean; cacheWarm?: boolean; noModelsAvailable?: boolean; excludeAutoModel?: boolean; selectedModelIsAuto?: boolean }): boolean {
-			return shouldShowCacheBreakHint({
-				dismissed: opts.dismissed ?? false,
-				cacheWarm: opts.cacheWarm ?? true,
-				noModelsAvailable: opts.noModelsAvailable ?? false,
-				excludeAutoModel: opts.excludeAutoModel ?? true,
-				selectedModelIsAuto: opts.selectedModelIsAuto ?? false,
-			});
-		}
-
-		test('shown only for a warm cache with a real model to switch to', () => {
-			assert.deepStrictEqual(
-				{
-					default: show({}),
-					dismissed: show({ dismissed: true }),
-					coldCache: show({ cacheWarm: false }),
-					// Signed out / Restricted Mode / empty list: nothing to switch to.
-					noModels: show({ noModelsAvailable: true }),
-					autoInModelPicker: show({ selectedModelIsAuto: true }),
-					// The options picker: reasoning effort / context size reset the cache under Auto too.
-					autoInOptionsPicker: show({ selectedModelIsAuto: true, excludeAutoModel: false }),
-					// A suppressing condition still wins in the options picker.
-					noModelsInOptionsPicker: show({ noModelsAvailable: true, excludeAutoModel: false }),
-				},
-				{
-					default: true,
-					dismissed: false,
-					coldCache: false,
-					noModels: false,
-					autoInModelPicker: false,
-					autoInOptionsPicker: true,
-					noModelsInOptionsPicker: false,
-				}
 			);
 		});
 	});

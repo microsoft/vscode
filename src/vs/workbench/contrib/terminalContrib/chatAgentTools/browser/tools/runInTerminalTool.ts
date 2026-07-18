@@ -991,12 +991,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
 			: undefined;
+		const canInstallMissingDependencies = !!missingDependencies && sandboxPrereqs.canInstallMissingDependencies === true;
 		const sandboxRemediations = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && sandboxPrereqs.remediations?.length
 			? [...sandboxPrereqs.remediations]
 			: undefined;
 		const sandboxPrerequisiteFailure = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && !sandboxRemediations
 			? localize('runInTerminal.bubblewrap.unusable', "Bubblewrap is installed but cannot create the required sandbox namespace on this system. The command was not executed.")
-			: undefined;
+			: missingDependencies && !canInstallMissingDependencies
+				? localize('runInTerminal.missingDeps.unsupportedInstaller', "The following dependencies required for sandboxed execution are not installed: {0}. Install them using your system package manager, then run the command again.", missingDependencies.join(', '))
+				: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -1093,7 +1096,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let sandboxPrerequisiteConfirmation: IToolConfirmationMessages | undefined = undefined;
 		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
 		// This is handled before the tool is invoked so the model never sees the dependency error.
-		if (missingDependencies) {
+		if (missingDependencies && canInstallMissingDependencies) {
 			const depsList = missingDependencies.join(', ');
 			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),

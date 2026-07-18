@@ -6,6 +6,7 @@
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -31,6 +32,7 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
@@ -48,6 +50,12 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 			this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
 				kind: 'session',
 				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get()),
+				selectModel: modelIdentifier => {
+					const chatResource = this._session.get()?.activeChat.get().resource;
+					return chatResource
+						? this._chatWidgetService.getWidgetBySessionResource(chatResource)?.inputPart.switchModelByIdentifier(modelIdentifier, true, true) ?? false
+						: false;
+				},
 			})
 				.finally(() => {
 					anchor.focus();

@@ -75,7 +75,7 @@ import { autorun, derived, IObservable, observableValue } from '../../../../base
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
-import { ISessionModelSelectionModel, SessionModelSelectionModel } from './modelPickerModel.js';
+import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
@@ -329,9 +329,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
-		this._canSendRequest = derived(this, reader =>
-			this.options.canSendRequest.read(reader) && this._sessionModelSelectionModel.state.read(reader).hasSelectableModel
-		);
+		this._canSendRequest = derived(this, reader => {
+			const modelSelection = this._sessionModelSelectionModel.state.read(reader);
+			return this.options.canSendRequest.read(reader) && modelSelection.hasSelectableModel && !modelSelection.pendingSelection;
+		});
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionContext, new SessionContext(this.options.session)],

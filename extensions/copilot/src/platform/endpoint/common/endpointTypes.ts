@@ -13,3 +13,15 @@ export namespace CustomDataPartMimeTypes {
 }
 
 export const CacheType = 'ephemeral';
+
+/**
+ * Vendors of Copilot's built-in BYOK providers whose converters handle the internal
+ * {@link CustomDataPartMimeTypes.CacheControl} sentinel. Others would leak it upstream (#313920).
+ *
+ * TODO @vritant24: replace with an externally exposed opt-in API (#313920).
+ */
+export const CacheBreakpointAwareModelVendors: ReadonlySet<string> = new Set(['anthropic', 'gemini', 'openrouter']);
+
+export function modelVendorHandlesCacheBreakpoints(vendor: string | undefined): boolean {
+	return vendor !== undefined && CacheBreakpointAwareModelVendors.has(vendor);
+}

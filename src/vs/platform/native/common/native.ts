@@ -57,14 +57,35 @@ export interface IOSProxy {
 	readonly host?: string;
 }
 
+export interface IOSProxyEnvironmentVariableStatus {
+	readonly variable: string;
+	readonly value: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyPacSourceStatus {
+	readonly state: 'disabled' | 'unsupported' | 'unconfigured' | 'not-found' | 'available' | 'error-discovery' | 'error-download' | 'unknown';
+	readonly url?: string;
+	readonly error?: string;
+}
+
 export interface IOSProxyConfig {
+	readonly environment: {
+		readonly httpProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly httpsProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly allProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly noProxy?: IOSProxyEnvironmentVariableStatus;
+	};
 	readonly autoDetect: boolean;
 	readonly pacUrl?: string;
 	readonly pac?: {
 		readonly url: string;
 		readonly content: string;
-		readonly source: 'wpad' | 'configured' | 'unknown';
+		readonly source: 'wpad-dns' | 'wpad-dhcp' | 'configured' | 'unknown';
 	};
+	readonly wpadDhcp: IOSProxyPacSourceStatus;
+	readonly wpadDns: IOSProxyPacSourceStatus;
+	readonly configuredPac: IOSProxyPacSourceStatus;
 	readonly staticRules?: {
 		readonly http?: IOSProxy;
 		readonly https?: IOSProxy;

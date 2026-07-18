@@ -178,7 +178,7 @@
 
 			.progress-container,
 			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
+				margin: 0 0 0 6px;
 				box-sizing: border-box;
 				max-width: calc(100% - 6px);
 			}

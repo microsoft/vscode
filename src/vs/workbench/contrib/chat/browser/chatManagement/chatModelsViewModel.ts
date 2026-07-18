@@ -6,10 +6,9 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
-import { getAgentHostByokManageModelsIdentifier } from '../widget/input/chatModelSelectionLogic.js';
 import Severity from '../../../../../base/common/severity.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
@@ -479,7 +478,7 @@ export class ChatModelsViewModel extends Disposable {
 				// provider group, so listing them again under the agent-host vendor would
 				// duplicate the entire BYOK catalogue (e.g. hundreds of OpenRouter models
 				// under "Copilot"). Skip them here.
-				if (getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+				if (ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
 					continue;
 				}
 				models.push({

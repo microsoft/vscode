@@ -171,7 +171,15 @@ export class TestNativeHostService implements INativeHostService {
 	async openContentTracingWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async resolveProxyWithPackage() { return []; }
-	async readProxyConfigWithPackage() { return { autoDetect: false }; }
+	async readProxyConfigWithPackage() {
+		return {
+			environment: {},
+			autoDetect: false,
+			wpadDhcp: { state: 'unsupported' as const },
+			wpadDns: { state: 'disabled' as const },
+			configuredPac: { state: 'unconfigured' as const }
+		};
+	}
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }

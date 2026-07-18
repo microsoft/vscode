@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceBargeIn } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -117,6 +117,83 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual(events, [{
 			turnId: 'interrupting-turn',
 			interruptedTurnId: 'cancelled-turn',
+		}]);
+	});
+
+	test('validates and translates scoped transcription metadata', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+		const events: IVoiceTranscription[] = [];
+		store.add(service.onTranscription(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		socket.onmessage(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'transcription',
+				text: 'create a file',
+				status: 'partial',
+				committed: 'create ',
+				turn_id: 'turn-1',
+				revision: 3,
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			text: 'create a file',
+			status: 'partial',
+			committed: 'create ',
+			turnId: 'turn-1',
+			revision: 3,
+		}]);
+	});
+
+	test('rejects invalid transcription status and revision', async () => {
+		const productService: IProductService = {
+			_serviceBrand: undefined,
+			...product,
+			voiceWsUrl: 'ws://voice.test/realtime/voice',
+		};
+		const service = store.add(new VoiceClientService(
+			new TestConfigurationService(),
+			new NullLogService(),
+			productService,
+		));
+		const events: IVoiceTranscription[] = [];
+		store.add(service.onTranscription(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const socket = TestWebSocket.instance;
+		if (!socket?.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		for (const message of [
+			{ type: 'transcription', text: 'invalid status', status: 'pending' },
+			{ type: 'transcription', text: 'unscoped revision', status: 'partial', revision: 1 },
+			{ type: 'transcription', text: 'invalid revision', status: 'partial', turn_id: 'turn-1', revision: 1.5 },
+			{ type: 'transcription', text: 'negative revision', status: 'partial', turn_id: 'turn-1', revision: -1 },
+			{ type: 'transcription', text: 'legacy final' },
+		]) {
+			socket.onmessage(new mainWindow.MessageEvent('message', { data: JSON.stringify(message) }));
+		}
+
+		assert.deepStrictEqual(events, [{
+			text: 'legacy final',
+			status: 'final',
+			committed: '',
+			turnId: undefined,
+			revision: undefined,
 		}]);
 	});
 

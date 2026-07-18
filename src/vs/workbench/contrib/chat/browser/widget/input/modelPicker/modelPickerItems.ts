@@ -18,7 +18,7 @@ import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetad
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../../base/common/semver/semver.js';
 import { getModelHoverContent } from './modelPickerHover.js';
-import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerUtils.js';
+import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {

@@ -222,7 +222,7 @@ AHP Remote Server ────────────────────�
 
 ### MCP server list active-session controls
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls.
+The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
 
 Enablement has three explicit scopes. `Enable` / `Disable` persists at profile scope, `Enable (Workspace)` / `Disable (Workspace)` persists for the active project, and `Enable (Session)` / `Disable (Session)` dispatches only to the active agent-host session. Servers with an exact, unambiguous identifier or name match to an `IMcpService` entry, including extension-provided servers, use the existing local enablement model for profile/workspace state. Ambiguous matches remain agent-host-only so an action cannot target the wrong local server. Agent-host-only profile state is keyed by agent-host resource scheme (which includes local/remote host and provider identity) plus exact server name; workspace state additionally includes the session working directory so repositories inside the shared Agents window storage workspace remain independent. Workspace actions are hidden when the Sessions-aware active project root is absent, including workspace-less quick chats.
 
@@ -272,7 +272,9 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### MCP Active Session Status
 
-The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended under an **Active Session** group and counted with the rest of the section.
+The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended to the **Workspace** group and counted with the rest of the section.
+
+The MCP list uses `WorkbenchList` as its sole scroll owner. Layout uses the widget's rendered content-box dimensions rather than the padded panel's outer dimensions, and the virtual delegate height matches each rendered row variant, including the taller two-line description row. These invariants keep the final row fully reachable at the bottom of the list.
 
 ### Sidebar Customizations Section
 

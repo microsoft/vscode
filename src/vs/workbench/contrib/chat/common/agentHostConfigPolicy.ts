@@ -11,12 +11,12 @@ export function isAutoApprovePolicyRestricted(configurationService: IConfigurati
 	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 }
 
-export function isAutoApprovalsEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatConfiguration.AutoApprovalsEnabled) === true;
+export function isAssistedPermissionsEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.AssistedPermissionsEnabled) === true;
 }
 
-export function isAutoApproveValueVisible(value: unknown, autoApprovalsEnabled: boolean): boolean {
-	return value !== ChatPermissionLevel.Assisted || autoApprovalsEnabled;
+export function isPermissionLevelVisible(value: unknown, assistedPermissionsEnabled: boolean): boolean {
+	return value !== ChatPermissionLevel.Assisted || assistedPermissionsEnabled;
 }
 
 export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestricted: boolean): boolean {

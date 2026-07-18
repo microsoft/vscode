@@ -145,12 +145,6 @@ configurationRegistry.registerConfiguration({
 			deprecationMessage: nls.localize('useRipgrepDeprecated', "Deprecated. Consider \"search.usePCRE2\" for advanced regex feature support."),
 			default: true
 		},
-		'search.maintainFileSearchCache': {
-			type: 'boolean',
-			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
-			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
-			default: false
-		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
 			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
@@ -210,13 +204,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
-		},
-		'search.location': {
-			type: 'string',
-			enum: ['sidebar', 'panel'],
-			default: 'sidebar',
-			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
-			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
 		},
 		'search.maxResults': {
 			type: ['number', 'null'],

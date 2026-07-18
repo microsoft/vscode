@@ -17,6 +17,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
@@ -164,6 +165,7 @@ export class NewChatVoiceController extends Disposable {
 		@IMicCaptureService micCaptureService: IMicCaptureService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -205,6 +207,7 @@ export class NewChatVoiceController extends Disposable {
 			micCaptureService,
 			configurationService,
 			keybindingService,
+			accessibilityService,
 		}, {
 			inputContainer: options.inputContainer,
 			isActive: isVoiceTarget,

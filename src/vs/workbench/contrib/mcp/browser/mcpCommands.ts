@@ -49,7 +49,6 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IOutputService } from '../../../services/output/common/output.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -456,7 +455,6 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 	override async run(accessor: ServicesAccessor, agentHostSession: URI, customizationId: string): Promise<void> {
 		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const outputService = accessor.get(IOutputService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
 		const aiCustomizationWorkspaceService = accessor.get(IAICustomizationWorkspaceService);
@@ -466,8 +464,6 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		if (!server) {
 			return;
 		}
-
-		const logOutputChannelId = server.logOutputChannelId;
 
 		type ItemType = { action: 'toggleSession' | 'showOutput' | 'authenticate' | AgentHostMcpServerLifecycleAction | AgentHostMcpServerEnablementAction } & IQuickPickItem;
 
@@ -516,12 +512,11 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			});
 		}
 
-		if (logOutputChannelId) {
-			items.push({
-				label: localize('mcp.showOutput', 'Show Output'),
-				action: 'showOutput',
-			});
-		}
+		// Every agent-host MCP server has a per-server diagnostics channel.
+		items.push({
+			label: localize('mcp.showOutput', 'Show Output'),
+			action: 'showOutput',
+		});
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: server.name,
@@ -532,9 +527,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		}
 
 		if (picked.action === 'showOutput') {
-			if (logOutputChannelId) {
-				await outputService.showChannel(logOutputChannelId);
-			}
+			agentHostCustomizations.showMcpServerLog(agentHostSession, server.id);
 			return;
 		}
 

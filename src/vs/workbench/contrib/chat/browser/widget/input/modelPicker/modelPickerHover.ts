@@ -17,7 +17,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerUtils.js';
+import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
 

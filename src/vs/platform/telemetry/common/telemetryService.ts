@@ -126,11 +126,14 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	setExperimentProperty(name: string, value: string): void {
+	setExperimentProperty(name: string, value: string, triggerBufferFlush: boolean = true): void {
 		this._experimentProperties[name] = new TelemetryTrustedValue(value);
 
-		// On first call, flush all pending events that were buffered waiting for experiment properties
-		if (!this._isExperimentPropertySet) {
+		// On first call, flush all pending events that were buffered waiting for experiment properties.
+		// Additive properties (triggerBufferFlush === false, e.g. forwarded from extensions) are still
+		// stored above so they get mixed into buffered events, but they must not release the startup
+		// buffer, which waits for this window's own experiment context.
+		if (triggerBufferFlush && !this._isExperimentPropertySet) {
 			this._flushPendingEvents();
 		}
 	}

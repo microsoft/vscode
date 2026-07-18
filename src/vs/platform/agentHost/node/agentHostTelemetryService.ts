@@ -181,8 +181,8 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.setInternalTelemetryContext(context);
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		this._delegate.setExperimentProperty(name, value);
+	setExperimentProperty(name: string, value: string, triggerBufferFlush?: boolean): void {
+		this._delegate.setExperimentProperty(name, value, triggerBufferFlush);
 	}
 
 	setCommonProperty(name: string, value: string | boolean): void {

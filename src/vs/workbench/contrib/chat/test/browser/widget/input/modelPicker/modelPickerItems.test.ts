@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../../pla
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
-import { filterModelsForSession } from '../../../../../browser/widget/input/chatModelSelectionLogic.js';
+import { filterModelsForSession } from '../../../../../browser/widget/input/chatInputModelUtils.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';

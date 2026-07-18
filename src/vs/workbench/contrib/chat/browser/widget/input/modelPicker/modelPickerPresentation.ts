@@ -31,3 +31,41 @@ export function getPriceCategoryLabel(priceCategory: string | undefined): string
 			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
 }
+
+export const enum ModelPickerUnavailableReason {
+	Restricted = 'restricted',
+	SetupRequired = 'setupRequired',
+}
+
+export function getModelPickerUnavailableReason(context: {
+	readonly trustInitialized: boolean;
+	readonly trusted: boolean;
+	readonly pickerModels: readonly ILanguageModelChatMetadataAndIdentifier[];
+	readonly liveModelIds: Iterable<string>;
+	readonly requiresSetup: boolean;
+}): ModelPickerUnavailableReason | undefined {
+	if (!context.trustInitialized) {
+		return undefined;
+	}
+	if (!context.trusted) {
+		return ModelPickerUnavailableReason.Restricted;
+	}
+	const live = context.liveModelIds instanceof Set ? context.liveModelIds : new Set(context.liveModelIds);
+	if (context.pickerModels.some(model => live.has(model.identifier))) {
+		return undefined;
+	}
+	return context.requiresSetup ? ModelPickerUnavailableReason.SetupRequired : undefined;
+}
+
+export function shouldShowCacheBreakHint(context: {
+	readonly dismissed: boolean;
+	readonly cacheWarm: boolean;
+	readonly noModelsAvailable: boolean;
+	readonly excludeAutoModel: boolean;
+	readonly selectedModelIsAuto: boolean;
+}): boolean {
+	if (context.dismissed || !context.cacheWarm || context.noModelsAvailable) {
+		return false;
+	}
+	return !(context.excludeAutoModel && context.selectedModelIsAuto);
+}

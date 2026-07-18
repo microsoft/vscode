@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-nXjtuhBilO++r8hfxl5VjEScSmdm07wDAk6jw228DgM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -252,7 +252,7 @@
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}&platform=${searchParams.get('platform')}`);
 			navigator.serviceWorker.register(swPath, { type: 'module', updateViaCache: 'none' })
 				.then(async registration => {
 					if (navigator.serviceWorker.controller) {

@@ -313,6 +313,35 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
+	test('markStarting transitions non-ready servers to Starting, skipping ready/auth-required/starting', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		controller.applyOne(server('fs', stopped()));
+		controller.applyOne(server('search', ready()));
+		controller.applyOne(server('mail', authRequired()));
+		const before = actions.length;
+
+		// `unknown` has no live entry yet; it should be created as Starting.
+		controller.markStarting(['fs', 'search', 'mail', 'unknown']);
+
+		const summarized = actions.slice(before).map(a => {
+			if (a.type === ActionType.SessionMcpServerStateChanged) {
+				return { type: a.type, id: a.id, state: a.state };
+			}
+			if (a.type === ActionType.SessionCustomizationUpdated && a.customization.type === CustomizationType.McpServer) {
+				return { type: a.type, id: a.customization.id, state: a.customization.state };
+			}
+			return { type: a.type, id: undefined, state: undefined };
+		});
+		assert.deepStrictEqual(summarized, [
+			// fs (Stopped) -> Starting via its plugin child id
+			{ type: ActionType.SessionMcpServerStateChanged, id: 'mcp-child:demo:fs', state: { kind: McpServerStatus.Starting } },
+			// unknown (no entry) -> Starting as a bare top-level customization
+			{ type: ActionType.SessionCustomizationUpdated, id: 'mcp-top-level:copilot:session-1:unknown', state: { kind: McpServerStatus.Starting } },
+		]);
+	});
+
 	test('parseMcpChannelUri round-trips the controller-minted channel URI', () => {
 		const channel = 'mcp://copilot/session-1/fs';
 		assert.deepStrictEqual(parseMcpChannelUri(channel), {

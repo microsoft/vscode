@@ -30,8 +30,19 @@ export interface ILocalTranscriptionModelStatus {
 	readonly state: LocalTranscriptionModelState;
 	/** Overall download progress in [0, 1] while `Downloading`. */
 	readonly progress?: number;
-	/** Short error identifier when `state === Error`. */
+	/**
+	 * Whether model files were actually fetched from the network (a cache miss)
+	 * during this preparation, as opposed to loaded from the on-disk cache. Set
+	 * on the `Ready` status. Used for download telemetry.
+	 */
+	readonly downloaded?: boolean;
+	/** Human-readable error message when `state === Error` (for UI/logging). */
 	readonly error?: string;
+	/**
+	 * Allowlisted, low-cardinality error identifier when `state === Error`
+	 * (e.g. `network`, `notFound`, `memory`), safe to send as telemetry.
+	 */
+	readonly errorCode?: string;
 }
 
 export interface ILocalTranscriptionResult {
@@ -42,9 +53,28 @@ export interface ILocalTranscriptionResult {
 }
 
 /**
- * On-device speech-to-text using a downloaded Whisper model (transformers.js +
- * onnxruntime-node). Runs in a utility process. A single transcription session
- * is active at a time (dictation is a singleton in the renderer).
+ * Proxy/TLS settings forwarded from the renderer's configuration so the first-use
+ * model download can honour corporate proxies and strict-SSL. The transcription
+ * worker is a DI-less utility process with no access to `IConfigurationService`
+ * or `IRequestService`, so the renderer reads the relevant `http.*` settings and
+ * hands them across. Mirrors the values `RequestService` itself reads.
+ */
+export interface ILocalTranscriptionProxyConfig {
+	/** Value of `http.proxy`, when configured. */
+	readonly url?: string;
+	/** Value of `http.proxyStrictSSL` (defaults to strict when unset). */
+	readonly strictSSL?: boolean;
+	/** Value of `http.proxyAuthorization`, when configured. */
+	readonly authorization?: string;
+}
+
+/**
+ * On-device speech-to-text using a downloaded model. Two model families are
+ * supported: Whisper (encoder-decoder, run via transformers.js on
+ * onnxruntime-node) and Nemotron (NeMo RNN-T, run directly on onnxruntime-node);
+ * the model is chosen by the `chat.speechToText.model` setting. Runs in a
+ * utility process. A single transcription session is active at a time (dictation
+ * is a singleton in the renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -71,9 +101,13 @@ export interface ILocalTranscriptionService {
 
 	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
-	 * transcription session. `cacheDir` is where model files are stored.
+	 * transcription session. `cacheDir` is where model files are stored. `model`
+	 * selects the on-device model (Whisper or Nemotron); when omitted the
+	 * service default is used. `language` optionally hints the spoken language
+	 * (Whisper only; Nemotron auto-detects). `proxy` carries the renderer's
+	 * `http.*` settings so a first-use download can traverse a corporate proxy.
 	 */
-	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string }): Promise<void>;
+	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxy?: ILocalTranscriptionProxyConfig }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

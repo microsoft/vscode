@@ -398,7 +398,7 @@ suite('pluginParsers', () => {
 
 	suite('makeMcpServerCustomization', () => {
 
-		test('builds a Starting server with DEFAULT_MCP_APP and a name-disambiguated id', () => {
+		test('builds a Stopped server with DEFAULT_MCP_APP and a name-disambiguated id', () => {
 			const uri = URI.file('/workspace/.mcp.json');
 			const customization = makeMcpServerCustomization(uri, 'fs server');
 			assert.deepStrictEqual(customization, {
@@ -407,7 +407,7 @@ suite('pluginParsers', () => {
 				uri: uri.toString(),
 				name: 'fs server',
 				enabled: true,
-				state: { kind: McpServerStatus.Starting },
+				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
 			});
 		});

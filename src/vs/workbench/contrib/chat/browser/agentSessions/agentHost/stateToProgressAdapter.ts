@@ -2134,6 +2134,7 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
 		name: tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
+		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,
 		supportedScopes: tc.auth.resource.scopes_supported,
 		requiredScopes: tc.auth.requiredScopes,

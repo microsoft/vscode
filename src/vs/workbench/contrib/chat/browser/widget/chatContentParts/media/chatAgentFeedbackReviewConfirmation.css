@@ -128,6 +128,12 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.chat-confirmation-widget2 .chat-confirmation-widget-message:has(.chat-agent-feedback-review-list) {
+/* The extra :not(:has(.chat-confirmation-message-terminal)) qualifier is a no-op
+ * here (a feedback review list never contains a terminal) but raises this rule's
+ * specificity above the generic
+ * `.chat-confirmation-widget2 .chat-confirmation-widget-message:not(:has(.chat-confirmation-message-terminal))`
+ * padding rule in chatConfirmationWidget.css so this override wins regardless of
+ * stylesheet concatenation order. */
+.chat-confirmation-widget2 .chat-confirmation-widget-message:has(.chat-agent-feedback-review-list):not(:has(.chat-confirmation-message-terminal)) {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 }

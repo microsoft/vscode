@@ -50,7 +50,14 @@ export interface ITelemetryService {
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 
-	setExperimentProperty(name: string, value: string): void;
+	/**
+	 * Sets an experiment property that will be attached to all telemetry events.
+	 *
+	 * @param triggerBufferFlush When events are buffered on startup waiting for experiment
+	 * context, the first property with this set to `true` releases the buffer. Pass `false` for
+	 * additive properties (e.g. forwarded from extensions) that must not release the buffer early.
+	 */
+	setExperimentProperty(name: string, value: string, triggerBufferFlush?: boolean): void;
 
 	/**
 	 * Sets a common property that will be attached to all telemetry events.
