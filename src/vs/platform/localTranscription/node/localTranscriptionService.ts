@@ -18,8 +18,8 @@ import { NemotronTranscriber } from './nemotronTranscriber.js';
 /** Sample rate (Hz) the Whisper models expect; the renderer captures at this rate. */
 const SAMPLE_RATE = 16000;
 
-/** Default downloaded model when the setting is unset. Whisper `base` balances quality and size. */
-const DEFAULT_MODEL = 'onnx-community/whisper-base';
+/** Default downloaded model when the setting is unset. Nemotron matches the GitHub Copilot app and is multilingual. */
+const DEFAULT_MODEL = 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4';
 
 /**
  * Precision of the ONNX weights downloaded and run on device. Whisper is an

@@ -275,7 +275,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
 			],
 			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/whisper-base',
+			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
 			tags: ['experimental']
 		},
 		'chat.speechToText.mode': {
