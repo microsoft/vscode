@@ -2,6 +2,10 @@
 
 Live status board. Legend: ☐ todo · ◐ in progress · ☑ done · ⚠ blocked/needs decision.
 
+**Pushed to `roboagent/main` 2026-07-18** — REQ-3/4/5 + review fixes (`24ca12ae969`),
+branding (`c72415cacb6`), hygiene reconciliation (`1fdb6a2a9de`). Hygiene is green, so
+plain `git commit` works from here on; `--no-verify` is no longer needed.
+
 ---
 
 ## REQ-5 — ROS2 Communication Graph View (Priority: HIGH)
