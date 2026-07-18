@@ -27,11 +27,12 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -77,6 +78,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
@@ -551,6 +553,16 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 	}
 }
 
+class MockCommandService extends mock<ICommandService>() {
+	readonly calls: { commandId: string; args: unknown[] }[] = [];
+	result: unknown;
+
+	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
+		this.calls.push({ commandId, args });
+		return this.result as R | undefined;
+	}
+}
+
 class MockChatWidgetService extends mock<IChatWidgetService>() {
 	declare readonly _serviceBrand: undefined;
 
@@ -687,6 +699,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...chatDebugServiceOverride,
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	const commandService = new MockCommandService();
+	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
@@ -852,7 +866,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -7129,6 +7143,70 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
 		}));
 
+		test('handler resolves authentication before sending to an eager-created session', async () => {
+			const authenticationRequests: ProtectedResourceMetadata[][] = [];
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'eager-auth-agent',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveAuthentication: async protectedResources => {
+					authenticationRequests.push(protectedResources);
+					return true;
+				},
+			}));
+			const protectedResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com',
+				resource_name: 'GitHub',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['read:user'],
+				required: true,
+			};
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+					protectedResources: [protectedResource],
+				}],
+				activeSessions: 0,
+			});
+
+			const sessionUri = AgentSession.uri('copilot', 'eager-auth');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-auth' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('eager-auth-agent')!;
+			const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'eager-auth-agent', message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			assert.ok(turnDispatch);
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				authenticationRequests,
+				turnActionCount: agentHostService.turnActions.length,
+			}, {
+				authenticationRequests: [[protectedResource]],
+				turnActionCount: 1,
+			});
+		});
+
 		test('handler does not clobber picker-set session config on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Repro for the VS Code chat-input picker bug: the user picks
 			// "Worktree" via the chip, the picker dispatches
@@ -8791,6 +8869,51 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+		});
+
+		test('propagates interactive authentication errors for eager-created sessions', async () => {
+			const authService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: (async () => []) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService, chatAgentService, commandService } = createTestServices(disposables, undefined, authService);
+			commandService.result = { success: false, dialogSkipped: false, error: new Error('Bad credentials') };
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			const sessionUri = AgentSession.uri('copilot', 'eager-auth-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+			disposables.add(agentHostService.getSubscription(StateComponents.Session, sessionUri));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-auth-error' });
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			await assert.rejects(
+				registered.impl.invoke(makeRequest({ message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None),
+				/Bad credentials/,
+			);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls,
+				turnActions: agentHostService.turnActions,
+			}, {
+				commandCalls: [{
+					commandId: CHAT_SETUP_ACTION_ID,
+					args: [undefined, {
+						forceSignInDialog: true,
+						additionalScopes: ['read:user'],
+						dialogTitle: 'Sign in to use GitHub Copilot',
+						disableChatViewReveal: true,
+						returnResult: true,
+					}],
+				}],
+				turnActions: [],
+			});
 		});
 	});
 

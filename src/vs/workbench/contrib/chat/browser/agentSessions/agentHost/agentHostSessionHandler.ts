@@ -1207,6 +1207,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					imported ? { turns: imported.turns, model: imported.model } : undefined,
 				);
 			} else {
+				await this._ensureRequiredAuthentication();
+
 				// Eager-created session: take a refcounted subscription so the
 				// handler observes state changes for the duration of the chat
 				// session, then wire up the per-turn machinery that
@@ -3659,16 +3661,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }): Promise<URI> {
-		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
-		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
-
-		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
-
-		// Eagerly authenticate before creating the session if the agent
-		// declares required protected resources. This avoids a wasted
-		// round-trip where createSession fails with AuthRequired.
+	private async _ensureRequiredAuthentication(): Promise<ProtectedResourceMetadata[]> {
 		const agentInfo = this._getRootState()?.agents.find(a => a.provider === this._config.provider);
 		const protectedResources = agentInfo?.protectedResources ?? [];
 		const hasRequiredAuth = protectedResources.some(r => r.required !== false);
@@ -3678,6 +3671,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
 			}
 		}
+		return protectedResources;
+	}
+
+	/** Creates a new backend session and subscribes to its state. */
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>, importConversation?: { readonly turns: readonly Turn[]; readonly model?: ModelSelection }): Promise<URI> {
+		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
+
+		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
+
+		const protectedResources = await this._ensureRequiredAuthentication();
 
 		const activeClient = this._getCurrentActiveClient();
 
