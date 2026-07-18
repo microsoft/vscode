@@ -104,7 +104,7 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_RELEASE
-    displayName: "Release build if successful"
+    displayName: "Release build if successful (ONLY FOR INSIDER)"
     type: boolean
     default: false
   - name: VSCODE_STEP_ON_IT
@@ -115,12 +115,36 @@ parameters:
     displayName: "Use legacy OSS Notice"
     type: boolean
     default: false
+  # SDK -> VS Code integration: override the Copilot dependencies to a version
+  # already published to the private feed. 'none'/'auto' = normal build.
+  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+  - name: VSCODE_SDK_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    type: string
+    default: none
+  - name: VSCODE_CLI_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot version ('auto' = infer from the SDK)"
+    type: string
+    default: auto
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
+  # Normalize the canary sentinels ('none'/'auto') back to empty so the gated
+  # node-modules steps (condition: ne(..., '')) stay a no-op for normal builds
+  # and the override script infers the CLI when it is empty.
+  - name: VSCODE_SDK_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
+  - name: VSCODE_CLI_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
   - name: CARGO_REGISTRY
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -258,6 +282,8 @@ extends:
     containers:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean2,CFSClean3
     stages:
 
       - stage: Quality
@@ -777,7 +803,7 @@ extends:
                   container: ubuntu-24
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:

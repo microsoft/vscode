@@ -52,6 +52,52 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+export interface IOSProxy {
+	readonly kind: 'direct' | 'http' | 'socks';
+	readonly host?: string;
+}
+
+export interface IOSProxyEnvironmentVariableStatus {
+	readonly variable: string;
+	readonly value: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyPacSourceStatus {
+	readonly state: 'disabled' | 'unsupported' | 'unconfigured' | 'not-found' | 'available' | 'error-discovery' | 'error-download' | 'unknown';
+	readonly url?: string;
+	readonly error?: string;
+}
+
+export interface IOSProxyConfig {
+	readonly environment: {
+		readonly httpProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly httpsProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly allProxy?: IOSProxyEnvironmentVariableStatus;
+		readonly noProxy?: IOSProxyEnvironmentVariableStatus;
+	};
+	readonly autoDetect: boolean;
+	readonly pacUrl?: string;
+	readonly pac?: {
+		readonly url: string;
+		readonly content: string;
+		readonly source: 'wpad-dns' | 'wpad-dhcp' | 'configured' | 'unknown';
+	};
+	readonly wpadDhcp: IOSProxyPacSourceStatus;
+	readonly wpadDns: IOSProxyPacSourceStatus;
+	readonly configuredPac: IOSProxyPacSourceStatus;
+	readonly staticRules?: {
+		readonly http?: IOSProxy;
+		readonly https?: IOSProxy;
+		readonly socks?: IOSProxy;
+	};
+	readonly platform?:
+	| { readonly kind: 'windows'; readonly proxy?: string; readonly proxyBypass?: string }
+	| { readonly kind: 'macos'; readonly exceptions: readonly string[]; readonly excludeSimpleHostnames: boolean }
+	| { readonly kind: 'linux'; readonly mode?: string; readonly ignoreHosts: readonly string[] }
+	| { readonly kind: 'unknown' };
+}
+
 export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
@@ -301,6 +347,8 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	resolveProxyWithPackage(url: string): Promise<IOSProxy[]>;
+	readProxyConfigWithPackage(): Promise<IOSProxyConfig>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;

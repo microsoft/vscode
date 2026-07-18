@@ -518,6 +518,7 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: true,
 			};
 
 			const result = await executeToolTest({
@@ -532,6 +533,24 @@ suite('RunInTerminalTool', () => {
 			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
+		});
+
+		test('should request manual installation when no supported package manager is available', async () => {
+			sandboxEnabled = false;
+			sandboxPrereqResult = {
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+				canInstallMissingDependencies: false,
+			};
+
+			const prepared = await executeToolTest({ command: 'echo hello' });
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(prepared?.confirmationMessages?.customOptions, undefined);
+			ok((result.content[0] as { value?: string }).value?.includes('system package manager'));
+			strictEqual(createTerminalCallCount, 0);
 		});
 
 		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
@@ -568,6 +587,7 @@ suite('RunInTerminalTool', () => {
 					sandboxConfigPath: '/tmp/sandbox.json',
 					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 					missingDependencies: ['bubblewrap'],
+					canInstallMissingDependencies: true,
 				};
 			};
 

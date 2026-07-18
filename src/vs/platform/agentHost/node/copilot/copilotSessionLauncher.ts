@@ -9,7 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -66,6 +66,13 @@ type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']
 type CopilotSessionLaunchConfig = ResumeSessionConfig & {
 	readonly pluginDirectories?: string[];
 	readonly remoteSession?: 'export';
+	/**
+	 * Opt the runtime into self-fetching enterprise managed settings at session
+	 * bootstrap. Declared locally until the published `@github/copilot-sdk` carries
+	 * it on `SessionConfigBase`; it is forwarded to `createSession` and read by the
+	 * runtime at runtime regardless of the published SDK's static type.
+	 */
+	readonly enableManagedSettings?: boolean;
 };
 
 /**
@@ -215,9 +222,41 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
 }
 
-export function getCopilotReasoningEffort(model: ModelSelection | undefined): SessionConfig['reasoningEffort'] {
+function isCustomAgentNotFoundError(err: unknown): boolean {
+	return getCopilotSdkErrorCode(err) === -32603 && /\bCustom agent '.+' not found\b/i.test(getErrorMessage(err));
+}
+
+/**
+ * Resolves the reasoning effort: a recognized override level wins over the
+ * model picker's thinking level; an unrecognized override is ignored (degrades
+ * to the picker). Validation is against the known effort levels only — the
+ * caller/operator is responsible for choosing a level the model supports.
+ */
+export function getCopilotReasoningEffort(model: ModelSelection | undefined, effortOverride?: string): SessionConfig['reasoningEffort'] {
+	if (isReasoningEffort(effortOverride)) {
+		return effortOverride;
+	}
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+}
+
+/**
+ * Resolves the reasoning effort, applying the host-level override and logging
+ * whether it applied. Shared by the launcher (create) and
+ * `CopilotAgent._changeModel` (mid-session model change) for consistency.
+ */
+export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: IAgentConfigurationService, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
+	const rawOverride = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningEffortOverride);
+	// '' is the schema's unset marker, so an unset override reads as `undefined`.
+	const override = rawOverride ? rawOverride : undefined;
+	if (override !== undefined) {
+		if (isReasoningEffort(override)) {
+			logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
+		} else {
+			logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
+		}
+	}
+	return getCopilotReasoningEffort(model, override);
 }
 
 export function getCopilotContextTier(model: ModelSelection | undefined, longContextWindow?: number, freeLongContext?: boolean): SessionConfig['contextTier'] {
@@ -268,15 +307,12 @@ export async function resolveByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<{ providers?: NamedProviderConfig[]; models?: ProviderModelConfig[] }> {
-	// Surface the serving window's BYOK models. The registry tracks every
-	// connected renderer but does not union their model sets — a window's BYOK
-	// models come from its installed extensions, so all serving windows expose
-	// the same set and the registry picks one serving window (see
-	// `IByokLmBridgeRegistry`). Inbound inference is routed to that same serving
-	// connection by the proxy (`getServingConnection`).
+	// Surface the serving window's BYOK models. The registry does not union
+	// windows' model sets — all serving windows expose the same set, so it picks
+	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
 	let byokModels: IByokLmModelInfo[];
 	try {
-		byokModels = await bridgeRegistry.listModels();
+		byokModels = [...bridgeRegistry.getModels()];
 	} catch (err) {
 		logService.warn(`[Copilot:${sessionId}] Failed to enumerate BYOK models from renderer bridges`, err);
 		return {};
@@ -284,6 +320,20 @@ export async function resolveByokSessionConfig(
 	if (byokModels.length === 0) {
 		return {};
 	}
+	// Deduplicate by selection id (`vendor/id`). The same BYOK model can be
+	// reported more than once — e.g. when two renderer bridges are transiently
+	// serving during a window hand-off (continuing a chat into a new session) —
+	// and the runtime rejects a session config with duplicate BYOK model
+	// selection ids ("Duplicate BYOK model selection id ...").
+	const seenSelectionIds = new Set<string>();
+	byokModels = byokModels.filter(m => {
+		const selectionId = `${m.vendor}/${m.id}`;
+		if (seenSelectionIds.has(selectionId)) {
+			return false;
+		}
+		seenSelectionIds.add(selectionId);
+		return true;
+	});
 	// `startProxy` binds a local loopback listener — unlikely to fail, but it
 	// must never break session materialization (which fires the cross-window
 	// `sessionAdded` broadcast). Degrade to no BYOK config on failure.
@@ -339,36 +389,48 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			return this._createSession(plan, config, sandboxConfig);
 		}
 
+		let fallbackPlan = plan;
+		let fallbackConfig = config;
 		try {
 			const stopWatch = new StopWatch();
 			this._logService.trace(`[Copilot:${plan.sessionId}] Calling SDK resumeSession...`);
-			const raw = await plan.client.resumeSession(plan.sessionId, {
-				...config,
-				workingDirectory: plan.workingDirectory.fsPath,
-				...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
-			});
+			const raw = await plan.client.resumeSession(plan.sessionId, config);
 			this._logService.trace(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded after ${stopWatch.elapsed()}ms`);
 			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
 		} catch (err) {
-			const errCode = getCopilotSdkErrorCode(err);
-			const errMsg = getErrorMessage(err);
+			let resumeError = err;
+			const errCode = getCopilotSdkErrorCode(resumeError);
+			const errMsg = getErrorMessage(resumeError);
 			this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
+			if (plan.resolvedAgentName && isCustomAgentNotFoundError(resumeError)) {
+				fallbackPlan = { ...plan, resolvedAgentName: undefined };
+				fallbackConfig = { ...config, agent: undefined };
+				this._logService.warn(`[Copilot:${plan.sessionId}] Stored custom agent '${plan.resolvedAgentName}' was not found; retrying resume without a custom agent`);
+				try {
+					const raw = await fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig);
+					await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+					return new CopilotSessionWrapper(raw);
+				} catch (retryErr) {
+					resumeError = retryErr;
+					this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without custom agent failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
+				}
+			}
 			// The SDK fails to resume sessions that have no messages.
 			// Fall back to creating a new session with the same ID,
 			// seeding model & working directory from stored metadata.
-			if (!shouldCreateEmptySessionAfterResumeError(err)) {
-				throw err;
+			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				throw resumeError;
 			}
 
 			this._logService.warn(`[Copilot:${plan.sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
 			const wrapper = await this._createSession({
-				...plan,
+				...fallbackPlan,
 				kind: 'create',
-				model: plan.fallback.model,
-				longContextWindow: plan.fallback.longContextWindow,
-				freeLongContext: plan.fallback.freeLongContext,
-			}, config, sandboxConfig);
+				model: fallbackPlan.fallback.model,
+				longContextWindow: fallbackPlan.fallback.longContextWindow,
+				freeLongContext: fallbackPlan.fallback.freeLongContext,
+			}, fallbackConfig, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
 		}
@@ -380,7 +442,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			sessionId: plan.sessionId,
 			streaming: true,
 			model: plan.model?.id,
-			reasoningEffort: getCopilotReasoningEffort(plan.model),
+			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
@@ -393,7 +455,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * Compute the SDK-shaped sandbox policy to push to the runtime for the
 	 * SDK's built-in shell tool.
 	 *
-	 * Returns `undefined` when {@link AgentHostConfigKey.EnableCustomTerminalTool}
+	 * Returns `undefined` when {@link CopilotCliConfigKey.EnableCustomTerminalTool}
 	 * is ON — in that case the AgentHost provides its own shell tools, which
 	 * wrap commands via the host terminal sandbox engine, so no SDK-side
 	 * sandbox policy is needed. Otherwise the policy is derived from the
@@ -402,7 +464,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
 	 */
 	private _computeSandboxConfig(): ISdkSandboxConfig | undefined {
-		const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		if (enableCustomTerminalTool) {
 			return undefined;
 		}
@@ -472,10 +534,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
 		const plugins = plan.snapshot.plugins;
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
-		// renderer reports no BYOK models). Merged into the returned config so both
+		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const byok = await this._resolveByokSessionConfig(plan.sessionId);
-		const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellTools: Awaited<ReturnType<typeof createShellTools>> = [];
 		if (enableCustomTerminalTool) {
 			if (!plan.shellManager) {
@@ -496,14 +558,20 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// agent sees them under; used to gate tool-specific prompt sections.
 		const clientToolNames = clientToolNamesFromSnapshot(plan.snapshot);
 		const promptContext: IAgentHostPromptContext = {
-			getSetting: key => this._configurationService.getRootValue(agentHostCustomizationConfigSchema, key),
+			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
 			workspaceless: plan.workspaceless === true,
 		};
+		// Prompt routing uses the family-aliased selection; the wire model id in
+		// _createSession comes from plan.model and is unaffected.
+		const effectiveModel = applyModelFamilyAlias(model, this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
+		if (model && effectiveModel !== model) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${model.id}' as family '${effectiveModel?.id}'`);
+		}
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
 		// update, so this reflects the model/tools/settings at launch time. Log a
 		// summary at info for prompt observability; the full config at trace.
-		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(model, promptContext);
+		const systemMessage = agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
 		this._logService.info(`[Copilot:${plan.sessionId}] Resolved system message: ${describeSystemMessageConfig(systemMessage)}`);
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			// Guarded: a `replace`-mode prompt's content can be multiple KB, so only
@@ -516,6 +584,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableMcpApps: true,
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
@@ -528,6 +597,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,
+			agent: plan.resolvedAgentName,
 			skillDirectories,
 			instructionDirectories,
 			systemMessage,
@@ -553,6 +623,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// session must opt in via `remoteSession` to actually export
 			// events. Without this, sessions default to "off".
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
+			// Opt the runtime into self-fetching enterprise managed settings
+			// (bypass-permissions policy) at session bootstrap. The runtime uses
+			// the session's gitHubToken to call /copilot_internal/managed_settings
+			// and enforces the result fail-closed before the first turn.
+			// Typed locally on CopilotSessionLaunchConfig pending the SDK type update.
+			enableManagedSettings: true,
 		};
 	}
 }

@@ -66,6 +66,15 @@ suite('ChatQuestionCarouselData', () => {
 		assert.strictEqual((json as { draftCurrentIndex?: unknown }).draftCurrentIndex, undefined, 'toJSON should not include draftCurrentIndex');
 	});
 
+	test('toJSON preserves answeredExternally', () => {
+		const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'test-resolve-id', {}, true);
+		carousel.answeredExternally = true;
+
+		const json = carousel.toJSON();
+
+		assert.strictEqual(json.answeredExternally, true, 'toJSON should preserve answeredExternally');
+	});
+
 	test('multiple carousels can have independent completion promises', async () => {
 		const carousel1 = new ChatQuestionCarouselData(createQuestions(), true, 'resolve-1');
 		const carousel2 = new ChatQuestionCarouselData(createQuestions(), true, 'resolve-2');

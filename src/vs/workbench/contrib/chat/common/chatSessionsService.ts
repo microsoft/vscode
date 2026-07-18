@@ -83,6 +83,12 @@ export interface IChatSessionProviderOptionModelMetadata {
 	readonly longContextCacheCost?: number;
 	readonly longContextCacheWriteCost?: number;
 	readonly priceCategory?: string;
+	readonly promo?: {
+		readonly id: string;
+		readonly discountPercent: number;
+		readonly endsAt: string;
+		readonly message: string;
+	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly capabilities?: {
@@ -277,14 +283,18 @@ export type IChatSessionHistoryItem = {
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	isTerminalRequest?: boolean;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	elapsedMs?: number;
+	completedAt?: number;
 	/**
 	 * Error details for a failed response. Rendered as a proper chat error
 	 * (including the quota-exceeded upgrade affordance), mirroring the live
@@ -298,8 +308,20 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
 export interface IChatSessionServerRequest {
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly isTerminalRequest?: boolean;
+}
+
+/**
+ * Whether `text` runs as a terminal command for the given command `prefix`
+ * (e.g. `!`) — it starts with the prefix and has a non-empty command after it.
+ * Mirrors the agent host's bang parser, where a lone `!` (or `!` followed only
+ * by whitespace) is forwarded to the agent rather than executed.
+ */
+export function isTerminalCommandPrompt(text: string, prefix: string | undefined): boolean {
+	return !!prefix && text.startsWith(prefix) && text.slice(prefix.length).trim().length > 0;
 }
 
 /**
@@ -565,6 +587,11 @@ export interface IChatSessionItemController {
 	 * as a result of the deletion.
 	 */
 	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
+
+	/**
+	 * Set the authoritative archived state for the session identified by `resource`.
+	 */
+	setChatSessionItemArchived?(resource: URI, archived: boolean): void;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -705,6 +732,16 @@ export interface IChatSessionsService {
 	 * Returns the resolved item, or undefined if no resolve handler is available.
 	 */
 	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Whether the registered item controller owns archived state for the session.
+	 */
+	canSetChatSessionItemArchived(sessionResource: URI): boolean;
+
+	/**
+	 * Sets archived state by delegating to the registered item controller.
+	 */
+	setChatSessionItemArchived(sessionResource: URI, archived: boolean): void;
 
 	// #endregion
 

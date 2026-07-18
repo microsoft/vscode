@@ -16,12 +16,13 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { isVisibleEditorChatSessionType } from '../../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -34,8 +35,6 @@ import { IGitService } from '../../../../git/common/gitService.js';
  * This picker allows switching to remote execution providers when the session is not empty.
  */
 export class DelegationSessionPickerActionItem extends SessionTypePickerActionItem {
-
-	private readonly _isSessionsWindow: boolean;
 
 	constructor(
 		action: MenuItemAction,
@@ -52,10 +51,12 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService);
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
@@ -125,8 +126,8 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
-		// Apply the same visibility guards as the new-session picker (e.g. Local hidden when chat.editor.localAgent.enabled is false).
-		if (!isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService)) {
+		// Apply the same visibility guards as the new-session picker.
+		if (!super._isVisible(type)) {
 			return false;
 		}
 

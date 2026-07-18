@@ -1285,6 +1285,80 @@ dispose) clean across the whole session lifecycle.
 
 Full step-by-step plan: [phase10.5-plan.md](./phase10.5-plan.md).
 
+### Phase 10.6 — MCP elicitation (real `onElicitation` translation)
+
+Picks up the loose thread from Phase 7. `Options.onElicitation` was shipped
+in Phase 7 §3.7 as a deliberate, tested `cancel` stub with the note *"full
+MCP wiring deferred to Phase 10"* ([phase7-plan.md:43](./phase7-plan.md),
+[phase7-plan.md:930](./phase7-plan.md)). Phase 10 was then rescoped to
+in-process client tools and never carried the replacement forward, so the
+stub still stands ([claudeSdkOptions.ts:123](./claudeSdkOptions.ts)):
+
+```ts
+onElicitation: async req => {
+    logElicitation(req.message ?? '');
+    return { action: 'cancel' };
+},
+```
+
+Result: when an MCP server (host's own or a third-party server surfaced via
+Phase 16/17 disk scan) calls `elicit/create` to ask the user for structured
+input or URL-based auth, the request is silently auto-cancelled — never
+surfaced.
+
+**The design is already specced** in [CONTEXT.md:632](./CONTEXT.md) — MCP
+elicitation is the canonical "structured user input" path and routes
+`Options.onElicitation` → `ActionType.ChatInputRequested` →
+`respondToUserInputRequest`, i.e. the **same input channel `AskUserQuestion`
+already uses** ([claudeCanUseTool.ts](./claudeCanUseTool.ts)
+`handleAskUserQuestion`), NOT the `pending_confirmation` permission gate.
+
+The three pieces all exist; only the translation is missing:
+
+1. **SDK contract** — `Options.onElicitation` (sdk.d.ts). `ElicitationRequest`
+   carries `serverName`, `message`, `mode: 'form' | 'url'`, `url`,
+   `requestedSchema` (JSON Schema, form mode), and permission-display
+   `title` / `displayName` / `description`. Return is
+   `ElicitResult` = `{ action: 'accept' | 'decline' | 'cancel'; content? }`.
+2. **Workbench machinery** — `ClaudeAgentSession.requestUserInput(request,
+   parentToolCallId?)` fires `ChatInputRequested` and parks on
+   `_pendingUserInputs`; `respondToUserInputRequest` resolves it. Teardown
+   already `denyAll`s, so parked elicitations unwind on dispose.
+3. **Reference implementation** — copilot's `_handleElicitationRequest`
+   ([copilotAgentSession.ts:2239](../copilot/copilotAgentSession.ts)) does the
+   full projection already: `form` schema → `ChatInputQuestion[]` (respecting
+   `required`), `url` mode → question-less request with `url`, autopilot →
+   auto-cancel, answers → `ElicitResult.content` re-keyed by schema field.
+
+Work:
+
+- Replace the `logElicitation` param threaded into `buildOptions` with a real
+  `handleElicitation(req, signal) => Promise<ElicitationResult>` implemented on
+  `ClaudeAgentSession`, wired the same way `canUseTool` is
+  ([claudeSdkOptions.ts](./claudeSdkOptions.ts) `IBuildOptionsInput.canUseTool`).
+- Add a pure-projection module (e.g. `claudeElicitation.ts`, sibling to
+  `claudeInteractiveTools.ts`) for schema→questions and answers→content, so it
+  is unit-testable without standing up an agent.
+- Observe the SDK's per-request `signal` → `respondToUserInputRequest(id,
+  Cancel)` (mirror the abort wiring in
+  [claudeCanUseTool.ts:88](./claudeCanUseTool.ts)); keep the auto-cancel only
+  when unattended (headless / autopilot).
+- URL-mode elicitations: the `onElicitation` promise is awaited by the SDK, so
+  the host parks a question-less request carrying the URL and resolves it from
+  the user's Accept/Decline via the existing `ChatInputCompleted` path. The
+  out-of-band `SDKElicitationCompleteMessage` ([CONTEXT.md:1096](./CONTEXT.md))
+  is **not** required for this and is out of scope — see
+  [phase10.6-plan.md](./phase10.6-plan.md) "Out of scope".
+
+Tests: a synthetic `form` `ElicitationRequest` round-trips through
+`requestUserInput` and returns `{ action: 'accept', content }`; a declined /
+cancelled / aborted request maps to `decline` / `cancel`; `url` mode surfaces
+a question-less request carrying the URL. Replace Phase 7's Test 18 stub
+assertion with the real translation.
+
+Exit criteria: an MCP server's `elicit/create` renders a form (or URL prompt)
+in the Agents window and the user's answer is delivered back to the server.
+
 ### Phase 11 — Customizations / plugins (full surface) ✅ **DONE**
 
 Shipped in PR #318113. Two-tier model:

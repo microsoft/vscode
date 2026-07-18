@@ -28,7 +28,8 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -234,6 +235,26 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+// onnxruntime-node (direct dependency and transitive via @huggingface/transformers,
+// on-device chat dictation) ships prebuilt binaries for every platform/arch inside its
+// tarball. Keep only the target build's binary so we don't bloat each package
+// with ~170MB of unused native code.
+const onnxRuntimeShippedTargets: readonly [string, string][] = [
+	['darwin', 'arm64'],
+	['linux', 'x64'],
+	['linux', 'arm64'],
+	['win32', 'x64'],
+	['win32', 'arm64'],
+];
+function getOnnxRuntimeExcludeFilter(platform: string, arch: string): string[] {
+	return [
+		'**',
+		...onnxRuntimeShippedTargets
+			.filter(([p, a]) => !(p === platform && a === arch))
+			.map(([p, a]) => `!**/onnxruntime-node/bin/napi-v6/${p}/${a}/**`),
+	];
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -342,28 +363,63 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
 		ensureCopilotPlatformPackage(platform, arch);
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
-		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
+		ensureOSProxyResolverPlatformPackage(platform, arch);
+		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
+			.pipe(filter(getMxcExcludeFilter(arch)))
+			.pipe(filter(getOnnxRuntimeExcludeFilter(platform, arch)))
+			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep-universal/bin/**',
-				'**/@github/copilot-*/**',
+				// Only the platform-specific Copilot CLI packages (`@github/copilot-<os>-<arch>`)
+				// need to be unpacked: the CLI is spawned as a subprocess and is a
+				// self-locating bundle that memory-maps files and resolves its native
+				// addons / sub-binaries relative to its own on-disk location, so it cannot
+				// run from inside the archive. `@github/copilot-sdk` is intentionally NOT
+				// matched here — it is pure JavaScript that the agent host loads via
+				// `import` (ASAR-aware), so it stays in the archive.
+				'**/@github/copilot-{darwin,linux,linuxmusl,win32}-*/**',
+				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
+				// node-pty spawns `conoutSocketWorker.js` as a Worker from the unpacked
+				// tree (Windows only). Unpack node-pty's `package.json` alongside it so
+				// Node finds a `package.json` without `"type": "module"` when walking up
+				// from the worker file. Otherwise the lookup reaches the app's own
+				// `package.json` (`"type": "module"`), the CommonJS worker is loaded as
+				// ESM and throws `exports is not defined`, the worker never signals ready,
+				// and node-pty blocks the pty host on `ConnectNamedPipe`.
+				'**/node-pty/package.json',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
+				// onnxruntime-node (direct dependency and transitive via
+				// @huggingface/transformers, used
+				// for on-device chat dictation) ships a prebuilt N-API addon that
+				// dlopen's sibling shared libraries (libonnxruntime.*.dylib / .so /
+				// onnxruntime.dll + DirectML). The OS loader resolves those by
+				// on-disk path relative to the addon, so the whole bin/ tree must
+				// live outside the archive, not just the `.node` file.
+				'**/onnxruntime-node/bin/**',
 			], [
 				'**/*.mk',
-				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
 			], [
-				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
+				'node_modules/vsda/**', // retain copy of `vsda` in node_modules for internal use
+				// The sandbox runtime is spawned as a standalone Node subprocess (no ASAR
+				// resolution hook), so it and its transitive JS dependencies must remain as
+				// real files under `node_modules`. Keep them duplicated out of the archive.
+				'node_modules/@vscode/sandbox-runtime/**', // includes its nested `commander`
+				'node_modules/@pondwader/socks5-server/**',
+				'node_modules/shell-quote/**',
+				'node_modules/zod/**'
 			], 'node_modules.asar'));
 
 		const mergeStreams = [
@@ -612,7 +668,7 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 		const appBase = platform === 'darwin'
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
-		const appNodeModulesDir = path.join(appBase, 'node_modules');
+		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
 
 		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
 		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);

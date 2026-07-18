@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotReasoningEffort, resolveByokSessionConfig } from '../../node/copilot/copilotSessionLauncher.js';
 
 /**
  * Covers the BYOK provider/model synthesis the launcher feeds into
@@ -26,14 +28,20 @@ import { CopilotSessionLauncher, resolveByokSessionConfig } from '../../node/cop
  */
 suite('resolveByokSessionConfig', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionId = 'sess-1';
 	const log = new NullLogService();
 
-	/** Minimal bridge connection: a scripted `listModels` and an unused `chat`. */
-	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>) {
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), listModels };
+	/**
+	 * A bridge connection that pushes `models` as its snapshot synchronously when
+	 * the registry subscribes; `chat` is scripted (unused by most tests).
+	 */
+	function connectionOf(models: IByokLmModelInfo[], chat: IByokLmBridgeConnection['chat'] = async () => ({ content: '' })): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat, onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy handle plus a `startProxy` thunk that records its call count. */
@@ -63,7 +71,7 @@ suite('resolveByokSessionConfig', () => {
 
 	test('returns empty and never starts the proxy when the bridge reports no models', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => []));
+		const registration = registry.register('client-1', connectionOf([]));
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -73,9 +81,11 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(proxy.starts, 0);
 	});
 
-	test('returns empty and never starts the proxy when enumeration fails', async () => {
+	test('returns empty and never starts the proxy for a window that never pushes a snapshot', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => { throw new Error('renderer gone'); }));
+		// A window connected without a BYOK handler never pushes, so it stays
+		// non-serving and contributes no models.
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: Event.None });
 		const proxy = countingProxy();
 
 		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -87,7 +97,7 @@ suite('resolveByokSessionConfig', () => {
 
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', connectionOf(async () => [
+		const registration = registry.register('client-1', connectionOf([
 			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000 },
 			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
@@ -114,10 +124,10 @@ suite('resolveByokSessionConfig', () => {
 	test('synthesized provider config routes through a live proxy to the bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		let captured: IByokLmChatRequest | undefined;
-		const registration = registry.register('client-1', {
-			chat: async (request) => { captured = request; return { content: 'hello from byok' }; },
-			listModels: async () => [{ vendor: 'acme', id: 'claude' }],
-		});
+		const registration = registry.register('client-1', connectionOf(
+			[{ vendor: 'acme', id: 'claude' }],
+			async (request) => { captured = request; return { content: 'hello from byok' }; },
+		));
 		const service = new ByokLmProxyService(log, registry);
 		let handle: IByokLmProxyHandle | undefined;
 
@@ -141,6 +151,26 @@ suite('resolveByokSessionConfig', () => {
 		assert.strictEqual(captured?.vendor, 'acme');
 		assert.strictEqual(captured?.modelId, 'claude');
 	});
+
+	test('reads the latest pushed snapshot from the registry cache', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>());
+		const registration = registry.register('client-1', {
+			chat: async (): Promise<IByokLmChatResult> => ({ content: '' }),
+			onDidChangeModels: emitter.event,
+		});
+		const proxy = countingProxy();
+
+		// The window starts serving-but-empty, then pushes a model; the resolved
+		// config reflects the latest cached push with no renderer round-trip.
+		emitter.fire([]);
+		emitter.fire([{ vendor: 'acme', id: 'claude', name: 'Acme Claude' }]);
+
+		const config = await resolveByokSessionConfig(sessionId, registry, proxy.startProxy, log);
+		registration.dispose();
+
+		assert.deepStrictEqual(config.models, [{ id: 'claude', provider: 'acme', name: 'Acme Claude' }]);
+	});
 });
 
 /**
@@ -156,9 +186,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
 	const sessionId = 'sess-1';
 
-	/** Minimal bridge connection: a scripted `listModels` and an unused `chat`. */
-	function connectionOf(listModels: () => Promise<IByokLmModelInfo[]>) {
-		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), listModels };
+	/**
+	 * A bridge connection that pushes `models` as its snapshot synchronously when
+	 * the registry subscribes; the backing emitter is owned by `store`.
+	 */
+	function connectionOf(store: DisposableStore, models: IByokLmModelInfo[]): IByokLmBridgeConnection {
+		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
+			onDidAddFirstListener: () => emitter.fire(models),
+		}));
+		return { chat: async (): Promise<IByokLmChatResult> => ({ content: '' }), onDidChangeModels: emitter.event };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
@@ -196,7 +232,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const store = new DisposableStore();
 		const proxy = fakeProxyService();
 		const registry = new ByokLmBridgeRegistry();
-		store.add(registry.register('client-1', connectionOf(async () => [{ vendor: 'acme', id: 'claude' }])));
+		store.add(registry.register('client-1', connectionOf(store, [{ vendor: 'acme', id: 'claude' }])));
 		const launcher = createLauncher(store, proxy.service, registry);
 		const resolve = () => (launcher as unknown as { _resolveByokSessionConfig(id: string): Promise<{ providers?: { bearerToken: string }[] }> })._resolveByokSessionConfig(sessionId);
 
@@ -214,5 +250,30 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		assert.notStrictEqual(third.providers![0].bearerToken, first.providers![0].bearerToken, 'the fresh bind carries a new nonce');
 
 		store.dispose();
+	});
+});
+
+/**
+ * Covers the reasoning-effort resolution fed into `createSession` and
+ * `CopilotAgent._changeModel`: the host-level override (see
+ * `CopilotCliConfigKey.ReasoningEffortOverride`) wins over the model picker's
+ * thinking level when valid, and degrades to the picker value otherwise.
+ */
+suite('getCopilotReasoningEffort', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a valid override wins over the picker value; an invalid or absent override falls back', () => {
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		assert.deepStrictEqual(
+			[
+				getCopilotReasoningEffort(model),
+				getCopilotReasoningEffort(model, 'xhigh'),
+				getCopilotReasoningEffort(model, 'turbo'),
+				getCopilotReasoningEffort(undefined, 'high'),
+				getCopilotReasoningEffort(undefined),
+			],
+			['medium', 'xhigh', 'medium', 'high', undefined]
+		);
 	});
 });

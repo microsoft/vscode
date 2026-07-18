@@ -12,6 +12,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	AutomationRunTrigger,
+	AutomationTarget,
+	AutomationWorkspaceIsolation,
 	IAutomation,
 	IAutomationRun,
 } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -28,25 +30,19 @@ import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbenc
 // APPLICATION scope, non-roaming.
 const STORAGE_KEY = 'chat.automations.ledger';
 
-const CURRENT_SCHEMA_VERSION = 1;
+const LEGACY_SCHEMA_VERSIONS = new Set([1, 2]);
+const CURRENT_SCHEMA_VERSION = 3;
 
 const MAX_RUNS_PER_AUTOMATION = 50;
 
-const VALID_ISOLATION_MODES = new Set(['worktree', 'workspace']);
-
-interface ISerializedAutomation {
+interface ISerializedAutomationBase {
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomation['schedule'];
-	readonly folderUri: UriComponents;
-	readonly providerId?: string;
-	readonly sessionTypeId?: string;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
-	readonly isolationMode?: string;
-	readonly branch?: string;
 	readonly enabled: boolean;
 	readonly createdAt: string;
 	readonly updatedAt: string;
@@ -54,11 +50,45 @@ interface ISerializedAutomation {
 	readonly nextRunAt?: string;
 }
 
+type ISerializedAutomationTarget =
+	| {
+		readonly kind: 'workspace';
+		readonly folderUri: UriComponents;
+		readonly providerId?: string;
+		readonly sessionTypeId?: string;
+		readonly isolation: AutomationWorkspaceIsolation;
+	}
+	| {
+		readonly kind: 'quickChat';
+		readonly providerId: string;
+		readonly sessionTypeId: string;
+	};
+
+interface ISerializedAutomation extends ISerializedAutomationBase {
+	readonly target: ISerializedAutomationTarget;
+}
+
+interface ILegacySerializedAutomation extends ISerializedAutomationBase {
+	readonly isQuickChat?: boolean;
+	readonly folderUri?: UriComponents;
+	readonly providerId?: string;
+	readonly sessionTypeId?: string;
+	readonly isolationMode?: string;
+	readonly branch?: string;
+}
+
 interface ISerializedLedger {
-	readonly schemaVersion: number;
+	readonly schemaVersion: 3;
 	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
+	readonly runs: readonly IAutomationRun[];
+}
+
+interface ILegacySerializedLedger {
+	readonly schemaVersion: 1 | 2;
+	readonly revision?: number;
+	readonly automations: readonly ILegacySerializedAutomation[];
 	readonly runs: readonly IAutomationRun[];
 }
 
@@ -140,9 +170,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (this._unsupportedSchema) {
 			throw new Error('Cannot modify automations: storage was written by a newer version');
 		}
-		if (!options.folderUri) {
-			throw new Error('Automation requires a folderUri.');
-		}
 		const now = this._now();
 		const nowIso = now.toISOString();
 		const nextRun = computeNextRunAt(options.schedule, now);
@@ -151,14 +178,10 @@ export class AutomationService extends Disposable implements IAutomationService 
 			name: options.name,
 			prompt: options.prompt,
 			schedule: options.schedule,
-			folderUri: options.folderUri,
-			providerId: options.providerId,
-			sessionTypeId: options.sessionTypeId,
+			target: normalizeAutomationTarget(options.target),
 			modelId: options.modelId,
 			mode: options.mode,
 			permissionLevel: isChatPermissionLevel(options.permissionLevel) ? options.permissionLevel : undefined,
-			isolationMode: VALID_ISOLATION_MODES.has(options.isolationMode!) ? options.isolationMode : undefined,
-			branch: options.branch,
 			enabled: options.enabled ?? true,
 			createdAt: nowIso,
 			updatedAt: nowIso,
@@ -215,19 +238,32 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (this._unsupportedSchema) {
 			throw new Error('Cannot modify automations: storage was written by a newer version');
 		}
-		if (!this.getAutomation(automationId)) {
+		const automation = this.getAutomation(automationId);
+		if (!automation) {
 			throw new Error(`Automation not found: ${automationId}`);
 		}
+		const now = this._now();
+		const startedAt = now.toISOString();
 		const run: IAutomationRun = Object.freeze({
 			id: generateUuid(),
 			automationId,
 			status: 'pending',
 			trigger,
-			startedAt: this._now().toISOString(),
+			startedAt,
 			leaderWindowId,
 		});
+		let nextAutomations = this._automations.get();
+		if (trigger !== 'manual') {
+			const updatedAutomation: IAutomation = Object.freeze({
+				...automation,
+				lastRunAt: startedAt,
+				nextRunAt: computeNextRunAt(automation.schedule, now)?.toISOString(),
+				updatedAt: startedAt,
+			});
+			nextAutomations = nextAutomations.map(a => a.id === automationId ? updatedAutomation : a);
+		}
 		const nextRuns = [run, ...this._runs.get()];
-		this.commit(this._automations.get(), nextRuns);
+		this.commit(nextAutomations, nextRuns);
 		return run;
 	}
 
@@ -271,25 +307,6 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (changed) {
 			this.commit(this._automations.get(), nextRuns);
 		}
-	}
-
-	async advanceNextRunAt(id: string, now: Date = this._now()): Promise<IAutomation | undefined> {
-		if (this._unsupportedSchema) {
-			throw new Error('Cannot modify automations: storage was written by a newer version');
-		}
-		const current = this.getAutomation(id);
-		if (!current) {
-			return undefined;
-		}
-		const updated: IAutomation = Object.freeze({
-			...current,
-			lastRunAt: now.toISOString(),
-			nextRunAt: computeNextRunAt(current.schedule, now)?.toISOString(),
-			updatedAt: now.toISOString(),
-		});
-		const next = this._automations.get().map(a => a.id === id ? updated : a);
-		this.commit(next, this._runs.get());
-		return updated;
 	}
 
 	//#region Persistence
@@ -347,27 +364,50 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 		try {
-			const parsed = JSON.parse(raw) as ISerializedLedger;
+			const parsed = JSON.parse(raw) as ISerializedLedger | ILegacySerializedLedger;
 			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
 				this._unsupportedSchema = true;
 				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
 				return { kind: 'unsupportedSchema' };
 			}
-			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION && !LEGACY_SCHEMA_VERSIONS.has(parsed?.schemaVersion)) {
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
 				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomation[] = [];
-			for (const entry of parsed.automations ?? []) {
-				if (!entry?.folderUri) {
-					this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} without a folderUri.`);
-					continue;
+			if (parsed.schemaVersion === CURRENT_SCHEMA_VERSION) {
+				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
+				for (const entry of entries) {
+					try {
+						const automation = deserializeAutomation(entry);
+						if (automation) {
+							automations.push(automation);
+						} else {
+							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid target.`);
+						}
+					} catch (err) {
+						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
+					}
 				}
-				automations.push(deserializeAutomation(entry));
+			} else {
+				const entries = Array.isArray(parsed.automations) ? parsed.automations : [];
+				for (const entry of entries) {
+					try {
+						const automation = deserializeLegacyAutomation(entry);
+						if (automation) {
+							automations.push(automation);
+						} else {
+							this.logService.warn(`[AutomationService] Dropping persisted automation ${entry?.id} with an invalid legacy target.`);
+						}
+					} catch (err) {
+						this.logService.warn(`[AutomationService] Dropping malformed persisted automation ${entry?.id}.`, err);
+					}
+				}
 			}
 			const validIds = new Set(automations.map(a => a.id));
-			const runs = (parsed.runs ?? [])
-				.filter(r => validIds.has(r.automationId))
+			const serializedRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
+			const runs = serializedRuns
+				.filter(r => !!r && typeof r === 'object' && validIds.has(r.automationId))
 				.map(r => Object.freeze({ ...r }));
 			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
 			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
@@ -386,14 +426,10 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 		name: a.name,
 		prompt: a.prompt,
 		schedule: a.schedule,
-		folderUri: a.folderUri.toJSON() as UriComponents,
-		providerId: a.providerId,
-		sessionTypeId: a.sessionTypeId,
+		target: serializeAutomationTarget(a.target),
 		modelId: a.modelId,
 		mode: a.mode,
 		permissionLevel: a.permissionLevel,
-		isolationMode: a.isolationMode,
-		branch: a.branch,
 		enabled: a.enabled,
 		createdAt: a.createdAt,
 		updatedAt: a.updatedAt,
@@ -402,10 +438,33 @@ function serializeAutomation(a: IAutomation): ISerializedAutomation {
 	};
 }
 
-function deserializeAutomation(s: ISerializedAutomation): IAutomation {
-	const revivedUri = URI.revive(s.folderUri);
-	const folderUri = revivedUri;
+function deserializeAutomation(s: ISerializedAutomation): IAutomation | undefined {
+	const target = deserializeAutomationTarget(s.target);
+	return target ? createAutomationFromSerialized(s, target) : undefined;
+}
 
+function deserializeLegacyAutomation(s: ILegacySerializedAutomation): IAutomation | undefined {
+	let target: AutomationTarget;
+	if (s.isQuickChat === true) {
+		if (!s.providerId || !s.sessionTypeId) {
+			return undefined;
+		}
+		target = createQuickChatAutomationTarget(s.providerId, s.sessionTypeId);
+	} else {
+		if (!s.folderUri) {
+			return undefined;
+		}
+		target = createWorkspaceAutomationTarget(
+			URI.revive(s.folderUri),
+			s.providerId,
+			s.sessionTypeId,
+			deserializeLegacyIsolation(s.isolationMode, s.branch),
+		);
+	}
+	return createAutomationFromSerialized(s, target);
+}
+
+function createAutomationFromSerialized(s: ISerializedAutomationBase, target: AutomationTarget): IAutomation {
 	// Default to most restrictive if the persisted value is invalid.
 	const permissionLevel = isChatPermissionLevel(s.permissionLevel)
 		? s.permissionLevel
@@ -416,14 +475,10 @@ function deserializeAutomation(s: ISerializedAutomation): IAutomation {
 		name: s.name,
 		prompt: s.prompt,
 		schedule: s.schedule,
-		folderUri,
-		providerId: s.providerId,
-		sessionTypeId: s.sessionTypeId,
+		target,
 		modelId: s.modelId,
 		mode: s.mode,
 		permissionLevel,
-		isolationMode: s.isolationMode,
-		branch: s.branch,
 		enabled: s.enabled,
 		createdAt: s.createdAt,
 		updatedAt: s.updatedAt,
@@ -438,16 +493,107 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		name: patch.name ?? current.name,
 		prompt: patch.prompt ?? current.prompt,
 		schedule: patch.schedule ?? current.schedule,
-		folderUri: patch.folderUri ?? current.folderUri,
-		providerId: patch.providerId === null ? undefined : (patch.providerId ?? current.providerId),
-		sessionTypeId: patch.sessionTypeId === null ? undefined : (patch.sessionTypeId ?? current.sessionTypeId),
+		target: patch.target ? normalizeAutomationTarget(patch.target) : current.target,
 		modelId: patch.modelId === null ? undefined : (patch.modelId ?? current.modelId),
 		mode: patch.mode === null ? undefined : (patch.mode ?? current.mode),
 		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel && isChatPermissionLevel(patch.permissionLevel) ? patch.permissionLevel : current.permissionLevel),
-		isolationMode: patch.isolationMode === null ? undefined : (patch.isolationMode && VALID_ISOLATION_MODES.has(patch.isolationMode) ? patch.isolationMode : current.isolationMode),
-		branch: patch.branch === null ? undefined : (patch.branch ?? current.branch),
 		enabled: patch.enabled ?? current.enabled,
 	};
+}
+
+function normalizeAutomationTarget(target: AutomationTarget): AutomationTarget {
+	if (target.kind === 'quickChat') {
+		if (!target.providerId || !target.sessionTypeId) {
+			throw new Error('Workspace-less automation requires a providerId and sessionTypeId.');
+		}
+		return createQuickChatAutomationTarget(target.providerId, target.sessionTypeId);
+	}
+	if (!target.folderUri) {
+		throw new Error('Workspace-backed automation requires a folderUri.');
+	}
+	return createWorkspaceAutomationTarget(
+		target.folderUri,
+		target.providerId,
+		target.sessionTypeId,
+		target.isolation,
+	);
+}
+
+function serializeAutomationTarget(target: AutomationTarget): ISerializedAutomationTarget {
+	return target.kind === 'quickChat'
+		? { kind: 'quickChat', providerId: target.providerId, sessionTypeId: target.sessionTypeId }
+		: {
+			kind: 'workspace',
+			folderUri: target.folderUri.toJSON(),
+			providerId: target.providerId,
+			sessionTypeId: target.sessionTypeId,
+			isolation: target.isolation,
+		};
+}
+
+function deserializeAutomationTarget(target: ISerializedAutomationTarget): AutomationTarget | undefined {
+	if (target?.kind === 'quickChat') {
+		return target.providerId && target.sessionTypeId
+			? createQuickChatAutomationTarget(target.providerId, target.sessionTypeId)
+			: undefined;
+	}
+	if (target?.kind !== 'workspace' || !target.folderUri || !isAutomationWorkspaceIsolation(target.isolation)) {
+		return undefined;
+	}
+	return createWorkspaceAutomationTarget(
+		URI.revive(target.folderUri),
+		target.providerId,
+		target.sessionTypeId,
+		target.isolation,
+	);
+}
+
+function deserializeLegacyIsolation(isolationMode: string | undefined, branch: string | undefined): AutomationWorkspaceIsolation {
+	if (isolationMode === 'worktree') {
+		return branch ? { kind: 'worktree', branch } : { kind: 'default' };
+	}
+	return isolationMode === 'workspace' ? { kind: 'folder' } : { kind: 'default' };
+}
+
+function normalizeAutomationWorkspaceIsolation(isolation: AutomationWorkspaceIsolation): AutomationWorkspaceIsolation {
+	if (isolation?.kind === 'default') {
+		return Object.freeze({ kind: 'default' });
+	}
+	if (isolation?.kind === 'folder') {
+		return Object.freeze({ kind: 'folder' });
+	}
+	if (isolation?.kind === 'worktree' && isolation.branch) {
+		return Object.freeze({ kind: 'worktree', branch: isolation.branch });
+	}
+	if (isolation?.kind === 'worktree') {
+		throw new Error('Worktree automation requires a branch.');
+	}
+	throw new Error('Workspace-backed automation requires a valid isolation mode.');
+}
+
+function createQuickChatAutomationTarget(providerId: string, sessionTypeId: string): AutomationTarget {
+	return Object.freeze({ kind: 'quickChat', providerId, sessionTypeId });
+}
+
+function createWorkspaceAutomationTarget(
+	folderUri: URI,
+	providerId: string | undefined,
+	sessionTypeId: string | undefined,
+	isolation: AutomationWorkspaceIsolation,
+): AutomationTarget {
+	return Object.freeze({
+		kind: 'workspace',
+		folderUri,
+		...(providerId !== undefined ? { providerId } : {}),
+		...(sessionTypeId !== undefined ? { sessionTypeId } : {}),
+		isolation: normalizeAutomationWorkspaceIsolation(isolation),
+	});
+}
+
+function isAutomationWorkspaceIsolation(value: AutomationWorkspaceIsolation | undefined): value is AutomationWorkspaceIsolation {
+	return value?.kind === 'default'
+		|| value?.kind === 'folder'
+		|| (value?.kind === 'worktree' && typeof value.branch === 'string' && value.branch.length > 0);
 }
 
 function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {

@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { createHash } from 'crypto';
-import { execFileSync } from 'child_process';
-import * as os from 'os';
 import * as path from 'path';
-import { extract } from 'tar';
+import { ensureNpmPackage, type EnsureNpmPackageOptions } from './npmPackage.ts';
 
 /**
  * The platforms that @github/copilot ships platform-specific packages for.
@@ -66,6 +63,8 @@ const copilotTgrepPlatforms = [
 	'win32-arm64', 'win32-x64',
 ];
 
+const mxcArchitectures = ['x64', 'arm64'];
+
 function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	if (platform === 'alpine') {
 		return `linuxmusl-${arch}`;
@@ -112,6 +111,23 @@ function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
 	}
 
 	return files;
+}
+
+/**
+ * Returns a glob filter that strips @microsoft/mxc-sdk `bin/<arch>` payload for
+ * architectures other than the build target. `@microsoft/mxc-sdk` ships a full
+ * set of sandbox binaries for every architecture under `bin/<arch>/`; only the
+ * build target's architecture is needed. Architectures that mxc-sdk does not
+ * ship (e.g. armhf) strip every `bin/<arch>` directory.
+ */
+export function getMxcExcludeFilter(arch: string): string[] {
+	const target = mxcArchitectures.includes(arch) ? arch : undefined;
+	const nonTargetArchitectures = mxcArchitectures.filter(a => a !== target);
+
+	return [
+		'**',
+		...nonTargetArchitectures.map(a => `!**/node_modules/@microsoft/mxc-sdk/bin/${a}/**`),
+	];
 }
 
 /**
@@ -185,91 +201,19 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 	];
 }
 
-interface NpmPackageLock {
-	packages?: Record<string, {
-		version?: string;
-		integrity?: string;
-	}>;
-}
-
-interface EnsureCopilotPlatformPackageOptions {
-	packPackage?: (packageName: string, version: string, tempDir: string) => string;
-}
-
 /**
  * Ensures the selected @github/copilot-{platform} package is present before
  * packaging. npm only installs the host-compatible optional dependency, but
  * VS Code packaging can cross-build targets such as darwin-x64 on arm64 hosts.
  */
-export function ensureCopilotPlatformPackage(platform: string, arch: string, nodeModulesRoot = 'node_modules', options: EnsureCopilotPlatformPackageOptions = {}): void {
+export function ensureCopilotPlatformPackage(platform: string, arch: string, nodeModulesRoot = 'node_modules', options: EnsureNpmPackageOptions = {}): void {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
 		return;
 	}
 
 	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
-	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
-	if (fs.existsSync(packageDir)) {
-		return;
-	}
-
-	const lockFilePath = path.join(path.dirname(nodeModulesRoot), 'package-lock.json');
-	const lockPackageKey = path.posix.join('node_modules', '@github', `copilot-${copilotPackagePlatformArch}`);
-	const lockPackage = readNpmPackageLock(lockFilePath).packages?.[lockPackageKey];
-	if (!lockPackage?.version) {
-		throw new Error(`[ensureCopilotPlatformPackage] Missing ${lockPackageKey} in ${lockFilePath}. Run npm install to refresh the lockfile.`);
-	}
-
-	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-platform-'));
-	try {
-		const tarballPath = (options.packPackage ?? packCopilotPlatformPackage)(packageName, lockPackage.version, tempDir);
-		verifyNpmIntegrity(tarballPath, lockPackage.integrity);
-
-		fs.mkdirSync(packageDir, { recursive: true });
-		extract({ file: tarballPath, cwd: packageDir, strip: 1, sync: true });
-		console.log(`[ensureCopilotPlatformPackage] Materialized ${packageName}@${lockPackage.version} in ${packageDir}`);
-	} catch (err) {
-		fs.rmSync(packageDir, { recursive: true, force: true });
-		throw new Error(`[ensureCopilotPlatformPackage] Failed to materialize ${packageName}@${lockPackage.version}: ${err instanceof Error ? err.message : String(err)}`);
-	} finally {
-		fs.rmSync(tempDir, { recursive: true, force: true });
-	}
-}
-
-function packCopilotPlatformPackage(packageName: string, version: string, tempDir: string): string {
-	execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', `${packageName}@${version}`, '--pack-destination', tempDir, '--silent'], { stdio: 'pipe', shell: process.platform === 'win32' });
-
-	const tarball = fs.readdirSync(tempDir).find(name => name.endsWith('.tgz'));
-	if (!tarball) {
-		throw new Error(`npm pack did not produce a tarball in ${tempDir}`);
-	}
-
-	return path.join(tempDir, tarball);
-}
-
-function readNpmPackageLock(lockFilePath: string): NpmPackageLock {
-	try {
-		return JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
-	} catch (err) {
-		throw new Error(`[ensureCopilotPlatformPackage] Failed to read ${lockFilePath}: ${err instanceof Error ? err.message : String(err)}`);
-	}
-}
-
-function verifyNpmIntegrity(tarballPath: string, integrity: string | undefined): void {
-	if (!integrity) {
-		return;
-	}
-
-	const sha512Integrity = integrity.split(/\s+/).find(entry => entry.startsWith('sha512-'));
-	if (!sha512Integrity) {
-		return;
-	}
-
-	const expected = sha512Integrity.slice('sha512-'.length);
-	const actual = createHash('sha512').update(fs.readFileSync(tarballPath)).digest('base64');
-	if (actual !== expected) {
-		throw new Error(`integrity mismatch for ${tarballPath}`);
-	}
+	ensureNpmPackage(packageName, nodeModulesRoot, options);
 }
 
 /**

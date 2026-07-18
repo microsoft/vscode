@@ -6,6 +6,7 @@
 import { BasePromptElementProps, PromptElement, PromptSizing, UserMessage } from '@vscode/prompt-tsx';
 import { ChatCompletionContentPartKind, ChatRole } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
 import type { ChatRequestEditedFileEvent } from 'vscode';
+import { isXAiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
@@ -47,7 +48,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 
 	async render(state: void, sizing: PromptSizing) {
 		const query = this.props.request;
-		const shouldUseUserQuery = this.props.endpoint.family.startsWith('grok-code');
+		const shouldUseUserQuery = isXAiFamily(this.props.endpoint);
 
 		// Files & folders will not be added as regular attachments, as those will be handed by SDK.
 		// We merely add a <attachments> tag to signal that there are file/folder attachments.

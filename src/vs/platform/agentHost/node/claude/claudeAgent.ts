@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { ModelInfo, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelInfo, OnElicitation, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -26,7 +26,7 @@ import { createSchema, platformSessionSchema, schemaProperty } from '../../commo
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, SubagentChatSignal } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -34,6 +34,7 @@ import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProt
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isSubagentSession, parseSubagentSessionUri, buildDefaultChatUri, parseChatUri, parseRequiredSessionUriFromChatUri, isDefaultChatUri, ChatInputResponseKind, type ClientPluginCustomization, type Customization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
@@ -44,6 +45,7 @@ import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplay
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
+import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
@@ -436,6 +438,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
@@ -470,7 +473,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// fires only when a credential is genuinely missing.
 				if (next === 'proxy' && !this._proxyHandle) {
 					this._onDidRequireAuth.fire({
-						resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+						resource: this._gitHubEndpointService.getCopilotResource().resource,
 						reason: AuthRequiredReason.Required,
 					});
 				}
@@ -511,11 +514,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// the Anthropic credential — so the required Copilot resource is dropped.
 		// The optional repo resource is kept for git operations either way.
 		if (this._transportMode !== 'proxy') {
-			return [GITHUB_REPO_PROTECTED_RESOURCE];
+			return [this._gitHubEndpointService.getRepoResource()];
 		}
 		return [
-			GITHUB_COPILOT_PROTECTED_RESOURCE,
-			GITHUB_REPO_PROTECTED_RESOURCE,
+			this._gitHubEndpointService.getCopilotResource(),
+			this._gitHubEndpointService.getRepoResource(),
 		];
 	}
 
@@ -540,10 +543,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
-		if (resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
+		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
-		if (resource !== GITHUB_COPILOT_PROTECTED_RESOURCE.resource) {
+		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
 		// Native (BYO-Anthropic) mode needs no proxy and no GitHub token. Record
@@ -674,6 +677,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const existing = this._findAnySession(sessionId);
 		if (existing) {
+			// Re-apply the eager active client on reconnect: AgentService reissues
+			// `createSession` for an existing URI, so the reconnected client's
+			// tools/customizations must still reach Claude (mirrors Copilot).
+			await this._seedEagerActiveClient(sessionUri, config.activeClient);
 			if (!existing.isPipelineReady) {
 				return {
 					session: existing.sessionUri,
@@ -714,6 +721,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._instantiationService,
 		);
 		this._seedSessionEntry(sessionId, sessionUri, session);
+		await this._seedEagerActiveClient(sessionUri, config.activeClient);
 
 		return {
 			session: sessionUri,
@@ -721,6 +729,28 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			provisional: true,
 			...(project ? { project } : {}),
 		};
+	}
+
+	/**
+	 * Seed the eagerly-claimed active client (tools + customizations) into the
+	 * SDK at session creation, mirroring the Copilot agent. Runs for fresh AND
+	 * reconnected sessions: when the workbench session state already carries the
+	 * active client, no follow-up `session/activeClientSet` is dispatched to
+	 * trigger the customization sync, so the built-in skills bundle would never
+	 * reach Claude otherwise. Progress is suppressed (`quiet`) because the AH
+	 * service has not created the session state yet — a
+	 * `SessionCustomizationUpdated` envelope would be orphaned; the completed
+	 * snapshot is provided via `getSessionCustomizations` immediately after.
+	 */
+	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateSessionConfig['activeClient']): Promise<void> {
+		if (!activeClient) {
+			return;
+		}
+		const handle = this.getOrCreateActiveClient(sessionUri, { clientId: activeClient.clientId, displayName: activeClient.displayName });
+		handle.tools = activeClient.tools;
+		if (activeClient.customizations !== undefined) {
+			await this.syncClientCustomizations(sessionUri, activeClient.clientId, activeClient.customizations, { quiet: true });
+		}
 	}
 
 	/**
@@ -835,8 +865,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const { session, chat } = this._resolveChatTarget(chatUri);
 			return this._disposeChat(session, chat);
 		},
-		sendMessage: (chatUri, prompt, attachments, turnId, senderClientId) => {
-			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId);
+		sendMessage: (chatUri, prompt, workingDirectory, attachments, turnId, senderClientId) => {
+			return this._sendMessage(chatUri, prompt, workingDirectory, attachments, turnId, senderClientId);
 		},
 		abort: chatUri => {
 			return this._abortSession(chatUri);
@@ -946,6 +976,20 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Builds the SDK `onElicitation` bridge for a session/chat. Mirrors
+	 * {@link _makeCanUseTool}: resolves the session by SDK id (default and peer
+	 * chats) and delegates to the elicitation bridge, which parks on the
+	 * session's user-input channel. Phase 10.6.
+	 */
+	private _makeOnElicitation(sdkSessionId: string): OnElicitation {
+		return (request, options) =>
+			handleElicitation(
+				{ getSession: id => this._findSessionBySdkId(id) },
+				sdkSessionId, request, options,
+			);
+	}
+
+	/**
 	 * Promote a provisional {@link ClaudeAgentSession} into a live one.
 	 * Called from {@link sendMessage} inside the {@link _sessionSequencer.queue}
 	 * block, so concurrent first sends serialize naturally — exactly
@@ -963,7 +1007,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *   inside `materialize` throws so we never expose a live pipeline
 	 *   for a session the caller has already torn down.
 	 */
-	private async _materializeProvisional(sessionId: string): Promise<ClaudeAgentSession> {
+	private async _materializeProvisional(sessionId: string, workingDirectory?: URI): Promise<ClaudeAgentSession> {
 		const session = this._findAnySession(sessionId);
 		if (!session) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -971,9 +1015,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const transport = this._ensureAuthenticated();
 
 		const canUseTool = this._makeCanUseTool(sessionId);
-
+		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, isResume: false, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: false, workingDirectory, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1046,9 +1090,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._seedSessionEntry(sessionId, sessionUri, session);
 
 		const canUseTool = this._makeCanUseTool(sessionId);
-
+		const onElicitation = this._makeOnElicitation(sessionId);
 		try {
-			await session.materialize({ transport, canUseTool, isResume: true, serverToolHost: this._serverToolHost });
+			await session.materialize({ transport, canUseTool, onElicitation, isResume: true, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			this._sessions.deleteAndDispose(sessionId);
 			throw err;
@@ -1083,6 +1127,44 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// no DB write — symmetric with `createSession`.
 		const sessionId = AgentSession.id(session);
 		return this._disposeSequencer.queue(sessionId, async () => {
+			await this._teardownEntry(sessionId);
+			this._pruneActiveClientHandles(sessionId);
+		});
+	}
+
+	/**
+	 * Non-destructive counterpart to {@link disposeSession}: releases the
+	 * session's in-memory resources — its live SDK subprocess (via the disposed
+	 * pipeline) and cached entry — but preserves the on-disk session so it can
+	 * be transparently resumed later via {@link _resumeSession}. Used by
+	 * idle-session eviction to bound memory in long-lived host processes.
+	 *
+	 * No-ops for provisional sessions (never materialized, so nothing on disk to
+	 * resume from) and for sessions with a turn in flight — tearing the pipeline
+	 * down mid-turn would abort live work. Shares the same in-memory teardown as
+	 * {@link disposeSession}; the destructive difference (deleting durable data)
+	 * lives in the orchestrator, which only invokes it on dispose.
+	 */
+	releaseSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		return this._disposeSequencer.queue(sessionId, async () => {
+			const entry = this._sessions.get(sessionId);
+			if (!entry) {
+				return;
+			}
+			// Provisional sessions (default chat not materialized) have no
+			// on-disk SDK session to resume from; releasing would lose state.
+			if (!entry.defaultChat?.isPipelineReady) {
+				return;
+			}
+			// Defensive active-turn guard: the orchestrator already skips
+			// eviction while a turn is active, but `disposeSession` and
+			// `sendMessage` run on separate sequencers, so a turn could be in
+			// flight. Never tear the pipeline down under a live turn.
+			if (entry.allChatSessions().some(chatSession => chatSession.hasActiveTurn)) {
+				return;
+			}
+			this._logService.info(`[Claude:${sessionId}] Releasing idle session from memory (durable state preserved)`);
 			await this._teardownEntry(sessionId);
 			this._pruneActiveClientHandles(sessionId);
 		});
@@ -1361,8 +1443,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);
 		const transport = this._ensureAuthenticated();
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId);
+		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
 		try {
-			await chatSession.materialize({ transport, canUseTool, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
+			await chatSession.materialize({ transport, canUseTool, onElicitation, isResume: !!sdkInfo, serverToolHost: this._serverToolHost });
 		} catch (err) {
 			entry.disposePeerChat(chatKey);
 			throw err;
@@ -1480,6 +1563,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * and returns `[]` rather than propagating — mirrors `listSessions`.
 	 */
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+		// Don't trigger a cold SDK download just to reconstruct a transcript
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMetadata`: when the
+		// SDK isn't local yet, defer with an empty transcript. The download
+		// fires (with host-level progress) once the user sends the first
+		// message, after which the transcript re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
+			return [];
+		}
 		// Additional peer chat: reconstruct its own SDK chat (resolved
 		// from the catalog/in-memory), routed to the chat channel URI. Shares
 		// the same fetch+map path as the default chat via `_reconstructTurns`.
@@ -1621,6 +1714,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * fetch and should learn that the SDK module is broken).
 	 */
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		// Don't trigger a cold SDK download just to hydrate session metadata
+		// during restore (the renderer subscribes to the last-active session
+		// on startup). Mirrors `listSessions` / `getSessionMessages`: when the
+		// SDK isn't local yet, defer. The download fires (with host-level
+		// progress) once the user sends the first message, after which the
+		// session re-hydrates on the next restore.
+		if (!(await this._sdkService.canLoadWithoutDownload())) {
+			this._logService.info('[Claude] SDK not downloaded yet; deferring session metadata until a session triggers the download');
+			return undefined;
+		}
 		const sessionId = AgentSession.id(session);
 		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
 		if (!sdkInfo) {
@@ -1735,7 +1838,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		})();
 	}
 
-	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
+	private async _sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string): Promise<void> {
 		// `IAgent.sendMessage` declares `turnId?` but every production caller in
 		// `AgentSideEffects` supplies one. Generate a fallback so the
 		// session-side `QueuedRequest.turnId: string` invariant holds even if a
@@ -1769,7 +1872,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (existing?.isPipelineReady) {
 				session = existing;
 			} else if (existing) {
-				session = await this._materializeProvisional(context.sessionId);
+				session = await this._materializeProvisional(context.sessionId, workingDirectory);
 			} else {
 				session = await this._resumeSession(context.sessionId, context.session);
 			}
@@ -1863,6 +1966,44 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		if (steeringMessage) {
 			target.injectSteering(steeringMessage);
+		}
+	}
+
+	/**
+	 * Forward a user/picker `permissionMode` change to the running SDK so it
+	 * applies to the next tool this turn, not only from the next `send()`
+	 * (issue #321691). Only fires for client-originated changes (the host routes
+	 * internal server writes elsewhere), so this can forward without re-entering
+	 * a `canUseTool` callback.
+	 *
+	 * `permissionMode` is a **session-scoped** config value today (AHP has no
+	 * per-chat config), so — matching Copilot's session-scoped approvals — we
+	 * apply it to EVERY materialized chat's `Query` in the session, not just the
+	 * one the change arrived on. A `replace` that deletes the key resolves to the
+	 * chat's `permissionModeFallback`, the same value the next `send()` would
+	 * apply, so live state mirrors the reducer. Provisional chats are skipped —
+	 * their first `send()` seeds the mode into `Options.permissionMode`. Fire-and-
+	 * forget: the SDK control round-trip isn't awaited here; the pipeline caches
+	 * the mode so a later rebind / send re-applies it.
+	 *
+	 * TODO: adopt per-chat config when the protocol allows for such — see
+	 * https://github.com/microsoft/agent-host-protocol/issues/335 — so a picker
+	 * change scopes to its own chat instead of the whole session.
+	 */
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		const entry = this._sessions.get(this._getChatContext(session).sessionId);
+		if (!entry) {
+			return;
+		}
+		const narrowed = narrowClaudePermissionMode(values[ClaudeSessionConfigKey.PermissionMode]);
+		for (const chat of entry.allChatSessions()) {
+			if (!chat.isPipelineReady) {
+				continue;
+			}
+			const mode = narrowed ?? chat.permissionModeFallback;
+			chat.setPermissionMode(mode).catch(err => {
+				this._logService.warn(`[Claude:${chat.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
+			});
 		}
 	}
 
@@ -1968,7 +2109,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		entry?.defaultChat?.completeClientToolCall(toolCallId, result);
 	}
 
-	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
 		const sessionId = AgentSession.id(session);
 		const sess = this._findAnySession(sessionId);
 		if (!sess) {
@@ -1984,7 +2125,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const synced = await this._pluginManager.syncCustomizations(
 				clientId,
 				customizations,
-				status => this._fireCustomizationUpdated(session, { customization: status }),
+				options?.quiet ? undefined : status => this._fireCustomizationUpdated(session, { customization: status }),
 			);
 			sess.adoptClientCustomizations(clientId, synced);
 			return synced;
@@ -2008,12 +2149,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
-	setCustomizationEnabled(id: string, enabled: boolean): void {
-		for (const entry of this._sessions.values()) {
-			entry.defaultChat.setClientCustomizationEnabled(id, enabled);
-		}
-	}
-
 	getCustomizations(): readonly Customization[] {
 		// Provider-level customization catalogue — feeds `AgentInfo.customizations`
 		// on `RootAgentsChanged`. Should advertise host-configured plugin refs
@@ -2032,6 +2167,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
 		const sess = this._findAnySession(AgentSession.id(session));
 		return sess ? await sess.getSessionCustomizations() : [];
+	}
+
+	async startMcpServer(session: URI, id: string): Promise<void> {
+		const sess = this._findAnySession(AgentSession.id(session));
+		await sess?.startMcpServer(id);
+	}
+
+	async stopMcpServer(session: URI, id: string): Promise<void> {
+		const sess = this._findAnySession(AgentSession.id(session));
+		await sess?.stopMcpServer(id);
 	}
 
 	// #endregion

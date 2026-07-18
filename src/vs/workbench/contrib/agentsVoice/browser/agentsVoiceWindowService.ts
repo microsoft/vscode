@@ -27,6 +27,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { AgentsVoiceWidget } from './agentsVoiceWidget.js';
@@ -72,6 +73,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -148,14 +150,14 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		// expand them via the chevron.
 		const widget = new AgentsVoiceWidget(auxiliaryWindow.container, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
-			hideDisconnect: (this.configurationService.getValue<number>('agents.voice.autoSendDelay') ?? 500) >= 0,
+			hideDisconnect: this.configurationService.getValue<boolean>('agents.voice.handsFree') === true,
 			connect: () => {
 				// Connecting from any surface marks onboarding as completed so
 				// the main panel drops it too.
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.voiceSessionController.connect(mainWindow);
 			},
-			disconnect: () => this.voiceSessionController.disconnect(),
+			disconnect: () => this.voiceSessionController.disconnect('explicit'),
 			pttDown: () => {
 				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
 					this.voiceSessionController.connect(mainWindow).then(() => {
@@ -204,6 +206,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
+			isMotionReduced: () => this.accessibilityService.isMotionReduced(),
 			onResize: () => this._resizeWindow(auxiliaryWindow),
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
@@ -217,6 +220,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}, {
 			defaultExpanded: false,
 			inputBoxLayout: true,
+			// Make the aux-window container focusable so keyboard Push-to-Talk
+			// (the `agentsVoice.pushToTalk` keybinding) can be received and its
+			// key-release tracking is registered. Without this the keyboard-PTT
+			// handlers are never wired and a held key never stops recording.
+			focusable: true,
 		});
 		this._windowDisposables.add(widget);
 

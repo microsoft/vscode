@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
 import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { runInTerminalScenario, shellEchoResponseMatcher, shellEchoScenario } from './shellScenarios';
 
 /**
  * Per-session scenarios. Each session uses a pair of unique scenario ids so
@@ -32,10 +33,32 @@ interface SessionConfig {
 const SESSIONS: readonly SessionConfig[] = [
 	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE', scenarioId2: 'smoke-chat-sessions-copilot-cli-2', reply2: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_RESPONSE_2' },
 	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE', scenarioId2: 'smoke-chat-sessions-claude-2', reply2: 'MOCKED_CHAT_SESSIONS_CLAUDE_RESPONSE_2' },
-	{ name: 'Local', command: 'workbench.action.chat.open', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
+	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE', scenarioId2: 'smoke-chat-sessions-local-2', reply2: 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE_2' },
 ];
 
-async function openSession(app: Application, session: SessionConfig): Promise<void> {
+/**
+ * Per-session shell-tool scenarios. Each session triggers a shell tool call
+ * on the first prompt and verifies the echoed marker appears in the chat
+ * (which proves both that the command ran and that the reply was rendered).
+ * SDK-based sessions (Copilot CLI, Claude) advertise `bash`/`pwsh`/
+ * `powershell`; the Local chat agent advertises `run_in_terminal`.
+ */
+interface ShellSessionConfig {
+	readonly name: string;
+	readonly command: string;
+	readonly kind: 'editor' | 'view';
+	readonly scenarioId: string;
+	readonly reply: string;
+	readonly scenarioFactory: (reply: string) => unknown;
+}
+
+const SHELL_SESSIONS: readonly ShellSessionConfig[] = [
+	{ name: 'Copilot CLI', command: 'smoketest.openCopilotCliChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-copilot-cli-shell', reply: 'MOCKED_CHAT_SESSIONS_COPILOT_CLI_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
+	{ name: 'Claude', command: 'smoketest.openClaudeChat', kind: 'editor', scenarioId: 'smoke-chat-sessions-claude-shell', reply: 'MOCKED_CHAT_SESSIONS_CLAUDE_SHELL_RESPONSE', scenarioFactory: shellEchoScenario },
+	{ name: 'Local', command: 'smoketest.openLocalChat', kind: 'view', scenarioId: 'smoke-chat-sessions-local-terminal', reply: 'MOCKED_CHAT_SESSIONS_LOCAL_TERMINAL_RESPONSE', scenarioFactory: runInTerminalScenario },
+];
+
+async function openSession(app: Application, session: { readonly command: string; readonly kind: 'editor' | 'view' }): Promise<void> {
 	await app.workbench.quickaccess.runCommand(session.command);
 	if (session.kind === 'editor') {
 		await app.workbench.chat.waitForChatEditor(600);
@@ -82,6 +105,14 @@ export function setup(logger: Logger) {
 			for (const session of SESSIONS) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
+			}
+
+			// Shell-tool scenarios. `echo` is in the default
+			// `chat.tools.terminal.autoApprove` list, so no extra settings
+			// are required to auto-approve the command — these tests
+			// deliberately exercise the non-sandbox shell-tool path.
+			for (const shellSession of SHELL_SESSIONS) {
+				registerScenario(shellSession.scenarioId, shellSession.scenarioFactory(shellSession.reply));
 			}
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`) });
@@ -131,6 +162,13 @@ export function setup(logger: Logger) {
 				// would route through the ms-vscode.vscode-claude-sdk extension,
 				// which would attempt a network install during the smoke run).
 				['github.copilot.chat.claudeAgent.useSdkExtension', 'false'],
+				// Disable the LLM-generated tool risk assessment. It issues a
+				// separate model request whose mock reply ("OK") never resolves
+				// to a valid Safe/Caution/Review verdict, which would otherwise
+				// leave the terminal confirmation stuck in the "Assessing risk…"
+				// state so its "Allow" button never becomes available. The
+				// shell-tool tests need to click "Allow" to proceed.
+				['chat.tools.riskAssessment.enabled', 'false'],
 			]);
 			logger.log(`[Chat Sessions] user settings written; requestCount=${mockServer.requestCount()}`);
 		});
@@ -183,6 +221,59 @@ export function setup(logger: Logger) {
 					throw error;
 				} finally {
 					// Close the editor to avoid focus interference with the next test
+					await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+				}
+			});
+		}
+
+		// Shell-tool variant per session — exercises the model-driven shell
+		// tool (`bash`/`pwsh`/`powershell` for the SDK sessions, or
+		// `run_in_terminal` for the Local session) on the first prompt and
+		// verifies both that the command actually ran (the JSON tool result
+		// contains the echoed marker) and that the reply was rendered in the
+		// chat. `echo` is in the default `chat.tools.terminal.autoApprove`
+		// list, so no extra auto-approve settings are required.
+		for (const shellSession of SHELL_SESSIONS) {
+			it(`Test ${shellSession.name} session run in terminal`, async function () {
+				const app = this.app as Application;
+				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Chat Sessions/${shellSession.name} shell] starting test; requestCount=${requestsBefore}`);
+
+				try {
+					await openSession(app, shellSession);
+
+					const prompt = `hello world [scenario:${shellSession.scenarioId}]`;
+					const matcher = shellEchoResponseMatcher(shellSession.reply);
+					let responseText: string;
+					if (shellSession.kind === 'editor') {
+						await app.workbench.chat.sendEditorMessage(prompt);
+						// 120s timeout — SDK + shell tool round-trip can be slow on cold CI.
+						// acceptToolConfirmations clicks "Allow" on the terminal
+						// confirmation so the command runs (no-op when the session
+						// auto-approves).
+						responseText = (await app.workbench.chat.waitForEditorResponseText(matcher, 120_000, { acceptToolConfirmations: true })).trim();
+					} else {
+						await app.workbench.chat.sendMessage(prompt);
+						responseText = (await app.workbench.chat.waitForResponseText(matcher, 120_000, { acceptToolConfirmations: true })).trim();
+					}
+					logger.log(`Chat Sessions (${shellSession.name} shell) response: ${responseText}`);
+
+					assert.match(
+						responseText,
+						matcher,
+						`Expected ${shellSession.name} shell response to include the echoed marker "${shellSession.reply}" inside a JSON tool result string.\n\nResponse:\n${responseText}`
+					);
+
+					assert.ok(
+						mockServer.requestCount() > requestsBefore,
+						`expected the mock LLM server to have received a new request from the ${shellSession.name} shell session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+					);
+				} catch (error) {
+					logger.log(`[Chat Sessions/${shellSession.name} shell] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					logger.log(`[Chat Sessions/${shellSession.name} shell] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
+					await dumpFailureDiagnostics(app, logger, `Chat Sessions/${shellSession.name} shell`);
+					throw error;
+				} finally {
 					await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 				}
 			});

@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -33,12 +33,14 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
@@ -247,6 +249,7 @@ suite('AgentHostClientTools', () => {
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
+			const recordedStateKinds = new Map<string, IChatToolInvocation.StateKind[]>();
 			return {
 				onDidChangeTools: onDidChangeTools.event,
 				getToolByName: (name: string) => tools.find(t => t.toolReferenceName === name),
@@ -265,13 +268,17 @@ suite('AgentHostClientTools', () => {
 						throw options.throwBeforeConfirmation;
 					}
 					if (options?.requireConfirmation && toolInvocation) {
+						// Mirror the real service: a caller-provided `preApproved`
+						// reason is treated as auto-confirmation so the invocation
+						// transitions straight to executing without ever entering
+						// `WaitingForConfirmation`.
 						toolInvocation.transitionFromStreaming({
 							invocationMessage: 'Run Task',
 							confirmationMessages: {
 								title: 'Confirm tool execution',
 								message: 'Run the task?',
 							},
-						}, invocation.parameters, undefined);
+						}, invocation.parameters, invocation.preApproved);
 						await IChatToolInvocation.awaitConfirmation(toolInvocation, CancellationToken.None);
 					} else {
 						toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
@@ -293,6 +300,14 @@ suite('AgentHostClientTools', () => {
 					});
 					pendingToolCalls.set(options.toolCallId, invocation);
 					begunToolCalls.push(invocation);
+					// Record every state the invocation passes through so tests can
+					// assert it never flickers into `WaitingForConfirmation` when
+					// the call is auto-approved.
+					const stateKinds: IChatToolInvocation.StateKind[] = [];
+					recordedStateKinds.set(options.toolCallId, stateKinds);
+					disposables.add(autorun(reader => {
+						stateKinds.push(invocation.state.read(reader).type);
+					}));
 					return invocation;
 				},
 				updateToolStream: async () => { },
@@ -321,7 +336,8 @@ suite('AgentHostClientTools', () => {
 				fireOnDidChangeTools: () => onDidChangeTools.fire(),
 				begunToolCalls,
 				invokedToolCalls,
-			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[] };
+				recordedStateKinds,
+			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
 		}
 
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
@@ -333,6 +349,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidNotification = this._onDidNotification.event;
 			override readonly onAgentHostExit = Event.None;
 			override readonly onAgentHostStart = Event.None;
+			override readonly initializeResult = constObservable(undefined);
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
@@ -473,7 +490,13 @@ suite('AgentHostClientTools', () => {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
 			});
+			instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			instantiationService.stub(IAgentHostImportConversationStore, {
+				set: () => { },
+				take: () => undefined,
+				rename: () => { },
+			} as Partial<IAgentHostImportConversationStore> as IAgentHostImportConversationStore);
 			instantiationService.stub(ICustomizationHarnessService, {
 				registerExternalHarness: () => toDisposable(() => { }),
 			});
@@ -567,6 +590,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -651,6 +675,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -690,6 +715,73 @@ suite('AgentHostClientTools', () => {
 				&& entry.action.toolCallId === 'tool-call-1'));
 		});
 
+		test('shows another client tool as cancellable progress without invoking or confirming it', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'owner-client' },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Allow Run Task?',
+			} as ChatAction);
+
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+			const invocation = (session as unknown as { progressObs: { get(): IChatProgress[] } })
+				.progressObs.get()
+				.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'tool-call-1');
+			assert.ok(invocation);
+
+			const actionsBeforeSkip = getToolCallConfirmationAndCompletionActions(connection);
+			const stateBeforeSkip = invocation.state.get().type;
+			const messageBeforeSkip = invocation.invocationMessage;
+			invocation.otherClientToolCall?.cancel();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				messageBeforeSkip,
+				messageAfterSkip: invocation.invocationMessage,
+				stateBeforeSkip,
+				stateAfterSkip: invocation.state.get().type,
+				invokedToolCallCount: toolsService.invokedToolCalls.length,
+				actionsBeforeSkip,
+				actionsAfterSkip: getToolCallConfirmationAndCompletionActions(connection),
+			}, {
+				messageBeforeSkip: 'Running Run Task on another client...',
+				messageAfterSkip: 'Run Task',
+				stateBeforeSkip: IChatToolInvocation.StateKind.Executing,
+				stateAfterSkip: IChatToolInvocation.StateKind.Completed,
+				invokedToolCallCount: 0,
+				actionsBeforeSkip: [],
+				actionsAfterSkip: [{
+					type: ActionType.ChatToolCallComplete,
+					approved: undefined,
+					success: false,
+					error: 'Run Task was skipped from another client',
+				}],
+			});
+		});
+
 		test('reports client tool prepare failures before confirmation as failed completion', async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], { throwBeforeConfirmation: new Error('prepare failed') });
 
@@ -724,6 +816,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -787,6 +880,55 @@ suite('AgentHostClientTools', () => {
 			]);
 		});
 
+		test('auto-approved client tool never enters WaitingForConfirmation (no needs-input flicker)', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as ChatAction);
+			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Run Task',
+				_meta: { autoApproveBySetting: true },
+			} as ChatAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+			await timeout(0);
+
+			// The invocation carries the pre-resolved approval, and it transitions
+			// straight from streaming to executing without ever surfacing a pending
+			// confirmation (which would flicker "needs input" in the sessions list).
+			assert.deepStrictEqual(
+				{
+					preApprovedKind: toolsService.invokedToolCalls[0]?.preApproved?.type,
+					sawWaitingForConfirmation: (toolsService.recordedStateKinds.get('tool-call-1') ?? []).includes(IChatToolInvocation.StateKind.WaitingForConfirmation),
+				},
+				{
+					preApprovedKind: ToolConfirmKind.Setting,
+					sawWaitingForConfirmation: false,
+				},
+			);
+		});
+
 		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {
 			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool]);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
@@ -795,6 +937,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as ChatAction);
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -854,6 +997,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -885,6 +1029,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(subagentChat), {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'sub-turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat), {
@@ -949,7 +1094,7 @@ suite('AgentHostClientTools', () => {
 
 			// Default turn spawns the level-1 subagent.
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -967,7 +1112,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-1 subagent spawns the level-2 subagent.
 			connection.applySessionAction(URI.parse(subagentChat1), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat1), {
@@ -985,7 +1130,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-2 subagent runs a client-provided tool.
 			connection.applySessionAction(URI.parse(subagentChat2), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat2), {
@@ -1039,7 +1184,7 @@ suite('AgentHostClientTools', () => {
 
 			// Default turn spawns the level-1 subagent (no content block).
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(buildDefaultChatUri(backendSession)), {
@@ -1053,7 +1198,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-1 subagent spawns the level-2 subagent (no content block).
 			connection.applySessionAction(URI.parse(subagentChat1), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-1', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat1), {
@@ -1067,7 +1212,7 @@ suite('AgentHostClientTools', () => {
 
 			// Level-2 subagent runs a client-provided tool.
 			connection.applySessionAction(URI.parse(subagentChat2), {
-				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2',
+				type: ActionType.ChatTurnStarted, turnId: 'sub-turn-2', startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentChat2), {

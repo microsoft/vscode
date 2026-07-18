@@ -87,6 +87,13 @@ export interface IByokLmModelInfo {
 	readonly id: string;
 	/** Display name, when the provider supplies one. */
 	readonly name?: string;
+	/**
+	 * The identifier the model is registered under in the renderer's LM service —
+	 * i.e. `toModelIdentifier(vendor, group, id)` in `extHostLanguageModels`
+	 * (`<vendor>/<group>/<id>` when the user configured a provider group in
+	 * `chatLanguageModels.json`, else `<vendor>/<id>`).
+	 */
+	readonly modelIdentifier?: string;
 	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
@@ -128,14 +135,11 @@ export interface IAgentHostByokLmHandler {
 
 /**
  * Node-side connection to a single renderer's {@link IAgentHostByokLmHandler}.
- * Mirrors `IRemoteFilesystemConnection` for the reverse FS bridge.
+ * Mirrors `IRemoteFilesystemConnection` for the reverse FS bridge. The renderer
+ * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip.
  */
 export interface IByokLmBridgeConnection {
 	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
-	listModels(): Promise<IByokLmModelInfo[]>;
-	/**
-	 * Fires when the renderer's set of BYOK models changes, so the agent host
-	 * can re-enumerate. Optional: test fakes may omit it.
-	 */
-	readonly onDidChangeModels?: Event<void>;
+	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
+	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
 }

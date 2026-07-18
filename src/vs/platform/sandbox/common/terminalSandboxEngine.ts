@@ -42,6 +42,16 @@ interface ITerminalSandboxFileSystemAccessPaths {
 export interface ITerminalSandboxRuntimeInfo {
 	/** Directory that contains `node_modules/@vscode/sandbox-runtime` and `node_modules/@vscode/ripgrep`. */
 	appRoot: string;
+	/**
+	 * Name of the directory (relative to {@link appRoot}) that holds the native
+	 * binaries `ripgrep-universal` and `@microsoft/mxc-sdk`. In a packaged desktop
+	 * build these are unpacked from the archive into `node_modules.asar.unpacked`;
+	 * in dev and on remote they live in plain `node_modules`. Defaults to
+	 * `node_modules`. Note the sandbox-runtime CLI itself is always resolved from
+	 * plain `node_modules` (it is duplicated out of the archive) because it is
+	 * spawned as a standalone Node subprocess without the ASAR resolution hook.
+	 */
+	nativeModulesDir?: string;
 	/** Path of the node/electron executable used to run sandbox-runtime. */
 	execPath?: string;
 	/**
@@ -335,6 +345,7 @@ export class TerminalSandboxEngine extends Disposable {
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
 				missingDependencies,
+				canInstallMissingDependencies: !!this._sandboxDependencyStatus?.dependencyInstallCommand,
 			};
 		}
 
@@ -601,10 +612,11 @@ export class TerminalSandboxEngine extends Disposable {
 		this._runAsNode = runtimeInfo.runAsNode ?? false;
 		this._userHome = await this._host.getUserHome();
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'sandbox-runtime', 'dist', 'cli.js');
+		const nativeModulesDir = runtimeInfo.nativeModulesDir ?? 'node_modules';
 		const rgPlatform = this._os === OperatingSystem.Windows ? 'win32' : this._os === OperatingSystem.Macintosh ? 'darwin' : 'linux';
 		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
-		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
-		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, runtimeInfo.arch);
+		this._rgPath = this._pathJoin(this._appRoot, nativeModulesDir, '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
+		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, nativeModulesDir, runtimeInfo.arch);
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {

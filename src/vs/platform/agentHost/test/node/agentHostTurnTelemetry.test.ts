@@ -126,6 +126,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
+			startedAt: '2025-01-01T00:00:00.000Z',
 			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
 		};
 		// Dispatch into the state manager so `getActiveTurnId` returns the
@@ -187,7 +188,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-1', 'hello', 'gpt-5.5');
 
 		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -207,7 +208,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		// Usage is not a "visible progress" action — it should not mark first progress.
 		fire({ type: ActionType.ChatUsage, turnId: 'turn-1', usage: { inputTokens: 1, outputTokens: 1 } });
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstProgress, undefined);
@@ -216,7 +217,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits result=cancelled on ChatTurnCancelled', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -226,7 +227,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits result=error on ChatError', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatError, turnId: 'turn-1', error: { errorType: 'oops', message: 'fail' } });
+		fire({ type: ActionType.ChatError, turnId: 'turn-1', duration: 1000, error: { errorType: 'oops', message: 'fail' } });
 
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
@@ -236,10 +237,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 		// A duplicate turn-complete should not produce a second telemetry event because the tracker
 		// drops its per-turn state on the first completion.
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});
@@ -252,7 +253,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// Change config mid-turn — should not affect the recorded event.
 		setAutoApprove('autopilot');
 
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.permissionLevel, 'default');
@@ -261,7 +262,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('model and permissionLevel are undefined when never set', () => {
 		setupSession();
 		startTurn('turn-1');
-		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.model, undefined);
@@ -280,6 +281,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(defaultChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
 
 		await new Promise(r => setTimeout(r, 10));
@@ -332,8 +334,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sideEffects.handleAction(defaultChatUri, {
 			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
+			duration: 1000,
 		});
-		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1' });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual(completedEvents().length, 1);
 	});

@@ -13,13 +13,17 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { localize } from '../../../../nls.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsConfig, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatPreviewFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/browser/changesActions.js';
+import { LastTurnChangesMultiDiffSourceResolver } from './lastTurnChangesMultiDiffSourceResolver.js';
+import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import './media/sessionChatInputToolbar.css';
 
 /** The per-turn data both pills reflect. */
@@ -32,21 +36,17 @@ interface ITurnData {
 const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] };
 
 /**
- * Compute the current turn's diff stats and previewable files from the session's
- * "Last Turn Changes" changeset ({@link TURN_CHANGES_CHANGESET_ID}). Files are
- * classified as created vs. edited with the same rules as the Changes view (an
- * addition has no original; a deletion has no modified resource). Created files
- * are listed before edited ones so the primary (first) file is the first created
- * one, falling back to the first edited one. Returns {@link EMPTY_TURN_DATA} when
- * the session exposes no turn changeset (e.g. before its first turn).
+ * Compute the current turn's diff stats and previewable files from the chat's
+ * last-turn changes ({@link IChat.lastTurnChanges}), which the provider derives
+ * from the live output stream. Files are classified as created vs. edited with
+ * the same rules as the Changes view (an addition has no original; a deletion
+ * has no modified resource). Created files are listed before edited ones so the
+ * primary (first) file is the first created one, falling back to the first
+ * edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes no last-turn
+ * changes (e.g. before its first turn, or a provider that can't determine them).
  */
-function computeTurnData(session: IActiveSession, reader: IReader): ITurnData {
-	const turnChangeset = session.changesets.read(reader)?.find(cs => cs.id === TURN_CHANGES_CHANGESET_ID);
-	if (!turnChangeset) {
-		return EMPTY_TURN_DATA;
-	}
-
-	const changes = turnChangeset.changes.read(reader);
+function computeTurnData(chat: IChat, reader: IReader): ITurnData {
+	const changes = chat.lastTurnChanges?.read(reader) ?? [];
 
 	let insertions = 0, deletions = 0;
 	const created: IPreviewFile[] = [];
@@ -77,48 +77,59 @@ function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
 	return diffStatsEqual(a.stats, b.stats) && previewFilesEqual(a.previewFiles, b.previewFiles);
 }
 
-/**
- * A floating toolbar shown above the chat input that surfaces the current turn's
- * session status as clickable pills (see {@link ChatTurnPillsWidget}). Only shown
- * for agent host sessions while a turn is actively in progress; once the turn
- * completes the pills disappear here and reappear inside the completed response.
- * The pills are scoped to the session's "Last Turn Changes" changeset so they
- * reflect only what the most recent request produced.
- */
+/** A floating toolbar for the viewed chat's active-turn status and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
 	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>('sessionOverride', 'unset');
-	private readonly _chatResource = observableValue<URI | undefined>('chatResource', undefined);
+	/** The chat whose last-turn changes are reflected. */
+	private readonly _chat = observableValue<IChat | undefined>('chat', undefined);
+	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
+	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 
-	/** The session whose status is reflected, from an explicit override or resolved from the chat. */
+	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
 		const override = this._sessionOverride.read(reader);
 		if (override !== 'unset') {
 			return override;
 		}
-		const resource = this._chatResource.read(reader);
-		if (!resource) {
+		const chat = this._chat.read(reader);
+		if (!chat) {
 			return undefined;
 		}
-		return this._findOwningSession(resource, reader);
+		return this._findOwningSession(chat.resource, reader);
 	});
 
 	/** The current turn's diff stats and previewable files. */
 	private readonly _turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
-		const session = this._session.read(reader);
-		return session ? computeTurnData(session, reader) : EMPTY_TURN_DATA;
+		const debugData = this._debugData.read(reader);
+		if (debugData) {
+			return {
+				stats: debugData.stats,
+				previewFiles: debugData.markdownFiles.map(name => ({
+					uri: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
+					kind: 'markdown',
+					created: true,
+				})),
+			};
+		}
+		const chat = this._chat.read(reader);
+		return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
 	});
 
 	private readonly _diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
 	private readonly _previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
 
-	/** Whether pills may show at all: an agent host session while a turn is streaming. */
+	/** Whether pills may show at all: an agent host session with an active turn. */
 	private readonly _active = derived(reader => {
 		const session = this._session.read(reader);
-		return !!session && isAgentHostProviderId(session.providerId) && session.status.read(reader) === SessionStatus.InProgress;
+		const chat = this._chat.read(reader);
+		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
+			return false;
+		}
+		return isActiveSessionStatus(chat.status.read(reader));
 	});
 
 	constructor(
@@ -127,47 +138,63 @@ export class SessionChatInputToolbar extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.element = $('.session-chat-input-toolbar.hidden');
 
-		// Combine the active-turn gate with the per-pill visibility setting.
-		const pillsConfig = observeTurnStatusPillsConfig(this._configurationService);
+		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
 		const model: IChatTurnPillsModel = {
 			stats: this._diffStats,
 			previewFiles: this._previewFiles,
-			changesEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).changes),
-			previewEnabled: derived(reader => this._active.read(reader) && pillsConfig.read(reader).preview),
-			openChanges: () => this._openChanges(),
-			openPreviewFile: file => openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
+			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
+			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
+			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
+			openPreviewFile: file => this._debugData.get() ? undefined : openChatPreviewFile(file, this._commandService, this._openerService, this._logService),
 		};
 
 		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
 		this.element.appendChild(pills.element);
 
+		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled));
+		this.element.appendChild(this._backgroundActivities.element);
+
 		this._register(autorun(reader => {
-			this.element.classList.toggle('hidden', !pills.isVisible.read(reader));
+			this.element.classList.toggle('hidden', !pills.isVisible.read(reader) && !this._backgroundActivities.isVisible.read(reader));
 		}));
 	}
 
 	/**
-	 * Track the currently-viewed chat; the toolbar resolves and reflects the
-	 * status of the session that owns it. Clears any explicit {@link setSession}
-	 * override.
+	 * Track the currently-viewed chat; the toolbar reflects that chat's last-turn
+	 * changes and status, resolving the owning session for provider gating and the
+	 * open-changes action. Clears any explicit {@link setSession} override.
 	 */
-	setChat(chatResource: URI | undefined): void {
+	setChat(chat: IChat | undefined): void {
+		this.setDebugData(undefined);
 		this._sessionOverride.set('unset', undefined);
-		this._chatResource.set(chatResource, undefined);
+		this._chat.set(chat, undefined);
 	}
 
 	/**
-	 * Explicitly set the session to reflect, bypassing chat resolution. Intended
-	 * for component fixtures and callers that already hold the session.
+	 * Explicitly set the session and chat to reflect, bypassing chat-to-session
+	 * resolution. Intended for component fixtures and callers that already hold
+	 * both.
 	 */
-	setSession(session: IActiveSession | undefined): void {
+	setSession(session: IActiveSession | undefined, chat: IChat | undefined): void {
+		this.setDebugData(undefined);
 		this._sessionOverride.set(session, undefined);
+		this._chat.set(chat, undefined);
+	}
+
+	setDebugData(data: ISessionChatPillsDebugData | undefined): void {
+		this._debugData.set(data, undefined);
+		this._backgroundActivities.setDebugData(data);
+	}
+
+	getDebugData(): ISessionChatPillsDebugData | undefined {
+		return this._debugData.get();
 	}
 
 	private _findOwningSession(chatResource: URI, reader: IReader): IActiveSession | undefined {
@@ -181,10 +208,19 @@ export class SessionChatInputToolbar extends Disposable {
 	}
 
 	private async _openChanges(): Promise<void> {
-		const session = this._session.get();
-		if (!session) {
+		const chat = this._chat.get();
+		if (!chat) {
 			return;
 		}
-		await this._commandService.executeCommand(VIEW_SESSION_CHANGES_COMMAND_ID, session);
+		// Open the multi-diff editor scoped to this chat's last turn. Its resource
+		// list is resolved reactively via the `LastTurnChangesMultiDiffSourceResolver`
+		// registered as a workbench contribution, so it live-updates as further
+		// edits stream in.
+		const multiDiffSource = LastTurnChangesMultiDiffSourceResolver.getMultiDiffSourceUri(chat.resource);
+		await this._editorService.openEditor({
+			multiDiffSource,
+			label: localize('sessions.lastTurnChanges.title', "Last Turn Changes"),
+		});
 	}
+
 }

@@ -6,6 +6,11 @@ bar spanning the editor content and a docked detail panel).
 
 - The whole feature is gated behind the experimental setting **`sessions.layout.singlePaneDetailPanel`**
   (const `DOCK_DETAIL_PANEL_SETTING`), read **once at startup** — a window reload applies a change.
+  The setting is read only by `createSessionsWorkbench` (which selects the workbench/parts); the
+  resulting choice is published as `IAgentWorkbenchLayoutService.isSinglePaneLayoutEnabled` (read by
+  imperative code) and the `SinglePaneLayoutEnabledContext` context key (read only by declarative
+  `when` clauses). Features must gate on those — never read the setting or the context key directly
+  in imperative code.
 - When the setting is **OFF** (default), the Agents window renders exactly as before (auxiliary bar as
   its own grid column with its composite tab strip; the standard multi-diff Changes editor). Nothing in
   this document applies.
@@ -38,29 +43,34 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | State | E | D | Meaning |
 |-------|---|---|---------|
 | **Editor + Detail** | ✅ | ✅ | Normal working state: editor content on the left, detail on the right, tab bar across the top. |
-| **Detail only** | ❌ | ✅ | Editor content collapsed (Hide Editor); tab bar + detail shown; the chat reclaims the freed editor width. The detail **keeps its width** (it does not stretch to fill the pane). |
+| **Detail only** | ❌ | ✅ | Editor content collapsed (Hide Editor); tab bar + detail shown; the chat reclaims the freed editor width. The detail **keeps its width** (it does not stretch to fill the pane). **Entering this state closes every non-docked editor tab** (keeping only the docked Changes/Files tabs); reopenable ones are captured and restored when the editor area is shown again, non-restorable ones (e.g. a dirty untitled Search editor) are dropped. |
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. **This is the default state for a created session** — opening the side pane shows the Changes editor with the detail panel closed; the detail is opened only via **Toggle Details** (or restored per-session). |
-| **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. |
+| **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-A created session opens the side pane to **Editor only** (Changes editor, detail closed) by default; a Changes/file editor becoming active never force-opens the detail (the one exception is restoring the detail after a transient browser-tab hide). A new-session view opens to the **Files detail** (its editor content stays hidden by R1).
+A created session opens the side pane to **Editor only** (Changes editor, detail closed) by default; a Changes/file editor becoming active never force-opens the detail (the one exception is restoring the detail after a transient browser-tab hide). Opening the empty **Files placeholder** (making it the **active editor** — via the `+` Files entry or by selecting its tab) reveals the Files detail, because the placeholder's content (the Files tree) lives there. The detail-panel strategy keys this on the active-editor signal, so the managed auto-ensured Files tab (opened *inactive* as a background tab) never triggers it — the Editor-only default is preserved — and hiding the detail afterwards sticks (hiding does not change the active editor). It is also skipped while the whole side pane is closed (editor content hidden) or during a session-switch restore. A new-session view opens to the **Files detail** (its editor content stays hidden by R1).
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
-**Changes** while the chat is full-width) gives it a comfortable **~even split** with the chat, so the
-editor content is readable beside the detail — never the collapsed detail-only width. This applies on
-**every** such reveal that has no user-chosen width to restore (not just the first in a window):
-hiding the editor collapses its grid node to the detail width and the grid caches that, so a later
-reveal — including in a different session — must re-apply the even split rather than restore the narrow
-cached width. A width the user **deliberately set** (captured on hide as `_dockedEditorSizeBeforeHide`)
-always takes precedence and is restored as-is.
+**Changes** while the chat is full-width) gives it a comfortable width of **60% of the full window width**
+(`SIDE_PANE_WIDTH_RATIO` in `parts/editorPartSizing.ts`) **the first time it is opened**, so the editor content is readable
+beside the detail — never the collapsed detail-only width. After that, side-pane sizes are **workbench-level,
+not per session**: the editor grid node width is owned by the workbench grid and persisted globally
+(`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including
+across **session switches** (switching sessions does not change the side-pane width) and across reloads.
+
+**Reload is flicker-free (workbench owns the geometry).** On reload the workbench restores the editor node
+width from its own persisted part-sizes (`workbench.sessions.partSizes`, consumed by
+`createDesktopGridDescriptor`), so the grid is painted at the correct size in a single pass. (At the
+workbench level, hiding the editor still collapses the grid node to the detail width and caches it, and a
+captured "Hide Editor" width `_dockedEditorSizeBeforeHide` takes precedence for the immediate re-show.)
 
 **Reopening after the sessions list is collapsed.** Closing the **whole** side pane collapses the editor
 grid node to `0px`, so its size at that moment is **not** a real user width — closing the whole pane
 therefore does **not** capture `_dockedEditorSizeBeforeHide` (and clears any stale sidebar-collapse grow
-snapshots). This matters when the **sessions list is collapsed**: reopening the side pane falls through to
-the **even split**, and because the collapsed list makes the sessions part span nearly the full width, half
-of it is a **comfortable** width — not the cramped/narrow node that a captured `0px` (or a stale
-pre-collapse snapshot) would otherwise restore. Only **Hide Editor** (detail stays visible, node stays
-visible at a real width) captures a width to restore later.
+snapshots). Reopening the side pane falls through to the last persisted width, or the **60%-of-window
+default** if none; because the default is computed from the full window width (not the remaining main area),
+it is a **comfortable** width — not the cramped/narrow node that a captured `0px` (or a stale pre-collapse
+snapshot) would otherwise restore. Only **Hide Editor** (detail stays visible, node stays visible at a real
+width) captures a width to restore later.
 
 ---
 
@@ -69,21 +79,28 @@ visible at a real width) captures a width to restore later.
 | Control | Location | Effect |
 |---------|----------|--------|
 | **Hide Editor** (chevron `>`) | Editor title bar, primary inline, **before** Maximize | Closes the editor content, keeps the detail (→ *Detail only*). The docked side pane shrinks to the detail width so the freed editor width goes to the **chat** (not the detail), and the **sessions list is reshown** (it may have been auto-collapsed when details was opened). Shown **only** when the active tab is **Changes or Files** (not Browser). Hidden when the editor is already closed, and hidden while the editor area is **maximized**. |
-| **Toggle Details** (`≡`) | Editor title bar, primary inline, after Maximize | Shows/hides the detail panel (default keybinding **`⌥⌘L`**). Hiding the detail **while the editor is hidden reveals the editor** (→ *Editor only*), so the pane is never left empty — this applies in the **new-session view** too (revealing the empty editor rather than closing the whole pane). Opening the detail panel via this action auto-collapses the **sessions list** to free width for the editor area; closing it restores the sessions list. Its `toggled` state (`AuxiliaryBarVisibleContext`) is kept **in sync with the actual rendering**: the toggle reads "on" iff the detail panel is rendered with an active view container — an empty (gated-off) container is never shown, and the layout controller (D10) reconciles the part away if it becomes visible with nothing to render. |
+| **Toggle Details** (`≡`) | Editor title bar, primary inline, after Maximize | Shows/hides the detail panel (default keybinding **`⌥⌘L`**). Hiding the detail **while the editor is hidden reveals the editor** (→ *Editor only*), so the pane is never left empty — this applies in the **new-session view** too (revealing the empty editor rather than closing the whole pane). Opening the detail panel via this action auto-collapses the **sessions list** to free width for the editor area **only on a small window** (`≤ 1800px`); a wider window has room to keep the list open. Closing the detail restores the sessions list. Its `toggled` state (`AuxiliaryBarVisibleContext`) is kept **in sync with the actual rendering**: the toggle reads "on" iff the detail panel is rendered with an active view container — an empty (gated-off) container is never shown, and the layout controller (D10) reconciles the part away if it becomes visible with nothing to render. Shown **only** when the active tab is **Changes or Files** (not Browser or Search, which have no detail). |
 | **Maximize / Restore** | Editor title bar, primary inline | Maximizes the editor area (forces the Changes detail while maximized; restores on un-maximize). Default keybinding **`⌥⌘E`** toggles maximize/restore while the editor area is visible. |
 | **Collapse All Diffs** | Changes editor header, primary inline | Collapses every file in the Changes multi-diff (`SessionChangesEditor.collapseAllDiffs`). |
-| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for a created workspace session). Search opens a new Search editor. **Hidden when the editor area is closed.** |
+| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is closed, and a **Files** entry `⌘K B` when the Files tab is closed — both for a created workspace session). Re-added managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
 | **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. |
-| **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. The list is **also** auto-collapsed when the user opens the detail panel via **Toggle Details**, or when they open a real file/diff into the editor area **in an existing (created) session while the editor area is currently closed** (and restored when they close it), unless the user has since reopened it manually. An auto-collapsed list is **also restored once the side pane becomes fully hidden** (both editor and detail closed) — e.g. switching to a quick chat, which has no side pane — so the list is never left collapsed with nothing to make room for. A list the user closed **manually** stays closed. |
-| **Grid sash** | Between the chat and the third pane | In a **created** session, dragging it wider re-reveals the editor content and re-syncs state (the Hide Editor chevron reappears); dragging it narrow enough that the editor content is squeezed to the detail width **hides** the editor content (mirroring the reveal), which hides all editor-title actions. In the **new-session** view a width reveal is momentary — R1 re-hides the editor, which stays closed until a file is opened. |
+| **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. The list is **also** auto-collapsed — **but only on a small window (`≤ 1800px`)** — when the user opens the detail panel via **Toggle Details**, or when they open a real file/diff into the editor area **in an existing (created) session while the editor area is currently closed** (and restored when they close it), unless the user has since reopened it manually. On a wider window there is room to keep the list open, so neither gesture collapses it. An auto-collapsed list is **also restored** once the space constraint is gone — the side pane becomes fully hidden (both editor and detail closed, e.g. switching to a quick chat), **or the window grows past the threshold** — so the list is never left collapsed with nothing to make room for. A list the user closed **manually** stays closed. |
+| **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
+| **Changes pill** | Session header meta row | Opens the managed Changes multi-diff editor and explicitly reveals the editor area when the side pane was closed or in detail-only mode. The managed Changes tab still remains excluded from automatic reveal-on-open, so merely activating its tab does not reveal the editor. |
 
-**Editor-title action visibility.** All single-pane editor-title actions (Maximize/Restore, Toggle Details, Hide Editor, Open in Modal) are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor is additionally shown only when the active tab is **Changes or Files** (`SinglePaneDetailChangesOrFilesActiveContext`) and only while the editor area is **not maximized** (`EditorMaximizedContext` negated).
+**Editor-title action visibility.** All single-pane editor-title actions (Maximize/Restore, Toggle Details, Hide Editor, Open in Modal) are hidden while the **editor area is closed** (`MainEditorAreaVisibleContext`). Hide Editor and Toggle Details are additionally shown only when the active editor **has a docked detail panel** (`HasDockedDetailsContext`) — a managed Changes/Files tab or a text file editor; Hide Editor is further hidden only while the editor area is **not maximized** (`EditorMaximizedContext` negated).
 
-**Managed Files tab.** The empty Files placeholder tab is shown only when the editor area is **closed** or **no real (non-managed) editor is open**; once a real file/diff is opened into a visible editor area it is removed as redundant, and re-added when the editor area closes again.
+**Managed Files tab.** The empty Files placeholder tab (and the Changes tab) is opened only when the editor group is **empty** on a view-open trigger (a session switch or a side-pane reveal). Opening a real workspace file **tidies away** the empty placeholder (a `[Changes][file]` strip) as a **one-shot reaction to that open** — not a standing rule — so the user can still add the Files tab via **`+` Files** while a real file is open (that opens an `EmptyFileEditorInput`, not a real file, so it is not tidied away). The placeholder is **not** re-added when the real file closes; the defaults return only when the group empties and the side pane is reopened.
 
-**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky). A user-initiated close is remembered (`_dismissedManagedTabs`) so the controller does not immediately re-create it; the dismissal is cleared — and the tabs re-populate — on a **session change** or when the **side pane is reopened** from fully closed. While a managed tab is closed for a created workspace session, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `SinglePaneChangesTabMissingContext`) and **Files** (gated on `SinglePaneFilesTabMissingContext`); reopening clears its dismissal so the controller resumes managing it.
+**Layout-driven vs user editor changes.** The default docked tabs are (re)opened into an empty group on a **settled** session-switch restore — the base controller fires `onDidEndSessionLayoutRestore` once the restore epoch (working-set apply + aux restore) completes, and the strategy reconciles off that. This matters for a new session: its **empty** working set closes the previous session's docked tabs, emptying the group *after* the switch; reconciling on the settled restore-end reads the reliably-empty group and re-opens the Files tab. Reacting to the transient editor-change *during* the async apply would race the empty state. A **user-driven** editor change (opening a file, closing a tab) is *not* a restore, so it never re-opens the defaults and a user close still sticks / still closes the side pane.
 
-**Per-session detail state.** A created session's detail-panel (aux-bar) visible/hidden choice is captured per session and restored on switch-back (a detail-closed session stays detail-closed when returning to it), even if an external component transiently reveals the aux bar during the working-set restore.
+**New-session submit.** On submit (an uncreated session becoming created — in place or via a resource-replace commit) the new-session view already holds the Files placeholder, so the empty-group rule above would skip opening Changes. The submit transition (`isCreated` going false → true for the active session) is therefore treated as a one-shot "ensure the Changes tab" moment: the Changes tab is opened **active** and pinned first even though the group is non-empty (opening it active — not inactive — is what makes the detail panel map to the Changes container rather than the still-present Files placeholder). Because it is a genuine one-time transition, it never fights a later user close. The submit reconcile's "activate Changes" intent is **scoped to its session**: if the reconcile is superseded by a **session switch** while it is still opening the Changes editor, its intent is dropped rather than leaked onto the switched-to session (which would otherwise reopen a closed tab or activate Changes for the wrong session).
+
+**Details-only reveal.** When the side pane is opened as **details-only** (the aux-bar detail panel is revealed without the editor area — e.g. the new-session view, or a created session whose editor was hidden), the docked details panel *shows* the managed docked inputs, so they must always be present. On such a reveal the managed inputs (Changes if created, plus the Files placeholder) are ensured **even when the group is non-empty** — e.g. if the user had earlier closed one of them, it is restored. This is tied to the reveal gesture, so a close *within* an already-open details view still sticks until the next reveal. An editor-included reveal (the editor area is visible) keeps the strict "add only into an empty group" rule, so a close there is respected.
+
+**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky). Closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger (plus the one-shot submit ensure above, and the details-only reveal ensure), so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. Closing the last tab closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a created workspace session, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `SinglePaneChangesTabMissingContext`) and **Files** (gated on `SinglePaneFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
+
+**Per-session detail state.** A created session's detail-panel (aux-bar) visible/hidden choice is captured per session and restored on switch-back and reload (a detail-closed session stays detail-closed when returning to it), even if an external component transiently reveals the aux bar during the working-set restore or a queued detail-container sync from the previous session runs later.
 
 **Reopening after closing all tabs.** Closing all tabs closes the whole side pane; the managed Changes (created) / Files (new-session) tabs are re-ensured, so reopening the side pane shows the Changes editor or Files tab — never an empty editor.
 
@@ -112,7 +129,7 @@ The **auto-managed** tabs (the pinned Changes tab and the default File tab) are 
 
 ## 5. Detail panel content (driven by the active tab)
 
-The single-pane layout controller (`SinglePaneDesktopSessionLayoutController`) maps the active editor tab to the detail content. By default the detail panel is **closed** for a created session (Editor-only); it is opened via **Toggle Details** (or restored per-session), and while visible its container follows the active tab (the one exception is restoring the detail after a transient browser-tab hide):
+The single-pane layout controller (`SinglePaneLayoutController`) maps the active editor tab to the detail content. By default the detail panel is **closed** for a created session (Editor-only); it is opened via **Toggle Details** (or restored per-session), and while visible its container follows the active tab (the one exception is restoring the detail after a transient browser-tab hide):
 
 | Active tab | Detail panel |
 |-----------|--------------|
@@ -140,7 +157,7 @@ When the new-session composer is active (uncreated session, has a workspace, not
   already visible (an inherited-visible editor from the previous session) — where *real content* is a real
   file (`FileEditorInput`) or the integrated browser (`BrowserEditorInput`); the managed empty landing tab
   (`EmptyFileEditorInput`) and "no active editor" are **not** real content. Any **spurious reveal** (a
-  session-switch working-set restore, a layout race, the reveal-good-size even split) is **re-hidden** —
+  session-switch working-set restore, a layout race, the 60%-of-window split) is **re-hidden** —
   fixing the case where reopening a new session after visiting a created session left the editor open.
   Crucially, **switching to a managed tab (e.g. the Files placeholder) while the editor is already visible
   does NOT hide it** — only a visibility transition or entering the view does, so the user can keep the
@@ -161,7 +178,8 @@ When the new-session composer is active (uncreated session, has a workspace, not
 When the new session is submitted:
 - A **Changes tab** is added and the **Changes detail** is shown.
 - The **editor content stays closed** (*Detail only*) — neither the submit nor the auto-opened Changes
-  editor reveals it. The user opens the editor when they want it (open a file/diff, or drag the sash).
+  editor reveals it. This also applies when the provider commits the draft by replacing it with a new
+  session resource. The user opens the editor when they want it (open a file/diff).
 
 ### Quick chats / no workspace
 No side pane at all — the detail panel and managed tabs are not shown; the chat is
@@ -179,8 +197,9 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 |------|--------|-----|
 | — | Enter new-session view | *Detail only* (File tab + Files detail, editor closed) |
 | *Detail only* (new session) | Open a file from Files | *Editor + Detail* (editor revealed, stays open) |
+| *Detail only* / *Side pane closed* (created session) | Click **Changes** pill | *Editor only* (Changes editor revealed, detail stays closed unless separately restored/opened) |
 | *Detail only* (new session) | Toggle Details (hide detail) | *Editor only* (empty editor revealed — the side pane does not vanish) |
-| *Detail only* (new session) | Drag grid sash wider | *Detail only* (editor stays closed; a momentary width reveal is re-hidden by R1 in the new-session view) |
+| *Detail only* (new session) | Drag grid sash wider | *Detail only* (editor stays closed) |
 | *Detail only* (new session) | Toggle Sessions List closed | *Detail only*; the **detail panel** widens by the sessions-list width (editor stays closed) |
 | *Detail only* | Toggle Details (hide detail) | *Editor only* (editor revealed) |
 | *Editor + Detail* | Hide Editor chevron | *Detail only* (detail keeps width, chat expands) |
@@ -192,7 +211,7 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 | editor/detail side pane visible | Toggle Sessions List closed | same pane state; editor/detail side pane widens by the sessions-list width |
 | sessions list closed after side-pane growth | Toggle Sessions List open | same pane state; editor/detail side pane returns to its pre-collapse width |
 | any | Close the last editor tab | *Side pane closed* (chat-only; opening a tab restores the pane) |
-| *Detail only* (created session) | Drag grid sash wider | *Editor + Detail* (editor content re-revealed) |
+| *Detail only* (created session) | Drag grid sash wider | *Detail only* (editor content stays closed) |
 | any | Activate **Browser** tab | detail hidden (transient) |
 | Browser active (detail hidden) | Activate **Files/Changes** tab | detail restored |
 | new-session *Detail only* | **Submit** the session | *Detail only* + Changes tab + Changes detail |
@@ -235,9 +254,9 @@ then hidden, an auto-collapsed **sessions list** is restored (see Toggle Session
 | Docked layout, hide/show editor, detail width, sash-reveal sync, grid | `browser/workbench.ts` |
 | Docked panel overlay + resize sash | `browser/dockedAuxiliaryBarController.ts` |
 | Editor tab bar kept visible when content hidden; sash-reveal trigger | `browser/parts/editorPart.ts` |
-| Active tab → detail container mapping (browser transient) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
-| Managed Changes + File tabs (suppressed opens) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
+| Active tab → detail container mapping (browser transient) | `contrib/layout/browser/singlePaneLayoutController.ts` |
+| Managed Changes + File tabs (suppressed opens) | `contrib/layout/browser/singlePaneLayoutController.ts` |
 | Startup controller selection | `contrib/layout/browser/sessions.layout.contribution.ts` |
-| New-session transition-triggered editor hide (R1) | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
+| New-session transition-triggered editor hide (R1) | `contrib/layout/browser/singlePaneLayoutController.ts` |
 | Hide Editor chevron, Maximize, add-tab actions | `contrib/editor/browser/editor.contribution.ts`, `contrib/editor/browser/addTabActions.ts` |
-| Toggle Details command + editor-title item | `contrib/layout/browser/singlePaneDesktopSessionLayoutController.ts` |
+| Toggle Details command + editor-title item | `contrib/layout/browser/singlePaneLayoutController.ts` |

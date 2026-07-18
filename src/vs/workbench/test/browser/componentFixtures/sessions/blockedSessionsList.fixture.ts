@@ -18,7 +18,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, IGitHubInfo, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -26,7 +26,10 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionsList } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
+import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
+import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -150,12 +153,36 @@ function buildApprovalScenario(specs: readonly IBlockedSessionOptions[]): { sess
 	return { sessions, approvalModel: createApprovalModel(approvals) };
 }
 
+/** A CI-fix spec: a blocked session whose PR is failing CI, with the counts shown in its row. */
+interface ICIBlockedSessionOptions extends IBlockedSessionOptions {
+	ci: ISessionCIFixState;
+}
+
+function createCIFixModel(states: ReadonlyMap<string, ISessionCIFixState>): ISessionCIFixModel {
+	return {
+		getCIFix: (session: ISession) => constObservable(states.get(session.resource.toString())),
+		fixCI: () => { },
+	};
+}
+
+/**
+ * Build a set of sessions together with a matching CI-fix model: each session
+ * whose spec has a `ci` summary shows a "Fix CI" row with those counts.
+ */
+function buildCIFixScenario(specs: readonly ICIBlockedSessionOptions[]): { sessions: ISession[]; ciFixModel: ISessionCIFixModel } {
+	const states = new Map<string, ISessionCIFixState>();
+	const sessions = specs.map(spec => {
+		const session = createBlockedSession(spec);
+		states.set(session.resource.toString(), spec.ci);
+		return session;
+	});
+	return { sessions, ciFixModel: createCIFixModel(states) };
+}
+
 function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
-		override isSessionRead(): boolean { return true; }
 		override isSessionPinned(): boolean { return false; }
-		override markRead(): void { }
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:
@@ -195,7 +222,7 @@ const unresolvedCommentsPr: IGitHubInfo['pullRequest'] = {
 // Render helper
 // ============================================================================
 
-function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISession[], approvalModel?: AgentSessionApprovalModel): void {
+function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISession[], approvalModel?: AgentSessionApprovalModel, ciFixModel?: ISessionCIFixModel): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -221,10 +248,19 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 			}());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override markRead(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
+			}());
+			// `SessionsFlatList`/`SessionItemRenderer` read the voice pending-response
+			// indicator state; stub it as always-empty for the fixture.
+			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
+				override hasPendingResponse() { return false; }
 			}());
 		},
 	});
@@ -233,6 +269,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
+	disposableStore.add(registerBlockedSessionsItemActions());
 
 	// The blocked-sessions list is shown as a floating dropdown anchored below
 	// the command center box in the agents window; approximate that surface (and
@@ -244,7 +281,9 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 
 	const list = disposableStore.add(instantiationService.createInstance(BlockedSessionsList, container, {
 		onSessionOpen: () => { },
+		onIgnoreSession: () => { },
 		approvalModel,
+		ciFixModel,
 	}));
 	list.setSessions(sessions);
 }
@@ -341,6 +380,31 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ title: 'Reset and reinstall', status: SessionStatus.NeedsInput, minutesAgo: 20, workspace: createMockWorkspace('vscode', 'fix/clean-install'), approvalCommand: 'rm -rf node_modules\nrm -f package-lock.json\nnpm cache clean --force\nnpm install\nnpm run test:integration' },
 			]);
 			renderBlockedList(ctx, sessions, approvalModel);
+		},
+	}),
+
+	// One session whose PR is failing CI — shows the orange "Fix CI" row.
+	BlockedSessionsList_OneFixCI: defineComponentFixture({
+		render: (ctx) => {
+			const { sessions, ciFixModel } = buildCIFixScenario([
+				{ title: 'Add telemetry for startup performance', status: SessionStatus.Completed, minutesAgo: 62, workspace: createMockWorkspace('vscode', 'perf/startup-telemetry', failingChecksPr), changesSummary: createMockChangesSummary(8, 240, 58), ci: { failed: 2, pending: 3 } },
+			]);
+			renderBlockedList(ctx, sessions, undefined, ciFixModel);
+		},
+	}),
+
+	// A mix of a failing-CI session (fix-CI row) and a terminal-approval session
+	// (allow row) — the two per-session action rows shown side by side.
+	BlockedSessionsList_FixCIAndApproval: defineComponentFixture({
+		render: (ctx) => {
+			const { sessions: ciSessions, ciFixModel } = buildCIFixScenario([
+				{ title: 'Add telemetry for startup performance', status: SessionStatus.Completed, minutesAgo: 62, workspace: createMockWorkspace('vscode', 'perf/startup-telemetry', failingChecksPr), changesSummary: createMockChangesSummary(8, 240, 58), ci: { failed: 5, pending: 0 } },
+				{ title: 'Investigate flaky terminal integration test', status: SessionStatus.Completed, minutesAgo: 320, workspace: createMockWorkspace('vscode', 'fix/flaky-terminal-test', failingChecksPr), changesSummary: createMockChangesSummary(3, 41, 12), ci: { failed: 1, pending: 7 } },
+			]);
+			const { sessions: approvalSessions, approvalModel } = buildApprovalScenario([
+				{ title: 'Push the auth fix', status: SessionStatus.NeedsInput, minutesAgo: 2, workspace: createMockWorkspace('vscode', 'feature/auth-fix'), approvalCommand: 'git push --force-with-lease origin feature/auth-fix' },
+			]);
+			renderBlockedList(ctx, [...ciSessions, ...approvalSessions], approvalModel, ciFixModel);
 		},
 	}),
 });
