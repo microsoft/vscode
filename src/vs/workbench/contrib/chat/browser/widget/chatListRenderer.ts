@@ -1350,25 +1350,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(...annotateSpecialMarkdownContent(element.response.value));
 		}
 
-		// Push all remaining slots in a fixed positional order to match the
-		// progressive content array built by getNextProgressiveRenderContent.
-		content.push(element.codeCitations.length
+		const codeCitations = element.codeCitations.length
 			? { kind: 'codeCitations' as const, citations: element.codeCitations }
-			: { kind: 'codeCitations' as const, citations: [] });
-
-		const hasErrorDetails = !isFiltered && element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName;
-		content.push(hasErrorDetails
+			: undefined;
+		const hasErrorDetails = element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName;
+		const errorDetails = hasErrorDetails
 			? { kind: 'errorDetails' as const, errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element }
-			: { kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
-
-		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		content.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
-
-		const turnPillsPart = this.getChatTurnPillsPart(element);
-		content.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
-
-		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
-		content.push(workingProgress ?? { kind: 'working' as const });
+			: undefined;
+		this.appendPositionalTailSlots(element, templateData, content, false, codeCitations, errorDetails);
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
@@ -2253,28 +2242,43 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		// Push all remaining slots in a fixed positional order so that the
-		// progressive content array always has the same structure as the final
-		// content array built by renderChatResponseBasic.  This eliminates
-		// length mismatches between renderedParts and content that would
-		// otherwise misalign the diff indices.
-
-		// Slot: codeCitations (real data is not yet available during streaming)
-		partsToRender.push({ kind: 'codeCitations' as const, citations: [] });
-
-		// Slot: errorDetails (real data is not yet available during streaming)
-		partsToRender.push({ kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
-
-		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		partsToRender.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
-
-		const turnPillsPart = this.getChatTurnPillsPart(element);
-		partsToRender.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
-
-		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData);
-		partsToRender.push(workingProgress ?? { kind: 'working' as const });
+		this.appendPositionalTailSlots(element, templateData, partsToRender, moreContentAvailable);
 
 		return { content: partsToRender, moreContentAvailable };
+	}
+
+	/**
+	 * Appends the fixed positional tail slots (codeCitations, errorDetails,
+	 * changesSummary, turnPills, working) to the content array.  Both the
+	 * progressive and final rendering paths call this to ensure the content
+	 * array always has an identical structure, preventing index misalignment
+	 * in the diff algorithm.
+	 *
+	 * Each fallback object is intentionally "empty" so that its corresponding
+	 * render method (e.g. renderCodeCitations, renderChatErrorDetails) will
+	 * produce a no-content placeholder via renderNoContent.  If a render
+	 * method's empty-detection logic changes, the fallback here must be
+	 * updated to match.
+	 */
+	private appendPositionalTailSlots(
+		element: IChatResponseViewModel,
+		templateData: IChatListItemTemplate,
+		content: IChatRendererContent[],
+		moreContentAvailable: boolean,
+		codeCitations?: IChatCodeCitations,
+		errorDetails?: IChatErrorDetailsPart,
+	): void {
+		content.push(codeCitations ?? { kind: 'codeCitations' as const, citations: [] });
+		content.push(errorDetails ?? { kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
+
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		content.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
+
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		content.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
+
+		const workingProgress = this.shouldShowWorkingProgress(element, content, moreContentAvailable, templateData);
+		content.push(workingProgress ?? { kind: 'working' as const });
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {

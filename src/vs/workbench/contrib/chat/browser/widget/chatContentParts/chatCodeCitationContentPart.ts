@@ -21,7 +21,7 @@ type ChatCodeCitationOpenedClassification = {
 
 export class ChatCodeCitationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-	private readonly citationsLength: number;
+	private readonly citationsCount: number;
 
 	constructor(
 		citations: IChatCodeCitations,
@@ -31,7 +31,7 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 	) {
 		super();
 
-		this.citationsLength = citations.citations.length;
+		this.citationsCount = citations.citations.length;
 		const label = getCodeCitationsMessage(citations.citations);
 		const elements = dom.h('.chat-code-citation-message@root', [
 			dom.h('span.chat-code-citation-label@label'),
@@ -58,6 +58,6 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'codeCitations' && this.citationsLength === other.citations.length;
+		return other.kind === 'codeCitations' && this.citationsCount === other.citations.length;
 	}
 }
