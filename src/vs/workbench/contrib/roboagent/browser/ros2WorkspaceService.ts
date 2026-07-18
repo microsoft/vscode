@@ -58,6 +58,9 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 	private readonly _onDidChangeGraph = this._register(new Emitter<void>());
 	readonly onDidChangeGraph: Event<void> = this._onDidChangeGraph.event;
 
+	private readonly _onDidChangeIndexing = this._register(new Emitter<void>());
+	readonly onDidChangeIndexing: Event<void> = this._onDidChangeIndexing.event;
+
 	private _graph: Ros2WorkspaceGraph = EMPTY_ROS2_GRAPH;
 	private _isIndexing = false;
 	private _pendingIndex: Promise<void> | undefined;
@@ -112,6 +115,7 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 
 	private async doIndexWorkspace(): Promise<void> {
 		this._isIndexing = true;
+		this._onDidChangeIndexing.fire();
 		try {
 			const folders = this.workspaceContextService.getWorkspace().folders;
 			if (folders.length === 0) {
@@ -147,6 +151,7 @@ export class Ros2WorkspaceService extends Disposable implements IRos2WorkspaceSe
 			this.logService.error('[RoboAgent] ROS2 workspace indexing failed', err);
 		} finally {
 			this._isIndexing = false;
+			this._onDidChangeIndexing.fire();
 			this._onDidChangeGraph.fire();
 		}
 	}

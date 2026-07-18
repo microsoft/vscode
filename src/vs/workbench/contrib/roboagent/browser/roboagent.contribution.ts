@@ -6,17 +6,24 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import {
 	Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation
 } from '../../../common/views.js';
 import { IRos2WorkspaceService } from '../common/ros2WorkspaceService.js';
 import { Ros2WorkspaceService } from './ros2WorkspaceService.js';
+import { Ros2GraphEditor } from './ros2GraphEditor.js';
+import { Ros2GraphEditorInput } from './ros2GraphEditorInput.js';
 import { Ros2PackageExplorerView } from './ros2PackageExplorerView.js';
+import { Ros2StatusBar } from './ros2StatusBar.js';
 import { IndexRos2WorkspaceAction, registerRoboAgentActions } from './ros2WorkspaceActions.js';
 
 // --- Service ---------------------------------------------------------------
@@ -60,6 +67,30 @@ viewsRegistry.registerViewWelcomeContent(Ros2PackageExplorerView.ID, {
 	order: 10,
 });
 
+// --- ROS2 graph editor (REQ-5) ---------------------------------------------
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		Ros2GraphEditor,
+		Ros2GraphEditor.ID,
+		localize('roboagent.graphEditor', "ROS2 Node Graph")
+	),
+	[new SyncDescriptor(Ros2GraphEditorInput)]);
+
+class Ros2GraphEditorInputSerializer implements IEditorSerializer {
+	canSerialize(): boolean {
+		return true;
+	}
+	serialize(): string {
+		return '';
+	}
+	deserialize(instantiationService: IInstantiationService): EditorInput {
+		return Ros2GraphEditorInput.instance;
+	}
+}
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(Ros2GraphEditorInput.ID, Ros2GraphEditorInputSerializer);
+
 // --- Commands / actions ----------------------------------------------------
 
 registerRoboAgentActions();
@@ -76,3 +107,7 @@ class Ros2IndexBootstrap implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(Ros2IndexBootstrap.ID, Ros2IndexBootstrap, WorkbenchPhase.AfterRestored);
+
+// --- Status bar indicator (WS2) --------------------------------------------
+
+registerWorkbenchContribution2(Ros2StatusBar.ID, Ros2StatusBar, WorkbenchPhase.AfterRestored);

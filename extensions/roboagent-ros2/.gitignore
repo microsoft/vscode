@@ -1,0 +1,5 @@
+# Compiled output
+out/
+
+# Build-time-fetched debug adapters (not committed; see WS4).
+debugAdapters/

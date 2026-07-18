@@ -20,6 +20,9 @@ export interface IRos2WorkspaceService {
 	/** Fires whenever the graph is rebuilt (including the initial index). */
 	readonly onDidChangeGraph: Event<void>;
 
+	/** Fires when {@link isIndexing} flips — at the start and end of every indexing pass. */
+	readonly onDidChangeIndexing: Event<void>;
+
 	/** The current knowledge graph snapshot. Never `undefined`; empty before first index. */
 	getGraph(): Ros2WorkspaceGraph;
 

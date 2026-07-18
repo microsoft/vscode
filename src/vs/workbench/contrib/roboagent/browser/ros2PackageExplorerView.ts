@@ -5,6 +5,9 @@
 
 import './media/roboagent.css';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -18,6 +21,7 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { IViewDescriptorService } from '../../../common/views.js';
 import { Ros2WorkspaceGraph } from '../common/ros2WorkspaceModel.js';
 import { IRos2WorkspaceService } from '../common/ros2WorkspaceService.js';
+import { ROBOAGENT_ITEM_TYPE, Ros2NodeMenuArg, Ros2PackageMenuArg } from './ros2WorkspaceActions.js';
 import {
 	Ros2PackageExplorerAccessibilityProvider, Ros2PackageExplorerDataSource, Ros2PackageExplorerDelegate,
 	Ros2PackageExplorerRenderer, Ros2TreeElement, treeIdentityProvider
@@ -42,6 +46,7 @@ export class Ros2PackageExplorerView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -68,7 +73,41 @@ export class Ros2PackageExplorerView extends ViewPane {
 			}
 		));
 
+		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
 		this.tree.setInput(this.ros2WorkspaceService.getGraph());
+	}
+
+	/**
+	 * Build a context menu for the element under the cursor by describing it in a context-key
+	 * overlay and pulling the matching `MenuId.ViewItemContext` actions (WS7). Mirrors the
+	 * notebook variables view. Only packages and nodes carry actions.
+	 */
+	private onContextMenu(e: ITreeContextMenuEvent<Ros2TreeElement>): void {
+		const element = e.element;
+		if (!element) {
+			return;
+		}
+
+		let itemType: string;
+		let arg: Ros2NodeMenuArg | Ros2PackageMenuArg;
+		if (element.type === 'package') {
+			itemType = 'package';
+			arg = { package: element.pkg.name, packageXmlUri: element.pkg.packageXmlUri.toString() } satisfies Ros2PackageMenuArg;
+		} else if (element.type === 'node') {
+			itemType = 'node';
+			arg = { package: element.node.package, node: element.node.name, language: element.node.language } satisfies Ros2NodeMenuArg;
+		} else {
+			return;   // groups + leaves have no actions
+		}
+
+		const overlay = this.contextKeyService.createOverlay([[ROBOAGENT_ITEM_TYPE.key, itemType]]);
+		const menuActions = this.menuService.getMenuActions(MenuId.ViewItemContext, overlay, { arg, shouldForwardArgs: true });
+		const actions = getFlatContextMenuActions(menuActions);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => actions,
+		});
 	}
 
 	private refreshTree(): void {

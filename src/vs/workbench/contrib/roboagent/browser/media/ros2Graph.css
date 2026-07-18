@@ -1,0 +1,172 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) RoboAgent. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ros2-graph-editor {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	cursor: grab;
+	outline: none;
+}
+
+.ros2-graph-editor.panning {
+	cursor: grabbing;
+}
+
+.ros2-graph-viewport {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+}
+
+.ros2-graph-viewport.hidden {
+	display: none;
+}
+
+.ros2-graph-edges {
+	position: absolute;
+	top: 0;
+	left: 0;
+	overflow: visible;
+}
+
+.ros2-graph-edge {
+	fill: none;
+	stroke: var(--vscode-editorLineNumber-foreground);
+	stroke-width: 1.5;
+	marker-end: url(#roboagent-graph-arrow);
+}
+
+.ros2-graph-edge.service {
+	stroke-dasharray: 4 3;
+}
+
+.ros2-graph-edge.highlighted {
+	stroke: var(--vscode-focusBorder);
+	stroke-width: 2;
+}
+
+.ros2-graph-edge.dimmed {
+	opacity: 0.15;
+}
+
+.ros2-graph-arrow {
+	fill: context-stroke;
+}
+
+.ros2-graph-vertex {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 3px 10px;
+	border-radius: 6px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+	border-left: 3px solid var(--vscode-charts-green);
+	cursor: pointer;
+	overflow: hidden;
+}
+
+.ros2-graph-vertex.language-cpp {
+	border-left-color: var(--vscode-charts-blue);
+}
+
+.ros2-graph-vertex.language-python {
+	border-left-color: var(--vscode-charts-yellow);
+}
+
+.ros2-graph-vertex.topic {
+	border-radius: 17px;
+	border: 1px solid var(--vscode-charts-purple);
+	text-align: center;
+}
+
+.ros2-graph-vertex:focus {
+	outline: none;
+}
+
+.ros2-graph-vertex.selected {
+	box-shadow: 0 0 0 2px var(--vscode-focusBorder);
+}
+
+.ros2-graph-vertex.dimmed {
+	opacity: 0.25;
+}
+
+.ros2-graph-label {
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ros2-graph-sublabel {
+	font-size: 10px;
+	opacity: 0.7;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ros2-graph-toolbar {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 5px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+
+.ros2-graph-toolbar-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.ros2-graph-toolbar-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.ros2-graph-empty {
+	position: absolute;
+	inset: 0;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 0 20%;
+	text-align: center;
+	cursor: default;
+}
+
+.ros2-graph-empty.visible {
+	display: flex;
+}
+
+.ros2-graph-empty-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.ros2-graph-empty-link:hover {
+	text-decoration: underline;
+}

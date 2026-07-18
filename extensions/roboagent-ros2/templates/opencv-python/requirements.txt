@@ -1,0 +1,2 @@
+opencv-python>=4.8
+numpy>=1.24
