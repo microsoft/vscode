@@ -415,6 +415,24 @@ interface UsageContext {
 	cost?: number;
 }
 
+/** Which SDK source produced an MCP lifecycle log record. */
+type McpLifecycleOrigin = 'loaded' | 'statusChanged' | 'inventory';
+
+/**
+ * SDK-neutral fields carried into a single MCP lifecycle log record. The
+ * `session.mcp_servers_loaded` event, the `session.mcp_server_status_changed`
+ * event, and the `rpc.mcp.list` inventory each populate the subset they carry.
+ */
+interface IMcpLifecycleLogInfo {
+	readonly name: string;
+	readonly status: SdkMcpServerStatus;
+	readonly error?: string;
+	readonly source?: string;
+	readonly transport?: string;
+	readonly pluginName?: string;
+	readonly pluginVersion?: string;
+}
+
 class CopilotTurn {
 
 	private _state: CopilotTurnState = 'pending';
@@ -508,7 +526,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoApprovals = new Map<string, PermissionAutoApproval | null>();
 	private readonly _pendingAutoApprovals = new Map<string, DeferredPromise<PermissionAutoApproval | undefined>>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
+	private readonly _pendingPermissions = new Map<string, DeferredPromise<PermissionRequestResult>>();
 	/**
 	 * Signatures ({@link safeStringify}) of user-approved `read`/`write`
 	 * permission requests, keyed by tool call id. The Copilot CLI runtime emits
@@ -662,6 +680,14 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
 	private _hasActivity = false;
+
+	/**
+	 * Last SDK-reported MCP status logged for each server (keyed by server
+	 * name). Used to suppress duplicate lifecycle log records when the SDK
+	 * re-reports an unchanged status — the `rpc.mcp.list` seed and the
+	 * `session.mcp_servers_loaded` event routinely carry the same snapshot.
+	 */
+	private readonly _lastLoggedMcpStatus = new Map<string, SdkMcpServerStatus>();
 
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
@@ -1202,8 +1228,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const resource = this._protectedResourceFromMcpAuthRequest(request);
 		const requiredScopes = this._scopesFromChallenge(request.wwwAuthenticateParams?.scope);
+		const oauthClient: McpAuthRequirement['oauthClient'] = request.staticClientConfig?.publicClient
+			? { clientId: request.staticClientConfig.clientId }
+			: request.staticClientConfig?.clientSecret
+				? { clientId: request.staticClientConfig.clientId, clientSecret: request.staticClientConfig.clientSecret }
+				: undefined;
 		const auth: McpAuthRequirement = {
 			reason: this._mcpAuthRequiredReason(request.reason),
+			...(oauthClient ? { oauthClient } : {}),
 			resource,
 			requiredScopes: requiredScopes.length ? [...requiredScopes] : undefined,
 			description: request.wwwAuthenticateParams?.error,
@@ -1459,6 +1491,7 @@ export class CopilotAgentSession extends Disposable {
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
 		await this._reconcileMcpServerEnablement();
+		this._markEnabledMcpServersStarting();
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
@@ -1803,9 +1836,18 @@ export class CopilotAgentSession extends Disposable {
 		}
 		// stopServer leaves inline session MCP servers not_configured; disable->enable is the validated restart path.
 		await this._disableMcpServer(serverName);
-		await this._wrapper.session.rpc.mcp.enable({ serverName });
-		await this._wrapper.session.rpc.mcp.listTools({ serverName });
-		this._seedMcpServersFromRpc();
+		// The SDK reconnects in the background on enable with no live "starting"
+		// event, so surface Starting optimistically until the seed below settles it.
+		this._mcpCustomizations.markStarting([serverName]);
+		try {
+			await this._wrapper.session.rpc.mcp.enable({ serverName });
+			await this._wrapper.session.rpc.mcp.listTools({ serverName });
+		} finally {
+			// Always reconcile against the SDK's real state -- on success this
+			// settles Starting -> Ready/AuthRequired, and on failure it clears the
+			// optimistic Starting instead of leaving the UI stuck.
+			this._seedMcpServersFromRpc();
+		}
 	}
 
 	private async _reconcileMcpServerEnablement(): Promise<void> {
@@ -1823,17 +1865,41 @@ export class CopilotAgentSession extends Disposable {
 			}
 			try {
 				if (desired) {
+					// Re-enabling restarts the server. The SDK connects it in the
+					// background with no live "starting" event, so surface Starting
+					// optimistically. Mark `changed` now (before the enable) so the
+					// trailing refresh always runs and settles/clears this optimistic
+					// Starting even if the enable rejects.
+					this._mcpCustomizations.markStarting([server.serverName]);
+					changed = true;
 					await this._wrapper.session.rpc.mcp.enable({ serverName: server.serverName });
 				} else {
 					await this._disableMcpServer(server.serverName);
+					changed = true;
 				}
-				changed = true;
 			} catch (e) {
 				this._logService.error(e, `[Copilot:${this.sessionId}] Failed to ${desired ? 'enable' : 'disable'} MCP server ${server.serverName}`);
 			}
 		}
 		if (changed) {
 			await this._refreshMcpServersFromRpc();
+		}
+	}
+
+	/**
+	 * Optimistically marks the session's enabled MCP servers as Starting for the
+	 * turn that is about to begin. Sending a message makes the SDK connect
+	 * enabled servers in the background with no live "starting" event, so without
+	 * this a connecting server would read as its last settled state (e.g. the
+	 * seeded Stopped) until the connection resolves. Already-running servers are
+	 * left untouched by the controller; the subsequent SDK status settles each
+	 * server.
+	 */
+	private _markEnabledMcpServersStarting(): void {
+		const customizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
+		const enabled = getEffectiveMcpServerCustomizations(customizations).filter(server => server.enabled);
+		if (enabled.length > 0) {
+			this._mcpCustomizations.markStarting(enabled.map(server => server.name));
 		}
 	}
 
@@ -1938,6 +2004,36 @@ export class CopilotAgentSession extends Disposable {
 				: undefined;
 			const recommendation = autoApproval?.recommendation;
 			if (recommendation === 'approve' && !request.requestSandboxBypass) {
+				if (request.kind === 'custom-tool'
+					&& typeof request.toolName === 'string'
+					&& this._clientToolNames.has(request.toolName)
+				) {
+					const trackedToolCall = this._activeToolCalls.get(toolCallId);
+					const displayName = trackedToolCall?.displayName ?? getToolDisplayName(request.toolName);
+					const parameters = trackedToolCall?.parameters;
+					const parentToolCallId = trackedToolCall?.parentToolCallId;
+					this._onDidSessionProgress.fire({
+						kind: 'pending_confirmation',
+						chat: this._chatChannelUri,
+						state: {
+							status: ToolCallStatus.PendingConfirmation,
+							toolCallId,
+							toolName: request.toolName,
+							displayName,
+							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters),
+							toolInput: getToolInputString(request.toolName, parameters, tryStringify(parameters)),
+							riskAssessment: autoApproval?.reason
+								? {
+									kind: ToolCallRiskAssessmentKind.Judge,
+									status: ToolCallRiskAssessmentStatus.Complete,
+									reason: autoApproval.reason,
+									safety: 1,
+								}
+								: undefined,
+						},
+						parentToolCallId,
+					});
+				}
 				return { kind: 'approve-once' };
 			}
 
@@ -2008,7 +2104,7 @@ export class CopilotAgentSession extends Disposable {
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
-			const deferred = new DeferredPromise<boolean>();
+			const deferred = new DeferredPromise<PermissionRequestResult>();
 			this._pendingPermissions.set(toolCallId, deferred);
 
 			// Auto-approve shell commands that run sandboxed by default, since the
@@ -2081,12 +2177,12 @@ export class CopilotAgentSession extends Disposable {
 				parentToolCallId,
 			});
 
-			const approved = await deferred.p;
-			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
-			if (approved && (request.kind === 'write' || request.kind === 'read')) {
+			const result = await deferred.p;
+			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
+			if (result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
 			}
-			return { kind: approved ? 'approve-once' : 'reject' };
+			return result;
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
@@ -2373,14 +2469,14 @@ export class CopilotAgentSession extends Disposable {
 		if (deferred) {
 			this._pendingPermissions.delete(requestId);
 			this._deletePendingEditContent(requestId);
-			deferred.complete(approved);
+			deferred.complete(approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' });
 			return true;
 		}
 		return false;
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const deferred = new DeferredPromise<boolean>();
+		const deferred = new DeferredPromise<PermissionRequestResult>();
 		this._pendingPermissions.set(request.toolCallId, deferred);
 
 		const displayName = getToolDisplayName(request.toolName);
@@ -2416,7 +2512,7 @@ export class CopilotAgentSession extends Disposable {
 			parentToolCallId,
 		});
 
-		return deferred.p;
+		return (await deferred.p).kind === 'approve-once';
 	}
 
 	// ---- user input handling ------------------------------------------------
@@ -2434,6 +2530,10 @@ export class CopilotAgentSession extends Disposable {
 				answer: 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.',
 				wasFreeform: true,
 			};
+		}
+		if (!this.hasActiveTurn) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting user input request without an active turn`);
+			return { answer: 'No active turn', wasFreeform: true };
 		}
 
 		const questionPreview = request.question.substring(0, 100);
@@ -2519,6 +2619,10 @@ export class CopilotAgentSession extends Disposable {
 		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
 			return { action: 'cancel' };
+		}
+		if (!this.hasActiveTurn) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting elicitation request without an active turn`);
+			return { action: 'decline' };
 		}
 
 		const messagePreview = context.message.substring(0, 100);
@@ -3017,7 +3121,9 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
-			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client && !isAgentCoordinationTool(e.data.toolName);
+			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
+				&& !isAgentCoordinationTool(e.data.toolName)
+				&& this._lastAppliedPermissionMode !== 'on';
 			if (shouldWaitForClientToolReady) {
 				return;
 			}
@@ -3461,11 +3567,23 @@ export class CopilotAgentSession extends Disposable {
 		// Translate SDK-reported MCP server lifecycle into AHP customization
 		// actions. The controller decides whether each server is a
 		// plugin-derived child (narrow `SessionMcpServerStateChanged`) or a
-		// bare top-level entry (`SessionCustomizationUpdated`).
+		// bare top-level entry (`SessionCustomizationUpdated`). Each state
+		// change is also logged (with structured metadata) so it flows to the
+		// agent host's OTLP log stream and the per-server Output channels.
 		this._register(wrapper.onMcpServersLoaded(e => {
+			this._logMcpServersSnapshot(e.data.servers.map(s => ({
+				name: s.name,
+				status: s.status,
+				error: s.error,
+				source: s.source,
+				transport: s.transport,
+				pluginName: s.pluginName,
+				pluginVersion: s.pluginVersion,
+			})), 'loaded');
 			this._applyMcpServerList(e.data.servers);
 		}));
 		this._register(wrapper.onMcpServerStatusChanged(e => {
+			this._logMcpServerLifecycle({ name: e.data.serverName, status: e.data.status, error: e.data.error, origin: 'statusChanged' });
 			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
 			if (!server) {
 				this._mcpCustomizations.remove(e.data.serverName);
@@ -3509,6 +3627,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const result = await mcpRpc.list();
 		if (!this._store.isDisposed) {
+			this._logMcpServersSnapshot(result.servers.map(s => ({
+				name: s.name,
+				status: s.status,
+				error: s.error,
+				source: s.source,
+				pluginName: s.sourcePlugin,
+				pluginVersion: s.sourcePluginVersion,
+			})), 'inventory');
 			this._applyMcpServerList(result.servers);
 		}
 	}
@@ -3517,6 +3643,59 @@ export class CopilotAgentSession extends Disposable {
 		const sdkServers = servers
 			.map(s => this._toSdkMcpServer(s.name, s.status, s.error));
 		this._mcpCustomizations.applyAll(sdkServers);
+	}
+
+	/**
+	 * Logs a full MCP inventory snapshot ({@link _logMcpServerLifecycle} per
+	 * server), then forgets the dedup entry for any server that dropped out of
+	 * the snapshot so a later re-add re-logs its arrival.
+	 */
+	private _logMcpServersSnapshot(servers: readonly IMcpLifecycleLogInfo[], origin: McpLifecycleOrigin): void {
+		const seen = new Set<string>();
+		for (const server of servers) {
+			seen.add(server.name);
+			this._logMcpServerLifecycle({ ...server, origin });
+		}
+		for (const name of [...this._lastLoggedMcpStatus.keys()]) {
+			if (!seen.has(name)) {
+				this._lastLoggedMcpStatus.delete(name);
+			}
+		}
+	}
+
+	/**
+	 * Emits a single structured MCP lifecycle log record for `server`,
+	 * deduplicated by SDK status so an unchanged re-report stays quiet. Failed
+	 * servers log at `error` (carrying the failure text in the body and an
+	 * `errorType` attribute); every other transition logs at `info`. Records
+	 * flow through {@link ILogService} to the agent host's OTLP log stream.
+	 */
+	private _logMcpServerLifecycle(server: IMcpLifecycleLogInfo & { readonly origin: McpLifecycleOrigin }): void {
+		if (this._lastLoggedMcpStatus.get(server.name) === server.status) {
+			return;
+		}
+		this._lastLoggedMcpStatus.set(server.name, server.status);
+
+		const state = this._translateSdkMcpStatus(server.name, server.status, server.error);
+		const attributes: Record<string, OtelAttributeValue> = {
+			mcpEvent: server.origin,
+			mcpServer: server.name,
+			mcpStatus: server.status,
+			mcpState: state.kind,
+		};
+		if (server.source) { attributes.mcpSource = server.source; }
+		if (server.transport) { attributes.mcpTransport = server.transport; }
+		if (server.pluginName) { attributes.mcpPlugin = server.pluginName; }
+		if (server.pluginVersion) { attributes.mcpPluginVersion = server.pluginVersion; }
+		if (state.kind === McpServerStatus.Error) { attributes.errorType = state.error.errorType; }
+
+		const detail = server.error ? `: ${server.error}` : '';
+		const message = `[Copilot:${this.sessionId}] MCP server '${server.name}' ${server.status} (${state.kind})${detail}`;
+		if (server.status === 'failed') {
+			this._logService.error(message, new OtelData(attributes));
+		} else {
+			this._logService.info(message, new OtelData(attributes));
+		}
 	}
 
 	private _setToolCallUiMeta(meta: Mutable<IToolCallMeta>, resourceUri: string | undefined, mcpServerName: string | undefined): void {
@@ -3636,6 +3815,11 @@ export class CopilotAgentSession extends Disposable {
 	 * `currentMode` so the model can continue with implementation.
 	 */
 	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
+		const turnId = this._currentTurn?.id;
+		if (!turnId) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting plan review request without an active turn`);
+			return { approved: false };
+		}
 		const requestId = generateUuid();
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
@@ -3646,6 +3830,10 @@ export class CopilotAgentSession extends Disposable {
 			planPath = planRead.path ?? null;
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		if (this._currentTurn?.id !== turnId) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting plan review request after its turn ended`);
+			return { approved: false };
 		}
 
 		const options = data.actions.map(actionId => {
@@ -4049,7 +4237,7 @@ export class CopilotAgentSession extends Disposable {
 	private _denyPendingPermissions(): void {
 		for (const [toolCallId, deferred] of this._pendingPermissions) {
 			this._deletePendingEditContent(toolCallId);
-			deferred.complete(false);
+			deferred.complete({ kind: 'reject' });
 		}
 		this._pendingPermissions.clear();
 		this._approvedDuplicablePermissionSignatures.clear();

@@ -19,6 +19,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
+import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, IDLE_VOICE_GLOW_COLOR } from '../../chat/browser/voiceClient/voiceGlow.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -37,6 +38,8 @@ export interface VoiceWidgetCallbacks {
 	/** Create a new session and set it as transcription target. */
 	newSessionAsTarget(): void;
 	getAnalyserNode(): AnalyserNode | null;
+	/** Reduced-motion state (honors OS + `workbench.reduceMotion`). */
+	isMotionReduced(): boolean;
 	onResize(): void;
 	openPttKeySettings(): void;
 	/** Optional — when provided, header renders a "popout" button. */
@@ -413,12 +416,35 @@ export class AgentsVoiceWidget extends Disposable {
 			// Track which key triggered PTT so keyup releases correctly
 			// even when the user rebinds pushToTalk to a different key.
 			// We capture the last keydown code at the document level (capture
-			// phase) before the VS Code keybinding handler fires pttDown.
+			// phase) and snapshot it once recording begins (see the autorun
+			// on the `listening` state below).
 			let pttKeyCode: string | undefined;
-			let lastKeyDownCode: string | undefined;
-			const onDocKeydown = (e: KeyboardEvent) => { lastKeyDownCode = e.code; };
+			let heldKeyCode: string | undefined;
+			// True when a key was pressed and released again BEFORE recording
+			// actually began (e.g. the user tapped the PTT key during the async
+			// connect() that precedes the first pttDown()). Without this the
+			// release is lost - listening starts with no key to watch for and
+			// never stops. Reset whenever we return to a non-listening state.
+			let releasedBeforeListening = false;
+			const onDocKeydown = (e: KeyboardEvent) => { heldKeyCode = e.code; releasedBeforeListening = false; };
+			// Clear the tracked key once it is released so a stale code is
+			// never mistaken for a held PTT key (e.g. mouse-initiated PTT). If
+			// recording hasn't begun yet, remember that the key was released so
+			// the listening transition below can stop immediately.
+			const onDocKeyup = (e: KeyboardEvent) => {
+				if (e.code === heldKeyCode) {
+					heldKeyCode = undefined;
+					if (pttKeyCode === undefined) {
+						releasedBeforeListening = true;
+					}
+				}
+			};
 			win.document.addEventListener('keydown', onDocKeydown, true);
-			this._register(toDisposable(() => win.document.removeEventListener('keydown', onDocKeydown, true)));
+			win.document.addEventListener('keyup', onDocKeyup, true);
+			this._register(toDisposable(() => {
+				win.document.removeEventListener('keydown', onDocKeydown, true);
+				win.document.removeEventListener('keyup', onDocKeyup, true);
+			}));
 
 			this._register(dom.addDisposableListener(this.container, 'keydown', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
@@ -435,12 +461,32 @@ export class AgentsVoiceWidget extends Disposable {
 				}
 			}));
 
-			// Hook into pttDown to snapshot which key started PTT.
-			const origPttDown = this.callbacks.pttDown;
-			(this.callbacks as VoiceWidgetCallbacks).pttDown = () => {
-				pttKeyCode = lastKeyDownCode;
-				origPttDown.call(this.callbacks);
-			};
+			// Snapshot which key started PTT when recording actually begins.
+			// The keyboard Push-to-Talk command calls the controller's
+			// `pttDown()` directly (bypassing `callbacks.pttDown`), so hook the
+			// resulting `listening` state transition to capture the key rather
+			// than the callback. Only snapshot when a key is physically held
+			// (keyboard PTT); mouse/pointer PTT leaves `heldKeyCode` undefined
+			// and releases via `pointerup`.
+			let wasListening = false;
+			this._register(autorun(reader => {
+				const listening = this._voiceState.read(reader) === 'listening';
+				if (listening && !wasListening && pttKeyCode === undefined) {
+					if (heldKeyCode !== undefined) {
+						pttKeyCode = heldKeyCode;
+					} else if (releasedBeforeListening) {
+						// The PTT key was already released while we were still
+						// connecting - stop recording right away instead of
+						// getting stuck listening with no key to release.
+						releasedBeforeListening = false;
+						this.callbacks.pttUp();
+					}
+				}
+				if (!listening) {
+					releasedBeforeListening = false;
+				}
+				wasListening = listening;
+			}));
 			// Catch pointerup outside the container too (mirrors the chat view pane behavior)
 			const onDocPointerUp = () => this.callbacks.pttUp();
 			win.document.addEventListener('pointerup', onDocPointerUp);
@@ -600,7 +646,8 @@ export class AgentsVoiceWidget extends Disposable {
 		const hasTranscript = transcriptTurns.some(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 
 		// Toggle voice-active glow on the input container (base state; wave animation overrides dynamically)
-		if (!showConnected || (voiceState !== 'listening' && voiceState !== 'speaking')) {
+		const shouldShowInputGlow = (isConnected && voiceState === 'idle') || (showConnected && (voiceState === 'listening' || voiceState === 'speaking'));
+		if (!shouldShowInputGlow) {
 			this._inputBoxContainer!.style.borderColor = 'var(--vscode-input-border, transparent)';
 			this._inputBoxContainer!.style.boxShadow = 'none';
 		}
@@ -631,8 +678,20 @@ export class AgentsVoiceWidget extends Disposable {
 			this._inputBoxTranscriptComponent.element.style.display = 'none';
 			this._transcriptComponent.element.style.display = 'none';
 			const keyLabel = this._pttKeyLabel.read(reader);
-			if (showConnected) {
+			if (isReconnecting) {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.reconnecting', "Reconnecting...");
+			} else if (isConnecting) {
+				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.connecting', "Connecting...");
+			} else if (isConnected && voiceState === 'listening') {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
+			} else if (isConnected && voiceState === 'speaking') {
+				this._inputBoxPlaceholder!.textContent = keyLabel
+					? localize('agentsVoice.pressToBargeIn', "Press {0} to barge in", keyLabel)
+					: localize('agentsVoice.speakToBargeIn', "Speak to barge in");
+			} else if (isConnected) {
+				this._inputBoxPlaceholder!.textContent = keyLabel
+					? localize('agentsVoice.holdToTalkOrBargeIn', "Hold {0} to talk or barge in", keyLabel)
+					: localize('agentsVoice.holdMicToTalkOrBargeIn', "Hold the mic to talk or barge in");
 			} else if (keyLabel) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
 			} else {
@@ -985,8 +1044,10 @@ export class AgentsVoiceWidget extends Disposable {
 		const animate = () => {
 			this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 			const onboarding = this._showOnboarding.get();
+			const connected = this._isConnected.get();
 			const voiceState = this._voiceState.get();
-			const glowActive = onboarding || voiceState === 'speaking' || voiceState === 'listening';
+			const connectedIdle = connected && voiceState === 'idle';
+			const glowActive = onboarding || connectedIdle || voiceState === 'speaking' || voiceState === 'listening';
 
 			if (!glowActive) {
 				this._glowDiv.style.display = 'none';
@@ -1004,6 +1065,8 @@ export class AgentsVoiceWidget extends Disposable {
 			let intensity: number;
 			if (onboarding) {
 				intensity = 0.6;
+			} else if (connectedIdle) {
+				intensity = readIdleVoiceGlowIntensity(getWindow(this.container).performance.now(), this.callbacks.isMotionReduced());
 			} else if (!analyser) {
 				intensity = 0.3;
 			} else {
@@ -1018,21 +1081,24 @@ export class AgentsVoiceWidget extends Disposable {
 
 			// Animate input box container border/shadow (inputBoxLayout)
 			if (this._inputBoxContainer) {
-				const r = (voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-				const borderAlpha = 0.4 + intensity * 0.5;
-				const shadowSpread = 4 + intensity * 12;
-				const shadowAlpha = 0.15 + intensity * 0.35;
-				this._inputBoxContainer.style.borderColor = `rgba(${r},${borderAlpha})`;
-				this._inputBoxContainer.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha}), inset 0 0 ${shadowSpread * 0.4}px rgba(${r},${shadowAlpha * 0.3})`;
+				const inputGlowState = connectedIdle ? 'idle' : voiceState;
+				if (inputGlowState === 'idle' || inputGlowState === 'listening' || inputGlowState === 'speaking') {
+					const { borderColor, boxShadow } = computeVoiceGlowStyle(inputGlowState, intensity, false);
+					this._inputBoxContainer.style.borderColor = borderColor;
+					this._inputBoxContainer.style.boxShadow = boxShadow;
+				}
 			}
 
 			if (this._inputBoxMicBtn) {
-				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
+				const iconGlowActive = connectedIdle || voiceState === 'listening' || voiceState === 'speaking';
 				if (iconGlowActive) {
-					const r = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
-					const shadowSpread = 3 + intensity * 8;
-					const shadowAlpha = 0.2 + intensity * 0.45;
-					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px rgba(${r},${shadowAlpha})`;
+					const shadowSpread = connectedIdle ? 2 + intensity * 8 : 3 + intensity * 8;
+					const shadowAlpha = connectedIdle ? 0.08 + intensity * 0.18 : 0.2 + intensity * 0.45;
+					// Themed idle color stays visible on light input backgrounds; saturated blue/purple for listening/speaking.
+					const glowColor = connectedIdle
+						? `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(shadowAlpha * 100).toFixed(2)}%, transparent)`
+						: `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
+					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
 				} else {
 					this._inputBoxMicBtn.style.boxShadow = 'none';
 				}
@@ -1040,9 +1106,15 @@ export class AgentsVoiceWidget extends Disposable {
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
-			const baseOpacity = 0.15 + intensity * 0.4;
-			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			const baseOpacity = connectedIdle ? 0.06 + intensity * 0.18 : 0.15 + intensity * 0.4;
+			if (connectedIdle) {
+				// Themed idle color so the gradient stays visible on light (white) input backgrounds.
+				const c = (a: number) => `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(a * 100).toFixed(2)}%, transparent)`;
+				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, ${c(baseOpacity)} 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, ${c(baseOpacity * 0.4)} 0%, transparent 100%)`;
+			} else {
+				const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
+			}
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}

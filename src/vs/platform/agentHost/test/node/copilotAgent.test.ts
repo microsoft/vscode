@@ -32,7 +32,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { AgentHostPreferLongContextEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -469,13 +469,16 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
+	resolveProxyCalls = 0;
+	resolvedProxy: string | undefined;
 
 	register(_clientId: string, _connection: IAgentHostClientProxyConnection): IDisposable {
 		return Disposable.None;
 	}
 
 	async resolveProxy(_url: string): Promise<string | undefined> {
-		return undefined;
+		this.resolveProxyCalls++;
+		return this.resolvedProxy;
 	}
 
 	readonly fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
@@ -582,7 +585,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -605,7 +608,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		flush: async () => undefined,
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
-	services.set(IAgentHostProxyResolver, new TestProxyResolver());
+	services.set(IAgentHostProxyResolver, options?.proxyResolver ?? new TestProxyResolver());
 	services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
@@ -1407,6 +1410,29 @@ suite('CopilotAgent', () => {
 			}
 		}
 
+		test('resolves the system proxy by default and bypasses it when disabled', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.resolvedProxy = 'http://system-proxy.example:8080';
+			const { agent, configurationService } = createTestAgentContext(disposables, { proxyResolver });
+			const resolveProxyForSdk = (env: Record<string, string | undefined>) => (agent as unknown as {
+				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
+			})._resolveProxyForSdk(env);
+			try {
+				assert.strictEqual(await resolveProxyForSdk({}), proxyResolver.resolvedProxy);
+
+				configurationService.updateRootConfig({ [AgentHostSystemProxyEnabledConfigKey]: false });
+				assert.deepStrictEqual({
+					proxy: await resolveProxyForSdk({}),
+					resolveProxyCalls: proxyResolver.resolveProxyCalls,
+				}, {
+					proxy: undefined,
+					resolveProxyCalls: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('passes the configured log level to the Copilot SDK client', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2013,7 +2039,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -2069,7 +2095,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'reject' }],
+				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -2118,7 +2144,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {

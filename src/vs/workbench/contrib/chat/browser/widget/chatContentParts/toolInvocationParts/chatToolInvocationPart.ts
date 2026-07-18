@@ -35,6 +35,7 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
+import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -132,10 +133,13 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				const stateChanged = state.type !== previousState.type;
 				const dataKindChanged = dataKind !== previousDataKind;
 				const dataChanged = state !== previousState && toolSpecificData !== previousToolSpecificData;
+				const confirmationMessagesChanged = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					&& previousState.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					&& state.confirmationMessages !== previousState.confirmationMessages;
 				previousState = state;
 				previousDataKind = dataKind;
 				previousToolSpecificData = toolSpecificData;
-				if (stateChanged || dataKindChanged || dataChanged) {
+				if (stateChanged || dataKindChanged || dataChanged || confirmationMessagesChanged) {
 					render();
 				}
 			}));
@@ -231,6 +235,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private createToolInvocationSubPart(): BaseChatToolInvocationSubPart {
 		if (this.toolInvocation.kind === 'toolInvocation') {
+			if (this.toolInvocation.otherClientToolCall && !IChatToolInvocation.isComplete(this.toolInvocation)) {
+				return this.instantiationService.createInstance(ChatOtherClientToolProgressPart, this.toolInvocation, this.renderer, this.announcedToolProgressKeys);
+			}
 			if (this.toolInvocation.toolSpecificData?.kind === 'extensions') {
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}

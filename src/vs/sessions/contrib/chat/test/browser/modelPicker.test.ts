@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { hasSelectableModel, normalizeModelPickerOptions } from '../../browser/modelPickerSelection.js';
+import { hasSelectableModel, normalizeModelPickerOptions } from '../../browser/sessionModelSelectionModel.js';
 
 const aModel = { identifier: 'copilot-gpt-4o', metadata: {} } as ILanguageModelChatMetadataAndIdentifier;
 

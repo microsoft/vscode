@@ -671,6 +671,24 @@ const configuration: IConfigurationNode = {
 				'sound': 'on'
 			}
 		},
+		'accessibility.signals.voiceModeStarted': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.voiceModeStarted', "Plays a signal - sound (audio cue) and/or announcement (alert) - when voice mode has started."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceModeStarted.sound', "Plays a sound when voice mode has started."),
+					...soundFeatureBase,
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.voiceModeStarted.announcement', "Announces when voice mode has started."),
+					...announcementFeatureBase,
+				}
+			},
+			'default': {
+				'sound': 'on',
+				'announcement': 'auto'
+			}
+		},
 		'accessibility.signals.voiceRecordingStopped': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.voiceRecordingStopped', "Plays a sound / audio cue when the voice recording has stopped."),
@@ -682,6 +700,24 @@ const configuration: IConfigurationNode = {
 			},
 			'default': {
 				'sound': 'on'
+			}
+		},
+		'accessibility.signals.voiceModeStopped': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.voiceModeStopped', "Plays a signal - sound (audio cue) and/or announcement (alert) - when voice mode has stopped."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.voiceModeStopped.sound', "Plays a sound when voice mode has stopped."),
+					...soundFeatureBase,
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.voiceModeStopped.announcement', "Announces when voice mode has stopped."),
+					...announcementFeatureBase,
+				}
+			},
+			'default': {
+				'sound': 'on',
+				'announcement': 'auto'
 			}
 		},
 		'accessibility.signals.clear': {

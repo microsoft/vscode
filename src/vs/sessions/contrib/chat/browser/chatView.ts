@@ -13,6 +13,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -150,6 +151,7 @@ export class ChatView extends AbstractChatView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
@@ -376,6 +378,7 @@ export class ChatView extends AbstractChatView {
 			micCaptureService: this.micCaptureService,
 			configurationService: this.configurationService,
 			keybindingService: this.keybindingService,
+			accessibilityService: this.accessibilityService,
 		}, {
 			inputContainer: inputContainerEl,
 			isActive: this._isActiveObs,

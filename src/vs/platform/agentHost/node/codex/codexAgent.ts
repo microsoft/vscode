@@ -1489,6 +1489,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return { result: emptyUserInputResponse(params.questions) };
 		}
+		if (!session.currentTurnId) {
+			this._logService.warn(`[Codex] user input request without an active turn for threadId=${params.threadId}; returning empty answers`);
+			return { result: emptyUserInputResponse(params.questions) };
+		}
 		// MCP tool-call approvals arrive as a single `request_user_input`
 		// question id'd `mcp_tool_call_approval_<callId>`. Render them on the
 		// normal tool-approval card (mirroring shell/file approvals) instead of
@@ -1560,6 +1564,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._logService.info(`[Codex] elicitation request threadId=${params.threadId} mode=${params.mode} server=${params.serverName} session=${session ? session.sessionId : 'NONE'}`);
 		if (!session) {
 			this._logService.warn(`[Codex] elicitation request for unknown threadId=${params.threadId}; declining`);
+			return { result: declinedElicitationResponse() };
+		}
+		if (!session.currentTurnId) {
+			this._logService.warn(`[Codex] elicitation request without an active turn for threadId=${params.threadId}; declining`);
 			return { result: declinedElicitationResponse() };
 		}
 		const requestId = generateUuid();

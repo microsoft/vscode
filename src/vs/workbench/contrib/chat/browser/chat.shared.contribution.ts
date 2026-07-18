@@ -16,7 +16,7 @@ import { AgentHostAhpJsonlLoggingSettingId, AgentHostSdkSandboxEnabledSettingId,
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -28,7 +28,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -60,7 +60,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatT
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
-import { BYOKUtilityModelDefault, ChatAgentLocation, ChatConfiguration, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { BYOKUtilityModelDefault, ChatAgentLocation, ChatConfiguration, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -256,7 +256,7 @@ configurationRegistry.registerConfiguration({
 		'chat.speechToText.enabled': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
 		'chat.speechToText.model': {
@@ -265,15 +265,29 @@ configurationRegistry.registerConfiguration({
 				'onnx-community/whisper-tiny',
 				'onnx-community/whisper-base',
 				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small'],
+			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
 			markdownEnumDescriptions: [
 				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
 				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
 				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
+				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device Whisper model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/whisper-base',
+			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
+			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			tags: ['experimental']
+		},
+		'chat.speechToText.mode': {
+			type: 'string',
+			enum: ['auto', 'toggle', 'pushToTalk'],
+			enumDescriptions: [
+				nls.localize('chat.speechToText.mode.auto', "Tap the dictation shortcut to start and stop, or press and hold it to dictate only while held (push-to-talk)."),
+				nls.localize('chat.speechToText.mode.toggle', "Tap the dictation shortcut to start dictating and tap again to stop."),
+				nls.localize('chat.speechToText.mode.pushToTalk', "Press and hold the dictation shortcut to dictate; dictation stops as soon as the shortcut is released."),
+			],
+			markdownDescription: nls.localize('chat.speechToText.mode.description', "Controls how the chat dictation shortcut ({0}) behaves.", '`Cmd/Ctrl+I`'),
+			default: 'auto',
 			tags: ['experimental']
 		},
 		'chat.editor.fontSize': {
@@ -527,10 +541,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Approvals."),
 			default: ChatPermissionLevel.Default,
 		},
-		[ChatConfiguration.AutoApprovalsEnabled]: {
+		[ChatConfiguration.AssistedPermissionsEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.experimental.autoApprovals.enabled', "Controls whether Assisted permissions is shown in Agent Host approval pickers."),
+			description: nls.localize('chat.assistedPermissions.enabled', "Controls whether Assisted permissions is shown in Agent Host approval pickers."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -562,17 +576,17 @@ configurationRegistry.registerConfiguration({
 				},
 				approvals: {
 					type: 'string',
-					enum: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove],
+					enum: [ChatDefaultPermissionLevel.Default, ChatDefaultPermissionLevel.Assisted, ChatDefaultPermissionLevel.AllowAll],
 					enumDescriptions: [
 						nls.localize('chat.defaultConfiguration.approvals.default', "Ask When Needed — asks when approval settings don't apply."),
 						nls.localize('chat.defaultConfiguration.approvals.assisted', "Assisted permissions — evaluates risk before running tools."),
-						nls.localize('chat.defaultConfiguration.approvals.autoApprove', "Allow All — runs tool calls without asking."),
+						nls.localize('chat.defaultConfiguration.approvals.allowAll', "Allow All — runs tool calls without asking."),
 					],
-					default: ChatPermissionLevel.Default,
+					default: ChatDefaultPermissionLevel.Default,
 					description: nls.localize('chat.defaultConfiguration.approvals.description', "The starting approval behavior for new agent sessions. If enterprise policy disables auto approval, new sessions use Ask When Needed."),
 				},
 			},
-			default: { mode: 'interactive', approvals: ChatPermissionLevel.Default },
+			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
 			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.DefaultModel]: {
@@ -837,6 +851,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.contextUsage.enabled', "Show the context window usage indicator in the chat input."),
 		},
+		[ChatConfiguration.Verbose]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
+		},
 		[ChatConfiguration.ChatPersistentProgressEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
@@ -942,6 +961,82 @@ configurationRegistry.registerConfiguration({
 							key: 'chat.mcp.access.any', value: nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
 						}
 					]
+				},
+			}
+		},
+		[mcpAllowedServersConfig]: {
+			type: ['array', 'null'],
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				properties: {
+					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverName', "Match a server by its configured name.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.allowedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.allowedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+				},
+				oneOf: [
+					{ required: ['serverName'] },
+					{ required: ['serverUrl'] },
+					{ required: ['serverCommand'] },
+				],
+			},
+			markdownDescription: nls.localize('chat.mcp.allowedServers', "Enterprise-managed allowlist that controls which Model Context Protocol servers may be installed and run. When set, only servers matching an entry are permitted; any other server is blocked. Servers can be matched by name, remote URL pattern (with `*` wildcards), or local command invocation. Omit entirely to allow all servers (subject to the deny list). Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			// Governance-only: delivered via the `ChatAllowedMcpServers` enterprise policy and hidden
+			// from the Settings UI so it is not configurable by end users.
+			included: false,
+			policy: {
+				name: 'ChatAllowedMcpServers',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.130',
+				value: managedSettingValue(COPILOT_ALLOWED_MCP_SERVERS_KEY),
+				managedSettings: {
+					[COPILOT_ALLOWED_MCP_SERVERS_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.mcp.allowedServers.policy',
+						value: nls.localize('chat.mcp.allowedServers.policy', "Allowlist of Model Context Protocol servers. When set, only servers matching an entry may be installed or run; omit entirely to allow all servers (subject to the deny list).")
+					}
+				},
+			}
+		},
+		[mcpDeniedServersConfig]: {
+			type: ['array', 'null'],
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				properties: {
+					serverName: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverName', "Match a server by its configured name.") },
+					serverUrl: { type: 'string', minLength: 1, description: nls.localize('chat.mcp.deniedServers.serverUrl', "Match a remote server by its URL. Supports `*` wildcards, for example `https://*.example.com/*`.") },
+					serverCommand: { type: 'array', minItems: 1, items: { type: 'string' }, description: nls.localize('chat.mcp.deniedServers.serverCommand', "Match a local server by its exact command invocation, given as the command followed by its arguments.") },
+				},
+				oneOf: [
+					{ required: ['serverName'] },
+					{ required: ['serverUrl'] },
+					{ required: ['serverCommand'] },
+				],
+			},
+			markdownDescription: nls.localize('chat.mcp.deniedServers', "Enterprise-managed denylist of Model Context Protocol servers. Servers matching any entry are unconditionally blocked from being installed or run, even if they also match the allow list — deny rules always take precedence. Servers can be matched by name, remote URL pattern (with `*` wildcards), or local command invocation. Delivered via enterprise policy for governance; this setting is not surfaced to end users."),
+			default: null,
+			scope: ConfigurationScope.APPLICATION,
+			// Governance-only: delivered via the `ChatDeniedMcpServers` enterprise policy and hidden
+			// from the Settings UI so it is not configurable by end users.
+			included: false,
+			policy: {
+				name: 'ChatDeniedMcpServers',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.130',
+				value: managedSettingValue(COPILOT_DENIED_MCP_SERVERS_KEY),
+				managedSettings: {
+					[COPILOT_DENIED_MCP_SERVERS_KEY]: { type: 'string' },
+				},
+				localization: {
+					description: {
+						key: 'chat.mcp.deniedServers.policy',
+						value: nls.localize('chat.mcp.deniedServers.policy', "Denylist of Model Context Protocol servers. Servers matching any entry are blocked from being installed or run, even if they also match the allow list; deny rules always take precedence.")
+					}
 				},
 			}
 		},
@@ -2048,13 +2143,38 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(AgentPluginEditorInput)
 	]
 );
+function isStringKeyedObject(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function migrateChatDefaultConfiguration(value: unknown): Record<string, unknown> | undefined {
+	if (!isStringKeyedObject(value) || value.approvals !== ChatPermissionLevel.AutoApprove) {
+		return undefined;
+	}
+	return { ...value, approvals: ChatDefaultPermissionLevel.AllowAll };
+}
+
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
 		key: 'chat.agentSessions.defaultConfiguration',
 		migrateFn: (value, _accessor) => ([
 			['chat.agentSessions.defaultConfiguration', { value: undefined }],
-			[ChatConfiguration.DefaultConfiguration, { value }]
+			[ChatConfiguration.DefaultConfiguration, { value: migrateChatDefaultConfiguration(value) ?? value }]
 		])
+	},
+	{
+		key: ChatConfiguration.DefaultConfiguration,
+		migrateFn: value => ({ value: migrateChatDefaultConfiguration(value) ?? value })
+	},
+	{
+		key: 'chat.experimental.autoApprovals.enabled',
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [['chat.experimental.autoApprovals.enabled', { value: undefined }]];
+			if (accessor(ChatConfiguration.AssistedPermissionsEnabled) === undefined) {
+				pairs.push([ChatConfiguration.AssistedPermissionsEnabled, { value }]);
+			}
+			return pairs;
+		}
 	},
 	{
 		key: 'chat.experimental.detectParticipant.enabled',

@@ -584,6 +584,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableMcpApps: true,
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
+			requestExtensions: false, // force-disable copilot extension management tools (otherwise enabled in experimental mode)
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),

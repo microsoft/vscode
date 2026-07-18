@@ -876,7 +876,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
 	requestUserInput(request: ChatInputRequest, parentToolCallId?: string): Promise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }> {
-		if (!this._pipeline || this._pipeline.isAborted) {
+		if (!this._pipeline || this._pipeline.isAborted || !this._pipeline.hasActiveTurn) {
 			return Promise.resolve({ response: ChatInputResponseKind.Cancel });
 		}
 		return this._pendingUserInputs.registerAndFire(request.id, () => {

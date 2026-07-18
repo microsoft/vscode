@@ -21,7 +21,7 @@ import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
 import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel.js';
 import { IObjectData, IPooledObject } from './objectPool.js';
 import { ActionRunnerWithContext } from './utils.js';
-import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
+import { IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from './workbenchUIElementFactory.js';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -121,10 +121,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
 		this.isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
 		this._resourceLabel = this._workbenchUIElementFactory.createResourceLabel
-			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath))
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.primaryPath, MultiDiffEditorItemLabelKind.Primary))
 			: undefined;
 		this._resourceLabel2 = this._workbenchUIElementFactory.createResourceLabel
-			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath))
+			? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.secondaryPath, MultiDiffEditorItemLabelKind.Secondary))
 			: undefined;
 		this._dataStore = this._register(new DisposableStore());
 		this._headerHeight = 40;

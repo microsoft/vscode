@@ -31,7 +31,6 @@ import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/c
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { ChatEntitlement, chatRequiresSetup, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
-import { getModelPickerUnavailableReason, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from '../chatModelSelectionLogic.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -42,7 +41,7 @@ import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getControlModelsForEntitlement, getModelPickerAccessibilityProvider, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getModelPickerIcon } from './modelProviderIcons.js';
-import { isAutoModel } from './modelPickerUtils.js';
+import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 type ChatModelChangeClassification = {

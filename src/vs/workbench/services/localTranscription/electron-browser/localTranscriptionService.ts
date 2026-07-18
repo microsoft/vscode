@@ -6,7 +6,8 @@
 import { getDelayedChannel, IChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { arch, platform } from '../../../../base/common/process.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
-import { ILocalTranscriptionService, localTranscriptionChannelName } from '../../../../platform/localTranscription/common/localTranscription.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILocalTranscriptionProxyConfig, ILocalTranscriptionService, localTranscriptionChannelName } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { IUtilityProcessWorkerWorkbenchService } from '../../utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
 
 /**
@@ -43,7 +44,8 @@ export class LocalTranscriptionService {
 	private _proxy: ILocalTranscriptionService | undefined;
 
 	constructor(
-		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	private _getChannel(): IChannel {
@@ -71,10 +73,29 @@ export class LocalTranscriptionService {
 	get onDidTranscribe() { return this._getProxy().onDidTranscribe; }
 
 	getModelStatus() { return this._getProxy().getModelStatus(); }
-	start(options: { cacheDir: string; model?: string; language?: string }) { return this._getProxy().start(options); }
+	start(options: { cacheDir: string; model?: string; language?: string }) { return this._getProxy().start({ cacheDir: options.cacheDir, model: options.model, language: options.language, proxy: this._readProxyConfig() }); }
 	pushAudio(chunk: Parameters<ILocalTranscriptionService['pushAudio']>[0]) { return this._getProxy().pushAudio(chunk); }
 	stop() { return this._getProxy().stop(); }
 	cancel() { return this._getProxy().cancel(); }
+
+	/**
+	 * Snapshot the `http.*` proxy settings for the utility process, which has no
+	 * `IConfigurationService`/`IRequestService` of its own. Mirrors how
+	 * `RequestService` reads them: prefer the user-local value over the default
+	 * and ignore workspace overrides (a workspace should not redirect a model
+	 * download through an arbitrary proxy).
+	 */
+	private _readProxyConfig(): ILocalTranscriptionProxyConfig {
+		const inspectLocal = <T>(key: string): T | undefined => {
+			const values = this.configurationService.inspect<T>(key);
+			return values.userLocalValue ?? values.defaultValue;
+		};
+		return {
+			url: inspectLocal<string>('http.proxy'),
+			strictSSL: !!inspectLocal<boolean>('http.proxyStrictSSL'),
+			authorization: inspectLocal<string>('http.proxyAuthorization')
+		};
+	}
 }
 
 registerSingleton(ILocalTranscriptionService, LocalTranscriptionService, InstantiationType.Delayed);

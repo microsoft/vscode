@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ResolveSessionConfigResult } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
@@ -52,6 +52,22 @@ function makeRepoConfig(branchValue?: string): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
+function makeNoGitConfig(): ResolveSessionConfigResult {
+	return {
+		schema: {
+			type: 'object',
+			properties: {
+				[SessionConfigKey.Isolation]: {
+					title: 'Isolation', description: '', type: 'string',
+					enum: ['folder'], enumLabels: ['Folder'],
+					default: 'folder', readOnly: true,
+				},
+			},
+		},
+		values: { [SessionConfigKey.Isolation]: 'folder' },
+	} as ResolveSessionConfigResult;
+}
+
 /**
  * Fake provider whose `getSessionConfig` returns whatever config is set. The
  * provider (not the picker) owns the seeded schema, so a picker recreated by a
@@ -78,6 +94,12 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this.config = config;
 		this.resolving.set(resolving, undefined);
 		this._emitter.fire(SESSION_ID);
+	}
+}
+
+class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
+	protected override _shouldRenderProperty(_property: string, _schema: SessionConfigPropertySchema, _isNewSession: boolean): boolean {
+		return true;
 	}
 }
 
@@ -205,5 +227,15 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation re-enables after resolve');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch re-enables after resolve');
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
+	});
+
+	test('does not render folder isolation when the workspace has no Git repository', () => {
+		const services = setupServices(store);
+		services.provider.config = makeNoGitConfig();
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+
+		assert.strictEqual(isolationSlot(container), null);
 	});
 });
