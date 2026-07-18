@@ -286,8 +286,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		this._register(this._codeEditor.onDidChangeModel(() => {
-			// Model/view swaps destroy view zones. Drop the stale id and reattach while Find is open
-			// so the first lines stay shifted below the widget (issue #316054).
+			// Model swaps destroy zones; clear the stale id and reattach while Find is open (#316054).
 			this._viewZoneId = undefined;
 			if (!this._isVisible || !this._codeEditor.hasModel()) {
 				return;
@@ -586,8 +585,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 				this._updateFindInputAriaLabel();
-				// Re-apply after becoming visible so zone height matches laid-out inputs (#316054).
-				this._showViewZone(false);
+				this._showViewZone(false); // refresh zone height after the widget is laid out (#316054)
 			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
@@ -597,10 +595,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			this._codeEditor.layoutOverlayWidget(this);
 
-			// Keep the view zone in the viewport so the first lines are not covered by the
-			// find overlay (#316054). Scrolling past the newly added zone (adjustScroll=true)
-			// left line 1 under the widget whenever the selection was not horizontally under
-			// the find box — which felt intermittent/"random" to users.
+			// Keep the zone in-viewport so Find does not cover the first lines (#316054).
 			this._showViewZone(false);
 		}
 	}
@@ -641,21 +636,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			return;
 		}
 
-		// Recreate the zone object if a prior hide/remove cleared it (same as _showViewZone).
 		if (!this._viewZone) {
 			this._viewZone = new FindWidgetViewZone(0);
 		}
 
 		const viewZone = this._viewZone;
 		if (this._viewZoneId !== undefined) {
+			// Zone already attached; still honor an explicit scroll restore from view-state.
+			if (typeof targetScrollTop === 'number') {
+				this._codeEditor.setScrollTop(targetScrollTop);
+			}
 			return;
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
 			viewZone.heightInPx = this._getViewZoneHeight();
 			this._viewZoneId = accessor.addZone(viewZone);
-			// Only restore an explicit scroll top (view-state). Otherwise leave scroll alone so the
-			// new zone stays in the viewport and keeps covering the first lines (#316054).
+			// Restore explicit scroll only; otherwise leave scroll so the zone stays visible (#316054).
 			if (typeof targetScrollTop === 'number') {
 				this._codeEditor.setScrollTop(targetScrollTop);
 			}
@@ -716,9 +713,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	}
 
 	private _getViewZoneHeight(): number {
-		// Prefer laid-out widget height; never allow a transient 0-height input during
-		// first reveal to create/keep an empty zone (#316054). Include CSS margin-top (4px)
-		// so the first line clears the overlay, not only its content box.
+		// Use laid-out height with a minimum, plus margin-top, so the zone clears Find (#316054).
 		const marginTop = 4;
 		return Math.max(this._getHeight(), this._domNode.offsetHeight || 0, FIND_INPUT_AREA_HEIGHT) + marginTop;
 	}
@@ -1379,7 +1374,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (state.widgetViewZoneVisible) {
-			// Ensure the zone is (re)attached even if `_viewZone` was cleared, then restore scroll.
 			this._showViewZone(false);
 			this._layoutViewZone(state.scrollTop);
 		}
