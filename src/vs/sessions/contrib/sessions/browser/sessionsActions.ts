@@ -66,7 +66,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
@@ -103,11 +103,9 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const toPickItem = (session: ISession): ISessionPickItem => {
 			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
-			// Status icon, mirroring the sessions list and session header. Use the
-			// list model service's read state (not session.isRead) so the icon
-			// matches what the sessions list shows.
+			// Status icon, mirroring the sessions list and session header.
 			const status = session.status.get();
-			const isRead = sessionsListModelService.isSessionRead(session);
+			const isRead = session.isRead.get();
 			const isArchived = session.isArchived.get();
 			const workspace = session.workspace.get();
 			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
@@ -225,7 +223,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 });
 
 const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
@@ -235,7 +233,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --

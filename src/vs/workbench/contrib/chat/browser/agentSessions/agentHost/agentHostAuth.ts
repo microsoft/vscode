@@ -5,7 +5,7 @@
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type McpOAuthClient, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -13,7 +13,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 
 /**
  * Stable identity for an agent-host MCP server, used as the key for
@@ -162,6 +163,9 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 	readonly mcpServerId: string;
 	readonly mcpServerName: string;
 	readonly mcpServerUrl: string;
+	readonly oauthClient?: McpOAuthClient;
+	readonly scopes: readonly string[];
+	readonly authorizationServerMetadataFetcher?: typeof fetchAuthorizationServerMetadata;
 	/**
 	 * Identifies the agent host backing this MCP server so remembered-auth
 	 * entries can be surfaced in their own section of the "Manage Trusted MCP
@@ -272,18 +276,41 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpService = accessor.get(IAuthenticationMcpService);
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const logService = accessor.get(ILogService);
+	const dynamicAuthenticationProviderStorageService = options.oauthClient
+		? accessor.get(IDynamicAuthenticationProviderStorageService)
+		: undefined;
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
-	const scopes = protectedResource.scopes_supported ?? [];
+	// GitHub MCP supports demand-driven step-up auth, while other servers may reject authorization requests with no scopes.
+	const scopes = options.scopes.length > 0 || isGitHubMcpResource(protectedResource)
+		? options.scopes
+		: protectedResource.scopes_supported ?? [];
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerId = await getOrCreateProviderForMcpResource(authorizationServerUri, protectedResource, authenticationService, logService, options.logPrefix);
+		const providerId = await getOrCreateProviderForMcpResource(
+			authorizationServerUri,
+			protectedResource,
+			options.oauthClient,
+			authenticationService,
+			dynamicAuthenticationProviderStorageService,
+			logService,
+			options.logPrefix,
+			options.allowInteraction,
+			options.authorizationServerMetadataFetcher ?? fetchAuthorizationServerMetadata,
+		);
 		if (!providerId) {
 			continue;
 		}
 
-		const sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: authorizationServerUri, resource: protectedResource.resource }, true);
+		const oauthClientOptions = options.oauthClient
+			? { clientId: options.oauthClient.clientId, clientSecret: options.oauthClient.clientSecret }
+			: {};
+		const sessions = await authenticationService.getSessions(providerId, [...scopes], {
+			authorizationServer: authorizationServerUri,
+			resource: protectedResource.resource,
+			...oauthClientOptions,
+		}, true);
 		const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
 		if (allowedSession) {
 			await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
@@ -303,6 +330,7 @@ export async function resolveMcpServerAuthentication(
 				activateImmediate: true,
 				authorizationServer: authorizationServerUri,
 				resource: protectedResource.resource,
+				...oauthClientOptions,
 			});
 		await authenticateMcpSession(providerId, session, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, true, agentHostMeta);
 		return true;
@@ -310,22 +338,50 @@ export async function resolveMcpServerAuthentication(
 	return false;
 }
 
+function isGitHubMcpResource(resource: ProtectedResourceMetadata): boolean {
+	return resource.resource_name === 'GitHub MCP Server';
+}
+
 async function getOrCreateProviderForMcpResource(
 	authorizationServer: URI,
 	protectedResource: ProtectedResourceMetadata,
+	oauthClient: McpOAuthClient | undefined,
 	authenticationService: IAuthenticationService,
+	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService | undefined,
 	logService: ILogService,
 	logPrefix: string,
+	allowCreation: boolean,
+	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
-	const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
-	if (existing) {
-		return existing;
+	if (oauthClient) {
+		if (!dynamicAuthenticationProviderStorageService) {
+			throw new Error('Dynamic authentication provider storage is required for a configured OAuth client.');
+		}
+		const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+		if (authenticationService.isDynamicAuthenticationProvider(dynamicProviderId)) {
+			const registered = await dynamicAuthenticationProviderStorageService.getClientRegistration(dynamicProviderId);
+			if (registered?.clientId === oauthClient.clientId && registered.clientSecret === oauthClient.clientSecret) {
+				return dynamicProviderId;
+			}
+			if (!allowCreation) {
+				return undefined;
+			}
+			authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+			await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
+		} else if (!allowCreation) {
+			return undefined;
+		}
+	} else {
+		const existing = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceUri);
+		if (existing || !allowCreation) {
+			return existing;
+		}
 	}
 
 	try {
-		const { metadata } = await fetchAuthorizationServerMetadata(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource);
+		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, oauthClient?.clientId, oauthClient?.clientSecret);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -123,20 +123,14 @@ const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
 
 /**
- * Fill in the picker selections (`selectedModel`, `mode`) that `stateToApply` is missing, using
- * the session's previously `savedState`.
+ * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
+ * `savedState` when the applied state fell back to the default Agent.
  *
  * `stateToApply` is the input state about to be applied to the session being restored (an
- * agent-host transferred draft, or the saved draft as a fallback). `savedState` is the session's
- * own previously saved input state. At cold restore `stateToApply` can lose these two picker
- * selections, so take them from `savedState`:
- * - `selectedModel`: `stateToApply` leaves it undefined when the model is not registered yet (the
- *   agent-host model list has not loaded). `savedState` keeps the full model (id + capabilities),
- *   so use it. The input part re-validates it against the live model list and re-resolves it once
- *   the list loads, so a genuinely stale/wrong model is still dropped safely.
- * - `mode`: `stateToApply` falls back to the default Agent when it did not capture the user's
- *   custom agent. Prefer the custom agent from `savedState`, but only promote it OVER the plain
- *   default Agent — never override a different explicit mode.
+ * agent-host transferred draft, or the saved draft as a fallback). Its `selectedModel` is the
+ * authoritative model selection.
+ * `savedState` is only used for `mode`: prefer its custom agent over the plain default Agent, but
+ * never override a different explicit mode already present in `stateToApply`.
  */
 export function backfillRestoredPickerState(
 	stateToApply: ISerializableChatModelInputState | undefined,
@@ -146,14 +140,13 @@ export function backfillRestoredPickerState(
 	if (!stateToApply || !savedState) {
 		return stateToApply;
 	}
-	const selectedModel = stateToApply.selectedModel ?? savedState.selectedModel;
 	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
 		? savedState.mode
 		: stateToApply.mode;
-	if (selectedModel === stateToApply.selectedModel && mode === stateToApply.mode) {
+	if (mode === stateToApply.mode) {
 		return stateToApply;
 	}
-	return { ...stateToApply, selectedModel, mode };
+	return { ...stateToApply, mode };
 }
 
 export class ChatService extends Disposable implements IChatService {
@@ -162,6 +155,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private readonly _queuedRequestDeferreds = new Map<string, DeferredPromise<ChatSendResult>>();
+	/** Pending requests that are synthetic streamed-turn trackers (not real in-flight requests). */
+	private readonly _syntheticPendingRequests = new WeakSet<CancellableRequest>();
 
 	/**
 	 * In-flight untitled→real materializations, keyed by the original untitled
@@ -654,7 +649,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (!await this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource))) {
+		if (!await raceCancellationError(this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource)), token)) {
 			return undefined;
 		}
 
@@ -796,10 +791,19 @@ export class ChatService extends Disposable implements IChatService {
 		};
 
 		let lastRequest: ChatRequestModel | undefined;
+		let lastResponseCompletedAt: number | undefined;
+		const completeLastResponse = () => {
+			if (Number.isFinite(lastResponseCompletedAt)) {
+				lastRequest?.response?.complete(lastResponseCompletedAt);
+			} else {
+				lastRequest?.response?.completeWithoutTimestamp();
+			}
+			lastResponseCompletedAt = undefined;
+		};
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
 				if (lastRequest) {
-					lastRequest.response?.complete();
+					completeLastResponse();
 				}
 
 				const requestText = message.prompt;
@@ -831,7 +835,8 @@ export class ChatService extends Disposable implements IChatService {
 					message.isSystemInitiated,
 					message.systemInitiatedLabel,
 					undefined, // terminalExecutionId
-					message.isTerminalRequest
+					message.isTerminalRequest,
+					message.timestamp ?? null,
 				);
 			} else {
 				// response
@@ -845,6 +850,10 @@ export class ChatService extends Disposable implements IChatService {
 							...(message.errorDetails ? { errorDetails: message.errorDetails } : {}),
 						});
 					}
+					if (lastRequest.response && typeof message.elapsedMs === 'number') {
+						lastRequest.response.setElapsedMs(message.elapsedMs);
+					}
+					lastResponseCompletedAt = message.completedAt;
 				}
 			}
 		}
@@ -869,6 +878,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			const trackNewCancellableRequest = () => {
 				const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined, undefined);
+				this._syntheticPendingRequests.add(cancellableRequest);
 				this._pendingRequests.set(model.sessionResource, cancellableRequest);
 				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 				cancellationListener.value = createCancellationListener(cancellableRequest.cancellationTokenSource.token);
@@ -886,10 +896,10 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
-						lastRequest.response.complete();
+						completeLastResponse();
 					}
 
 					// Create a new request in the model
@@ -911,7 +921,8 @@ export class ChatService extends Disposable implements IChatService {
 						isSystemInitiated,
 						systemInitiatedLabel,
 						undefined, // terminalExecutionId
-						isTerminalRequest
+						isTerminalRequest,
+						timestamp,
 					);
 
 					// Reset progress tracking for the new turn
@@ -922,10 +933,54 @@ export class ChatService extends Disposable implements IChatService {
 				}));
 			}
 
+			// Mid-turn steering for streamed sessions: dispatch a queued Steering message immediately
+			// (the provider POSTs it server-side) rather than waiting for the turn to complete, but only
+			// when the in-flight request is the synthetic streamed-turn tracker (or none), never a real
+			// request. Server-managed (agent-host) queues are drained by the server, so they're excluded.
+			if (!this._isServerManagedQueue(model.sessionResource)) {
+				let dispatchingImmediateSteer = false;
+				const canImmediatelyDispatch = () => {
+					if (!model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
+						return false;
+					}
+					const pending = this._pendingRequests.get(model.sessionResource);
+					return !pending || this._syntheticPendingRequests.has(pending);
+				};
+				disposables.add(model.onDidChangePendingRequests(() => {
+					if (dispatchingImmediateSteer || !canImmediatelyDispatch()) {
+						return;
+					}
+					dispatchingImmediateSteer = true;
+					// Defer past the in-progress addPendingRequest mutation to avoid re-entrancy.
+					queueMicrotask(() => {
+						dispatchingImmediateSteer = false;
+						if (this._sessionModels.get(model.sessionResource) !== model || !canImmediatelyDispatch()) {
+							return;
+						}
+						// Release the synthetic tracker so the queue processor can run, then dispatch.
+						if (this._pendingRequests.has(model.sessionResource)) {
+							this._pendingRequests.deleteAndDispose(model.sessionResource);
+						}
+						this.processNextPendingRequest(model);
+						// Restore tracking when the dispatched request settles (stream still active).
+						this._pendingRequests.get(model.sessionResource)?.responseCompletePromise?.finally(() => {
+							if (this._sessionModels.get(model.sessionResource) === model && !(providedSession.isCompleteObs?.get() ?? false)) {
+								ensureCancellationTracking();
+							}
+						});
+					});
+				}));
+			}
+
 			// Single autorun that streams progress for whichever request is current.
 			disposables.add(autorun(reader => {
 				const progressArray = providedSession.progressObs?.read(reader) ?? [];
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+
+				// Backstop: keep the streamed turn tracked as in-progress across immediate-steer dispatches.
+				if (!isComplete) {
+					ensureCancellationTracking();
+				}
 
 				// Process only new progress items
 				if (lastRequest && progressArray.length > lastProgressLength) {
@@ -940,19 +995,21 @@ export class ChatService extends Disposable implements IChatService {
 				if (isComplete && lastRequest) {
 					this._pendingRequests.deleteAndDispose(model.sessionResource);
 					cancellationListener.clear();
-					lastRequest.response?.complete();
+					completeLastResponse();
+					// Flush any message queued/steered during the streamed turn (no-op if none, or server-managed).
+					this.processPendingRequests(model.sessionResource);
 				}
 			}));
 		} else {
 			if (providedSession.isCompleteObs?.get()) {
-				lastRequest?.response?.complete();
+				completeLastResponse();
 			}
 
 			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
-				lastRequest.response?.complete();
+				completeLastResponse();
 			}
 		}
 

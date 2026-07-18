@@ -356,6 +356,7 @@
 		"--vscode-editorSuggestWidget-background",
 		"--vscode-editorSuggestWidget-border",
 		"--vscode-editorSuggestWidget-focusHighlightForeground",
+		"--vscode-editorSuggestWidget-focusOutline",
 		"--vscode-editorSuggestWidget-foreground",
 		"--vscode-editorSuggestWidget-highlightForeground",
 		"--vscode-editorSuggestWidget-selectedBackground",
@@ -942,6 +943,8 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--action-widget-close-start-opacity",
+		"--action-widget-close-start-transform",
 		"--activity-bar-action-height",
 		"--activity-bar-icon-size",
 		"--activity-bar-width",
@@ -1107,6 +1110,7 @@
 		"--vscode-agents-fontSize-label3",
 		"--vscode-agents-fontWeight-regular",
 		"--vscode-agents-fontWeight-semiBold",
+		"--vscode-agents-layout-floatingPanelGap",
 		"--vscode-bodyFontSize",
 		"--vscode-bodyFontSize-small",
 		"--vscode-bodyFontSize-xSmall",

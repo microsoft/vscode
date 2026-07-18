@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
 import { agentsBadgeBackground, agentsBadgeForeground, agentsPanelBackground, agentsPanelBorder, agentsPanelForeground } from '../../common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/sizes.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -68,8 +69,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 5;
-	static readonly MARGIN_LEFT = 10;
+	static readonly MARGIN_TOP = AGENTS_FLOATING_PANEL_GAP;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -176,12 +176,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 
 		// Layout content with reduced dimensions to account for visual margins and border.
-		// The right and bottom gutters are provided by the workbench grid; the 5px top
-		// margin pairs with the top row's MARGIN_BOTTOM to center the sash.
 		const borderTotal = 2; // 1px border on each side
-		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
-			width - marginLeft - borderTotal,
+			width - borderTotal,
 			height - PanelPart.MARGIN_TOP - borderTotal,
 			top, left
 		);

@@ -37,6 +37,58 @@ export function buildToolInputSchema(schema: Record<string, unknown> | undefined
 	return { type: 'object', properties: {}, ...rest };
 }
 
+/**
+ * Anthropic only accepts ASCII letters, digits, underscores, and hyphens in tool call IDs.
+ */
+function sanitizeToolCallId(id: string): string {
+	return id.replace(/[^a-zA-Z0-9_-]/gu, '_');
+}
+
+/**
+ * Allocates Anthropic-compatible tool call IDs while preserving call/result pairing.
+ */
+function createAnthropicToolCallIdMapper(messages: readonly Raw.ChatMessage[]): (id: string) => string {
+	const validIdPattern = /^[a-zA-Z0-9_-]+$/u;
+	const usedIds = new Set<string>();
+
+	for (const message of messages) {
+		if (message.role === Raw.ChatRole.Assistant) {
+			for (const toolCall of message.toolCalls ?? []) {
+				if (validIdPattern.test(toolCall.id)) {
+					usedIds.add(toolCall.id);
+				}
+			}
+		} else if (message.role === Raw.ChatRole.Tool && validIdPattern.test(message.toolCallId)) {
+			usedIds.add(message.toolCallId);
+		}
+	}
+
+	const mappedIds = new Map<string, string>();
+	return id => {
+		const existingId = mappedIds.get(id);
+		if (existingId !== undefined) {
+			return existingId;
+		}
+
+		if (validIdPattern.test(id)) {
+			mappedIds.set(id, id);
+			usedIds.add(id);
+			return id;
+		}
+
+		const baseId = sanitizeToolCallId(id) || 'tool_call';
+		let mappedId = baseId;
+		let suffix = 1;
+		while (usedIds.has(mappedId)) {
+			mappedId = `${baseId}_${suffix++}`;
+		}
+
+		mappedIds.set(id, mappedId);
+		usedIds.add(mappedId);
+		return mappedId;
+	};
+}
+
 /** IP Code Citation annotation from Messages API copilot_annotations */
 interface AnthropicIPCodeCitation {
 	id: number;
@@ -263,6 +315,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 	const unmergedMessages: MessageParam[] = [];
 	const systemBlocks: TextBlockParam[] = [];
 	const toolCallIdToName = new Map<string, string>();
+	const mapToolCallId = createAnthropicToolCallIdMapper(messages);
 
 	for (const message of messages) {
 		switch (message.role) {
@@ -292,7 +345,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 						}
 						content.push({
 							type: 'tool_use',
-							id: toolCall.id,
+							id: mapToolCallId(toolCall.id),
 							name: toolCall.function.name,
 							input: parsedInput,
 						});
@@ -338,7 +391,7 @@ export function rawMessagesToMessagesAPI(messages: readonly Raw.ChatMessage[], v
 
 					const toolResultBlock: ToolResultBlockParam = {
 						type: 'tool_result',
-						tool_use_id: message.toolCallId,
+						tool_use_id: mapToolCallId(message.toolCallId),
 						content: validContent.length > 0 ? validContent : undefined,
 					};
 					if (hasCacheControl) {

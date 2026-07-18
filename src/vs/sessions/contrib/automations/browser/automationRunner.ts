@@ -94,8 +94,9 @@ export class AutomationRunner implements IAutomationRunner {
 				background: true,
 				title: automation.name?.substring(0, 100),
 			};
+			const branch = automation.isolationMode === 'worktree' ? automation.branch : undefined;
 
-			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId !== undefined || automation.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || automation.isolationMode !== undefined || automation.branch !== undefined
+			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId !== undefined || automation.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || automation.isolationMode !== undefined || branch !== undefined
 				? {
 					providerId: automation.providerId,
 					sessionTypeId: automation.sessionTypeId,
@@ -103,13 +104,13 @@ export class AutomationRunner implements IAutomationRunner {
 					modeId: automation.mode,
 					permissionLevel: automation.permissionLevel,
 					isolationMode: automation.isolationMode,
-					branch: automation.branch,
+					branch,
 				}
 				: undefined;
 
 			this.logService.trace(`[AutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
 
-			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions);
+			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions, token);
 
 			if (session) {
 				await this.automationService.updateRun(runId, {

@@ -4,20 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { AgentSession } from '../../../common/agentService.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
+import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
-function harness(opts: { customizations?: readonly Customization[] } = {}) {
+function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean } = {}) {
 	const actions: SessionAction[] = [];
+	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+	const sessionUri = AgentSession.uri('copilot', 'session-1');
+	const session = sessionUri.toString();
+	stateManager.createSession({
+		resource: session,
+		provider: 'copilot',
+		title: 'Test',
+		status: SessionStatus.Idle,
+		createdAt: new Date().toISOString(),
+		modifiedAt: new Date().toISOString(),
+	});
+	if (opts.desiredEnabled !== undefined) {
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [{
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilot:session-1:search',
+				uri: 'mcp-top-level:copilot:session-1:search',
+				name: 'search',
+				enabled: opts.desiredEnabled,
+				state: starting(),
+			}],
+		});
+	}
 	const controller = new McpCustomizationController({
 		providerId: 'copilot',
 		sessionId: 'session-1',
+		sessionUri,
 		resolveChildId: name => findMcpChildId(opts.customizations ?? [], name),
 		emit: a => actions.push(a),
-	});
+	}, stateManager);
 	return { controller, actions };
 }
 
@@ -68,7 +97,7 @@ suite('McpCustomizationController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('empty inventory dispatches nothing', () => {
-		const { controller, actions } = harness();
+		const { controller, actions } = harness(store);
 		store.add(controller);
 
 		controller.applyAll([]);
@@ -78,7 +107,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('child-backed server: ready/error/ready transitions only update state+channel', () => {
-		const { controller, actions } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
 		controller.applyOne(server('fs', ready()));
@@ -109,7 +138,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('bare server (no child match) is surfaced as a full top-level customization', () => {
-		const { controller, actions } = harness();
+		const { controller, actions } = harness(store);
 		store.add(controller);
 
 		controller.applyOne(server('search', ready()));
@@ -145,7 +174,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('non-ready bare server has no channel but still advertises mcpApp (static capability)', () => {
-		const { controller, actions } = harness();
+		const { controller, actions } = harness(store);
 		store.add(controller);
 
 		controller.applyOne(server('search', starting()));
@@ -169,7 +198,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('removing a bare top-level server emits SessionCustomizationRemoved', () => {
-		const { controller, actions } = harness();
+		const { controller, actions } = harness(store);
 		store.add(controller);
 
 		controller.applyOne(server('search', ready()));
@@ -187,7 +216,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('applyAll removes servers no longer present (child) and emits Stopped', () => {
-		const { controller, actions } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
 		controller.applyAll([server('fs', ready())]);
@@ -209,7 +238,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('runtimeStates snapshots child and top-level servers by customization id', () => {
-		const { controller } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		const { controller } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
 		controller.applyOne(server('fs', ready()));
@@ -227,7 +256,7 @@ suite('McpCustomizationController', () => {
 	});
 
 	test('top-level entry stays top-level across updates (id stable)', () => {
-		const { controller, actions } = harness();
+		const { controller, actions } = harness(store);
 		store.add(controller);
 
 		controller.applyOne(server('search', starting()));
@@ -241,8 +270,20 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(ids, [expectedId, expectedId, expectedId]);
 	});
 
+	test('bare server publishes reducer-backed enablement across runtime updates', () => {
+		const { controller, actions } = harness(store, { desiredEnabled: false });
+		store.add(controller);
+
+		controller.applyOne(server('search', authRequired()));
+		controller.applyOne(server('search', starting()));
+
+		assert.deepStrictEqual(actions
+			.filter(action => action.type === ActionType.SessionCustomizationUpdated)
+			.map(action => action.customization.enabled), [false, false]);
+	});
+
 	test('authRequired state is preserved across coarse starting updates', () => {
-		const { controller, actions } = harness({ customizations: PLUGIN_CUSTOMIZATIONS });
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
 
 		const authState = authRequired();
@@ -269,6 +310,35 @@ suite('McpCustomizationController', () => {
 				state: { kind: McpServerStatus.Ready },
 				channel: 'mcp://copilot/session-1/fs',
 			},
+		]);
+	});
+
+	test('markStarting transitions non-ready servers to Starting, skipping ready/auth-required/starting', () => {
+		const { controller, actions } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
+		store.add(controller);
+
+		controller.applyOne(server('fs', stopped()));
+		controller.applyOne(server('search', ready()));
+		controller.applyOne(server('mail', authRequired()));
+		const before = actions.length;
+
+		// `unknown` has no live entry yet; it should be created as Starting.
+		controller.markStarting(['fs', 'search', 'mail', 'unknown']);
+
+		const summarized = actions.slice(before).map(a => {
+			if (a.type === ActionType.SessionMcpServerStateChanged) {
+				return { type: a.type, id: a.id, state: a.state };
+			}
+			if (a.type === ActionType.SessionCustomizationUpdated && a.customization.type === CustomizationType.McpServer) {
+				return { type: a.type, id: a.customization.id, state: a.customization.state };
+			}
+			return { type: a.type, id: undefined, state: undefined };
+		});
+		assert.deepStrictEqual(summarized, [
+			// fs (Stopped) -> Starting via its plugin child id
+			{ type: ActionType.SessionMcpServerStateChanged, id: 'mcp-child:demo:fs', state: { kind: McpServerStatus.Starting } },
+			// unknown (no entry) -> Starting as a bare top-level customization
+			{ type: ActionType.SessionCustomizationUpdated, id: 'mcp-top-level:copilot:session-1:unknown', state: { kind: McpServerStatus.Starting } },
 		]);
 	});
 

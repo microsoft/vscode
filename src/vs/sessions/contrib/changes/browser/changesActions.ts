@@ -33,10 +33,9 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 
 // --- View All Changes action
@@ -449,36 +448,13 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							toggled: ContextKeyExpr.in(
-								SessionChangesFileResourceContext.key,
-								SessionChangesReviewedFilesContext.key),
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
-								// This is a temporary solution until the agent host protocol
-								// adds support to specify operations for each individual file
-								when: operation.group === 'review'
-									? ContextKeyExpr.false()
-									: ContextKeyExpr.true(),
 								group: 'navigation',
 								order: 100
 							},
 							{
 								id: MenuId.MultiDiffEditorFileToolbar,
-								// This is a temporary solution until the agent host protocol
-								// adds support to specify operations for each individual file
-								when: operation.group === 'review'
-									? operation.id === 'mark-as-reviewed'
-										? ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.notIn(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-										: ContextKeyExpr.and(
-											ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
-											ContextKeyExpr.in(
-												SessionChangesFileResourceContext.key,
-												SessionChangesReviewedFilesContext.key))
-									: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
 								group: 'navigation',
 								order: 100
 							}]
@@ -486,36 +462,12 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 					}
 
 					async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-						const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-
 						// The Changes view provides the resource as the third argument (uses a
 						// custom action runner) while the multi-file diff editor provides the
 						// resource as the first argument.
 						const resource = args.length === 3 ? args[2] : args[0];
 						if (!resource || !(resource instanceof URI)) {
 							return;
-						}
-
-						// Optimistic update the state
-						if (operation.id === 'mark-as-reviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles, resource.toString()], undefined);
-
-							// Collapse multi-file diff editor item
-							if (activeEditorPane instanceof MultiDiffEditor) {
-								const viewModel = activeEditorPane.viewModel;
-								const item = viewModel?.items.read(undefined)
-									.find(i => isEqual(i.modifiedUri, resource) || isEqual(i.originalUri, resource));
-
-								if (item) {
-									viewModel!.collapse(item);
-								}
-							}
-						} else if (operation.id === 'mark-as-unreviewed') {
-							// Update context key for the toolbar
-							const agentHostReviewedFiles = agentHostReviewedFilesObs.read(undefined);
-							clientReviewedFilesObs.set([...agentHostReviewedFiles.filter(f => f !== resource.toString())], undefined);
 						}
 
 						await changeset?.invokeOperation(operation.id, {

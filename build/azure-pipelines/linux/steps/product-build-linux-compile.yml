@@ -84,13 +84,13 @@ steps:
       # which does not have their own .npmrc file
       npm config set registry "$NPM_REGISTRY"
       echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
       workingFile: $(NPMRC_PATH)
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
   - script: |
@@ -147,6 +147,7 @@ steps:
       VSCODE_ARCH: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      ONNXRUNTIME_NODE_INSTALL: skip
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -164,7 +165,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -247,7 +248,7 @@ steps:
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=$(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli=Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})" $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact
@@ -289,6 +290,10 @@ steps:
         GITHUB_TOKEN: "$(github-token-code-oss)"
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - script: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)"
+        displayName: 🧪 Smoke test packaged Agent Host
 
     - script: |
         set -e

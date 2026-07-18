@@ -353,6 +353,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
+		// Viewing a session marks it read. This keeps the active session read
+		// while it stays active, so `ISession.isRead` is the single source of
+		// truth for read state (no display-only overlay needed).
+		this._register(autorun(reader => {
+			const activeSession = this.activeSession.read(reader);
+			if (activeSession && !activeSession.isRead.read(reader)) {
+				this.sessionsManagementService.markRead(activeSession);
+			}
+		}));
+
 		// Reflect provider-level session changes onto the grid: drop removed
 		// sessions and pick a fallback (or the new-session view) when the active
 		// one disappears.

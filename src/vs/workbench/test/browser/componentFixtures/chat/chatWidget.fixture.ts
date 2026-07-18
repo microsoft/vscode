@@ -35,6 +35,7 @@ import { IChatResponseFileChangesService } from '../../../../contrib/chat/browse
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
+import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -67,6 +68,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
 	readonly width?: number;
 	readonly height?: number;
+	/** Whether to render the main chat input. Defaults to `true`. */
+	readonly inputVisible?: boolean;
 	/**
 	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
 	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
@@ -86,7 +89,7 @@ export interface IChatWidgetFixtureOptions {
 	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
 	 * response.
 	 */
-	readonly turnStatusPills?: { readonly changes?: boolean; readonly preview?: boolean };
+	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
 }
 
 function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
@@ -127,7 +130,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
-	const needsTurnPills = !!options.turnStatusPills;
+	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -190,10 +193,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
 	if (needsTurnPills) {
-		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, {
-			changes: !!options.turnStatusPills?.changes,
-			preview: !!options.turnStatusPills?.preview,
-		});
+		configService.setUserConfiguration(ChatConfiguration.TurnStatusPills, options.turnStatusPills);
 	}
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
@@ -335,6 +335,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	inputPart.layout(width);
 
 	options.decorateInputPart?.(inputPart, instantiationService);
+	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';

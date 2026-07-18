@@ -67,7 +67,7 @@
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
     "pretypecheck": "npm run copy-policy-dto",
-    "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
+    "typecheck": "cd .. && npx tsc --project build/tsconfig.json",
     "watch": "npm run typecheck -- --watch",
     "test": "node --test '{lib,next,agent-sdk,codex}/**/*.test.ts'"
   },
@@ -80,5 +80,14 @@
       "lru-cache": "11.2.1"
     },
     "yauzl": "^3.3.1"
+  },
+  "allowScripts": {
+    "@vscode/vsce-sign@2.0.7": true,
+    "esbuild@0.27.2": true,
+    "fsevents@2.3.3": true,
+    "keytar@7.9.0": true,
+    "tree-sitter@0.22.4": true,
+    "tree-sitter-javascript@0.23.1": true,
+    "tree-sitter-typescript@0.23.2": true
   }
 }

@@ -47,6 +47,12 @@ export interface IPromptScrollLayout {
 	readonly marks: readonly { readonly requestId: string; readonly top: number }[];
 	/** Total content height in the estimated space, matching `marks`. */
 	readonly total: number;
+	/** Current scroll offset (px, the transcript's real scroll space) — drives the rail's own scrollbar thumb. */
+	readonly scrollTop: number;
+	/** Full scrollable content height (px, the transcript's real scroll space). */
+	readonly scrollHeight: number;
+	/** Visible viewport height (px) of the transcript list — the scrollbar's `visibleSize`. */
+	readonly viewportHeight: number;
 }
 
 /** A single tick shown on the prompt timeline rail. */
@@ -115,6 +121,13 @@ export interface PromptEntry {
 	readonly stat?: PromptDiffStat;
 }
 
+/** The prompt currently pinned by the sticky header, with its 1-based position among all prompts. */
+export interface IActivePrompt {
+	readonly text: string;
+	readonly index: number;
+	readonly total: number;
+}
+
 /**
  * Derives the prompt timeline (bucketed ticks + the active tick) from a chat
  * widget's view model, and reveals prompts on request.
@@ -164,6 +177,25 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position. */
+	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
+
+	/** True once the active prompt's own row has scrolled above the viewport top (drives the sticky header). */
+	private readonly _activePinned: ISettableObservable<boolean> = observableValue<boolean>(this, false);
+	get activePinned(): IObservable<boolean> { return this._activePinned; }
+
+	/** The active prompt with its 1-based position among all (unbucketed) prompts, for the sticky header. */
+	private readonly _activePrompt = derived<IActivePrompt | undefined>(this, reader => {
+		const id = this._activePromptId.read(reader);
+		if (id === undefined) {
+			return undefined;
+		}
+		const prompts = this._prompts.read(reader);
+		const index = prompts.findIndex(p => p.requestId === id);
+		return index < 0 ? undefined : { text: prompts[index].text, index: index + 1, total: prompts.length };
+	});
+	get activePrompt(): IObservable<IActivePrompt | undefined> { return this._activePrompt; }
+
 	/** Fires when the transcript scroll offset or content height changes (drives the ruler rail). */
 	private readonly _scrollLayoutSignal: IObservableSignal<void> = observableSignal<void>(this);
 	get onDidChangeScrollLayout(): IObservable<void> { return this._scrollLayoutSignal; }
@@ -203,9 +235,10 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * The prompts' positions for the overview-ruler rail, in an *estimated*
-	 * content space that stays stable while the transcript virtualizes. There is no
-	 * viewport thumb: the native scrollbar is the drag affordance and the active
-	 * mark is the "you-are-here", so the rail never draws a second slider.
+	 * content space that stays stable while the transcript virtualizes. The rail
+	 * draws its own scrollbar thumb from `scrollTop`/`scrollHeight` (the transcript's
+	 * native scrollbar is hidden while the rail is active) so the whole lane is one
+	 * surface: a plain scrollbar that blooms into the prompt fan on engagement.
 	 *
 	 * The chat list's own height model (`getElementTop`/`scrollHeight`) guesses
 	 * every un-rendered row at one flat default height (200px). Real turns are
@@ -231,7 +264,7 @@ export class PromptTimelineModel extends Disposable {
 				marks.push({ requestId: item.id, top: tops[i] });
 			}
 		}
-		return { marks, total };
+		return { marks, total, scrollTop: this.widget.scrollTop, scrollHeight: this.widget.scrollHeight, viewportHeight: this.widget.viewportHeight };
 	}
 
 	/**
@@ -337,7 +370,11 @@ export class PromptTimelineModel extends Disposable {
 		const ticks = this._baseTicks.get();
 		const items = this.widget.viewModel?.getItems();
 		if (!items || ticks.length === 0) {
-			this._activeRequestId.set(undefined, undefined);
+			transaction(tx => {
+				this._activeRequestId.set(undefined, tx);
+				this._activePromptId.set(undefined, tx);
+				this._activePinned.set(false, tx);
+			});
 			return;
 		}
 
@@ -348,20 +385,26 @@ export class PromptTimelineModel extends Disposable {
 		const threshold = 24;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
+		let activeTop = -1;
 		for (const item of items) {
 			if (isRequestVM(item)) {
 				const top = this.widget.getElementTop(item);
 				if (top !== undefined && top <= scrollTop + threshold) {
 					activeRequestId = item.id;
 					activeTimestamp = item.timestamp;
+					activeTop = top;
 				}
 			}
 		}
 
 		if (activeRequestId === undefined) {
 			// Scrolled above the oldest prompt: the oldest tick is the active one
-			// (the loop advances oldest -> newest as you scroll down).
-			this._activeRequestId.set(ticks.at(0)?.requestId, undefined);
+			// (the loop advances oldest -> newest as you scroll down). Nothing is pinned yet.
+			transaction(tx => {
+				this._activeRequestId.set(ticks.at(0)?.requestId, tx);
+				this._activePromptId.set(this._prompts.get().at(0)?.requestId, tx);
+				this._activePinned.set(false, tx);
+			});
 			return;
 		}
 
@@ -377,7 +420,15 @@ export class PromptTimelineModel extends Disposable {
 				}
 			}
 		}
-		this._activeRequestId.set((activeTick ?? ticks[ticks.length - 1]).requestId, undefined);
+		// Pin the sticky header only once the active prompt's own row has scrolled above the
+		// viewport top; the small epsilon avoids flicker as its top crosses the edge.
+		const pinned = activeTop < scrollTop - 2;
+		transaction(tx => {
+			this._activeRequestId.set((activeTick ?? ticks[ticks.length - 1]).requestId, tx);
+			// The sticky header names the exact current prompt (unbucketed), not the bucket representative.
+			this._activePromptId.set(activeRequestId, tx);
+			this._activePinned.set(pinned, tx);
+		});
 	}
 
 	/** Reveals the request with the given id near the top of the transcript. */

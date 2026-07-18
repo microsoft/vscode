@@ -14,10 +14,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, readVoiceGlowIntensity } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceGlow.js';
 
 export interface IVoiceInputDecorationsServices {
 	readonly voiceSessionController: IVoiceSessionController;
@@ -25,6 +26,7 @@ export interface IVoiceInputDecorationsServices {
 	readonly micCaptureService: IMicCaptureService;
 	readonly configurationService: IConfigurationService;
 	readonly keybindingService: IKeybindingService;
+	readonly accessibilityService: IAccessibilityService;
 }
 
 export interface IVoiceInputDecorationsOptions {
@@ -43,7 +45,7 @@ export interface IVoiceInputDecorationsOptions {
  * Decorations show only while this surface is active and voice targets it.
  */
 export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServices, options: IVoiceInputDecorationsOptions): IDisposable {
-	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService } = services;
+	const { voiceSessionController, ttsPlaybackService, micCaptureService, configurationService, keybindingService, accessibilityService } = services;
 	const { inputContainer: inputContainerEl, isActive, getCurrentResource } = options;
 
 	const store = new DisposableStore();
@@ -75,7 +77,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const analyser = ttsPlaybackService.analyserNode
 				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
 				?? null;
-			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
+			const intensity = voiceState === 'idle'
+				? readIdleVoiceGlowIntensity(win.performance.now(), accessibilityService.isMotionReduced())
+				: readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 			const transcriptHidden = configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 			const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -83,6 +87,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			inputContainerEl.style.boxShadow = boxShadow;
 			inputContainerEl.classList.add('voice-active');
 			inputContainerEl.classList.toggle('voice-listening', voiceState === 'listening');
+			inputContainerEl.classList.toggle('voice-speaking', voiceState === 'speaking');
+			inputContainerEl.classList.toggle('voice-idle', voiceState === 'idle');
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -93,7 +99,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 		inputContainerEl.style.borderColor = '';
 		inputContainerEl.style.boxShadow = '';
-		inputContainerEl.classList.remove('voice-active', 'voice-listening');
+		inputContainerEl.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
 	};
 
 	store.add(autorun(reader => {
@@ -104,7 +110,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const current = getCurrentResource();
 		// Glow only the active slot targeted by the backend.
 		const targetedElsewhere = !!targetSession && !!current && !isEqual(targetSession, current);
-		if (connected && active && !targetedElsewhere && (voiceState === 'listening' || voiceState === 'speaking')) {
+		if (connected && active && !targetedElsewhere && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking')) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -132,8 +138,19 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		}
 
 		if (visible.length === 0 || !showTranscript) {
-			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') !== false;
-			if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') === true;
+			if (!showTranscript && voiceState === 'listening') {
+				// Transcript is disabled: surface a minimal "Listening..." overlay
+				// while listening so the user has feedback. Cleared in any other state.
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const listening = dom.$('span.listening');
+				listening.textContent = localize('voiceMode.listening', "Listening...");
+				transcriptOverlay.append(listening);
+				transcriptScrollable.scanDomNode();
+			} else if (!showTranscript && voiceState === 'speaking') {
+				// Transcript is disabled: hint that the user can interrupt playback.
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
@@ -141,8 +158,20 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
-					? localize('voiceMode.pttHint', "Press {0} to talk", kbLabel)
-					: localize('voiceMode.clickMicHint', "Click voice mode to talk");
+					? localize('voiceMode.bargeInHint', "Press {0} to barge in", kbLabel)
+					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+				transcriptOverlay.append(hint);
+				transcriptScrollable.scanDomNode();
+			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const hint = dom.$('span.partial');
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
+				hint.textContent = kbLabel
+					? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
+					: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
 				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else {

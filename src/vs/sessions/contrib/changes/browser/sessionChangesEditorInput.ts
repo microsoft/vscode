@@ -71,6 +71,15 @@ export class SessionChangesEditorInput extends DockedEditorInput {
 		return this._innerInput;
 	}
 
+	/**
+	 * The wrapped multi-diff input, whose {@link MultiDiffEditorInput.resources}
+	 * expose the session's individual file diffs. Used to resolve the session's
+	 * files (e.g. for the agent feedback affordances) from this editor input.
+	 */
+	get multiDiffInput(): MultiDiffEditorInput {
+		return this.innerInput;
+	}
+
 	async getViewModel(): Promise<MultiDiffEditorViewModel> {
 		return this.innerInput.getViewModel();
 	}
