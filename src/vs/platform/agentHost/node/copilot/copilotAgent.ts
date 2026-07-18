@@ -3665,7 +3665,7 @@ class SessionPluginController extends Disposable {
 	 * kept up to date by the owning session from its MCP controller. Overlaid
 	 * onto published customizations by {@link _overlayMcpState} so a re-sync
 	 * preserves the live state of otherwise-unchanged MCP servers instead of
-	 * resetting them to the `Starting` default baked into
+	 * resetting them to the `Stopped` default baked into
 	 * `makeMcpServerCustomization`. Exposed (not injected) so the session can
 	 * write to it once it holds this controller.
 	 */

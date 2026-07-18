@@ -31,6 +31,10 @@ export interface IVoiceTranscription {
 	readonly text: string;
 	readonly status?: 'partial' | 'final';
 	readonly committed?: string;
+	/** Client capture turn identifier translated from the wire's `turn_id`. */
+	readonly turnId?: string;
+	/** Monotonically increasing backend revision within a scoped turn. */
+	readonly revision?: number;
 }
 
 export interface IVoiceAudioResponse {
@@ -234,6 +238,8 @@ export interface IVoiceClientService {
 	sendToolResult(callId: string, result: string): void;
 	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
 	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
+	/** True when a `requestNarration` call would actually send (socket open and the session has started on it). Lets the caller stop the mic before requesting only when the request will really go out. */
+	readonly canRequestNarration: boolean;
 	/**
 	 * Notify the backend of a session state transition.
 	 *

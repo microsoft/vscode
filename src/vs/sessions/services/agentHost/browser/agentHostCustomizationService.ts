@@ -34,6 +34,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
 				this._clearMcpServerTracking(session.resource);
+				this._disposeMcpDiagnostics(session.resource);
 			}
 			this._fireCustomAgentsChanged();
 			this._fireCustomizationsChanged();
@@ -70,7 +71,6 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
-			logOutputChannelId: servers[0]?.logOutputChannelId,
 			rootConfig: provider.getRootConfig(),
 			authenticate: request => provider.authenticate(request),
 			setCustomizationEnabled: (rawId, enabled) => {

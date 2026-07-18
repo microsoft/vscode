@@ -10,13 +10,23 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 
 /**
+ * Which of a multi-diff entry's two file-path labels is being created: the
+ * primary (modified/current) label, or the secondary (original) label shown for
+ * renames.
+ */
+export const enum MultiDiffEditorItemLabelKind {
+	Primary = 'primary',
+	Secondary = 'secondary',
+}
+
+/**
  * This solves the problem that the editor layer cannot depend on the workbench layer.
  *
  * Maybe the multi diff editor widget should be moved to the workbench layer?
  * This would make monaco-editor consumption much more difficult though.
  */
 export interface IWorkbenchUIElementFactory {
-	createResourceLabel?(element: HTMLElement): IResourceLabel;
+	createResourceLabel?(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel;
 
 	/**
 	 * When true, the entire header area is clickable to toggle collapse/expand

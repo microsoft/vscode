@@ -1287,7 +1287,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(session => session.title.get() === 'Model Catalog Session');
 		assert.ok(session);
 
-		assert.deepStrictEqual(provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier), ['matching']);
+		const snapshot = provider.getModelsSnapshot(session.sessionId);
+		assert.deepStrictEqual({
+			models: snapshot.models.map(model => model.identifier),
+			modelTarget: snapshot.modelTarget,
+		}, {
+			models: ['matching'],
+			modelTarget: 'agent-host-copilotcli',
+		});
 	});
 
 	test('setModel updates existing session model and lets draft debounce persist it', () => {

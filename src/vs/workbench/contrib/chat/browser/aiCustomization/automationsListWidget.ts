@@ -193,6 +193,7 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 			this.renderHistoryPanel(templateData, automation, runs);
 		}
 		templateData.historyPanel.style.display = expanded ? '' : 'none';
+		templateData.container.classList.toggle('automations-row-wrapper-expanded', expanded);
 	}
 
 	private renderActions(templateData: IAutomationRowTemplateData, automation: IAutomation, expanded: boolean, inFlight: boolean): void {

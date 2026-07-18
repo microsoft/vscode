@@ -27,7 +27,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { createChangesets } from '../../copilotChatSessions/browser/copilotChatSessionsChangesets.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -751,20 +752,18 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		return Event.signal(this.languageModelsService.onDidChangeLanguageModels);
 	}
 
-	getModelsSnapshot(_sessionId: string, restoredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshot(_sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		// Local (in-process VS Code chat) sessions use general-purpose models
 		// (those without a `targetChatSessionType`) that are user-selectable —
 		// no extension registers models specifically targeting the 'local'
 		// session type.
-		const models = this.languageModelsService.getLanguageModelIds()
-			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
-				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata && !metadata.targetChatSessionType && metadata.isUserSelectable ? { identifier: id, metadata } : undefined;
-			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
-		const separator = restoredModelId?.search(/[/:]/) ?? -1;
-		const isResolved = separator === -1 || this.languageModelsService.hasResolvedVendor(restoredModelId!.substring(0, separator));
-		return { models, isResolved };
+		const allModels = getRegisteredLanguageModels(this.languageModelsService);
+		const models = allModels.filter(model => !model.metadata.targetChatSessionType && model.metadata.isUserSelectable);
+		return {
+			models,
+			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, desiredModelId, this.languageModelsService, allModels),
+			modelTarget: undefined,
+		};
 	}
 
 	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {

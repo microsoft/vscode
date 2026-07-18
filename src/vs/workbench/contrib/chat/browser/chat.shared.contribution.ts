@@ -265,15 +265,17 @@ configurationRegistry.registerConfiguration({
 				'onnx-community/whisper-tiny',
 				'onnx-community/whisper-base',
 				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small'],
+			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
 			markdownEnumDescriptions: [
 				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
 				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
 				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
+				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device Whisper model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/whisper-base',
+			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
+			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
 			tags: ['experimental']
 		},
 		'chat.speechToText.mode': {

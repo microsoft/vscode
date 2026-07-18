@@ -8,11 +8,12 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService, ILoggerService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { CustomizationType, McpServerCustomization, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IOutputService } from '../../../../../services/output/common/output.js';
 
 /** A dispatched `setCustomizationEnabled(rawId, enabled)` call recorded by a {@link FakeTarget}. */
 interface IDispatchedToggle {
@@ -92,6 +93,8 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 
 	function createSut() {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, { showChannel: async () => { } });
 		const sut = store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService(), store.add(new InMemoryStorageService())));
 		return sut;
 	}

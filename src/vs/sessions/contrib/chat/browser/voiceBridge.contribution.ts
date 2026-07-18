@@ -225,8 +225,9 @@ registerWorkbenchContribution2(SessionsVoiceActiveSessionContribution.ID, Sessio
 
 /**
  * Keeps hands-free listening anchored to the dictation session.
- * If the active session changes mid-dictation, stop to avoid misrouting;
- * otherwise follow the new session, mirroring `ChatViewPane`.
+ * If the active session changes while listening, stop following it: submit
+ * anything already dictated to the original session, or discard an empty turn,
+ * so voice mode doesn't keep recording against a newly focused session.
  */
 class SessionsVoiceListeningContribution extends Disposable implements IWorkbenchContribution {
 
@@ -240,10 +241,10 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 
 		let listeningSession: URI | undefined;
 		this._register(autorun(reader => {
-			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const connected = voiceSessionController.isConnected.read(reader);
 			const voiceState = voiceSessionController.voiceState.read(reader);
 			const targetSession = voiceSessionController.targetSession.read(reader);
+			const turns = voiceSessionController.transcriptTurns.read(reader);
 			const activeSession = sessionsService.activeSession.read(reader);
 			const currentSession = activeSession?.activeChat.read(reader)?.resource;
 
@@ -261,14 +262,18 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			if (!listeningSession) {
 				listeningSession = targetSession ?? currentSession;
 			} else if (!targetSession && currentSession && !isEqual(currentSession, listeningSession)) {
-				// Stop only mid-dictation; otherwise follow the new session.
+				const dictationSession = listeningSession;
 				const activelyDictating = turns.some(t => t.speaker === 'user' && t.isPartial && t.text.trim().length > 0);
 				if (activelyDictating) {
-					voiceSessionController.stopListening();
-					listeningSession = undefined;
+					// The user already spoke — submit their words to the session
+					// they were dictating into rather than losing them or
+					// misrouting to the newly focused session.
+					voiceSessionController.finishListeningAndSubmitTo(dictationSession);
 				} else {
-					listeningSession = currentSession;
+					// Nothing dictated yet — just stop, discarding the empty turn.
+					voiceSessionController.discardListening();
 				}
+				listeningSession = undefined;
 			}
 		}));
 	}

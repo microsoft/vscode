@@ -26,6 +26,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 ## Common Pitfalls
 
+- **A sash element's `left`/`top` is the hit-area edge, not the split boundary**: `SplitView.getSashPosition` returns the exact boundary after the preceding view, then `Sash.layout` subtracts half the sash size so the draggable element is centered on that boundary. Align the Sessions/Editor and bottom-Panel grid sash hit areas to `agents.layout.floatingPanelGap`; do not apply that token to independent geometry such as the Auxiliary Bar's leading padding.
 - **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
 - **Sessions menu ids must live in the shared menu registry**: Do not declare sessions-owned `new MenuId(...)` constants ad hoc inside individual parts. Add them to `browser/menus.ts` under `Menus` with discoverable `SessionsEditor...` names so ownership and reuse stay obvious.
 - **Events instead of observables**: Session state must flow through `IObservable`, not `Event`. Use `autorun`/`derived` for reactive UI, not `onDid*` event listeners.
