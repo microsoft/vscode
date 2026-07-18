@@ -430,12 +430,21 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	/**
-	 * Show a progress notification while the model is downloading, updating its
-	 * progress bar as bytes arrive, and dismiss it as soon as the model leaves
-	 * the `Downloading` state (loading into memory, ready, or errored).
+	 * Show a progress notification while the model is being prepared, and keep it
+	 * visible across both preparation phases so dictation never appears to hang
+	 * with no feedback:
+	 *  - `Downloading`: a determinate bar advances as bytes arrive (or an
+	 *    indeterminate "Downloading…" message before the first byte total is
+	 *    known).
+	 *  - `Loading`: the download is complete but the (often multi-second) load
+	 *    into memory is still running, so the message switches to "Loading model…"
+	 *    instead of leaving the bar stuck at a full download and then vanishing.
+	 * The notification is dismissed only once the model reaches `Ready`/`Error`.
 	 */
 	private _updateDownloadNotification(status: ILocalTranscriptionModelStatus): void {
-		if (status.state !== LocalTranscriptionModelState.Downloading) {
+		const preparing = status.state === LocalTranscriptionModelState.Downloading
+			|| status.state === LocalTranscriptionModelState.Loading;
+		if (!preparing) {
 			this._completeDownloadNotification();
 			return;
 		}
@@ -444,7 +453,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			let report: IProgress<IProgressStep> = Progress.None;
 			this._progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: localize('chatStt.downloadingModel', "Downloading speech-to-text model…"),
+				title: localize('chatStt.preparingModel', "Preparing speech-to-text model…"),
 				delay: 500,
 			}, progress => {
 				report = progress;
@@ -452,13 +461,28 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			});
 			this._downloadNotification = { report, complete: () => deferred.complete(), lastReported: 0 };
 		}
+		if (status.state === LocalTranscriptionModelState.Loading) {
+			// Download finished; the bar no longer moves, so make the wait
+			// self-explanatory rather than a seemingly stuck full bar.
+			this._downloadNotification.report.report({ message: localize('chatStt.loadingModel', "Loading model…") });
+			return;
+		}
 		if (typeof status.progress === 'number') {
 			const percent = Math.max(0, Math.min(100, Math.round(status.progress * 100)));
 			const increment = percent - this._downloadNotification.lastReported;
+			const message = localize('chatStt.downloadingPercent', "Downloading… {0}%", percent);
 			if (increment > 0) {
-				this._downloadNotification.report.report({ increment, total: 100 });
+				this._downloadNotification.report.report({ increment, total: 100, message });
 				this._downloadNotification.lastReported = percent;
+			} else {
+				// Keep the message fresh (e.g. while still at 0%) so the bar is
+				// never blank and unlabeled during the initial download stall.
+				this._downloadNotification.report.report({ message });
 			}
+		} else {
+			// Byte total not known yet (e.g. still contacting the model host):
+			// show an indeterminate "Downloading…" rather than a blank bar.
+			this._downloadNotification.report.report({ message: localize('chatStt.downloading', "Downloading…") });
 		}
 	}
 

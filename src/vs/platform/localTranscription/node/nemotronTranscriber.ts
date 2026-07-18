@@ -308,11 +308,10 @@ export class NemotronTranscriber {
 		const request: IDownloadRequestOptions = { agent, strictSSL: proxy?.strictSSL, authorization: proxy?.authorization };
 
 		// Determine total bytes up front so progress can be reported as a single
-		// 0..1 value across all files (the .data blobs dominate).
-		const sizes: number[] = [];
-		for (const file of MODEL_FILES) {
-			sizes.push(await headContentLength(`${base}/${file}`, request));
-		}
+		// 0..1 value across all files (the .data blobs dominate). The HEAD
+		// requests run in parallel so the pre-download stall (before any byte
+		// progress can be shown) is one round-trip, not one per file.
+		const sizes = await Promise.all(MODEL_FILES.map(file => headContentLength(`${base}/${file}`, request)));
 		const total = sizes.reduce((a, b) => a + b, 0) || 1;
 
 		// The model cache is shared across windows, but each window runs its own
