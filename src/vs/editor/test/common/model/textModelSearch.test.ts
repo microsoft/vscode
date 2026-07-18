@@ -384,19 +384,22 @@ suite('TextModelSearch', () => {
 	});
 
 	test('issue #291591: Match whole word skips overlapping matches', () => {
-		assertFindMatches(
-			[
-				'[1] aa-aa',
-				'[2] xaa-aa-aa',
-				'[3] aax-aa-aa',
-			].join('\n'),
-			'aa-aa', false, false, USUAL_WORD_SEPARATORS,
-			[
-				[1, 5, 1, 10],
-				[2, 9, 2, 14],
-				[3, 9, 3, 14],
-			]
-		);
+		const text = [
+			'[1] aa-aa',
+			'[2] xaa-aa-aa',
+			'[3] aax-aa-aa',
+		].join('\n');
+		const expected: [number, number, number, number][] = [
+			[1, 5, 1, 10],
+			[2, 9, 2, 14],
+			[3, 9, 3, 14],
+		];
+		// case-insensitive (regex path)
+		assertFindMatches(text, 'aa-aa', false, false, USUAL_WORD_SEPARATORS, expected);
+		// case-sensitive (simple indexOf path)
+		assertFindMatches(text, 'aa-aa', false, true, USUAL_WORD_SEPARATORS, expected);
+		// a rejected candidate ending at end-of-line must not stop the search
+		assertFindMatches('xaa-aa', 'aa-aa|aa', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 7]]);
 	});
 
 	test('findNextMatch without regex', () => {

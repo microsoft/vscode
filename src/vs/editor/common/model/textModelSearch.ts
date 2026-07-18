@@ -259,13 +259,17 @@ export class TextModelSearch {
 			const searchStringLen = searchString.length;
 			const textLength = text.length;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
+			let lastMatchIndex = text.indexOf(searchString);
+			while (lastMatchIndex !== -1) {
 				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
 					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
 					if (resultLen >= limitResultCount) {
 						return resultLen;
 					}
+					lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
+				} else {
+					// Not a whole-word match; advance by one so overlapping whole-word matches aren't skipped.
+					lastMatchIndex = text.indexOf(searchString, lastMatchIndex + 1);
 				}
 			}
 			return resultLen;
@@ -550,6 +554,8 @@ export class Searcher {
 
 			// Not a whole-word match; advance one code point so overlapping whole-word matches aren't skipped.
 			this._searchRegex.lastIndex = matchStartIndex + (strings.getNextCodePoint(text, textLength, matchStartIndex) > 0xFFFF ? 2 : 1);
+			this._prevMatchStartIndex = -1;
+			this._prevMatchLength = 0;
 
 		} while (m);
 
