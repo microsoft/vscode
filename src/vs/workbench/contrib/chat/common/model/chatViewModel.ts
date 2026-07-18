@@ -235,20 +235,18 @@ export interface IChatTurnPillsPart {
 }
 
 /**
- * Placeholder inserted by {@link ChatListItemRenderer.appendPositionalTailSlots}
- * so that the progressive and final content arrays always have the same
- * length.  Using a dedicated kind instead of reusing the real slot kinds
- * (codeCitations, errorDetails, …) lets the type system catch code that
- * would accidentally treat a dummy slot as real content.
+ * Placeholder for absent tail slots so the progressive and final
+ * content arrays stay aligned.  A dedicated kind prevents code
+ * from accidentally treating a placeholder as real content.
  */
-export interface IChatPositionalTailSlot {
-	readonly kind: 'positionalTailSlot';
+export interface IChatTailPlaceholder {
+	readonly kind: 'tailPlaceholder';
 }
 
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart | IChatPositionalTailSlot;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart | IChatTailPlaceholder;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;

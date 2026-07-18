@@ -59,7 +59,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatPositionalTailSlot } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatTailPlaceholder } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../common/chatProgressFormatting.js';
@@ -1357,7 +1357,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const errorDetails = hasErrorDetails
 			? { kind: 'errorDetails' as const, errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element }
 			: undefined;
-		this.appendPositionalTailSlots(element, templateData, content, false, codeCitations, errorDetails);
+		this.appendTailPlaceholders(element, templateData, content, false, codeCitations, errorDetails);
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
@@ -1452,9 +1452,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart?.kind === 'progressMessage') {
 				return undefined;
 			}
-			// Don't show the working-progress indicator for markdown-only
-			// responses — there is no thinking or tool activity to report,
-			// so flashing "Thinking"/"Working" is misleading.
+			// No thinking/tool activity to report for markdown-only responses.
 			if ((!lastPart || lastPart.kind === 'markdownContent' || lastPart.kind === 'references') && !workingParts.some(p => p.kind === 'toolInvocation' || p.kind === 'toolInvocationSerialized' || p.kind === 'thinking')) {
 				return undefined;
 			}
@@ -2248,37 +2246,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		this.appendPositionalTailSlots(element, templateData, partsToRender, moreContentAvailable);
+		this.appendTailPlaceholders(element, templateData, partsToRender, moreContentAvailable);
 
 		return { content: partsToRender, moreContentAvailable };
 	}
 
-	/**
-	 * Fixed positional tail slot.  Every entry appended by
-	 * {@link appendPositionalTailSlots} uses this single kind so that the
-	 * type system prevents accidental use as real content.
-	 */
-	private static readonly TAIL_SLOT: IChatPositionalTailSlot = { kind: 'positionalTailSlot' };
+	private static readonly TAIL_PLACEHOLDER: IChatTailPlaceholder = { kind: 'tailPlaceholder' };
 
 	/**
-	 * Appends the fixed positional tail slots to the content array.  Both
-	 * the progressive and final rendering paths call this to ensure the
-	 * content array always has an identical structure, preventing index
-	 * misalignment in the diff algorithm.
+	 * Both progressive and final paths must call this so that the content
+	 * arrays always have the same length and order, preventing diff
+	 * misalignment.
 	 *
-	 * Each slot is either the real data (provided by the caller or queried
-	 * from the element) or an {@link IChatPositionalTailSlot} placeholder
-	 * that the render method turns into a no-content invisible part.
-	 *
-	 * Canonical slot order (both paths MUST use this method so that the
-	 * content arrays always have the same length and order):
-	 *   1. codeCitations   (real or placeholder)
-	 *   2. errorDetails    (real or placeholder)
-	 *   3. changesSummary  (real or placeholder)
-	 *   4. turnPills       (real or placeholder)
-	 *   5. workingProgress (real or placeholder)
+	 * Slot order:
+	 *   1. codeCitations   2. errorDetails   3. changesSummary
+	 *   4. turnPills       5. workingProgress
 	 */
-	private appendPositionalTailSlots(
+	private appendTailPlaceholders(
 		element: IChatResponseViewModel,
 		templateData: IChatListItemTemplate,
 		content: IChatRendererContent[],
@@ -2286,7 +2270,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		codeCitations?: IChatCodeCitations,
 		errorDetails?: IChatErrorDetailsPart,
 	): void {
-		const tail = ChatListItemRenderer.TAIL_SLOT;
+		const tail = ChatListItemRenderer.TAIL_PLACEHOLDER;
 		content.push(codeCitations ?? tail);
 		content.push(errorDetails ?? tail);
 
@@ -2797,8 +2781,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
 				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
-			} else if (content.kind === 'positionalTailSlot') {
-				return this.renderNoContent(other => other.kind === 'positionalTailSlot');
+			} else if (content.kind === 'tailPlaceholder') {
+				return this.renderNoContent(other => other.kind === 'tailPlaceholder');
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -2838,10 +2822,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
-		// Guard against non-response elements and empty messages.
-		// `message` is typed as `string` (non-optional), so this catches
-		// both undefined and empty-string cases.  Positional tail slot
-		// dummies never reach here — they have kind 'positionalTailSlot'.
+		// message is typed as string but may be empty at runtime
 		if (!isResponseVM(context.element) || !content.errorDetails.message) {
 			return this.renderNoContent(other => other.kind === 'errorDetails' && other.errorDetails.message === content.errorDetails.message);
 		}
@@ -4006,7 +3987,7 @@ function isSubagentToolInvocation(invocation: IChatToolInvocation | IChatToolInv
 
 export function getWorkingProgressRelevantParts(parts: readonly IChatRendererContent[]): IChatRendererContent[] {
 	return parts.filter(part => {
-		if (part.kind === 'positionalTailSlot') {
+		if (part.kind === 'tailPlaceholder') {
 			return false;
 		}
 		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
