@@ -41,6 +41,26 @@ const DEC_LAYERS = 2, DEC_HID = 640;
 const BLANK = 13087, MAX_SYM = 10, VOCAB = 13088;
 const SUBSAMPLING = 8;                          // encoder output frames = ceil(featureFrames / 8)
 
+// --- decoding robustness (tunable) ---
+// Confidence gate: a greedy RNN-T emits a token whenever any non-blank logit
+// beats the blank logit. Under int4 quantization a spurious token can win by a
+// hair during silence/noise, producing hallucinated words. Require the best
+// non-blank token to beat blank by a probability margin (two-way softmax
+// between the token and blank) before emitting. 0.5 reproduces plain argmax;
+// higher biases toward blank. Conservative default suppresses low-confidence
+// emissions with negligible impact on confident speech.
+const EMIT_PROB = 0.60;
+
+// Energy VAD gate: skip decoding encoder frames that fall on background noise,
+// so the model never emits tokens while the user is not speaking. Uses an
+// adaptive per-frame noise floor (in dB) rather than an absolute threshold, so
+// it self-calibrates to microphone gain. A frame counts as speech when its
+// energy exceeds the running floor by `VAD_MARGIN_DB`; a hangover keeps decode
+// active briefly afterwards so word tails are not clipped.
+const VAD_MARGIN_DB = 6;                        // speech must exceed noise floor by this
+const VAD_FLOOR_RISE_DB = 0.02;                 // floor drifts up ~2 dB/s (100 fps)
+const VAD_HANGOVER_FRAMES = 20;                 // ~200 ms of decode after last speech frame
+
 /** Auto-detect the spoken language (0 is the export's language-agnostic id). */
 const LANG_AUTODETECT = 0;
 
@@ -114,6 +134,12 @@ export class NemotronTranscriber {
 	private _emittedFrames = 0;
 	/** Feature frames computed but not yet fed to the encoder. */
 	private _featQueue: Float32Array[] = [];
+	/** Per-frame speech flag (VAD), parallel to `_featQueue`. */
+	private _speechQueue: boolean[] = [];
+	/** Adaptive noise floor (dB) for the energy VAD; undefined until first frame. */
+	private _noiseFloorDb: number | undefined;
+	/** Remaining VAD hangover frames that stay classified as speech. */
+	private _hangover = 0;
 	/** Up to PRE_CACHE most-recent frames already encoded, for left context. */
 	private _featLeft: Float32Array[] = [];
 	private _cacheCh: Float32Array | undefined;
@@ -209,6 +235,9 @@ export class NemotronTranscriber {
 		this._endPadded = false;
 		this._emittedFrames = 0;
 		this._featQueue = [];
+		this._speechQueue = [];
+		this._noiseFloorDb = undefined;
+		this._hangover = 0;
 		this._featLeft = [];
 		this._cacheCh = new Float32Array(N_LAYERS * CACHE_T * HID);
 		this._cacheTime = new Float32Array(N_LAYERS * HID * CONV_CTX);
@@ -404,6 +433,14 @@ export class NemotronTranscriber {
 		const re = new Float64Array(N_FFT), im = new Float64Array(N_FFT);
 		while (this._emittedFrames * HOP + N_FFT <= this._sig.length) {
 			const s = this._emittedFrames * HOP;
+			// Frame energy (dB) for the adaptive VAD, from the un-windowed samples.
+			let power = 0;
+			for (let i = 0; i < N_FFT; i++) {
+				const v = this._sig[s + i];
+				power += v * v;
+			}
+			const db = 10 * Math.log10(power / N_FFT + LOG_GUARD);
+			this._speechQueue.push(this._classifySpeech(db));
 			for (let i = 0; i < N_FFT; i++) {
 				re[i] = this._sig[s + i] * win[i];
 				im[i] = 0;
@@ -424,6 +461,29 @@ export class NemotronTranscriber {
 		return frames;
 	}
 
+	/**
+	 * Adaptive-noise-floor VAD. Tracks the floor down instantly and up slowly so
+	 * it follows the ambient level; a frame is speech when it exceeds the floor
+	 * by `VAD_MARGIN_DB`, and a hangover keeps a short trailing region active so
+	 * word tails are not clipped.
+	 */
+	private _classifySpeech(db: number): boolean {
+		if (this._noiseFloorDb === undefined || db < this._noiseFloorDb) {
+			this._noiseFloorDb = db;
+		} else {
+			this._noiseFloorDb += VAD_FLOOR_RISE_DB;
+		}
+		if (db > this._noiseFloorDb + VAD_MARGIN_DB) {
+			this._hangover = VAD_HANGOVER_FRAMES;
+			return true;
+		}
+		if (this._hangover > 0) {
+			this._hangover--;
+			return true;
+		}
+		return false;
+	}
+
 	// ---------- streaming cache-aware encoder + greedy RNN-T ----------
 
 	/**
@@ -433,14 +493,15 @@ export class NemotronTranscriber {
 	 */
 	private async _drainEncoder(isFinal: boolean): Promise<void> {
 		while (this._featQueue.length >= CHUNK_FRAMES) {
-			await this._encodeChunk(this._featQueue.splice(0, CHUNK_FRAMES));
+			await this._encodeChunk(this._featQueue.splice(0, CHUNK_FRAMES), this._speechQueue.splice(0, CHUNK_FRAMES));
 		}
 		if (isFinal && this._featQueue.length > 0) {
-			await this._encodeChunk(this._featQueue.splice(0, this._featQueue.length));
+			const n = this._featQueue.length;
+			await this._encodeChunk(this._featQueue.splice(0, n), this._speechQueue.splice(0, n));
 		}
 	}
 
-	private async _encodeChunk(chunkFrames: Float32Array[]): Promise<void> {
+	private async _encodeChunk(chunkFrames: Float32Array[], chunkSpeech: boolean[]): Promise<void> {
 		const ort = await this._loadOrt();
 		const f32 = (data: Float32Array, dims: number[]): OrtTensor => new ort.Tensor('float32', data, dims);
 		const i64 = (arr: number[], dims: number[]): OrtTensor => new ort.Tensor('int64', BigInt64Array.from(arr.map(BigInt)), dims);
@@ -477,6 +538,17 @@ export class NemotronTranscriber {
 		// chunk actually contributed (the final chunk is usually partial).
 		const nUse = Math.min(tOut, encLen, Math.ceil(valid / SUBSAMPLING) || tOut);
 		for (let t = 0; t < nUse; t++) {
+			// VAD gate: an encoder output frame spans SUBSAMPLING feature frames;
+			// decode it only if any of them was classified as speech, so silence
+			// and background noise never produce (hallucinated) tokens.
+			const from = t * SUBSAMPLING;
+			let speech = false;
+			for (let i = from; i < from + SUBSAMPLING && i < chunkSpeech.length; i++) {
+				if (chunkSpeech[i]) { speech = true; break; }
+			}
+			if (!speech) {
+				continue;
+			}
 			await this._decodeFrame(outData.slice(t * HID, t * HID + HID));
 		}
 		// The last PRE_CACHE frames of this chunk are the next chunk's left context.
@@ -509,14 +581,24 @@ export class NemotronTranscriber {
 				decoder_output: new ort.Tensor('float32', this._decCur!, [1, 1, DEC_HID]),
 			});
 			const logits = jr.joint_output.data as Float32Array;
+			// Best non-blank token and the blank logit, tracked separately so we
+			// can require a confidence margin over blank before emitting.
 			let best = 0, bestv = -Infinity;
 			for (let k = 0; k < VOCAB; k++) {
+				if (k === BLANK) {
+					continue;
+				}
 				if (logits[k] > bestv) {
 					bestv = logits[k];
 					best = k;
 				}
 			}
-			if (best === BLANK) {
+			const blankv = logits[BLANK];
+			// Two-way softmax probability of the token vs. blank; emit only when
+			// it clears the confidence threshold (EMIT_PROB), otherwise treat the
+			// frame as blank. Suppresses low-confidence quantization noise.
+			const p = 1 / (1 + Math.exp(blankv - bestv));
+			if (p < EMIT_PROB) {
 				break;
 			}
 			this._emitted.push(best);
