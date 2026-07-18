@@ -1341,34 +1341,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+
+		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+		// The part will hide itself if the list is empty.
+		content.push({ kind: 'references', references: element.contentReferences });
+
 		if (!isFiltered) {
-			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-			// The part will hide itself if the list is empty.
-			content.push({ kind: 'references', references: element.contentReferences });
 			content.push(...annotateSpecialMarkdownContent(element.response.value));
-			if (element.codeCitations.length) {
-				content.push({ kind: 'codeCitations', citations: element.codeCitations });
-			}
 		}
 
-		if (element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
-			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element });
-		}
+		// Push all remaining slots in a fixed positional order to match the
+		// progressive content array built by getNextProgressiveRenderContent.
+		content.push(element.codeCitations.length
+			? { kind: 'codeCitations' as const, citations: element.codeCitations }
+			: { kind: 'codeCitations' as const, citations: [] });
+
+		const hasErrorDetails = !isFiltered && element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName;
+		content.push(hasErrorDetails
+			? { kind: 'errorDetails' as const, errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element }
+			: { kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
 
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		if (fileChangesSummaryPart) {
-			content.push(fileChangesSummaryPart);
-		}
+		content.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
 
 		const turnPillsPart = this.getChatTurnPillsPart(element);
-		if (turnPillsPart) {
-			content.push(turnPillsPart);
-		}
+		content.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
 
 		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
-		if (workingProgress) {
-			content.push(workingProgress);
-		}
+		content.push(workingProgress ?? { kind: 'working' as const });
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
@@ -2253,20 +2253,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData);
-		if (workingProgress) {
-			partsToRender.push(workingProgress);
-		}
+		// Push all remaining slots in a fixed positional order so that the
+		// progressive content array always has the same structure as the final
+		// content array built by renderChatResponseBasic.  This eliminates
+		// length mismatches between renderedParts and content that would
+		// otherwise misalign the diff indices.
+
+		// Slot: codeCitations (real data is not yet available during streaming)
+		partsToRender.push({ kind: 'codeCitations' as const, citations: [] });
+
+		// Slot: errorDetails (real data is not yet available during streaming)
+		partsToRender.push({ kind: 'errorDetails' as const, errorDetails: { message: '' }, isLast: false });
 
 		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		if (fileChangesSummaryPart) {
-			partsToRender.push(fileChangesSummaryPart);
-		}
+		partsToRender.push(fileChangesSummaryPart ?? { kind: 'changesSummary' as const, requestId: element.requestId, sessionResource: element.sessionResource });
 
 		const turnPillsPart = this.getChatTurnPillsPart(element);
-		if (turnPillsPart) {
-			partsToRender.push(turnPillsPart);
-		}
+		partsToRender.push(turnPillsPart ?? { kind: 'turnPills' as const, requestId: element.requestId, sessionResource: element.sessionResource });
+
+		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData);
+		partsToRender.push(workingProgress ?? { kind: 'working' as const });
 
 		return { content: partsToRender, moreContentAvailable };
 	}
@@ -2702,6 +2708,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'systemNotification') {
 				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
+				if (!content.content && !content.state) {
+					return this.renderNoContent(other => other.kind === 'working' && !other.content && !other.state);
+				}
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
 				return this.renderProgressTask(content, templateData, context);
@@ -2804,8 +2813,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
-		if (!isResponseVM(context.element)) {
-			return this.renderNoContent(other => content.kind === other.kind);
+		if (!isResponseVM(context.element) || !content.errorDetails.message) {
+			return this.renderNoContent(other => other.kind === 'errorDetails' && other.errorDetails.message === content.errorDetails.message);
 		}
 
 		const isLast = content.isLast;
@@ -2875,9 +2884,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return referencesPart;
 	}
 
-	private renderCodeCitations(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCodeCitationContentPart {
-		const citationsPart = this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
-		return citationsPart;
+	private renderCodeCitations(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		if (citations.citations.length === 0) {
+			return this.renderNoContent(other => other.kind === 'codeCitations' && other.citations.length === 0);
+		}
+		return this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
 	}
 
 	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
