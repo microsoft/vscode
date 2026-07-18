@@ -118,8 +118,9 @@ export interface IMicCaptureService {
 	 *
 	 * `passive` marks this press as a hands-free barge-in listen (mic opened
 	 * during assistant playback, not a real user press). It is captured
-	 * immutably at call time and carried on the `onPttStart` emission — safe
-	 * even if the caller's own state changes during the async mic acquire.
+	 * immutably at call time and carried on the `onPttStart` emission. This
+	 * stays correct even if the caller's own state changes during the async
+	 * mic acquire.
 	 */
 	pttDown(turnId: string, passive?: boolean): Promise<void>;
 
@@ -240,8 +241,8 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		// `_onPttEnd`. Otherwise the backend would keep the prior turn
 		// open and our new turn would race against it.
 		//
-		// This is also a load-bearing ordering guarantee: flushing the
-		// drain (and its `_onPttEnd`) BEFORE this turn's `_onPttStart`
+		// This is also a required ordering guarantee: flushing the
+		// drain (and its `_onPttEnd`) before this turn's `_onPttStart`
 		// fires below keeps the wire order `ptt_end`(prev) then
 		// `ptt_start`(next). `ptt_end` carries no turn_id, so the backend
 		// relies on that order to end the correct turn and never the

@@ -336,11 +336,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
-					// Always adopt the server's session id and clear the resuming
-					// flag, even when a resume attempt failed and the server
-					// started a fresh session instead. Refusing the fresh id here
-					// left the client believing it still owned a dead session,
-					// stalling reconnect (see `_isResuming` regression).
+					// Adopt the server's session id even when a resume failed and it
+					// started a fresh session; keeping the old id stalled reconnect (`_isResuming`).
 					this._lastSessionId = msg.session_id;
 					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });

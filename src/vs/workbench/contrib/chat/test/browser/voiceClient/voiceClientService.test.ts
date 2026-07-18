@@ -43,10 +43,8 @@ function createTestWindow(language = 'en-US'): Window & typeof globalThis {
 			if (property === 'WebSocket') {
 				return TestWebSocket;
 			}
-			// Native timer methods are branded to their owning `window` and
-			// throw "Illegal invocation" when invoked with a Proxy as `this`
-			// (as happens via `win.setInterval(...)` through this trap).
-			// Bind them to the real target so the service's ping timer works.
+			// Native timer methods are branded to their owning `window` and throw
+			// "Illegal invocation" when called with a Proxy as `this`; bind to the real target.
 			if (property === 'setInterval' || property === 'clearInterval') {
 				return target[property].bind(target);
 			}

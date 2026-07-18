@@ -64,6 +64,17 @@ interface IDeferredChunk {
 interface IDeferredFlushResult {
 	/** True when at least one buffered response was played. */
 	readonly flushed: boolean;
+	/** True when a held deliberate press kept the buffer intact instead of
+	 *  playing it. The buffered reply is still pending and plays on release, so
+	 *  the caller must not re-issue a fresh narration for that SAME reply (see
+	 *  `retainedTranscript`). Absent for the ordinary nothing-to-flush cases,
+	 *  where narration should proceed normally. */
+	readonly retained?: boolean;
+	/** Normalized final transcript of the most recent buffered reply held back
+	 *  by a `retained` flush. Lets the caller suppress only a duplicate
+	 *  re-narrate of that exact reply, never an unrelated confirmation or a
+	 *  newer, different response. Undefined when the buffer had no transcript. */
+	readonly retainedTranscript?: string;
 	/** Normalized final transcript of every response played, in order. Lets the
 	 *  caller mark _lastNarratedText ONLY for text that was actually just read. */
 	readonly finalTranscripts: readonly string[];
@@ -253,8 +264,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _pttHeld = false;
 	/**
 	 * Whether the current held turn's `ptt_start` was passive (a hands-free
-	 * open mic: auto-listen or barge-in). A passive turn tells the backend NOT
-	 * to latch `user_is_speaking`; a deliberate press (non-passive) DOES latch.
+	 * open mic: auto-listen or barge-in). A passive turn tells the backend not
+	 * to latch `user_is_speaking`; a deliberate press (non-passive) does latch.
 	 * Read by {@link _prepareForPlayback} to decide whether aborting the held
 	 * turn (which sends no `ptt_end`) is safe. Only meaningful while `_pttHeld`.
 	 */
@@ -586,14 +597,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
 	 * (`narration_interrupted`), awaiting retry. Keyed by canonical session key,
-	 * latest-wins (at most one pending per session). Retry is driven by the
-	 * `narration_unblocked` nudge, which the server sends only once the playback
-	 * guard clears — safe in push-to-talk and hands-free, never interrupting a
-	 * live press. Also replayed on `session_init`/`session_resumed` (a dropped
-	 * socket loses any in-flight `narration_unblocked` nudge, so these would
-	 * otherwise never retry after a reconnect). See `_retryDeferredNarration`
-	 * for the revalidation on retry. Cleared on a new turn (`thinking`) or
-	 * teardown.
+	 * latest-wins (at most one pending per session). Retried on the
+	 * `narration_unblocked` nudge and replayed on `session_init`/`session_resumed`,
+	 * since a dropped socket loses any in-flight nudge. See
+	 * `_retryDeferredNarration`. Cleared on a new turn (`thinking`) or teardown.
 	 */
 	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
 
@@ -1489,14 +1496,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					narrated = this._narrate(sessionId, item.kind, item.text) || narrated;
 				}
 			}
-			// Also replay any narration that was deferred (busy/interrupted,
-			// awaiting a `narration_unblocked` nudge) across the disconnect - the
-			// nudge itself was lost with the dropped socket, so nothing would
-			// otherwise retry these. Reuses the same revalidation as the
-			// `narration_unblocked` path: only re-requests still-warranted items
-			// (re-checked against `_currentNarratable`) and reuses the same
-			// `narration_id` when the text is unchanged, so backend idempotency
-			// returns `accepted` without re-synth for anything already spoken.
+			// The `narration_unblocked` nudge was lost with the dropped socket, so
+			// also replay anything still deferred; `_retryDeferredNarration`
+			// revalidates and reuses the id so already-spoken items aren't re-synthesised.
 			if (this._deferredNarrations.size > 0) {
 				const deferredKeys = [...this._deferredNarrations.keys()];
 				for (const sessionKey of deferredKeys) {
@@ -2114,12 +2116,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Promote a passive barge-in listen into a user-driven interrupt. The
 		// mic is already streaming this turn to the backend (ptt_start already
-		// sent), so we keep the SAME turn — do NOT re-acquire the mic or send a
-		// second ptt_start — and apply the interrupt side effects. Releasing the
-		// button afterwards goes through the normal `pttUp()` path.
+		// sent), so we keep the same turn (no re-acquiring the mic and no second
+		// ptt_start) and apply the interrupt side effects. Releasing the button
+		// afterwards goes through the normal `pttUp()` path.
 		if (this._bargeInListenActive) {
 			this.logService.trace('[voice] pttDown: promoting passive barge-in listen to user interrupt');
 			this._bargeInListenActive = false;
+			// A promoted press is a deliberate interrupt, so it latches the backend
+			// like a fresh press: clear the passive flag (kept consistent with the
+			// fresh-press path below) so playback prep preserves this held press
+			// instead of tearing down the user's active speech turn for narration.
+			this._pttCurrentTurnPassive = false;
 			this._autoListenSuppressed = false;
 			this._pttWaitingForPlayback = false;
 			// Re-anchor hold timing to the real press so pttUp's tap/hold split works.
@@ -3248,10 +3255,22 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// current actionable state, deduped separately by _narratedConfirmation.
 				const staleResponse = narratable.kind === 'response'
 					&& !this._pendingResponseSummaries.has(sessionKey);
+				// A held deliberate press kept THIS reply buffered (see
+				// _flushDeferredResponse), so it will play on release. Re-issuing
+				// it now would be NACK'd busy, deferred, and then double up with
+				// that buffer. Suppress only that exact duplicate: an unrelated
+				// confirmation or a newer, different response for the session must
+				// still narrate (the buffer holds a different, older reply).
+				const bufferRetainedUnderPress = flushResult.retained === true
+					&& narratable.kind === 'response'
+					&& !!flushResult.retainedTranscript
+					&& this._normalizeTranscript(narratable.text) === flushResult.retainedTranscript;
 				if (confirmationAlreadyHeard) {
 					this.logService.trace(`[voice] activate skip: confirmation already heard for ${key.slice(-32)}`);
 				} else if (staleResponse) {
 					this.logService.trace(`[voice] activate skip: stale response (no pending summary) for ${key.slice(-32)}`);
+				} else if (bufferRetainedUnderPress) {
+					this.logService.trace(`[voice] activate skip: buffered reply retained under held press for ${key.slice(-32)}`);
 				} else {
 					this._narrate(key, narratable.kind, narratable.text);
 				}
@@ -3313,9 +3332,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		// The narration audio is now inbound. Get out of listening/auto-listen so
 		// the echoed audio isn't suppressed (or captured as the user's own turn)
-		// while PTT/mic capture is active. Done here so EVERY narration path
+		// while PTT/mic capture is active. Done here so every narration path
 		// (live, on-focus, on-reconnect retry) is prepared, not just focus - but
-		// only once a request is actually in flight.
+		// only once a request is actually in flight. A held deliberate press
+		// leaves the slot untouched (see _prepareForPlayback); its narration is
+		// NACK'd busy and retried on release, so the ignored return is expected.
 		this._prepareForPlayback();
 		this._pendingNarrationRetries.delete(sessionId);
 		// This newer request supersedes any older busy/interrupted entry deferred
@@ -3505,25 +3526,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	/**
-	 * The `narration_unblocked` nudge fired for a deferred narration, or a
-	 * reconnect replay (see `onSessionInit`/`onSessionResumed`). Revalidate
-	 * against the current session state and only re-request if it is still
-	 * warranted, reusing the same id when the text is unchanged (so the backend
-	 * dedups a lost ack) and minting a fresh one when the text changed. If it is
-	 * no longer warranted (resolved, or a different kind), drop it without
-	 * speaking. Returns `true` when a retry was actually sent (mirrors
-	 * {@link _narrate}'s return), so callers can gate other on-reconnect
-	 * behavior (e.g. not entering auto-listen right before a narration plays).
+	 * Retry a deferred narration (on its `narration_unblocked` nudge, or a
+	 * reconnect replay via `onSessionInit`/`onSessionResumed`). Revalidates
+	 * against current state: re-requests only if still warranted, reusing the id
+	 * when the text is unchanged (so the backend dedups a lost ack) and minting a
+	 * fresh one otherwise; drops it without speaking if no longer warranted.
+	 * Returns `true` when a retry was actually sent (mirrors {@link _narrate}), so
+	 * callers can gate on-reconnect behavior (e.g. not entering auto-listen right
+	 * before a narration plays).
 	 *
-	 * `unblockedNarrationId`, when given, is the specific narration id the
-	 * `narration_unblocked` nudge was for. `_deferredNarrations` is latest-wins
-	 * per session key, so a newer deferred entry can have superseded the one
-	 * this nudge concerns (e.g. a second request went busy for the same
-	 * session before the first one's unblock arrived). In that case the id
-	 * mismatches and we skip: the nudge for the *current* entry will arrive
-	 * separately once its own guard clears, so retrying here would only risk
-	 * an early, possibly-still-busy attempt. Omitted (reconnect replay) means
-	 * "retry whatever is currently deferred, no id to compare against".
+	 * `unblockedNarrationId`, when given, must match the current deferred entry:
+	 * it is latest-wins per session, so a newer entry can have superseded the one
+	 * this nudge concerns; on mismatch we skip and wait for that entry's own
+	 * nudge. Omitted means reconnect replay (retry whatever is deferred).
 	 */
 	private _retryDeferredNarration(sessionKey: string, unblockedNarrationId?: string): boolean {
 		const deferred = this._deferredNarrations.get(sessionKey);
@@ -3902,11 +3917,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const responses = this._deferredResponses.get(key);
-		this._deferredResponses.delete(key);
-		this._maybeHideIndicator(key);
 		if (!responses || responses.length === 0) {
+			this._deferredResponses.delete(key);
+			this._maybeHideIndicator(key);
 			return { flushed: false, finalTranscripts: [] };
 		}
+
+		// Exit any active listening / auto-listen and ready the playback slot so
+		// the buffered chunks can play. If a held deliberate (non-passive) press
+		// is preserved, the slot can't be claimed without stranding the backend
+		// latch, so leave the responses buffered and report `retained` so the
+		// caller skips issuing a fresh narration for this same reply. The buffer
+		// re-flushes once the press releases, either via the periodic safety-net
+		// (_checkSessionStateChanges) or a later focus. Nothing is consumed here,
+		// so the deferred entry and its indicator stay intact.
+		if (!this._prepareForPlayback()) {
+			this.logService.trace(`[voice] deferred flush for session=${key} deferred: held deliberate press preserved, keeping ${responses.length} buffered response(s)`);
+			// Report the most recent buffered reply's transcript so the caller
+			// suppresses only a duplicate re-narrate of that exact reply, not an
+			// unrelated confirmation or a newer, different response for the session.
+			const retainedFinals = responses
+				.map(r => this._normalizeTranscript([...r.chunks].reverse().find(c => c.transcript)?.transcript ?? ''))
+				.filter(t => !!t);
+			return { flushed: false, retained: true, retainedTranscript: retainedFinals[retainedFinals.length - 1], finalTranscripts: [] };
+		}
+
+		this._deferredResponses.delete(key);
+		this._maybeHideIndicator(key);
 		const totalChunks = responses.reduce((n, r) => n + r.chunks.length, 0);
 		this.logService.trace(`[voice] flushing ${responses.length} buffered response(s) (${totalChunks} chunk(s)) for now-focused session=${key}`);
 		// Promote any still-open (not-yet-finalized) response's route from
@@ -3927,7 +3964,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			.filter(t => !!t);
 		// Record that we just replayed this session's buffered reply, so a backend
 		// re-narration (same text) arriving shortly after is dropped rather than
-		// double-read. The LAST response is the most recent - the one the backend
+		// double-read. The last response is the most recent - the one the backend
 		// would re-narrate on activation - so dedupe against its final transcript.
 		const flushedTranscript = finalTranscripts[finalTranscripts.length - 1];
 		if (flushedTranscript) {
@@ -3935,17 +3972,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._lastHeardTranscriptById.set(key, flushedTranscript);
 		}
 
-		// Exit any active listening / auto-listen and reset the playback slot so
-		// the buffered chunks can play (see _prepareForPlayback).
-		this._prepareForPlayback();
-
 		// Play every buffered response for this session, in the order they arrived.
 		for (const r of responses) {
 			for (const chunk of r.chunks) {
 				this._enqueueAudio(key, chunk.audio, chunk.isFirstChunk, chunk.isFinal, chunk.transcript, r.responseId);
 			}
 		}
-		// NOTE: do NOT mark these narrations heard here - enqueuing is not playing.
+		// Do not mark these narrations heard here - enqueuing is not playing.
 		// The audio may still be dropped by a later activation / PTT / queue reset
 		// / interruption before it plays. It is marked heard from onPlaybackStopped
 		// (or the speech-disabled branch of _playChunk), keyed by responseId, only
@@ -3957,25 +3990,30 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Get the controller out of listening/auto-listen and ready the playback slot
 	 * so an about-to-arrive (or just-buffered) narration actually plays instead of
-	 * being suppressed. Used before flushing a deferred response AND before
+	 * being suppressed. Used before flushing a deferred response and before
 	 * narrating a freshly-shown session's pending item (e.g. a confirmation, which
 	 * carries no buffered audio and so never hits the flush path) - otherwise the
 	 * controller can sit in listening and the echoed audio is dropped, leaving the
 	 * user staring at a focused session that never speaks.
+	 *
+	 * Returns `true` when the playback slot is ready (no press held, or a passive
+	 * open-mic turn was torn down), and `false` when it deliberately preserved a
+	 * held non-passive press. A `false` return tells the flush caller to leave its
+	 * buffered audio deferred rather than play it over the user's live press.
 	 */
-	private _prepareForPlayback(): void {
+	private _prepareForPlayback(): boolean {
 		this._clearAutoListenTimer();
 		this._autoListenSuppressed = false;
-		// A held DELIBERATE press (non-passive) latched the backend's
+		// A held deliberate press (non-passive) latched the backend's
 		// `user_is_speaking`, so its narration request was NACK'd `busy` and
 		// deferred: it will not play now. Leave the press fully intact. Aborting
-		// it here sends NO `ptt_end` and would strand the latch; its natural
+		// it here sends no `ptt_end` and would strand the latch; its natural
 		// release sends `ptt_end`, clearing the guard and driving the
-		// `narration_unblocked` retry. Only a PASSIVE open-mic turn (auto-listen
+		// `narration_unblocked` retry. Only a passive open-mic turn (auto-listen
 		// or barge-in), which never latched, is safe to abort here to free the
 		// mic for the incoming narration audio.
 		if (this._pttHeld && !this._pttCurrentTurnPassive) {
-			return;
+			return false;
 		}
 		if (this._pttHeld) {
 			// A local-only abort ('auto', no `ptt_end`): a passive turn never
@@ -3990,13 +4028,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Reset the playback slot when nothing is actually playing so `_enqueueAudio`
 		// can claim it and drive the state machine to 'speaking'. A prior generic
 		// response leaves the slot `undefined` (not `null`), which skips the
-		// fast-path, so an explicit reset is required. Do NOT wipe `_audioQueue`:
+		// fast-path, so an explicit reset is required. Do not wipe `_audioQueue`:
 		// valid audio can be pending during the ~500ms post-playback re-process gap
 		// (isPlaying is false but the queue is non-empty), and clearing it here
 		// would silently drop those responses.
 		if (!this.ttsPlaybackService.isPlaying && this._currentPlaybackSessionId !== null) {
 			this._currentPlaybackSessionId = null;
 		}
+		return true;
 	}
 
 	/**
