@@ -301,16 +301,6 @@
 	background-color: var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedLineBackground), var(--vscode-diffEditor-removedTextBackground));
 }
 
-.monaco-editor .line-move.line-insert, .monaco-diff-editor .line-move.line-insert,
-.monaco-editor .line-move.currentMove.line-insert, .monaco-diff-editor .line-move.currentMove.line-insert {
-	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
-}
-
-.monaco-editor .line-move.line-delete, .monaco-diff-editor .line-move.line-delete,
-.monaco-editor .line-move.currentMove.line-delete, .monaco-diff-editor .line-move.currentMove.line-delete {
-	background-color: var(--vscode-diffEditor-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
-}
-
 .monaco-diff-editor.side-by-side .editor.modified {
 	box-shadow: -6px 0 5px -5px var(--vscode-scrollbar-shadow);
 	border-left: 1px solid var(--vscode-diffEditor-border);
