@@ -55,6 +55,7 @@ export interface IFixtureMessage {
 		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
+	readonly details?: string;
 	readonly responseComplete?: boolean;
 	/**
 	 * Per-turn file changes surfaced via {@link IChatResponseFileChangesService},
@@ -70,6 +71,10 @@ export interface IChatWidgetFixtureOptions {
 	readonly height?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
+	/** Chat list rendering style. Defaults to compact for existing fixtures. */
+	readonly renderStyle?: 'default' | 'compact' | 'minimal';
+	/** Whether to populate the response footer with an action. */
+	readonly responseFooterAction?: boolean;
 	/**
 	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
 	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
@@ -262,6 +267,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, toolInvocation);
 			}
 		}
+		if (message.details) {
+			response.setResult({ details: message.details });
+		}
 		if (message.responseComplete !== false) {
 			response.complete();
 		}
@@ -304,7 +312,11 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	if (options.responseFooterAction) {
+		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
+	}
 
+	const renderStyle = options.renderStyle === 'default' ? undefined : options.renderStyle ?? 'compact';
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -350,7 +362,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		{
 			currentChatMode: () => ChatModeKind.Agent,
 			defaultElementHeight: 120,
-			renderStyle: 'compact',
+			renderStyle,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground: 'var(--vscode-editor-background)',
@@ -378,6 +390,30 @@ const SIMPLE_QA: IFixtureMessage[] = [
 		],
 	},
 ];
+
+const LAST_RESPONSE_HOVER: IFixtureMessage[] = [
+	{
+		user: 'Summarize the changes',
+		assistant: [
+			{ kind: 'markdown', text: 'The response content ends here. The remaining row height is reserved space.' },
+		],
+		details: 'Claude Opus 4.8 - 2 credits',
+	},
+];
+
+async function renderLastResponseHover(context: ComponentFixtureContext, target: 'content' | 'reserved-space'): Promise<void> {
+	await renderChatWidget(context, {
+		messages: LAST_RESPONSE_HOVER,
+		height: 600,
+		inputVisible: false,
+		renderStyle: 'default',
+		responseFooterAction: true,
+	});
+
+	const response = context.container.querySelector<HTMLElement>('.interactive-response.chat-most-recent-response');
+	const hoverTarget = target === 'content' ? response?.querySelector<HTMLElement>(':scope > .value') : response;
+	hoverTarget?.dispatchEvent(new MouseEvent('mouseenter'));
+}
 
 const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	{
@@ -487,4 +523,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
 	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
+	LastResponseContentHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'content') }),
+	LastResponseReservedSpaceHover: defineComponentFixture({ render: ctx => renderLastResponseHover(ctx, 'reserved-space') }),
 });
