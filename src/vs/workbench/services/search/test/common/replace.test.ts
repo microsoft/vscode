@@ -65,10 +65,10 @@ suite('Replace Pattern test', () => {
 		testParse('hello$100a', 'hello$100a', false);
 		// $10a0 => no treatment
 		testParse('hello$10a0', 'hello$10a0', true);
-		// $$ => no treatment
-		testParse('hello$$', 'hello$$', false);
-		// $$0 => no treatment
-		testParse('hello$$0', 'hello$$0', false);
+		// $$ => escaped dollar sign, handled as a parameter
+		testParse('hello$$', 'hello$$', true);
+		// $$0 => escaped dollar sign followed by 0
+		testParse('hello$$0', 'hello$$0', true);
 
 		// $0 => $&
 		testParse('hello$0', 'hello$&', true);
@@ -140,6 +140,14 @@ suite('Replace Pattern test', () => {
 		testObject = new ReplacePattern('cat$1', { pattern: 'for(.*)', isRegExp: true });
 		actual = testObject.getReplaceString('for ()');
 		assert.strictEqual(actual, 'cat ()');
+	});
+
+	test('issue #299365: $$ inserts a literal dollar sign in regex replace', () => {
+		const replaceString = (pattern: string) => new ReplacePattern(pattern, { pattern: '(bla)', isRegExp: true }).getReplaceString('bla');
+		assert.deepStrictEqual(
+			['$$0', '$$1', '$$$1'].map(replaceString),
+			['$0', '$1', '$bla']
+		);
 	});
 
 	test('case operations', () => {
