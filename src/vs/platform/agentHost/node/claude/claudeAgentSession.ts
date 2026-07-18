@@ -7,7 +7,7 @@ import type { McpSdkServerConfigWithInstance, OnElicitation, Options, Permission
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -43,7 +43,7 @@ import { scanClaudeNativePlugins } from './customizations/scan/claudeNativePlugi
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
-import { ClaudeSdkPipeline, type IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 
@@ -97,6 +97,12 @@ function resolveCurrentPermissionMode(
 export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
+	/**
+	 * Owns the current {@link ClaudeSdkPipeline} plus its signal subscription.
+	 * Installing a fresh pipeline on a rebuild sets a new store here, disposing
+	 * the previous pipeline (and its transitively-owned dbRef).
+	 */
+	private readonly _pipelineStore = this._register(new MutableDisposable<DisposableStore>());
 	/** Session-lifetime SDK-start inputs captured at {@link materialize}; `undefined` until then. */
 	private _sdkStart: {
 		readonly transport: ClaudeTransport;
@@ -134,8 +140,12 @@ export class ClaudeAgentSession extends Disposable {
 	readonly provisionalConfig: Record<string, unknown> | undefined;
 	/** Resolved project metadata captured at create time (if any). */
 	readonly project: IAgentSessionProjectInfo | undefined;
-	/** Always-present abort controller; wired into `Options.abortController` at materialize time. */
-	readonly abortController: AbortController;
+	/**
+	 * Session-owned abort controller, reassigned per pipeline build so it always
+	 * aliases the live pipeline's controller — and is the abort target during an
+	 * in-flight rebuild (replacing the pipeline's old placeholder-controller dance).
+	 */
+	abortController: AbortController;
 
 	/**
 	 * The actual directory work is done in. Defaults to {@link workspace} until
@@ -446,48 +456,7 @@ export class ClaudeAgentSession extends Disposable {
 			serverToolHost: ctx.serverToolHost,
 		};
 
-		const { warm, permissionMode } = await this._startSdkQuery(ctx.isResume, this.abortController);
-
-		if (this.abortController.signal.aborted) {
-			await warm[Symbol.asyncDispose]();
-			throw new CancellationError();
-		}
-
-		const dbRef = this._sessionDataService.openDatabase(this._storageUri);
-		let pipeline: ClaudeSdkPipeline;
-		try {
-			pipeline = this._register(this._instantiationService.createInstance(
-				ClaudeSdkPipeline,
-				this.sessionId,
-				this.sessionUri,
-				this._chatChannelUri,
-				warm,
-				this.abortController,
-				dbRef,
-				this.subagents,
-				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
-				() => this._rebuildSdkQuery(),
-			));
-		} catch (err) {
-			dbRef.dispose();
-			await warm[Symbol.asyncDispose]();
-			throw err;
-		}
-		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
-		this._pipeline = pipeline;
-		// The materialize succeeded with the staged anchor applied to `Options`
-		// — clear it now so it isn't re-applied. A throw before this point (e.g.
-		// `startup` / pipeline-create) leaves it staged for the next retry.
-		this._pendingResumeSessionAt = undefined;
-
-		// Seed the pipeline's bijective config cache so a rebuild re-applies
-		// the user's last-chosen model / effort without losing the picker
-		// config. Read provisional state directly off the session.
-		pipeline.seedCurrentConfig(
-			toSdkModelId(this._provisionalModel?.id),
-			toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
-			permissionMode,
-		);
+		const permissionMode = await this._installPipeline(ctx.isResume, false);
 
 		// Fresh sessions persist their customization-directory / model /
 		// permissionMode overlay so a later resume re-reads them. Resume
@@ -529,6 +498,63 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
+	 * Build a fresh SDK subprocess for the current session state and install it as
+	 * the live pipeline, disposing the previous one. Shared by {@link materialize}
+	 * (first install; `freshController: false` keeps the provisional controller so
+	 * a pre-materialize abort is honored) and the `send` rebuild path
+	 * (`freshController: true` mints a controller for the new subprocess). Returns
+	 * the permission mode the `Options` were built with.
+	 *
+	 * An abort or session-dispose landing during the `startup()` await is honored
+	 * by the post-await gate on {@link abortController} — the session-owned abort
+	 * target that replaces the pipeline's old placeholder-controller dance.
+	 */
+	private async _installPipeline(isResume: boolean, freshController: boolean): Promise<ClaudePermissionMode> {
+		if (freshController) {
+			this.abortController = new AbortController();
+		}
+		const { warm, permissionMode } = await this._startSdkQuery(isResume, this.abortController);
+		if (this.abortController.signal.aborted || this._store.isDisposed) {
+			await warm[Symbol.asyncDispose]();
+			throw new CancellationError();
+		}
+		const dbRef = this._sessionDataService.openDatabase(this._storageUri);
+		const store = new DisposableStore();
+		let pipeline: ClaudeSdkPipeline;
+		try {
+			pipeline = store.add(this._instantiationService.createInstance(
+				ClaudeSdkPipeline,
+				this.sessionId,
+				this.sessionUri,
+				this._chatChannelUri,
+				warm,
+				this.abortController,
+				dbRef,
+				this.subagents,
+				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
+				{
+					model: toSdkModelId(this._provisionalModel?.id),
+					effort: toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
+					permissionMode,
+				},
+			));
+		} catch (err) {
+			dbRef.dispose();
+			await warm[Symbol.asyncDispose]();
+			throw err;
+		}
+		store.add(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		// Swap in the new pipeline, disposing the previous (pipeline + its signal
+		// subscription + the dbRef it transitively owns) via the store.
+		this._pipelineStore.value = store;
+		this._pipeline = pipeline;
+		// The build succeeded with the staged anchor applied to `Options`; clear
+		// it so it isn't re-applied. A throw above keeps it staged for the retry.
+		this._pendingResumeSessionAt = undefined;
+		return permissionMode;
+	}
+
+	/**
 	 * Build the SDK `Options` from live session state and start the subprocess —
 	 * the single source of truth for creating a `WarmQuery` (materialize and every
 	 * rebuild). Returns the permission mode it built with.
@@ -567,23 +593,6 @@ export class ClaudeAgentSession extends Disposable {
 		this._logService.info(`[Claude] session ${this.sessionId}: startup isResume=${isResume} agent=${options.agent ?? '(none)'}`);
 		const warm = await this._sdkService.startup({ options });
 		return { warm, permissionMode };
-	}
-
-	/**
-	 * The pipeline's rebuild hook ({@link IRematerializer}), passed at construction.
-	 * On failure re-marks the tool / customization diffs dirty and rethrows.
-	 */
-	private async _rebuildSdkQuery(): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }> {
-		const abortController = new AbortController();
-		try {
-			const { warm } = await this._startSdkQuery(true, abortController);
-			this._pendingResumeSessionAt = undefined;
-			return { warm, abortController };
-		} catch (err) {
-			this.toolDiff.markDirty();
-			this.clientCustomizationsDiff.markDirty();
-			throw err;
-		}
 	}
 
 	/**
@@ -659,67 +668,65 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Send a user prompt. Performs the per-turn pre-flight before
-	 * yielding to the pipeline:
-	 *
-	 * - If {@link toolDiff} or {@link clientCustomizationsDiff} reports the
-	 *   live `Query` is out of sync with the workbench's view, yield-restart
-	 *   so the SDK picks up the new `Options.mcpServers` / `Options.plugins`.
-	 *   `Query.reloadPlugins()` cannot help here — the SDK's plugin URI set
-	 *   is captured at startup, so any add / remove / nonce-bump must go
-	 *   through a full rebuild. The rebind itself re-applies the live
-	 *   `permissionMode` via the rematerializer.
-	 * - Otherwise forward the live `permissionMode` to the bound `Query` so
-	 *   a `SessionConfigChanged` action that arrived between turns wins.
-	 *   The pipeline's bijective cache dedupes a no-op `setPermissionMode`,
-	 *   so this is free when nothing changed.
-	 *
-	 * Model / effort are not threaded through here — the pipeline's current
-	 * model / effort (set eagerly via {@link setModel}) is whatever
-	 * the SDK has been told.
+	 * Send a user prompt. The pre-flight decides reuse-vs-rebuild: rebuild the
+	 * pipeline (dispose old, install fresh via {@link _installPipeline}) when it
+	 * has died, when the tool / customization set diverged, or when a Restore
+	 * Checkpoint anchor is staged; otherwise forward the live `permissionMode`.
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
-		const pipeline = this._requirePipeline();
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference || this._pendingResumeSessionAt !== undefined) {
-			await this._rebindForSyncedState();
+		const pipeline = this._requirePipeline();
+		const needsRebuild = pipeline.isDead
+			|| this.toolDiff.hasDifference
+			|| this.clientCustomizationsDiff.hasDifference
+			|| this._pendingResumeSessionAt !== undefined;
+		if (needsRebuild) {
+			await this._rebuildPipeline();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
 		}
-		return pipeline.send(prompt, turnId);
+		// Re-read `_pipeline` — a rebuild replaced it.
+		return this._requirePipeline().send(prompt, turnId);
 	}
 
 	/**
-	 * Single yield-restart that covers both client-tool and
-	 * customization divergence in one trip. Drains the parked
-	 * client-tool MCP handlers (same as the original tool-only
-	 * rebind), then triggers the pipeline rebind — the rematerializer
-	 * reads `toolDiff` and `clientCustomizationsDiff.consume()` while
-	 * building the new `Options`, so the bit on each diff clears in
-	 * lockstep with the SDK actually receiving the new values. Fires
-	 * `_onDidCustomizationsChange` afterwards so the workbench
-	 * refetches `getSessionCustomizations` and picks up any newly
-	 * resolved server-side entries from the rebuilt `Query`.
+	 * Dispose the live pipeline and install a fresh one (in `resume` mode) for the
+	 * current session state — the yield-restart / crash-recovery path. Awaits the
+	 * old subprocess's real exit before the resume spawn so there is no two-writer
+	 * window on `<id>.jsonl`. On failure re-marks the tool / customization diffs
+	 * dirty (they were consumed while building) and keeps the resume anchor staged
+	 * so the next send retries rather than proceeding out of sync.
 	 */
-	private async _rebindForSyncedState(): Promise<void> {
+	private async _rebuildPipeline(): Promise<void> {
+		// Drain parked client-tool MCP handlers before the rebuild swaps Options.
 		this._pendingClientToolCalls.rejectAll(new CancellationError());
-		await this._requirePipeline().rebindForRestart();
+		if (this._pipeline) {
+			await this._pipeline.shutdownAndWait();
+		}
+		try {
+			await this._installPipeline(true, true);
+		} catch (err) {
+			this.toolDiff.markDirty();
+			this.clientCustomizationsDiff.markDirty();
+			throw err;
+		}
+		// The rebuilt Query's resolved customization set may differ; refetch.
 		this._onDidCustomizationsChange.fire();
 	}
 
 	/**
-	 * Cancel the in-flight SDK turn. Mirrors the production reference;
-	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
-	 * permission / user-input requests so the SDK's `canUseTool`
-	 * callback (and any interactive tool waiting on user input) unwinds
-	 * with a deny / cancel result instead of leaving stale UI behind.
+	 * Cancel the in-flight SDK turn: abort the session-owned controller (also the
+	 * abort target during an in-flight rebuild) and the live pipeline, and deny any
+	 * parked permission / user-input requests so the SDK's `canUseTool` callback
+	 * unwinds with a deny / cancel instead of leaving stale UI behind.
 	 */
 	abort(): void {
 		this._pendingPermissions.denyAll(false);
 		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
-		this._requirePipeline().abort();
+		this.abortController.abort();
+		this._pipeline?.abort();
 	}
 
 	/**
@@ -1035,7 +1042,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		const handled = await this._requirePipeline().startMcpServer(serverName);
 		if (!handled) {
-			await this._rebindForSyncedState();
+			await this._rebuildPipeline();
 		}
 		this._onDidCustomizationsChange.fire();
 	}
@@ -1061,6 +1068,9 @@ export class ClaudeAgentSession extends Disposable {
 	// #endregion
 
 	override dispose(): void {
+		// Abort the session-owned controller first so an in-flight rebuild's
+		// `startup()` await unwinds and its post-await gate discards the fresh warm.
+		this.abortController.abort();
 		// Resolve parked deferreds before tearing the pipeline down so the
 		// SDK's canUseTool callback unwinds with a deny and the loop exits.
 		this._pendingPermissions.denyAll(false);

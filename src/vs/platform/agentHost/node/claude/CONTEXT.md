@@ -769,17 +769,18 @@ UI `'max'` is clamped to SDK `'xhigh'` at the seam. Effort levels
 above the model's `max_thinking_tokens` ceiling are clamped by the
 SDK; the host does not need to gate.
 
-**Config-state ownership and timing (target — the C9 end-state; see ROADMAP).**
-Runtime SDK config splits into two states with two owners. **Interim (today):**
-`ClaudeSdkPipeline` also holds the *desired* values as `_currentModel` /
-`_currentEffort` / `_currentPermissionMode` and replays them onto a fresh `Query`
-on rebind — a duplicate of the session's desired state that C9 removes once the
-pipeline is immutable and seeded once per build. Target ownership:
+**Config-state ownership and timing (C9 — shipped).**
+Runtime SDK config splits into two states with two owners. The pipeline is
+immutable: it never rebinds or replays config onto a fresh `Query` — a rebuild
+mints a *new* pipeline seeded once, so there is no desired-state duplication in
+the pipeline. Ownership:
 - **Desired** — owned by `ClaudeAgentSession` (`_provisionalModel` /
   `_provisionalAgent`; `permissionMode` read live from `IAgentConfigurationService`).
-  The user's intent; survives a pipeline rebuild; seeds every freshly built `Query`.
+  The user's intent; survives a pipeline rebuild; seeds every freshly built `Query`
+  via `Options` (model/effort/permissionMode baked at build, not replayed at runtime).
 - **Applied** — owned by `ClaudeSdkPipeline` (`_applied{Model,Effort,PermissionMode}`),
-  purely to dedup runtime setter calls. Ephemeral: dies with the `WarmQuery`.
+  purely to dedup runtime setter calls; seeded once at construction from the
+  `Options` the pipeline was built with. Ephemeral: dies with the `WarmQuery`.
 
 There is deliberately **no host-side "staged" state**: the SDK's own deferral is
 the staging. Per-axis timing (SDK `applyFlagSettings` docs + Anthropic
