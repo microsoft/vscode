@@ -548,6 +548,9 @@ export class Searcher {
 				return m;
 			}
 
+			// Not a whole-word match; advance one code point so overlapping whole-word matches aren't skipped.
+			this._searchRegex.lastIndex = matchStartIndex + (strings.getNextCodePoint(text, textLength, matchStartIndex) > 0xFFFF ? 2 : 1);
+
 		} while (m);
 
 		return null;

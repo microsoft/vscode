@@ -383,6 +383,22 @@ suite('TextModelSearch', () => {
 		);
 	});
 
+	test('issue #291591: Match whole word skips overlapping matches', () => {
+		assertFindMatches(
+			[
+				'[1] aa-aa',
+				'[2] xaa-aa-aa',
+				'[3] aax-aa-aa',
+			].join('\n'),
+			'aa-aa', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 5, 1, 10],
+				[2, 9, 2, 14],
+				[3, 9, 3, 14],
+			]
+		);
+	});
+
 	test('findNextMatch without regex', () => {
 		const model = createTextModel('line line one\nline two\nthree');
 
