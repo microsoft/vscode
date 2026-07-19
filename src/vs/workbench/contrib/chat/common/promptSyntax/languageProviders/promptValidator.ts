@@ -26,7 +26,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { getCustomAgentModelConfigurationProperty } from '../customAgentModels.js';
+import { getCustomAgentContextSizeBounds, getCustomAgentModelConfigurationProperty } from '../customAgentModels.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -484,6 +484,11 @@ export class PromptValidator {
 				const acceptsNumber = property && (property.schema.type === 'number' || property.schema.type === 'integer' || Array.isArray(property.schema.type) && (property.schema.type.includes('number') || property.schema.type.includes('integer')) || property.schema.type === undefined && (!property.schema.enum || property.schema.enum.every(value => typeof value === 'number')));
 				if (!acceptsNumber) {
 					report(toMarker(localize('promptValidator.modelContextUnsupported', "Model '{0}' does not support 'context-size'.", entry.name), entry.contextSize.range, MarkerSeverity.Warning));
+				} else {
+					const bounds = getCustomAgentContextSizeBounds(modelMetadata, property.schema);
+					if (entry.contextSize.value < bounds.minimum || entry.contextSize.value > bounds.maximum) {
+						report(toMarker(localize('promptValidator.modelContextOutOfRange', "Context size '{0}' is outside the supported range for model '{1}' ({2}-{3}) and will be capped.", entry.contextSize.value, entry.name, bounds.minimum, bounds.maximum), entry.contextSize.range, MarkerSeverity.Warning));
+					}
 				}
 			}
 		}

@@ -25,6 +25,13 @@ export interface ICustomAgentModelConfigurationProperty {
 	readonly schema: NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
 }
 
+export interface ICustomAgentContextSizeBounds {
+	readonly minimum: number;
+	readonly maximum: number;
+}
+
+const defaultCustomAgentContextSizeMinimum = 10_000;
+
 function isPositiveSafeInteger(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
@@ -72,6 +79,18 @@ export function getCustomAgentModelConfigurationProperty(metadata: ILanguageMode
 	return property ? { key: property[0], schema: property[1] } : undefined;
 }
 
+export function getCustomAgentContextSizeBounds(metadata: ILanguageModelChatMetadata, schema: ICustomAgentModelConfigurationProperty['schema']): ICustomAgentContextSizeBounds {
+	const enumMaximum = Math.max(...(schema.enum?.filter(isPositiveSafeInteger) ?? []), 0);
+	const schemaMaximum = typeof schema.maximum === 'number' && Number.isFinite(schema.maximum) ? Math.floor(schema.maximum) : 0;
+	const declaredMaximums = [enumMaximum, schemaMaximum].filter(maximum => maximum > 0);
+	const maximum = declaredMaximums.length ? Math.min(...declaredMaximums) : Math.max(1, Math.floor(metadata.maxInputTokens));
+	const schemaMinimum = typeof schema.minimum === 'number' && Number.isFinite(schema.minimum) ? Math.ceil(schema.minimum) : defaultCustomAgentContextSizeMinimum;
+	return {
+		minimum: Math.min(Math.max(1, schemaMinimum), maximum),
+		maximum,
+	};
+}
+
 export function getCustomAgentModelConfiguration(entry: CustomAgentModelEntry, metadata: ILanguageModelChatMetadata): Record<string, string | number> | undefined {
 	if (typeof entry === 'string') {
 		return undefined;
@@ -98,7 +117,8 @@ export function getCustomAgentModelConfiguration(entry: CustomAgentModelEntry, m
 			const { key, schema } = property;
 			const acceptsNumber = schema.type === 'number' || schema.type === 'integer' || Array.isArray(schema.type) && (schema.type.includes('number') || schema.type.includes('integer')) || schema.type === undefined && (!schema.enum || schema.enum.every(value => typeof value === 'number'));
 			if (acceptsNumber) {
-				result[key] = entry.contextSize;
+				const bounds = getCustomAgentContextSizeBounds(metadata, schema);
+				result[key] = Math.max(bounds.minimum, Math.min(bounds.maximum, entry.contextSize));
 			}
 		}
 	}

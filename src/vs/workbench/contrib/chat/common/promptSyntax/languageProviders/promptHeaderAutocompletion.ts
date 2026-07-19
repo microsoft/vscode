@@ -651,7 +651,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		const definitions: readonly { key: string; description: string }[] = [
 			{ key: 'name', description: localize('promptHeaderAutocompletion.model.name', "The model's qualified name.") },
 			{ key: 'reasoning-effort', description: localize('promptHeaderAutocompletion.model.reasoningEffort', 'The provider-supported reasoning effort to use.') },
-			{ key: 'context-size', description: localize('promptHeaderAutocompletion.model.contextSize', 'A positive-integer context-size cap.') },
+			{ key: 'context-size', description: localize('promptHeaderAutocompletion.model.contextSize', 'A context-size cap within the model-supported range.') },
 		];
 		return {
 			suggestions: definitions

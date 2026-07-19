@@ -35,7 +35,7 @@ suite('CustomAgentModels', () => {
 		const model = createModel('Available', {
 			properties: {
 				thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
-				maxPromptTokens: { type: 'number', enum: [100_000], group: 'tokens' },
+				maxPromptTokens: { type: 'number', enum: [100_000, 300_000], group: 'tokens' },
 			}
 		});
 
@@ -49,18 +49,23 @@ suite('CustomAgentModels', () => {
 		});
 	});
 
-	test('omits unsupported reasoning values while retaining arbitrary context caps', () => {
+	test('omits unsupported reasoning values and caps context size to the model range', () => {
 		const metadata = createModel('Configured', {
 			properties: {
 				effort: { type: 'string', enum: ['low'], group: 'navigation' },
-				tokens: { type: 'integer', enum: [100_000], group: 'tokens' },
+				tokens: { type: 'integer', enum: [100_000, 200_000], group: 'tokens' },
 			}
 		}).metadata;
 
-		assert.deepStrictEqual(
-			getCustomAgentModelConfiguration({ name: 'Configured (test)', reasoningEffort: 'high', contextSize: 222_222 }, metadata),
-			{ tokens: 222_222 },
-		);
+		assert.deepStrictEqual({
+			below: getCustomAgentModelConfiguration({ name: 'Configured (test)', contextSize: 1 }, metadata),
+			within: getCustomAgentModelConfiguration({ name: 'Configured (test)', reasoningEffort: 'high', contextSize: 150_000 }, metadata),
+			above: getCustomAgentModelConfiguration({ name: 'Configured (test)', contextSize: 222_222 }, metadata),
+		}, {
+			below: { tokens: 10_000 },
+			within: { tokens: 150_000 },
+			above: { tokens: 200_000 },
+		});
 	});
 
 	test('validates cached entries and compares structured entries by value', () => {

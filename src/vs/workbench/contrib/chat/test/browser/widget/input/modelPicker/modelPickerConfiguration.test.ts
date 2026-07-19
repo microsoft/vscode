@@ -106,4 +106,58 @@ suite('ModelPickerConfiguration', () => {
 			],
 		});
 	});
+
+	test('validates custom context size against the model range', async () => {
+		const model = createModel();
+		const access: IModelConfigurationAccess = {
+			getModelConfiguration: () => undefined,
+			setModelConfiguration: async () => { },
+			getModelConfigurationActions: () => [],
+		};
+		let shownItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
+		const actionWidgetService = {
+			show: (_id: string, _supportsPreview: boolean, items: IActionListItem<IActionWidgetDropdownAction>[]) => shownItems = items,
+			hide: () => { },
+			focusItemById: () => { },
+			updateItems: () => { },
+		} as unknown as IActionWidgetService;
+		let inputOptions: { prompt?: string; validateInput?: (value: string) => Promise<string | undefined> } | undefined;
+		const quickInputService = {
+			input: async (options: { prompt?: string; validateInput?: (value: string) => Promise<string | undefined> }) => {
+				inputOptions = options;
+				return undefined;
+			},
+		} as unknown as IQuickInputService;
+		const controller = new ModelPickerConfiguration({
+			getSelectedModel: () => model,
+			getConfigurationAccess: () => access,
+			isDisabled: () => false,
+			shouldShowCacheBreakHint: () => false,
+			getCacheBreakLearnMoreLink: () => undefined,
+			dismissCacheBreakHint: () => { },
+			refresh: () => { },
+		}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService, quickInputService);
+
+		controller.show(document.createElement('a'));
+		const customAction = shownItems.find(item => item.kind === ActionListItemKind.Action && item.item?.id === 'tokens.custom');
+		assert.ok(customAction?.kind === ActionListItemKind.Action && customAction.item);
+		await customAction.item.run();
+		assert.ok(inputOptions?.validateInput);
+
+		assert.deepStrictEqual({
+			prompt: inputOptions.prompt,
+			invalid: await inputOptions.validateInput('many'),
+			below: await inputOptions.validateInput('9999'),
+			minimum: await inputOptions.validateInput('10000'),
+			maximum: await inputOptions.validateInput('65536'),
+			above: await inputOptions.validateInput('65537'),
+		}, {
+			prompt: 'Enter an integer from 10000 to 65536 tokens.',
+			invalid: 'Enter a positive integer.',
+			below: 'Enter a value from 10000 to 65536.',
+			minimum: undefined,
+			maximum: undefined,
+			above: 'Enter a value from 10000 to 65536.',
+		});
+	});
 });

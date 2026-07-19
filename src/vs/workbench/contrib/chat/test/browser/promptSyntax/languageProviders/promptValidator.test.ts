@@ -119,7 +119,7 @@ suite('PromptValidator', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, configurationSchema: { properties: { effort: { type: 'string', enum: ['low', 'high'], group: 'navigation' }, tokens: { type: 'number', enum: [8192], group: 'tokens' } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 20000, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, configurationSchema: { properties: { effort: { type: 'string', enum: ['low', 'high'], group: 'navigation' }, tokens: { type: 'number', enum: [20000], group: 'tokens' } } } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata
 		];
@@ -240,18 +240,35 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('model as mixed structured array accepts provider values and arbitrary context caps', async () => {
+		test('model as mixed structured array accepts provider values and in-range context caps', async () => {
 			const content = [
 				'---',
 				'description: "Test with structured model entries"',
 				'model:',
 				'  - name: " MAE 4 (olama) "',
 				'    reasoning-effort: " high "',
-				'    context-size: 200000',
+				'    context-size: 10000',
 				'  - MAE 4.1',
 				'---',
 			].join('\n');
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('structured model entries diagnose context sizes outside the model range', async () => {
+			const content = [
+				'---',
+				'model:',
+				'  - name: MAE 4 (olama)',
+				'    context-size: 1',
+				'  - name: MAE 4 (olama)',
+				'    context-size: 9000',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`Context size '1' is outside the supported range for model 'MAE 4 (olama)' (10000-20000) and will be capped.`,
+				`Context size '9000' is outside the supported range for model 'MAE 4 (olama)' (10000-20000) and will be capped.`,
+			]);
 		});
 
 		test('structured model entries diagnose malformed and unsupported fields', async () => {

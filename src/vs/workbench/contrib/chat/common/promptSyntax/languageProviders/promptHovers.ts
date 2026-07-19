@@ -212,7 +212,7 @@ export class PromptHoverProvider implements HoverProvider {
 					}
 					const contextProperty = item.properties.find(property => property.key.value === 'context-size');
 					if (contextProperty && (contextProperty.key.range.containsPosition(position) || contextProperty.value.range.containsPosition(position))) {
-						return this.createHover(localize('promptHeader.agent.model.contextSize', 'A positive-integer context-size cap to use when this model is selected.'), contextProperty.value.range);
+						return this.createHover(localize('promptHeader.agent.model.contextSize', 'A context-size cap to use when this model is selected. Values are limited to the model-supported range.'), contextProperty.value.range);
 					}
 				}
 			}

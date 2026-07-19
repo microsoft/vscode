@@ -16,6 +16,7 @@ import { IQuickInputService } from '../../../../../../../platform/quickinput/com
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { getCustomAgentContextSizeBounds } from '../../../../common/promptSyntax/customAgentModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 
@@ -261,6 +262,7 @@ export class ModelPickerConfiguration {
 			logContextSizeChange,
 		);
 		if (tokensConfig) {
+			const bounds = getCustomAgentContextSizeBounds(model.metadata, tokensConfig.schema);
 			const currentValue = typeof tokensConfig.value === 'number' && Number.isFinite(tokensConfig.value) ? tokensConfig.value : undefined;
 			const customChecked = currentValue !== undefined && !tokensConfig.schema.enum?.includes(currentValue);
 			const customLabel = customChecked
@@ -279,7 +281,7 @@ export class ModelPickerConfiguration {
 						await timeout(actionWidgetDropdownCloseAnimation.duration);
 						const input = await this._quickInputService.input({
 							placeHolder: localize('chat.tokens.custom.placeholder', "Context size in tokens"),
-							prompt: localize('chat.tokens.custom.prompt', "Enter a positive integer context size in tokens."),
+							prompt: localize('chat.tokens.custom.prompt', "Enter an integer from {0} to {1} tokens.", bounds.minimum, bounds.maximum),
 							value: currentValue !== undefined ? String(currentValue) : '',
 							ignoreFocusLost: true,
 							validateInput: async value => {
@@ -287,6 +289,9 @@ export class ModelPickerConfiguration {
 								const contextSize = Number(inputValue);
 								if (!/^\d+$/.test(inputValue) || !Number.isSafeInteger(contextSize) || contextSize <= 0) {
 									return localize('chat.tokens.custom.invalid', "Enter a positive integer.");
+								}
+								if (contextSize < bounds.minimum || contextSize > bounds.maximum) {
+									return localize('chat.tokens.custom.outOfRange', "Enter a value from {0} to {1}.", bounds.minimum, bounds.maximum);
 								}
 								return undefined;
 							},

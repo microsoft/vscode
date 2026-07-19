@@ -55,7 +55,7 @@ model:
   - Claude Sonnet 4.5 (copilot)
 ```
 
-VS Code checks entries in order and selects the first available model. Defaults come from that same entry; an unavailable entry's configuration is never applied to a later fallback. Reasoning effort must be supported by the selected provider. Context size can be any positive integer, including a value that is not one of the provider's advertised picker tiers.
+VS Code checks entries in order and selects the first available model. Defaults come from that same entry; an unavailable entry's configuration is never applied to a later fallback. Reasoning effort must be supported by the selected provider. Context size can use a custom value between 10,000 tokens and the model's maximum, including a value that is not one of the provider's advertised picker tiers. If the provider declares a minimum, VS Code uses it; otherwise the minimum is 10,000, capped at the model's maximum.
 
 When the agent is selected manually, declared defaults update that chat editor's model picker and request configuration. A later manual model or configuration choice overrides them until the agent is explicitly selected again or its definition changes. For `runSubagent`, an explicit `model` argument takes precedence; otherwise the agent fallback is used, then the parent request model.
 

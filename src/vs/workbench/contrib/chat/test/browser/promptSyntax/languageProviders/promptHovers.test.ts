@@ -305,7 +305,7 @@ suite('PromptHoverProvider', () => {
 					'- Vendor: olama',
 				].join('\n'),
 				reasoningEffort: 'The reasoning effort to use when this model is selected. The value must be supported by the model provider.',
-				contextSize: 'A positive-integer context-size cap to use when this model is selected.',
+				contextSize: 'A context-size cap to use when this model is selected. Values are limited to the model-supported range.',
 			});
 		});
 
