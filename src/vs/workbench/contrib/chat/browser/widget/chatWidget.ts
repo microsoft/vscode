@@ -87,6 +87,7 @@ import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js'
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 
 const $ = dom.$;
 
@@ -278,6 +279,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
+	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
 
 	private recentlyRestoredCheckpoint: boolean = false;
 
@@ -442,6 +444,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 
+		this.readOnlyBanner = viewOptions.isSessionsWindow ? undefined : this._register(instantiationService.createInstance(ChatReadOnlyBanner));
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
@@ -771,11 +774,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		if (renderInputOnTop) {
+			if (this.readOnlyBanner) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
+			if (this.readOnlyBanner) {
+				this.container.appendChild(this.readOnlyBanner.domNode);
+			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
@@ -878,7 +887,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	focusInput(): void {
 		// Read-only chats hide the input; focus the message list instead.
 		if (!this._inputVisible) {
-			this.listWidget.focusLastItem(true);
+			if (this.listWidget.focusLastItem(true) < 0) {
+				this.listWidget.focus();
+			}
 			this._onDidFocus.fire();
 			return;
 		}
@@ -1314,6 +1325,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		if (this._readOnly) {
+			this.chatSuggestNextWidget.hide();
+			return;
+		}
+
 		// Skip rendering in coding agent sessions unless the agent supports hand-offs
 		if (this.isLockedToCodingAgent && !this._attachmentCapabilities.supportsHandOffs) {
 			this.chatSuggestNextWidget.hide();
@@ -1581,8 +1597,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * actions (e.g. Start Over, Restore Checkpoint) are not offered.
 	 */
 	setReadOnly(readOnly: boolean): void {
+		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
 		this._readOnlyContextKey.set(readOnly);
+		if (readOnly) {
+			if (this.viewModel?.editing) {
+				this.finishedEditing();
+			}
+			this.chatSuggestNextWidget.hide();
+			if (this.hasInputFocus()) {
+				if (this.listWidget.focusLastItem(true) < 0) {
+					this.listWidget.focus();
+				}
+			}
+		} else if (wasReadOnly) {
+			this.renderChatSuggestNextWidget();
+		}
+		this.readOnlyBanner?.setVisible(readOnly);
 		this.setInputVisible(!readOnly);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
@@ -1719,6 +1750,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	startEditing(requestId: string): void {
+		if (this._readOnly) {
+			return;
+		}
+
 		const editedRequest = this.listWidget.getTemplateDataForRequestId(requestId);
 		if (editedRequest) {
 			this.clickedRequest(editedRequest);
@@ -2194,6 +2229,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
+			if (!this.viewOptions.isSessionsWindow) {
+				this.setReadOnly(false);
+			}
 			return;
 		}
 
@@ -2225,6 +2263,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0, model.sessionResource);
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
+		if (!this.viewOptions.isSessionsWindow) {
+			this.viewModelDisposables.add(autorun(reader => this.setReadOnly(model.isReadOnly.read(reader))));
+		}
 
 		this.listWidget.setViewModel(this.viewModel);
 
@@ -2454,6 +2495,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		if (this._readOnly) {
+			return undefined;
+		}
+
 		if (this.viewModel) {
 			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
 		}
@@ -2461,7 +2506,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async rerunLastRequest(): Promise<void> {
-		if (!this.viewModel) {
+		if (this._readOnly || !this.viewModel) {
 			return;
 		}
 
@@ -2792,6 +2837,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (ChatSendResult.isRejected(result)) {
+			if (result.newSessionResource) {
+				const newModel = this.chatService.getSession(result.newSessionResource);
+				if (newModel) {
+					this.setModel(newModel);
+				}
+			}
 			return;
 		}
 
@@ -3002,10 +3053,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
 		const inputHeight = this._inputVisible ? this.inputPart.height.get() : this.inputPart.element.offsetHeight;
+		const readOnlyBannerHeight = this.readOnlyBanner?.visible ? CHAT_READ_ONLY_BANNER_HEIGHT : 0;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
-		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
+		const contentHeight = Math.max(0, height - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;

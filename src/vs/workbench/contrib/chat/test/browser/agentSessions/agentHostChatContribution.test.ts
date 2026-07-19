@@ -27,7 +27,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -151,6 +151,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// may hold a SessionState (for session channels) or a ChatState (for the
 	// per-session default chat channel).
 	private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
+	private readonly _chatInteractivities = new Map<string, ChatInteractivity>();
 
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -473,6 +474,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 	}
 
+	setChatInteractivity(session: URI, interactivity: ChatInteractivity): void {
+		const entry = this._liveSubscriptions.get(buildDefaultChatUri(session.toString()));
+		if (!entry) {
+			throw new Error(`No live chat subscription for ${session.toString()}`);
+		}
+		entry.state = { ...entry.state, interactivity };
+		entry.emitter.fire(entry.state);
+	}
+
+	seedChatInteractivity(session: URI, interactivity: ChatInteractivity): void {
+		this._chatInteractivities.set(buildDefaultChatUri(session.toString()), interactivity);
+	}
+
 	/**
 	 * Builds the default-chat {@link ChatState} for a session, seeded with any
 	 * conversation fields a test attached to the session's {@link SeededSessionState}.
@@ -492,6 +506,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const chatSummary = createDefaultChatSummary(sessionSummary, chatUriStr);
 		return {
 			...createChatState(chatSummary),
+			interactivity: this._chatInteractivities.get(chatUriStr),
 			turns: seeded?.turns ?? [],
 			activeTurn: seeded?.activeTurn,
 			steeringMessage: seeded?.steeringMessage,
@@ -4749,6 +4764,155 @@ suite('AgentHostChatContribution', () => {
 	// ---- History loading ---------------------------------------------------
 
 	suite('history loading', () => {
+
+		test('archived session read-only state follows session status', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'archived-session');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(),
+					provider: 'copilot',
+					title: 'Archived',
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/archived-session' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.ok(session.isReadOnly);
+
+			const states = [session.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 1,
+				origin: undefined,
+			});
+			states.push(session.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 2,
+				origin: undefined,
+			});
+			states.push(session.isReadOnly.get());
+
+			assert.deepStrictEqual(states, [true, false, true]);
+		});
+
+		test('non-archived session read-only state follows chat interactivity', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'read-only-chat');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(),
+					provider: 'copilot',
+					title: 'Read-only chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.seedChatInteractivity(sessionUri, ChatInteractivity.ReadOnly);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/read-only-chat' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.ok(session.isReadOnly);
+
+			const states = [session.isReadOnly.get()];
+			agentHostService.setChatInteractivity(sessionUri, ChatInteractivity.Full);
+			states.push(session.isReadOnly.get());
+
+			assert.deepStrictEqual(states, [true, false]);
+		});
+
+		test('new session read-only state follows status after materialization', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-read-only-session' });
+			const { chatSession, turnPromise, fire, session, turnId } = await startTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				disposables,
+				{ sessionResource },
+			);
+			assert.ok(chatSession.isReadOnly);
+
+			const backendSession = AgentSession.uri('copilot', 'new-read-only-session');
+			const states = [chatSession.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 100,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 101,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+
+			fire({ type: 'chat/turnComplete', endedAt: new Date().toISOString(), session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(states, [false, true, false]);
+		});
+
+		test('eager-created session read-only state follows status after materialization', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'new-eager-read-only-session');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Eager',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-eager-read-only-session' });
+			const { chatSession, turnPromise, fire, session, turnId } = await startTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				disposables,
+				{ sessionResource },
+			);
+			assert.ok(chatSession.isReadOnly);
+
+			const states = [chatSession.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 100,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 101,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+
+			fire({ type: 'chat/turnComplete', endedAt: new Date().toISOString(), session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(states, [false, true, false]);
+		});
 
 		test('loads user and assistant messages into history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
