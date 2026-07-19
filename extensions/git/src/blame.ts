@@ -65,7 +65,7 @@ function getEditorDecorationRange(lineNumber: number): Range {
 }
 
 function isResourceSchemeSupported(uri: Uri): boolean {
-	return uri.scheme === 'file' || isGitUri(uri);
+	return uri.scheme === 'file' || isGitUri(uri) || uri.scheme === 'gitlens' || uri.scheme === 'git-graph';
 }
 
 function isResourceBlameInformationEqual(a: ResourceBlameInformation | undefined, b: ResourceBlameInformation | undefined): boolean {
@@ -412,32 +412,39 @@ export class GitBlameController {
 		let workingTreeChanges: readonly TextEditorChange[];
 		let workingTreeAndIndexChanges: readonly TextEditorChange[] | undefined;
 
-		if (isGitUri(textEditor.document.uri)) {
-			const { ref } = fromGitUri(textEditor.document.uri);
+		const isGitlensOrGitGraph = textEditor.document.uri.scheme === 'gitlens' || textEditor.document.uri.scheme === 'git-graph';
 
-			// For the following scenarios we can discard the diff information
-			// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
-			// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
-			// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
-			if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
+		if (isGitUri(textEditor.document.uri) || isGitlensOrGitGraph) {
+			if (isGitlensOrGitGraph) {
 				workingTreeChanges = allChanges = [];
 				workingTreeAndIndexChanges = undefined;
-			} else if (ref === '') {
-				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
-				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
-
-				// Working tree + index diff information is present and it is stale. Diff information
-				// may be stale when the selection changes because of a content change and the diff
-				// information is not yet updated.
-				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
-					this.textEditorBlameInformation = undefined;
-					return;
-				}
-
-				workingTreeChanges = [];
-				workingTreeAndIndexChanges = allChanges = diffInformationWorkingTreeAndIndex?.changes ?? [];
 			} else {
-				throw new Error(`Unexpected ref: ${ref}`);
+				const { ref } = fromGitUri(textEditor.document.uri);
+
+				// For the following scenarios we can discard the diff information
+				// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
+				// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
+				// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
+				if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
+					workingTreeChanges = allChanges = [];
+					workingTreeAndIndexChanges = undefined;
+				} else if (ref === '') {
+					// Resource on the right-hand side of the diff editor when viewing a resource from the index.
+					const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
+
+					// Working tree + index diff information is present and it is stale. Diff information
+					// may be stale when the selection changes because of a content change and the diff
+					// information is not yet updated.
+					if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+						this.textEditorBlameInformation = undefined;
+						return;
+					}
+
+					workingTreeChanges = [];
+					workingTreeAndIndexChanges = allChanges = diffInformationWorkingTreeAndIndex?.changes ?? [];
+				} else {
+					throw new Error(`Unexpected ref: ${ref}`);
+				}
 			}
 		} else {
 			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
@@ -472,13 +479,29 @@ export class GitBlameController {
 		}
 
 		let commit: string;
-		if (!isGitUri(textEditor.document.uri)) {
+		if (textEditor.document.uri.scheme === 'file') {
 			// Resource with the `file` scheme
 			commit = repository.HEAD.commit;
-		} else {
+		} else if (isGitUri(textEditor.document.uri)) {
 			// Resource with the `git` scheme
 			const { ref } = fromGitUri(textEditor.document.uri);
 			commit = /^[0-9a-f]{40}$/i.test(ref) ? ref : repository.HEAD.commit;
+		} else if (textEditor.document.uri.scheme === 'gitlens') {
+			try {
+				const data = JSON.parse(textEditor.document.uri.query);
+				commit = data.ref ?? repository.HEAD.commit;
+			} catch {
+				commit = repository.HEAD.commit;
+			}
+		} else if (textEditor.document.uri.scheme === 'git-graph') {
+			try {
+				const data = JSON.parse(Buffer.from(textEditor.document.uri.query, 'base64').toString('utf8'));
+				commit = data.commit ?? repository.HEAD.commit;
+			} catch {
+				commit = repository.HEAD.commit;
+			}
+		} else {
+			commit = repository.HEAD.commit;
 		}
 
 		// Git blame information
