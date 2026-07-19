@@ -14,3 +14,32 @@
 	white-space: nowrap;
 	border: 0;
 }
+
+.sessions-chat-branch-picker-group {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	user-select: none;
+}
+
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox .action-label {
+	cursor: pointer;
+}
+
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox .monaco-checkbox {
+	margin-right: 6px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox .sessions-chat-dropdown-label {
+	margin-left: 0;
+	cursor: pointer;
+}
+
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox.disabled .action-label,
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox.disabled .sessions-chat-dropdown-label {
+	cursor: default;
+}
+
+.sessions-chat-picker-slot.sessions-chat-isolation-checkbox.hidden {
+	display: none;
+}

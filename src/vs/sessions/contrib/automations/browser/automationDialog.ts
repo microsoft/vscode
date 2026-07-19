@@ -10,7 +10,6 @@ import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -23,8 +22,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -186,11 +184,6 @@ const AUTOMATIONS_ISOLATION_GROUP_ACTION_ID = 'workbench.action.chat.renderAutom
 
 type BranchLoadState = 'noFolder' | 'loadingRepository' | 'noRepository' | 'loadingBranches' | 'ready' | 'empty' | 'error';
 
-interface IIsolationPickerItem {
-	readonly mode: 'workspace' | 'worktree';
-	readonly checked?: boolean;
-}
-
 function setAutomationControlVisible(container: HTMLElement, visible: boolean): void {
 	container.style.display = visible ? '' : 'none';
 	if (visible) {
@@ -205,13 +198,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 	private readonly branchRepoDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly branchRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private branchRequestId = 0;
-	private folderChip: HTMLSpanElement | undefined;
 	private readonly branchPicker: BranchPicker;
 	private branchLoadState: BranchLoadState = 'noFolder';
 	private repository: IGitRepository | undefined;
 	private branches: readonly string[] = [];
 	private detachedCommit: string | undefined;
-	private isolationPickerOpen = false;
 	private worktreeCapabilityResolved = false;
 
 	constructor(
@@ -223,7 +214,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		private readonly revalidate: () => void,
 		options: IBaseActionViewItemOptions | undefined,
 		private readonly visible: IObservable<boolean> | undefined,
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ILogService private readonly pickerLogService: ILogService,
@@ -246,11 +236,18 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			onRetry: () => {
 				void this.reloadRepository(this.isolationModel.folderUri);
 			},
+			isolation: {
+				label: localize('automation.form.isolation.worktree', "New Worktree"),
+				ariaLabel: localize('automation.form.isolation.checkboxAriaLabel', "Worktree isolation"),
+				onToggle: checked => {
+					this.isolationModel.selectIsolationMode(checked ? 'worktree' : 'workspace');
+					this.renderBranchControl();
+				},
+			},
 		}));
 	}
 
 	override render(container: HTMLElement): void {
-		super.render(container);
 		this.renderDisposables.clear();
 		this.branchRepoDisposable.clear();
 		this.cancelBranchRequest();
@@ -264,15 +261,9 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		}
 
 		const isolationGroup = DOM.append(container, $('span.automation-form-isolation-group'));
-		this.folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip')) as HTMLSpanElement;
-		this.folderChip.setAttribute('role', 'button');
-		this.folderChip.setAttribute('aria-haspopup', 'listbox');
-		this.folderChip.setAttribute('aria-expanded', 'false');
-		this.folderChip.tabIndex = 0;
 		this.branchPicker.render(isolationGroup);
 
 		this.refreshTargetCapability();
-		this.renderIsolationChip();
 		this.renderBranchControl();
 		this.renderDisposables.add(autorun(reader => {
 			const folderUri = this.workspaceFolder.read(reader);
@@ -283,31 +274,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			this.refreshTargetAndRender();
 		}));
 		this.renderDisposables.add(this.sessionsManagementService.onDidChangeSessionTypes(() => this.refreshTargetAndRender()));
-		this.registerTrigger(this.folderChip, () => this.showIsolationPicker());
 		this.renderDisposables.add({
 			dispose: () => {
 				this.cancelBranchRequest();
-				if (this.isolationPickerOpen) {
-					this.actionWidgetService.hide(true);
-				}
 			}
 		});
-	}
-
-	private registerTrigger(trigger: HTMLElement, run: () => void): void {
-		this.renderDisposables.add(Gesture.addTarget(trigger));
-		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
-			this.renderDisposables.add(DOM.addDisposableListener(trigger, eventType, e => {
-				DOM.EventHelper.stop(e, true);
-				run();
-			}));
-		}
-		this.renderDisposables.add(DOM.addDisposableListener(trigger, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				DOM.EventHelper.stop(e, true);
-				run();
-			}
-		}));
 	}
 
 	private refreshTargetCapability(): void {
@@ -337,25 +308,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 
 	private refreshTargetAndRender(): void {
 		this.refreshTargetCapability();
-		this.renderIsolationChip();
 		this.renderBranchControl();
-	}
-
-	private renderIsolationChip(): void {
-		if (!this.folderChip) {
-			return;
-		}
-		DOM.clearNode(this.folderChip);
-		const isWorktree = this.state.isolationMode === 'worktree';
-		const modeIcon = isWorktree ? Codicon.worktree : Codicon.folder;
-		const modeLabel = isWorktree
-			? localize('automation.form.isolation.worktree', "Worktree")
-			: localize('automation.form.isolation.folder', "Folder");
-		this.folderChip.setAttribute('aria-label', localize('automation.form.isolation.pickerAriaLabel', "Pick Isolation Mode, {0}", modeLabel));
-		this.folderChip.title = modeLabel;
-		const icon = DOM.append(this.folderChip, renderIcon(modeIcon));
-		icon.setAttribute('aria-hidden', 'true');
-		DOM.append(this.folderChip, $('span.automation-form-isolation-label', undefined, modeLabel));
 	}
 
 	private renderBranchControl(): void {
@@ -373,6 +326,10 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				unavailable: true,
 			});
 		}
+		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
+		const isolationState: 'enabled' | 'disabled' | 'hidden' =
+			worktreeUnavailableReason === undefined ? 'enabled' : 'disabled';
+
 		this.branchPicker.update({
 			label: presentation.label,
 			branches,
@@ -387,6 +344,11 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			disabledReason: presentation.reason,
 			missing: presentation.missing,
 			showChevron: this.isolationModel.branchPickerAvailable || this.branchLoadState === 'error',
+			isolation: {
+				checked: this.isolationModel.isolationMode === 'worktree',
+				state: isolationState,
+				disabledReason: worktreeUnavailableReason,
+			},
 		});
 		this.revalidate();
 	}
@@ -504,64 +466,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 			case 'noFolder':
 				return localize('automation.form.isolation.worktreeNoFolder', "Select a folder to use Worktree isolation.");
 		}
-	}
-
-	private showIsolationPicker(): void {
-		if (!this.folderChip || this.actionWidgetService.isVisible) {
-			return;
-		}
-		const currentMode = this.state.isolationMode ?? 'workspace';
-		const worktreeUnavailableReason = this.getWorktreeUnavailableReason();
-		const worktreeDisabled = worktreeUnavailableReason !== undefined;
-		const items: IActionListItem<IIsolationPickerItem>[] = [
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.worktree', "Worktree"),
-				group: { title: '', icon: Codicon.worktree },
-				disabled: worktreeDisabled,
-				detail: worktreeUnavailableReason,
-				item: { mode: 'worktree', checked: currentMode === 'worktree' || undefined },
-			},
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.isolation.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
-				item: { mode: 'workspace', checked: currentMode === 'workspace' || undefined },
-			},
-		];
-		const trigger = this.folderChip;
-		const delegate: IActionListDelegate<IIsolationPickerItem> = {
-			onSelect: ({ mode }) => {
-				this.actionWidgetService.hide();
-				this.isolationModel.selectIsolationMode(mode);
-				this.renderIsolationChip();
-				this.renderBranchControl();
-			},
-			onHide: () => {
-				if (this.isolationPickerOpen) {
-					this.isolationPickerOpen = false;
-					trigger.setAttribute('aria-expanded', 'false');
-					if (trigger.isConnected) {
-						trigger.focus();
-					}
-				}
-			},
-		};
-		this.isolationPickerOpen = true;
-		trigger.setAttribute('aria-expanded', 'true');
-		this.actionWidgetService.show(
-			'automationIsolationPicker',
-			false,
-			items,
-			delegate,
-			this.folderChip,
-			undefined,
-			[],
-			{
-				getAriaLabel: item => item.label ?? '',
-				getWidgetAriaLabel: () => localize('automation.form.isolation.widgetAriaLabel', "Isolation Mode"),
-			},
-		);
 	}
 
 	private cancelBranchRequest(): void {
