@@ -38,7 +38,7 @@ import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmit
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isDefaultChatUri, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -54,7 +54,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isMcpTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
@@ -101,6 +101,8 @@ interface ICopilotActiveToolCall {
 	readonly content: ToolResultContent[];
 	readonly parentToolCallId: string | undefined;
 	readonly mcpServerName: string | undefined;
+	readonly contributor: ToolCallContributor | undefined;
+	readonly intention: string | undefined;
 	meta: IToolCallMeta | undefined;
 }
 
@@ -2071,6 +2073,8 @@ export class CopilotAgentSession extends Disposable {
 							toolCallId,
 							toolName: request.toolName,
 							displayName,
+							...(trackedToolCall?.contributor ? { contributor: trackedToolCall.contributor } : {}),
+							...(trackedToolCall?.intention !== undefined ? { intention: trackedToolCall.intention } : {}),
 							invocationMessage: getInvocationMessage(request.toolName, displayName, parameters),
 							toolInput: getToolInputString(request.toolName, parameters, tryStringify(parameters)),
 							riskAssessment: autoApproval?.reason
@@ -2200,7 +2204,8 @@ export class CopilotAgentSession extends Disposable {
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
 			// parent session, which has no matching ChatToolCallStart.
-			const parentToolCallId = this._activeToolCalls.get(toolCallId)?.parentToolCallId;
+			const trackedToolCall = this._activeToolCalls.get(toolCallId);
+			const parentToolCallId = trackedToolCall?.parentToolCallId;
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
@@ -2209,6 +2214,8 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId,
 					toolName,
 					displayName: getToolDisplayName(toolName),
+					...(trackedToolCall?.contributor ? { contributor: trackedToolCall.contributor } : {}),
+					...(trackedToolCall?.intention !== undefined ? { intention: trackedToolCall.intention } : {}),
 					invocationMessage,
 					toolInput,
 					confirmationTitle,
@@ -2541,7 +2548,8 @@ export class CopilotAgentSession extends Disposable {
 				? localize('agentHost.unsandboxedCommandConfirmation.blockedDomains', "This command needs to access blocked network domain(s): {0}.", blockedDomains)
 				: localize('agentHost.unsandboxedCommandConfirmation.generic', "This command needs to run outside the sandbox.");
 
-		const parentToolCallId = this._activeToolCalls.get(request.toolCallId)?.parentToolCallId;
+		const trackedToolCall = this._activeToolCalls.get(request.toolCallId);
+		const parentToolCallId = trackedToolCall?.parentToolCallId;
 		this._onDidSessionProgress.fire({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
@@ -2550,6 +2558,8 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: request.toolCallId,
 				toolName: request.toolName,
 				displayName,
+				...(trackedToolCall?.contributor ? { contributor: trackedToolCall.contributor } : {}),
+				...(trackedToolCall?.intention !== undefined ? { intention: trackedToolCall.intention } : {}),
 				invocationMessage,
 				toolInput: request.command,
 				confirmationTitle,
@@ -3047,7 +3057,7 @@ export class CopilotAgentSession extends Disposable {
 			this._streamingToolCalls.set(e.data.toolCallId, streamed);
 
 			const toolName = streamed.toolName;
-			if (!toolName || isHiddenTool(toolName) || isTaskCompleteTool(toolName) || isMcpTool(toolName) || this._clientToolNames.has(toolName)) {
+			if (!toolName || isHiddenTool(toolName) || isTaskCompleteTool(toolName) || this._clientToolNames.has(toolName)) {
 				return;
 			}
 			if (!streamed.started) {
@@ -3120,14 +3130,25 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = streamed?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
+			const isClientTool = this._clientToolNames.has(e.data.toolName);
+			const contributor = this._getToolCallContributor(e.data.toolName, e.data.mcpServerName);
+			const intention = getShellIntention(e.data.toolName, parameters);
+			this._activeToolCalls.set(e.data.toolCallId, {
+				toolName: e.data.toolName,
+				displayName,
+				parameters,
+				content: [],
+				parentToolCallId,
+				mcpServerName: e.data.mcpServerName,
+				contributor,
+				intention,
+				meta: undefined,
+			});
 			if (isTaskCompleteTool(e.data.toolName)) {
 				this._beginToolCallRound(parentToolCallId);
 				return;
 			}
 
-			const isClientTool = this._clientToolNames.has(e.data.toolName);
-			const contributor = this._getToolCallContributor(e.data.toolName, e.data.mcpServerName);
 			if (!streamed?.started) {
 				this._beginToolCallRound(parentToolCallId);
 			}
@@ -3159,7 +3180,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					toolName: e.data.toolName,
 					displayName,
-					intention: getShellIntention(e.data.toolName, parameters),
+					intention,
 					contributor,
 					_meta: toToolCallMeta(meta),
 				}, parentToolCallId);
@@ -3177,6 +3198,8 @@ export class CopilotAgentSession extends Disposable {
 					type: ActionType.ChatToolCallReady,
 					turnId: this._turnId,
 					toolCallId: e.data.toolCallId,
+					...(contributor ? { contributor } : {}),
+					...(intention !== undefined ? { intention } : {}),
 					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
@@ -3211,6 +3234,8 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatToolCallReady,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
+				...(contributor ? { contributor } : {}),
+				...(intention !== undefined ? { intention } : {}),
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,

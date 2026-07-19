@@ -637,10 +637,11 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
-			// Only the start action carries the tool name and contributor, so the
-			// source kind must be captured here rather than on completion. The
-			// provider comes from the agent that emitted the signal.
+			// Ready may refine the contributor once the complete tool metadata is
+			// available, so the tracker updates the source kind below when needed.
 			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.toolCallId, action.toolName, action.contributor);
+		} else if (action.type === ActionType.ChatToolCallReady) {
+			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor);
 		}
 
 		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;

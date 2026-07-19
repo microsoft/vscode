@@ -61,7 +61,7 @@ interface IToolCallTiming {
 	readonly provider: string;
 	readonly session: string;
 	readonly toolId: string;
-	readonly toolSourceKind: string;
+	toolSourceKind: string;
 }
 
 interface IStalledToolCall {
@@ -101,6 +101,13 @@ export class AgentHostToolCallTracker extends Disposable {
 			toolId: toolName,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
 		});
+	}
+
+	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
+		const timing = this._toolCalls.get(this._key(session, toolCallId));
+		if (timing && contributor) {
+			timing.toolSourceKind = toolSourceKindFromContributor(contributor);
+		}
 	}
 
 	toolCallCompleted(session: string, toolCallId: string, result: ToolCallResult): void {

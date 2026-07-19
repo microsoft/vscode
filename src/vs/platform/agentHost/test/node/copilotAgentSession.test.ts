@@ -2806,15 +2806,15 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				starts: starts.map(action => ({ toolCallId: action.toolCallId, toolName: action.toolName })),
 				deltas: deltas.map(action => ({ content: action.content, hasInvocationMessage: action.invocationMessage !== undefined })),
-				ready: ready && { toolCallId: ready.toolCallId, toolInput: ready.toolInput },
+				ready: ready && { toolCallId: ready.toolCallId, toolInput: ready.toolInput, intention: ready.intention },
 			}, {
 				starts: [{ toolCallId: 'tc-stream', toolName: 'bash' }],
 				deltas: [{ content: '{"command":"npm test","description":"Run', hasInvocationMessage: true }],
-				ready: { toolCallId: 'tc-stream', toolInput: 'npm test' },
+				ready: { toolCallId: 'tc-stream', toolInput: 'npm test', intention: 'Run all tests' },
 			});
 		});
 
-		test('MCP tool deltas are buffered until the contributor is known at tool start', async () => {
+		test('MCP tool deltas stream before final contributor metadata arrives', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
@@ -2838,18 +2838,21 @@ suite('CopilotAgentSession', () => {
 
 			const actions = getActions(signals);
 			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
-			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta);
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
 			assert.deepStrictEqual({
 				startCount: starts.length,
 				startContributor: starts[0]?.contributor,
-				deltaCount: deltas.length,
+				deltas: deltas.map(action => action.content),
+				readyContributor: ready?.contributor,
 			}, {
 				startCount: 1,
-				startContributor: {
+				startContributor: undefined,
+				deltas: ['{"topic":"metadata"}'],
+				readyContributor: {
 					kind: ToolCallContributorKind.MCP,
 					customizationId: 'mcp-top-level:copilot:test-session-1:docs',
 				},
-				deltaCount: 0,
 			});
 		});
 
@@ -4573,6 +4576,7 @@ suite('CopilotAgentSession', () => {
 					toolCallId: 'tc-assisted',
 					toolName: 'my_tool',
 					displayName: 'my_tool',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
 					invocationMessage: 'my_tool',
 					toolInput: { file: 'test.ts' },
 					riskAssessment: {

@@ -184,6 +184,16 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
  */
 export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallReady;
+	/**
+	 * Reference to the contributor of the tool being called. When present,
+	 * replaces the contributor supplied at `chat/toolCallStart`.
+	 */
+	contributor?: ToolCallContributor;
+	/**
+	 * Final human-readable description of what the tool invocation intends to do.
+	 * When present, replaces the provisional intention from `chat/toolCallStart`.
+	 */
+	intention?: string;
 	/** Message describing what the tool will do or what confirmation is needed */
 	invocationMessage: StringOrMarkdown;
 	/** Raw tool input */

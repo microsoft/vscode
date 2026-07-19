@@ -415,7 +415,11 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 				) {
 					return tc;
 				}
-				const base = tcBaseWithMeta(tc, action._meta);
+				const base = {
+					...tcBaseWithMeta(tc, action._meta),
+					contributor: action.contributor ?? tc.contributor,
+					intention: action.intention ?? tc.intention,
+				};
 				if (action.confirmed) {
 					return {
 						status: ToolCallStatus.Running,

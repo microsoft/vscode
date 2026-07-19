@@ -89,7 +89,6 @@ const enum CopilotToolName {
 	WriteAgent = 'write_agent',
 	McpReload = 'mcp_reload',
 	McpValidate = 'mcp_validate',
-	McpTool = 'mcp_tool',
 	ToolSearchToolRegex = 'tool_search_tool_regex',
 	CodeqlChecker = 'codeql_checker',
 }
@@ -399,10 +398,6 @@ const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export function isHiddenTool(toolName: string): boolean {
 	return HIDDEN_TOOL_NAMES.has(toolName);
-}
-
-export function isMcpTool(toolName: string): boolean {
-	return toolName === CopilotToolName.McpTool;
 }
 
 /**

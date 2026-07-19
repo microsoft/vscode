@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ResponsePartKind, ToolCallStatus, TurnState, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationType, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -332,6 +332,45 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
 			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
 		]);
+	});
+
+	test('ChatToolCallReady replaces provisional contributor and intention', () => {
+		let state = chatReducer(makeChat(), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			toolName: 'mcp_tool',
+			displayName: 'MCP Tool',
+			intention: 'Query',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+			invocationMessage: 'Querying project metadata',
+			toolInput: '{"query":"metadata"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.ok(part?.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			status: part.toolCall.status,
+			contributor: part.toolCall.contributor,
+			intention: part.toolCall.intention,
+		}, {
+			status: ToolCallStatus.Running,
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+			intention: 'Query project metadata',
+		});
 	});
 
 	test('ChatToolCallReady updates an asynchronous judge result on a pending confirmation', () => {

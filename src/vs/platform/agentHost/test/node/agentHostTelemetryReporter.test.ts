@@ -7,10 +7,13 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { AgentSession } from '../../common/agentService.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostRestrictedTelemetry, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { ToolCallContributorKind } from '../../common/state/sessionState.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -30,10 +33,15 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 
 	readonly enhancedEvents: IRestrictedCall[] = [];
 	readonly internalEvents: IRestrictedCall[] = [];
+	readonly publicEvents: { eventName: string; data: object }[] = [];
 
 	publicLog(): void { }
 	publicLogError(): void { }
-	publicLog2(): void { }
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
+		if (data !== undefined) {
+			this.publicEvents.push({ eventName, data });
+		}
+	}
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
@@ -54,10 +62,33 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 }
 
 suite('AgentHostTelemetryReporter', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
+
+	test('tool call tracker uses contributor refined after start', () => {
+		const service = new TestRestrictedTelemetryService();
+		const tracker = disposables.add(new AgentHostToolCallTracker(new AgentHostTelemetryReporter(service)));
+		tracker.toolCallStarted('copilotcli', session, 'tc-1', 'mcp_tool', undefined);
+		tracker.toolCallMetadataUpdated(session, 'tc-1', { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' });
+		tracker.toolCallCompleted(session, 'tc-1', { success: true, pastTenseMessage: 'Done' });
+
+		assert.deepStrictEqual(service.publicEvents.map(event => ({
+			eventName: event.eventName,
+			data: Object.fromEntries(Object.entries(event.data).filter(([key]) => key !== 'invocationTimeMs')),
+		})), [{
+			eventName: 'languageModelToolInvoked',
+			data: {
+				result: 'success',
+				chatSessionId: session,
+				toolId: 'mcp_tool',
+				toolExtensionId: undefined,
+				toolSourceKind: 'mcp',
+				provider: 'copilotcli',
+			},
+		}]);
+	});
 
 	test('assistantMessageReceived emits request.options.tools keyed on the service request id, and no-ops without one or without tools', () => {
 		const service = new TestRestrictedTelemetryService();
@@ -202,4 +233,3 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.enhancedEvents[0].properties?.skillExtensionVersion, '');
 	});
 });
-
