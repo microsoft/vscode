@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { actionWidgetDropdownCloseAnimation, IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
@@ -45,6 +47,8 @@ type ChatContextSizeChangeEvent = {
 	toValue: string;
 };
 
+const CUSTOM_CONTEXT_SIZE_ACTION_ID = 'tokens.custom';
+
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly getConfigurationAccess: () => IModelConfigurationAccess;
@@ -52,6 +56,7 @@ export interface IModelPickerConfigurationHost {
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
+	readonly refresh: () => void;
 }
 
 export class ModelPickerConfiguration {
@@ -60,6 +65,7 @@ export class ModelPickerConfiguration {
 		private readonly _host: IModelPickerConfigurationHost,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) { }
 
 	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean): void {
@@ -108,6 +114,10 @@ export class ModelPickerConfiguration {
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
+				if (action.id === CUSTOM_CONTEXT_SIZE_ACTION_ID) {
+					await action.run();
+					return;
+				}
 				this._actionWidgetService.focusItemById(action.id);
 				await action.run();
 				this._actionWidgetService.updateItems(this._buildItems(), action.id);
@@ -186,10 +196,10 @@ export class ModelPickerConfiguration {
 			headerLabel: string,
 			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
 			logChange: (value: unknown, previousValue: string) => void,
-		): void => {
+		) => {
 			const config = this._getConfigProperty(group);
 			if (!config) {
-				return;
+				return undefined;
 			}
 			const previousValue = String(config.value ?? '');
 			const enumValues = config.schema.enum ?? [];
@@ -226,6 +236,7 @@ export class ModelPickerConfiguration {
 					hideIcon: false,
 				});
 			}
+			return config;
 		};
 
 		appendConfigSection(
@@ -238,16 +249,65 @@ export class ModelPickerConfiguration {
 				toValue: String(value),
 			}),
 		);
-		appendConfigSection(
+		const logContextSizeChange = (value: unknown, previousValue: string) => this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+			model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+			fromValue: previousValue,
+			toValue: String(value),
+		});
+		const tokensConfig = appendConfigSection(
 			'tokens',
 			localize('chat.tokens.header', "Context Size"),
 			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
-			(value, previousValue) => this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-				model: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-				fromValue: previousValue,
-				toValue: String(value),
-			}),
+			logContextSizeChange,
 		);
+		if (tokensConfig) {
+			const currentValue = typeof tokensConfig.value === 'number' && Number.isFinite(tokensConfig.value) ? tokensConfig.value : undefined;
+			const customChecked = currentValue !== undefined && !tokensConfig.schema.enum?.includes(currentValue);
+			const customLabel = customChecked
+				? localize('chat.tokens.customCurrent', "Custom ({0})", formatTokenCount(currentValue))
+				: localize('chat.tokens.custom', "Custom...");
+			items.push({
+				item: {
+					id: CUSTOM_CONTEXT_SIZE_ACTION_ID,
+					enabled: true,
+					checked: customChecked,
+					class: undefined,
+					tooltip: localize('chat.tokens.custom.tooltip', "Enter a custom context size in tokens."),
+					label: customLabel,
+					run: async () => {
+						this._actionWidgetService.hide(true);
+						await timeout(actionWidgetDropdownCloseAnimation.duration);
+						const input = await this._quickInputService.input({
+							placeHolder: localize('chat.tokens.custom.placeholder', "Context size in tokens"),
+							prompt: localize('chat.tokens.custom.prompt', "Enter a positive integer context size in tokens."),
+							value: currentValue !== undefined ? String(currentValue) : '',
+							ignoreFocusLost: true,
+							validateInput: async value => {
+								const inputValue = value.trim();
+								const contextSize = Number(inputValue);
+								if (!/^\d+$/.test(inputValue) || !Number.isSafeInteger(contextSize) || contextSize <= 0) {
+									return localize('chat.tokens.custom.invalid', "Enter a positive integer.");
+								}
+								return undefined;
+							},
+						});
+						if (input === undefined) {
+							return;
+						}
+						const contextSize = Number(input.trim());
+						logContextSizeChange(contextSize, String(tokensConfig.value ?? ''));
+						await configurationAccess.setModelConfiguration(modelIdentifier, { [tokensConfig.key]: contextSize });
+						this._host.refresh();
+					},
+				},
+				kind: ActionListItemKind.Action,
+				label: customLabel,
+				ariaDescription: customChecked ? localize('chat.tokens.custom.currentAriaDescription', "Custom context size") : undefined,
+				hover: { content: localize('chat.tokens.custom.hover', "Enter a custom context size in tokens.") },
+				group: { title: '', icon: ThemeIcon.fromId(customChecked ? Codicon.check.id : Codicon.blank.id) },
+				hideIcon: false,
+			});
+		}
 
 		return items;
 	}

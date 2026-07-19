@@ -26,6 +26,13 @@ const schemaWithContextSize: ILanguageModelConfigurationSchema = {
 	}
 };
 
+const schemaWithAgentDefaults: ILanguageModelConfigurationSchema = {
+	properties: {
+		thinkingEffort: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium', group: 'navigation' },
+		contextSize: { type: 'number', enum: [200_000, 1_000_000], default: 200_000, group: 'tokens' },
+	}
+};
+
 const MODEL = 'copilot/gpt';
 const KEY = 'chat.modelConfiguration.panel';
 
@@ -86,6 +93,72 @@ suite('ChatModelConfigurationStore', () => {
 		// A newly opened editor sharing the same storage inherits the value.
 		const editorB = createStore(storage, createStubService());
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
+	});
+
+	test('agent defaults update scoped state without profile-global writes', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const globalWrites: Array<{ modelId: string; values: IStringDictionary<unknown> }> = [];
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: schemaWithAgentDefaults } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => ({ thinkingEffort: 'low', contextSize: 1_000_000 }),
+			setModelConfiguration: async (modelId: string, values: IStringDictionary<unknown>) => { globalWrites.push({ modelId, values }); },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(storage, service);
+		let eventCount = 0;
+		store.add(editor.onDidChange(() => eventCount++));
+
+		editor.applyAgentModelDefaults(MODEL, { contextSize: 333_333 });
+
+		assert.deepStrictEqual({
+			configuration: editor.getModelConfiguration(MODEL),
+			stored: JSON.parse(storage.get(KEY, StorageScope.APPLICATION) ?? '{}'),
+			eventCount,
+			globalWrites,
+		}, {
+			configuration: { thinkingEffort: 'low', contextSize: 333_333 },
+			stored: { [MODEL]: { thinkingEffort: 'low', contextSize: 333_333 } },
+			eventCount: 1,
+			globalWrites: [],
+		});
+	});
+
+	test('custom context size round-trips through storage to a newly opened editor', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: schemaWithAgentDefaults } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editorA = createStore(storage, service);
+
+		await editorA.setModelConfiguration(MODEL, { contextSize: 333_333 });
+
+		assert.deepStrictEqual(editorA.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 333_333 });
+		assert.deepStrictEqual(JSON.parse(storage.get(KEY, StorageScope.APPLICATION) ?? '{}'), { [MODEL]: { contextSize: 333_333 } });
+
+		const editorB = createStore(storage, service);
+		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 333_333 });
+	});
+
+	test('restoring a custom context size keeps it selected', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: schemaWithAgentDefaults } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editorA = createStore(storage, service);
+
+		// Reopening a session restores the captured configuration through schema
+		// filtering. The custom value must survive even though it is not an enum
+		// member, so the context-size picker can mark it as selected.
+		editorA.restoreModelConfiguration(MODEL, { contextSize: 333_333 });
+
+		assert.deepStrictEqual(editorA.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 333_333 });
+		assert.deepStrictEqual(JSON.parse(storage.get(KEY, StorageScope.APPLICATION) ?? '{}'), { [MODEL]: { contextSize: 333_333 } });
 	});
 
 	test('already-open editor keeps its own snapshot when another editor writes', () => {

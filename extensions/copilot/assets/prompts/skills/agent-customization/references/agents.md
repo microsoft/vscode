@@ -16,7 +16,7 @@ Custom personas with specific tools, instructions, and behaviors. Use for orches
 description: "<required>"    # For agent picker and subagent discovery
 name: "Agent Name"           # Optional, defaults to filename
 tools: [search, web]         # Optional: aliases, MCP (<server>/*), extension tools
-model: "Claude Sonnet 4"     # Optional, uses picker default; supports array for fallback
+model: "Claude Sonnet 4"     # Optional; supports fallback entries with per-model defaults
 argument-hint: "Task..."     # Optional, input guidance
 agents: [agent1, agent2]     # Optional, restrict allowed subagents by name (omit = all, [] = none)
 user-invocable: true         # Optional, show in agent picker (default: true)
@@ -44,6 +44,22 @@ hooks:                       # Optional, inline hooks for this agent's lifecycle
 ```yaml
 model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']  # First available model is used
 ```
+
+VS Code-target and default-target agents can mix model names with structured entries. Each structured entry requires `name` and can declare `reasoning-effort` and a positive-integer `context-size` cap:
+
+```yaml
+model:
+  - name: GPT-5 (copilot)
+    reasoning-effort: high
+    context-size: 200000
+  - Claude Sonnet 4.5 (copilot)
+```
+
+VS Code checks entries in order and selects the first available model. Defaults come from that same entry; an unavailable entry's configuration is never applied to a later fallback. Reasoning effort must be supported by the selected provider. Context size can be any positive integer, including a value that is not one of the provider's advertised picker tiers.
+
+When the agent is selected manually, declared defaults update that chat editor's model picker and request configuration. A later manual model or configuration choice overrides them until the agent is explicitly selected again or its definition changes. For `runSubagent`, an explicit `model` argument takes precedence; otherwise the agent fallback is used, then the parent request model.
+
+Structured entries are not supported in prompt files, Claude-target agents, or GitHub-target agents.
 
 ## Tools
 

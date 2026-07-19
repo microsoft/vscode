@@ -122,6 +122,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		await this.languageModelsService.setModelConfiguration(modelId, values);
 	}
 
+	applyAgentModelDefaults(modelId: string, values: IStringDictionary<unknown>): void {
+		this._applyLocalModelConfiguration(modelId, values);
+	}
+
 	/**
 	 * Applies the change to this editor's scoped state only (in-memory snapshot
 	 * and persisted bucket). Returns `true` when something actually changed, so

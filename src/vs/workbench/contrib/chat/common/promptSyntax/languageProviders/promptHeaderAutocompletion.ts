@@ -16,12 +16,13 @@ import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { IMapValue, ISequenceValue, IValue, IHeaderAttribute, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDefinition, getTarget, getValidAttributeNames, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
+import { getAttributeDefinition, getTarget, getValidAttributeNames, isVSCodeOrDefaultTarget, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { getCustomAgentModelConfigurationProperty } from '../customAgentModels.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -105,7 +106,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				// an empty line before the next attribute still belongs to the map.
 				for (let i = header.attributes.length - 1; i >= 0; i--) {
 					const attr = header.attributes[i];
-					if (attr.range.endLineNumber < position.lineNumber && attr.value.type === 'map') {
+					if (attr.range.endLineNumber < position.lineNumber && (attr.value.type === 'map' || attr.key === PromptHeaderAttributes.model && attr.value.type === 'sequence')) {
 						const nextAttr = header.attributes[i + 1];
 						const nextStartLine = nextAttr ? nextAttr.range.startLineNumber : headerRange.endLineNumber;
 						if (position.lineNumber < nextStartLine) {
@@ -198,6 +199,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			if (attribute.key === PromptHeaderAttributes.model) {
 				if (attribute.value.type === 'sequence') {
+					if (promptType === PromptsType.agent && isVSCodeOrDefaultTarget(target)) {
+						const objectCompletions = this.provideModelObjectCompletions(model, position, attribute.value);
+						if (objectCompletions) {
+							return objectCompletions;
+						}
+					}
 					// if the position is inside the tools metadata, we provide tool name completions
 					const getValues = async () => {
 						if (target === Target.Claude) {
@@ -607,6 +614,79 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 		}
 		return result;
+	}
+
+	private provideModelObjectCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue): CompletionList | undefined {
+		const mapItems = arrayValue.items.filter((item): item is IMapValue => item.type === 'map');
+		const mapItem = mapItems.find(item => item.range.containsPosition(position))
+			?? mapItems.findLast((item, index) => item.range.startLineNumber <= position.lineNumber && (mapItems[index + 1]?.range.startLineNumber ?? Number.POSITIVE_INFINITY) > position.lineNumber);
+		if (!mapItem) {
+			return undefined;
+		}
+
+		const lineText = model.getLineContent(position.lineNumber);
+		const property = mapItem.properties.find(candidate => candidate.key.range.startLineNumber === position.lineNumber || candidate.value.range.containsPosition(position));
+		const colonIndex = lineText.indexOf(':');
+		if (property && colonIndex >= 0 && position.column > colonIndex + 1) {
+			const entries = this.getModelObjectValueSuggestions(mapItem, property.key.value);
+			const whitespaceAfterColon = lineText.substring(colonIndex + 1).match(/^\s*/)?.[0].length ?? 0;
+			const range = new Range(position.lineNumber, colonIndex + whitespaceAfterColon + 2, position.lineNumber, model.getLineMaxColumn(position.lineNumber));
+			return {
+				suggestions: entries.map(entry => ({
+					label: entry.name,
+					documentation: entry.description,
+					kind: CompletionItemKind.Value,
+					insertText: whitespaceAfterColon === 0 ? ` ${entry.name}` : entry.name,
+					range,
+				}))
+			};
+		}
+
+		const existingKeys = new Set(mapItem.properties.map(candidate => candidate.key.value));
+		if (property?.key.range.startLineNumber === position.lineNumber) {
+			existingKeys.delete(property.key.value);
+		}
+		const prefixLength = lineText.match(/^\s*(?:-\s*)?/)?.[0].length ?? 0;
+		const range = new Range(position.lineNumber, prefixLength + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber));
+		const definitions: readonly { key: string; description: string }[] = [
+			{ key: 'name', description: localize('promptHeaderAutocompletion.model.name', "The model's qualified name.") },
+			{ key: 'reasoning-effort', description: localize('promptHeaderAutocompletion.model.reasoningEffort', 'The provider-supported reasoning effort to use.') },
+			{ key: 'context-size', description: localize('promptHeaderAutocompletion.model.contextSize', 'A positive-integer context-size cap.') },
+		];
+		return {
+			suggestions: definitions
+				.filter(definition => !existingKeys.has(definition.key))
+				.map(definition => ({
+					label: definition.key,
+					documentation: definition.description,
+					kind: CompletionItemKind.Property,
+					insertText: `${definition.key}: `,
+					range,
+				}))
+		};
+	}
+
+	private getModelObjectValueSuggestions(mapItem: IMapValue, key: string): readonly IValueEntry[] {
+		if (key === 'name') {
+			return this.getModelNames(true);
+		}
+		const nameProperty = mapItem.properties.find(property => property.key.value === 'name');
+		if (nameProperty?.value.type !== 'scalar') {
+			return [];
+		}
+		const metadata = this.languageModelsService.lookupLanguageModelByQualifiedName(nameProperty.value.value.trim())?.metadata;
+		if (!metadata) {
+			return [];
+		}
+		const property = key === 'reasoning-effort'
+			? getCustomAgentModelConfigurationProperty(metadata, 'navigation')
+			: key === 'context-size'
+				? getCustomAgentModelConfigurationProperty(metadata, 'tokens')
+				: undefined;
+		return property?.schema.enum?.map((value, index) => ({
+			name: String(value),
+			description: property.schema.enumDescriptions?.[index],
+		})) ?? [];
 	}
 
 	private async provideArrayCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue, getValues: () => Promise<ReadonlyArray<IValueEntry>>): Promise<CompletionList | undefined> {

@@ -18,6 +18,9 @@ const effortSchema: ILanguageModelConfigurationSchema = {
 	properties: {
 		thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' },
 		contextSize: { type: 'number' }, // no default
+		tieredContextSize: { type: 'number', enum: [200_000, 1_000_000], group: 'tokens' },
+		inferredContextSize: { enum: [200_000, 1_000_000], group: 'tokens' },
+		numericChoice: { type: 'number', enum: [1, 2] },
 	}
 };
 
@@ -104,6 +107,21 @@ suite('chatModelConfigurationLogic', () => {
 		test('keeps values for non-enum properties (no constraint to validate)', () => {
 			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
 			assert.deepStrictEqual(filtered, { contextSize: 2000 });
+		});
+
+		test('keeps custom numeric values for enum-backed context-size properties', () => {
+			const filtered = filterConfigurationToSchema({ tieredContextSize: 333_333, inferredContextSize: 333_333 }, effortSchema);
+			assert.deepStrictEqual(filtered, { tieredContextSize: 333_333, inferredContextSize: 333_333 });
+		});
+
+		test('drops invalid custom context-size values', () => {
+			const filtered = filterConfigurationToSchema({ tieredContextSize: -1 }, effortSchema);
+			assert.deepStrictEqual(filtered, {});
+		});
+
+		test('still drops enum misses for non-context numeric properties', () => {
+			const filtered = filterConfigurationToSchema({ numericChoice: 3 }, effortSchema);
+			assert.deepStrictEqual(filtered, {});
 		});
 
 		test('returns empty when the schema (or its properties) is missing', () => {

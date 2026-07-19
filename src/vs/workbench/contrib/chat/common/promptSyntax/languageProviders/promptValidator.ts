@@ -26,6 +26,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { getCustomAgentModelConfigurationProperty } from '../customAgentModels.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -247,7 +248,7 @@ export class PromptValidator {
 			case PromptsType.prompt: {
 				const agent = await this.validateAgent(attributes, report);
 				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
-				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
+				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, false, report);
 				break;
 			}
 			case PromptsType.instructions:
@@ -267,7 +268,7 @@ export class PromptValidator {
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
 				this.validateHooks(attributes, target, report);
 				if (isVSCodeOrDefaultTarget(target)) {
-					this.validateModel(attributes, ChatModeKind.Agent, report);
+					this.validateModel(attributes, ChatModeKind.Agent, true, report);
 					this.validateHandoffs(attributes, report);
 					await this.validateAgentsAttribute(attributes, header, report);
 					this.validateGithubPermissions(attributes, report);
@@ -374,40 +375,82 @@ export class PromptValidator {
 		}
 	}
 
-	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
+	private validateModel(attributes: IHeaderAttribute[], agentKind: ChatModeKind, allowConfiguration: boolean, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'scalar' && attribute.value.type !== 'sequence') {
-			report(toMarker(localize('promptValidator.modelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings."), attribute.value.range, MarkerSeverity.Error));
+			const message = allowConfiguration
+				? localize('promptValidator.agentModelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings and model entries.")
+				: localize('promptValidator.modelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings.");
+			report(toMarker(message, attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 
-		const modelNames: [string, Range][] = [];
+		const modelEntries: { name: string; range: Range; reasoningEffort?: { value: string; range: Range }; contextSize?: { value: number; range: Range } }[] = [];
 		if (attribute.value.type === 'scalar') {
 			const modelName = attribute.value.value.trim();
 			if (modelName.length === 0) {
 				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
 				return;
 			}
-			modelNames.push([modelName, attribute.value.range]);
+			modelEntries.push({ name: modelName, range: attribute.value.range });
 		} else if (attribute.value.type === 'sequence') {
 			if (attribute.value.items.length === 0) {
 				report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
 				return;
 			}
 			for (const item of attribute.value.items) {
-				if (item.type !== 'scalar') {
+				if (item.type === 'scalar') {
+					const modelName = item.value.trim();
+					if (modelName.length === 0) {
+						report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+						continue;
+					}
+					modelEntries.push({ name: modelName, range: item.range });
+					continue;
+				}
+				if (item.type !== 'map' || !allowConfiguration) {
 					report(toMarker(localize('promptValidator.modelArrayMustContainStrings', "The 'model' array must contain only strings."), item.range, MarkerSeverity.Error));
-					return;
+					continue;
 				}
-				const modelName = item.value.trim();
-				if (modelName.length === 0) {
-					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
-					return;
+
+				const supportedKeys = new Set(['name', 'reasoning-effort', 'context-size']);
+				for (const property of item.properties) {
+					if (!supportedKeys.has(property.key.value)) {
+						report(toMarker(localize('promptValidator.modelObjectUnknownProperty', "Property '{0}' is not supported in a model entry. Supported: name, reasoning-effort, context-size.", property.key.value), property.key.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+					}
 				}
-				modelNames.push([modelName, item.range]);
+				const nameProperty = item.properties.find(property => property.key.value === 'name');
+				if (!nameProperty) {
+					report(toMarker(localize('promptValidator.modelObjectNameMissing', "A model entry must define a 'name' property."), item.range, MarkerSeverity.Error));
+					continue;
+				}
+				if (nameProperty.value.type !== 'scalar' || !nameProperty.value.value.trim()) {
+					report(toMarker(localize('promptValidator.modelObjectNameInvalid', "The model entry 'name' must be a non-empty string."), nameProperty.value.range, MarkerSeverity.Error));
+					continue;
+				}
+
+				const entry: { name: string; range: Range; reasoningEffort?: { value: string; range: Range }; contextSize?: { value: number; range: Range } } = { name: nameProperty.value.value.trim(), range: nameProperty.value.range };
+				const reasoningProperty = item.properties.find(property => property.key.value === 'reasoning-effort');
+				if (reasoningProperty) {
+					if (reasoningProperty.value.type !== 'scalar' || !reasoningProperty.value.value.trim()) {
+						report(toMarker(localize('promptValidator.modelObjectReasoningInvalid', "The model entry 'reasoning-effort' must be a non-empty string."), reasoningProperty.value.range, MarkerSeverity.Error));
+					} else {
+						entry.reasoningEffort = { value: reasoningProperty.value.value.trim(), range: reasoningProperty.value.range };
+					}
+				}
+				const contextProperty = item.properties.find(property => property.key.value === 'context-size');
+				if (contextProperty) {
+					const contextSize = contextProperty.value.type === 'scalar' ? Number(contextProperty.value.value) : NaN;
+					if (!Number.isSafeInteger(contextSize) || contextSize <= 0) {
+						report(toMarker(localize('promptValidator.modelObjectContextInvalid', "The model entry 'context-size' must be a positive integer."), contextProperty.value.range, MarkerSeverity.Error));
+					} else {
+						entry.contextSize = { value: contextSize, range: contextProperty.value.range };
+					}
+				}
+				modelEntries.push(entry);
 			}
 		}
 
@@ -417,12 +460,31 @@ export class PromptValidator {
 			return;
 		}
 
-		for (const [modelName, range] of modelNames) {
-			const modelMetadata = this.findModelByName(modelName);
+		for (const entry of modelEntries) {
+			const modelMetadata = this.findModelByName(entry.name);
 			if (!modelMetadata) {
-				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}' will be ignored.", modelName), range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}' will be ignored.", entry.name), entry.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
+				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", entry.name), entry.range, MarkerSeverity.Warning));
+			}
+			if (!modelMetadata) {
+				continue;
+			}
+			if (entry.reasoningEffort) {
+				const property = getCustomAgentModelConfigurationProperty(modelMetadata, 'navigation');
+				const acceptsString = property && (property.schema.type === 'string' || Array.isArray(property.schema.type) && property.schema.type.includes('string') || property.schema.type === undefined && (!property.schema.enum || property.schema.enum.every(value => typeof value === 'string')));
+				if (!acceptsString) {
+					report(toMarker(localize('promptValidator.modelReasoningUnsupported', "Model '{0}' does not support 'reasoning-effort'.", entry.name), entry.reasoningEffort.range, MarkerSeverity.Warning));
+				} else if (property.schema.enum && !property.schema.enum.includes(entry.reasoningEffort.value)) {
+					report(toMarker(localize('promptValidator.modelReasoningValueUnsupported', "Reasoning effort '{0}' is not supported by model '{1}'.", entry.reasoningEffort.value, entry.name), entry.reasoningEffort.range, MarkerSeverity.Warning));
+				}
+			}
+			if (entry.contextSize) {
+				const property = getCustomAgentModelConfigurationProperty(modelMetadata, 'tokens');
+				const acceptsNumber = property && (property.schema.type === 'number' || property.schema.type === 'integer' || Array.isArray(property.schema.type) && (property.schema.type.includes('number') || property.schema.type.includes('integer')) || property.schema.type === undefined && (!property.schema.enum || property.schema.enum.every(value => typeof value === 'number')));
+				if (!acceptsNumber) {
+					report(toMarker(localize('promptValidator.modelContextUnsupported', "Model '{0}' does not support 'context-size'.", entry.name), entry.contextSize.range, MarkerSeverity.Warning));
+				}
 			}
 		}
 	}

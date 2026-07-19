@@ -48,6 +48,7 @@ import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 import { ExtensionPromptFileService } from './extensionPromptFileService.js';
+import { parseCustomAgentModelEntries } from '../customAgentModels.js';
 
 /**
  * Provides prompt services.
@@ -1592,9 +1593,13 @@ export namespace CustomAgent {
 			agentInvocable: ast.header.infer !== undefined ? ast.header.infer === true : ast.header.disableModelInvocation !== true,
 		} satisfies ICustomAgentVisibility;
 
-		let model = ast.header.model;
-		if (target === Target.Claude && model) {
-			model = mapClaudeModels(model);
+		let model: ICustomAgent['model'];
+		if (target === Target.Claude) {
+			model = ast.header.model ? mapClaudeModels(ast.header.model) : undefined;
+		} else if (target === Target.VSCode || target === Target.Undefined) {
+			model = parseCustomAgentModelEntries(ast.header.getAttribute(PromptHeaderAttributes.model)?.value);
+		} else {
+			model = ast.header.model;
 		}
 		let { tools, handOffs, argumentHint, agents } = ast.header;
 		if (target === Target.Claude && tools) {

@@ -118,7 +118,7 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 	},
 	[PromptHeaderAttributes.model]: {
 		type: 'scalar | sequence',
-		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
+		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.'),
 	},
 	[PromptHeaderAttributes.tools]: {
 		type: 'scalar | sequence',

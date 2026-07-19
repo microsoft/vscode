@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IScalarValue, parseCommaSeparatedList, PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
+import { parseCustomAgentModelEntries } from '../../../../common/promptSyntax/customAgentModels.js';
 
 suite('PromptFileParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,11 +26,12 @@ suite('PromptFileParser', () => {
 			/* 07 */'Here is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md) and an image ![image](./image.png).',
 		].join('\n');
 		const result = new PromptFileParser().parse(uri, content);
+		const { header, body } = result;
 		assert.deepEqual(result.uri, uri);
-		assert.ok(result.header);
-		assert.ok(result.body);
-		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 5, endColumn: 1 });
-		assert.deepEqual(result.header.attributes, [
+		assert.ok(header);
+		assert.ok(body);
+		assert.deepEqual(header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 5, endColumn: 1 });
+		assert.deepEqual(header.attributes, [
 			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'scalar', value: 'Agent test', range: new Range(2, 14, 2, 26), format: 'double' } },
 			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'scalar', value: 'GPT 4.1', range: new Range(3, 8, 3, 15), format: 'none' } },
 			{
@@ -40,26 +42,77 @@ suite('PromptFileParser', () => {
 				}
 			},
 		]);
-		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
-		assert.equal(result.body.offset, 75);
-		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md) and an image ![image](./image.png).');
+		assert.deepEqual(body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
+		assert.equal(body.offset, 75);
+		assert.equal(body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md) and an image ![image](./image.png).');
 
-		assert.deepEqual(result.body.fileReferences, [
+		assert.deepEqual(body.fileReferences, [
 			{ range: new Range(7, 99, 7, 114), content: './reference1.md', isMarkdownLink: false },
 			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
-		assert.deepEqual(result.body.variableReferences, [
+		assert.deepEqual(body.variableReferences, [
 			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108, fullLength: 11 },
 			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170, fullLength: 12 }
 		]);
-		const [ref1, ref2] = result.body.variableReferences;
+		const [ref1, ref2] = body.variableReferences;
 		assert.equal(content.substring(ref1.offset, ref1.offset + ref1.fullLength), '#tool:tool1');
 		assert.equal(content.substring(ref2.offset, ref2.offset + ref2.fullLength), '#tool:tool-2');
 
-		assert.deepEqual(result.header.description, 'Agent test');
-		assert.deepEqual(result.header.model, ['GPT 4.1']);
-		assert.ok(result.header.tools);
-		assert.deepEqual(result.header.tools, ['tool1', 'tool2']);
+		assert.deepEqual(header.description, 'Agent test');
+		assert.deepEqual(header.model, ['GPT 4.1']);
+		assert.ok(header.tools);
+		assert.deepEqual(header.tools, ['tool1', 'tool2']);
+	});
+
+	test('parses structured custom agent model entries without widening PromptHeader.model', () => {
+		const result = new PromptFileParser().parse(URI.parse('file:///test/test.agent.md'), [
+			'---',
+			'model:',
+			'  - name: GPT 5 (copilot)',
+			'    reasoning-effort: high',
+			'    context-size: 200000',
+			'  - Claude Sonnet (copilot)',
+			'  - name: Invalid Context (copilot)',
+			'    reasoning-effort: ""',
+			'    context-size: 1.5',
+			'---',
+		].join('\n'));
+
+		assert.deepStrictEqual({
+			promptProjection: result.header?.model,
+			agentProjection: parseCustomAgentModelEntries(result.header?.getAttribute('model')?.value),
+		}, {
+			promptProjection: ['Claude Sonnet (copilot)'],
+			agentProjection: [
+				{ name: 'GPT 5 (copilot)', reasoningEffort: 'high', contextSize: 200000 },
+				'Claude Sonnet (copilot)',
+				{ name: 'Invalid Context (copilot)' },
+			],
+		});
+	});
+
+	test('normalizes whitespace in custom agent model entries', () => {
+		const scalarResult = new PromptFileParser().parse(URI.parse('file:///test/scalar.agent.md'), [
+			'---',
+			'model: " GPT 5 (copilot) "',
+			'---',
+		].join('\n'));
+		const structuredResult = new PromptFileParser().parse(URI.parse('file:///test/structured.agent.md'), [
+			'---',
+			'model:',
+			'  - " Claude Sonnet (copilot) "',
+			'  - name: " GPT 5 (copilot) "',
+			'    reasoning-effort: " high "',
+			'---',
+		].join('\n'));
+
+		assert.deepStrictEqual({
+			scalar: parseCustomAgentModelEntries(scalarResult.header?.getAttribute('model')?.value),
+			structured: parseCustomAgentModelEntries(structuredResult.header?.getAttribute('model')?.value),
+		}, {
+			scalar: ['GPT 5 (copilot)'],
+			structured: ['Claude Sonnet (copilot)', { name: 'GPT 5 (copilot)', reasoningEffort: 'high' }],
+		});
 	});
 
 	test('mode with handoff', async () => {

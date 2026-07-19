@@ -50,6 +50,7 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { getCustomAgentModelName } from '../../contrib/chat/common/promptSyntax/customAgentModels.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -227,7 +228,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			sessionTypes: agent.sessionTypes,
 			argumentHint: agent.argumentHint,
 			tools: agent.tools,
-			model: agent.model,
+			model: agent.model?.map(getCustomAgentModelName),
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
 			enabled: agent.enabled,

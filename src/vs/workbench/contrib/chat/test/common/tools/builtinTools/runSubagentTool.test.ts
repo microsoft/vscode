@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -925,12 +926,18 @@ suite('RunSubagentTool', () => {
 			allowInvocationsFromSubagents: boolean;
 			capturedRequests: IChatAgentRequest[];
 			currentModeInstructions?: IChatRequestModeInstructions;
+			customAgents?: ICustomAgent[];
+			languageModelsService?: ILanguageModelsService;
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			mockToolsService.toToolReferences = () => [];
 			const configService = new TestConfigurationService({
 				[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: opts.allowInvocationsFromSubagents,
 			});
 			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
@@ -970,7 +977,7 @@ suite('RunSubagentTool', () => {
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
-				{} as ILanguageModelsService,
+				opts.languageModelsService ?? {} as ILanguageModelsService,
 				new NullLogService(),
 				configService,
 				promptsService,
@@ -990,6 +997,126 @@ suite('RunSubagentTool', () => {
 				userSelectedTools: userSelectedTools ?? { runSubagent: true },
 			} as IToolInvocation;
 		}
+
+		test('prepared structured fallback forwards paired defaults over global configuration', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const availableMetadata: ILanguageModelChatMetadata = {
+				extension: new ExtensionIdentifier('test.extension'),
+				name: 'Available',
+				id: 'available',
+				vendor: 'test',
+				version: '1',
+				family: 'available',
+				maxInputTokens: 300_000,
+				maxOutputTokens: 10_000,
+				isDefaultForLocation: {},
+				capabilities: { toolCalling: true },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+						maxPromptTokens: { type: 'number', enum: [100_000], group: 'tokens' },
+					}
+				}
+			};
+			const languageModelsService = {
+				getLanguageModelIds: () => ['available-id'],
+				lookupLanguageModel: (id: string) => id === 'available-id' ? availableMetadata : undefined,
+				lookupLanguageModelByQualifiedName: (name: string) => name === 'Available (test)' ? { identifier: 'available-id', metadata: availableMetadata } : undefined,
+				getModelConfiguration: (id: string) => id === 'available-id' ? { temperature: 0.5, thinkingLevel: 'low' } : undefined,
+			} as ILanguageModelsService;
+			const customAgent: ICustomAgent = {
+				id: 'file:///test/structured.agent.md',
+				uri: URI.parse('file:///test/structured.agent.md'),
+				name: 'Structured',
+				model: [
+					{ name: 'Missing (test)', reasoningEffort: 'low', contextSize: 50_000 },
+					{ name: 'Available (test)', reasoningEffort: 'high', contextSize: 222_222 },
+				],
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, customAgents: [customAgent], languageModelsService });
+			const sessionUri = URI.parse('test://session/structured');
+			const invocation = createInvocation(sessionUri);
+			invocation.parameters = { prompt: 'do something', description: 'test', agentName: 'Structured' };
+			invocation.modelId = 'main-id';
+
+			await tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				modelId: invocation.modelId,
+				chatSessionResource: sessionUri,
+			}, CancellationToken.None);
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1, JSON.stringify(result.content));
+			assert.deepStrictEqual({
+				modelId: capturedRequests[0].userSelectedModelId,
+				configuration: capturedRequests[0].modelConfiguration,
+			}, {
+				modelId: 'available-id',
+				configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
+			});
+		});
+
+		test('prepared structured fallback merges defaults over the configuration at invocation time', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const availableMetadata: ILanguageModelChatMetadata = {
+				extension: new ExtensionIdentifier('test.extension'),
+				name: 'Available',
+				id: 'available',
+				vendor: 'test',
+				version: '1',
+				family: 'available',
+				maxInputTokens: 300_000,
+				maxOutputTokens: 10_000,
+				isDefaultForLocation: {},
+				capabilities: { toolCalling: true },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
+					}
+				}
+			};
+			let baseConfiguration: IStringDictionary<unknown> = { temperature: 0.5, thinkingLevel: 'low' };
+			const languageModelsService = {
+				getLanguageModelIds: () => ['available-id'],
+				lookupLanguageModel: (id: string) => id === 'available-id' ? availableMetadata : undefined,
+				lookupLanguageModelByQualifiedName: (name: string) => name === 'Available (test)' ? { identifier: 'available-id', metadata: availableMetadata } : undefined,
+				getModelConfiguration: (id: string) => id === 'available-id' ? baseConfiguration : undefined,
+			} as ILanguageModelsService;
+			const customAgent: ICustomAgent = {
+				id: 'file:///test/structured.agent.md',
+				uri: URI.parse('file:///test/structured.agent.md'),
+				name: 'Structured',
+				model: [{ name: 'Available (test)', reasoningEffort: 'high' }],
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true,
+			};
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, customAgents: [customAgent], languageModelsService });
+			const sessionUri = URI.parse('test://session/structured-live-config');
+			const invocation = createInvocation(sessionUri);
+			invocation.parameters = { prompt: 'do something', description: 'test', agentName: 'Structured' };
+			invocation.modelId = 'main-id';
+
+			await tool.prepareToolInvocation({
+				parameters: invocation.parameters,
+				toolCallId: invocation.callId,
+				modelId: invocation.modelId,
+				chatSessionResource: sessionUri,
+			}, CancellationToken.None);
+			baseConfiguration = { temperature: 0.7, thinkingLevel: 'low' };
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1, JSON.stringify(result.content));
+			assert.deepStrictEqual(capturedRequests[0].modelConfiguration, { temperature: 0.7, thinkingLevel: 'high' });
+		});
 
 		const countTokens = async () => 0;
 		const noProgress: ToolProgress = { report() { } };

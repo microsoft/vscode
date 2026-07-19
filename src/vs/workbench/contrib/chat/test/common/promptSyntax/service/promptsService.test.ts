@@ -1157,6 +1157,45 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('structured model entries are parsed only for VS Code and default-target agents', async () => {
+			const rootFolderUri = URI.file('/structured-agent-models');
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			await mockFiles(fileService, [
+				{
+					path: '/structured-agent-models/.github/agents/vscode.agent.md',
+					contents: [
+						'---',
+						'description: Structured model',
+						'model:',
+						'  - name: GPT 5 (copilot)',
+						'    reasoning-effort: high',
+						'    context-size: 200000',
+						'  - Claude Sonnet (copilot)',
+						'---',
+					]
+				},
+				{
+					path: '/structured-agent-models/.github/agents/github.agent.md',
+					contents: [
+						'---',
+						'description: GitHub target',
+						'target: github-copilot',
+						'model:',
+						'  - name: GPT 5 (copilot)',
+						'    context-size: 200000',
+						'  - Claude Sonnet (copilot)',
+						'---',
+					]
+				},
+			]);
+
+			const agents = await service.getCustomAgents(CancellationToken.None);
+			assert.deepStrictEqual(agents.map(agent => ({ name: agent.name, model: agent.model })).sort((a, b) => a.name.localeCompare(b.name)), [
+				{ name: 'github', model: ['Claude Sonnet (copilot)'] },
+				{ name: 'vscode', model: [{ name: 'GPT 5 (copilot)', reasoningEffort: 'high', contextSize: 200000 }, 'Claude Sonnet (copilot)'] },
+			]);
+		});
+
 		test('claude agent maps tools and model to vscode equivalents', async () => {
 			const rootFolderName = 'claude-agent-mapping';
 			const rootFolder = `/${rootFolderName}`;

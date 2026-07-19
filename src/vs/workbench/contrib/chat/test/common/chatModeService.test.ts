@@ -264,6 +264,7 @@ suite('ChatModeService', () => {
 			name: 'Stable Mode',
 			description: 'Stable description',
 			tools: ['tool1'],
+			model: [{ name: 'Stable Model', reasoningEffort: 'high', contextSize: 200_000 }],
 			agentInstructions: { content: 'Stable body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
@@ -287,12 +288,26 @@ suite('ChatModeService', () => {
 				toolReferences: [...baseMode.agentInstructions.toolReferences],
 			},
 			visibility: { ...baseMode.visibility },
+			model: [{ name: 'Stable Model', reasoningEffort: 'high', contextSize: 200_000 }],
 		};
 
 		promptsService.setCustomModes([equivalentMode]);
 		await waitForRefresh();
 
 		assert.strictEqual(eventCount, 0);
+
+		promptsService.setCustomModes([{
+			...equivalentMode,
+			model: [{ name: 'Stable Model', reasoningEffort: 'low', contextSize: 200_000 }],
+		}]);
+		await waitForRefresh();
+		assert.deepStrictEqual({
+			eventCount,
+			model: (await chatModeService.getLocalModes()).custom[0].model?.get(),
+		}, {
+			eventCount: 1,
+			model: [{ name: 'Stable Model', reasoningEffort: 'low', contextSize: 200_000 }],
+		});
 	});
 
 	test('should remove custom modes that no longer exist', async () => {

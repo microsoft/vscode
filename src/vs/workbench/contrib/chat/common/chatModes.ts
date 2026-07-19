@@ -34,6 +34,7 @@ import { isEqual as isURLEquals } from '../../../../base/common/resources.js';
 import { equals as objectEquals } from '../../../../base/common/objects.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { CustomAgentModelEntry, customAgentModelEntriesEqual, isCustomAgentModelEntries } from './promptSyntax/customAgentModels.js';
 
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -377,7 +378,7 @@ export interface IChatModeData {
 	readonly description?: string;
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
-	readonly model?: readonly string[] | string;
+	readonly model?: readonly CustomAgentModelEntry[] | string;
 	readonly argumentHint?: string;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
@@ -401,7 +402,7 @@ export interface IChatMode {
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly handOffs?: IObservable<readonly IHandOff[] | undefined>;
-	readonly model?: IObservable<readonly string[] | undefined>;
+	readonly model?: IObservable<readonly CustomAgentModelEntry[] | undefined>;
 	readonly argumentHint?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
@@ -450,7 +451,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.description === undefined || typeof mode.description === 'string') &&
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
-		(mode.model === undefined || typeof mode.model === 'string' || Array.isArray(mode.model)) &&
+		(mode.model === undefined || typeof mode.model === 'string' || isCustomAgentModelEntries(mode.model)) &&
 		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
@@ -467,7 +468,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
-	private readonly _modelObservable: ISettableObservable<readonly string[] | undefined>;
+	private readonly _modelObservable: ISettableObservable<readonly CustomAgentModelEntry[] | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<Target>;
@@ -498,7 +499,7 @@ export class CustomChatMode implements IChatMode {
 		return this._customToolsObservable;
 	}
 
-	get model(): IObservable<readonly string[] | undefined> {
+	get model(): IObservable<readonly CustomAgentModelEntry[] | undefined> {
 		return this._modelObservable;
 	}
 
@@ -579,7 +580,7 @@ export class CustomChatMode implements IChatMode {
 			update(this._nameObservable, newData.name);
 			update(this._descriptionObservable, newData.description);
 			update(this._customToolsObservable, newData.tools, arraysEqual);
-			update(this._modelObservable, newData.model, arraysEqual);
+			update(this._modelObservable, newData.model, customAgentModelEntriesEqual);
 			update(this._argumentHintObservable, newData.argumentHint);
 			update(this._modeInstructions, newData.agentInstructions, IChatModeInstructions.isEquals);
 			update(this._uriObservable, newData.uri, isURLEquals);

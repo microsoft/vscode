@@ -9,6 +9,7 @@ import { ExtensionIdentifier } from '../../../../../../../../platform/extensions
 import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IQuickInputService } from '../../../../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
@@ -75,7 +76,8 @@ suite('ModelPickerConfiguration', () => {
 			shouldShowCacheBreakHint: () => false,
 			getCacheBreakLearnMoreLink: () => undefined,
 			dismissCacheBreakHint: () => { },
-		}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService);
+			refresh: () => { },
+		}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService, {} as IQuickInputService);
 		const button = document.createElement('a');
 
 		controller.renderButton(button, false, false);
@@ -100,6 +102,7 @@ suite('ModelPickerConfiguration', () => {
 				{ kind: ActionListItemKind.Header, label: 'Context Size' },
 				{ label: '32K', checked: false, ariaDescription: 'Default' },
 				{ label: '64K', checked: true, ariaDescription: undefined },
+				{ label: 'Custom...', checked: false, ariaDescription: undefined },
 			],
 		});
 	});

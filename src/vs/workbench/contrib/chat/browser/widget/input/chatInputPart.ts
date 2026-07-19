@@ -95,6 +95,7 @@ import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } fro
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { InitialModelSelectionResult, ModelIdentifierResolution, ModelSelectionReason, getRegisteredLanguageModels, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifierFromLanguageModels } from '../../../common/modelSelection.js';
+import { CustomAgentModelEntry, getCustomAgentModelName, resolveCustomAgentModel } from '../../../common/promptSyntax/customAgentModels.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
@@ -990,7 +991,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			const models = mode.model?.read(r);
 			if (models) {
-				this.switchModelByQualifiedName(models);
+				this.applyModePreferredModel(models);
 			}
 		}));
 
@@ -1148,6 +1149,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
+	}
+
+	private applyModePreferredModel(entries: readonly CustomAgentModelEntry[]): boolean {
+		const resolved = resolveCustomAgentModel(entries, this.getModels());
+		if (!resolved) {
+			const names = entries.map(getCustomAgentModelName);
+			this.logService.warn(`[chat] None of the models "${names.join(', ')}" were found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
+			return false;
+		}
+
+		this.setCurrentLanguageModel(resolved.model);
+		if (resolved.modelConfiguration) {
+			this._modelConfigStore.applyAgentModelDefaults(resolved.model.identifier, resolved.modelConfiguration);
+		}
+		return true;
 	}
 
 
@@ -1322,7 +1338,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// registering an `IChatWidget` (e.g. the automations dialog).
 			// The picker only calls this when `sessionResource()` is
 			// `undefined`; real chat widgets keep the command path.
-			setMode: (mode: IChatMode) => this.setChatMode2(mode, true),
+			setMode: (mode: IChatMode) => this.setChatMode2(mode, true, true),
 			customAgentTarget: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
 				return (sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource))) ?? Target.Undefined;
@@ -1885,8 +1901,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		const isExplicitReselection = isUserInitiated && this._currentModeObservable.get() === mode;
 		this._currentModeObservable.set(mode, undefined);
 		this._onDidChangeCurrentChatMode.fire({ isUserInitiated });
+		if (isExplicitReselection && !this.options.suppressModePreferredModel) {
+			const models = mode.model?.get();
+			if (models) {
+				this.applyModePreferredModel(models);
+			}
+		}
 
 		if (storeSelection) {
 			// Sync to model (mode is now persisted in the model's input state)

@@ -17,6 +17,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { CustomAgentModelEntry } from '../customAgentModels.js';
 
 /**
  * A single structured debug detail entry from the instructions context computer.
@@ -298,7 +299,7 @@ export interface ICustomAgent {
 	/**
 	 * Model metadata in the prompt header.
 	 */
-	readonly model?: readonly string[];
+	readonly model?: readonly CustomAgentModelEntry[];
 
 	/**
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.

@@ -54,7 +54,7 @@ suite('PromptHeaderAutocompletion', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, configurationSchema: { properties: { effort: { type: 'string', enum: ['low', 'high'], group: 'navigation' }, tokens: { type: 'number', enum: [8192, 200000], group: 'tokens' } } } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
@@ -64,6 +64,10 @@ suite('PromptHeaderAutocompletion', () => {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
 			lookupLanguageModel(name: string) {
 				return testModels.find(m => m.id === name);
+			},
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				const metadata = testModels.find(model => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, model));
+				return metadata ? { metadata, identifier: metadata.id } : undefined;
 			}
 		});
 
@@ -212,6 +216,49 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
 				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']` },
 			].sort(sortByLabel));
+		});
+
+		test('complete properties inside a structured model entry', async () => {
+			const content = [
+				'---',
+				'model:',
+				'  - name: MAE 4 (olama)',
+				'    |',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await getCompletions(content, PromptsType.agent)).sort(sortByLabel), [
+				{ label: 'context-size', result: '    context-size: ' },
+				{ label: 'reasoning-effort', result: '    reasoning-effort: ' },
+			].sort(sortByLabel));
+		});
+
+		test('complete provider reasoning values and advertised context tiers', async () => {
+			const effort = await getCompletions([
+				'---',
+				'model:',
+				`  - name: ' MAE 4 (olama) '`,
+				'    reasoning-effort: |',
+				'---',
+			].join('\n'), PromptsType.agent);
+			const context = await getCompletions([
+				'---',
+				'model:',
+				`  - name: ' MAE 4 (olama) '`,
+				'    context-size: |',
+				'---',
+			].join('\n'), PromptsType.agent);
+
+			assert.deepStrictEqual({ effort, context }, {
+				effort: [
+					{ label: 'low', result: '    reasoning-effort: low' },
+					{ label: 'high', result: '    reasoning-effort: high' },
+				],
+				context: [
+					{ label: '8192', result: '    context-size: 8192' },
+					{ label: '200000', result: '    context-size: 200000' },
+				],
+			});
 		});
 
 		test('complete tool names inside tools array', async () => {

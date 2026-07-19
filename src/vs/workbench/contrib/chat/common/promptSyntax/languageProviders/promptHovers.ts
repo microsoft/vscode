@@ -79,7 +79,7 @@ export class PromptHoverProvider implements HoverProvider {
 				if (description) {
 					switch (attribute.key) {
 						case PromptHeaderAttributes.model:
-							return this.getModelHover(attribute, position, description, target);
+							return this.getModelHover(attribute, position, description, target, promptType === PromptsType.agent && isVSCodeOrDefaultTarget(target));
 						case PromptHeaderAttributes.tools:
 						case ClaudeHeaderAttributes.disallowedTools:
 							return this.getToolHover(attribute, position, description, target);
@@ -150,11 +150,12 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(lines.join('\n'), range);
 	}
 
-	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target, allowConfiguration: boolean): Hover | undefined {
 		if (target === Target.GitHubCopilot) {
 			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
 		}
 		const modelHoverContent = (modelName: string): Hover | undefined => {
+			modelName = modelName.trim();
 			const lines: string[] = [];
 			lines.push(baseMessage + '\n');
 
@@ -196,6 +197,22 @@ export class PromptHoverProvider implements HoverProvider {
 					const hover = modelHoverContent(item.value);
 					if (hover) {
 						return hover;
+					}
+				} else if (item.type === 'map' && allowConfiguration) {
+					const nameProperty = item.properties.find(property => property.key.value === 'name');
+					if (nameProperty?.value.type === 'scalar' && (nameProperty.key.range.containsPosition(position) || nameProperty.value.range.containsPosition(position))) {
+						const hover = modelHoverContent(nameProperty.value.value);
+						if (hover) {
+							return hover;
+						}
+					}
+					const reasoningProperty = item.properties.find(property => property.key.value === 'reasoning-effort');
+					if (reasoningProperty && (reasoningProperty.key.range.containsPosition(position) || reasoningProperty.value.range.containsPosition(position))) {
+						return this.createHover(localize('promptHeader.agent.model.reasoningEffort', 'The reasoning effort to use when this model is selected. The value must be supported by the model provider.'), reasoningProperty.value.range);
+					}
+					const contextProperty = item.properties.find(property => property.key.value === 'context-size');
+					if (contextProperty && (contextProperty.key.range.containsPosition(position) || contextProperty.value.range.containsPosition(position))) {
+						return this.createHover(localize('promptHeader.agent.model.contextSize', 'A positive-integer context-size cap to use when this model is selected.'), contextProperty.value.range);
 					}
 				}
 			}

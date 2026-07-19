@@ -136,7 +136,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.',
 				'',
 				'Note: This attribute is not used when target is github-copilot.'
 			].join('\n');
@@ -153,7 +153,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -254,7 +254,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 10, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -273,13 +273,55 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 30, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.',
 				'',
 				'- Name: MAE 4.1',
 				'- Family: mae',
 				'- Vendor: copilot'
 			].join('\n');
 			assert.strictEqual(hover, expected);
+		});
+
+		test('hover on structured model entry fields', async () => {
+			const content = [
+				'---',
+				'model:',
+				`  - name: ' MAE 4 (olama) '`,
+				'    reasoning-effort: high',
+				'    context-size: 200000',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual({
+				name: await getHover(content, 3, 15, PromptsType.agent),
+				reasoningEffort: await getHover(content, 4, 10, PromptsType.agent),
+				contextSize: await getHover(content, 5, 10, PromptsType.agent),
+			}, {
+				name: [
+					'Specify the model that runs this custom agent. A list can mix model names with entries that define `name`, `reasoning-effort`, and `context-size`. The first available model is used.',
+					'',
+					'- Name: MAE 4',
+					'- Family: mae',
+					'- Vendor: olama',
+				].join('\n'),
+				reasoningEffort: 'The reasoning effort to use when this model is selected. The value must be supported by the model provider.',
+				contextSize: 'A positive-integer context-size cap to use when this model is selected.',
+			});
+		});
+
+		test('structured model entry hovers are not enabled in prompt files', async () => {
+			const content = [
+				'---',
+				'model:',
+				'  - name: MAE 4 (olama)',
+				'    reasoning-effort: high',
+				'---',
+			].join('\n');
+
+			assert.strictEqual(
+				await getHover(content, 4, 10, PromptsType.prompt),
+				'The model to use in this prompt. Can also be a list of models. The first available model will be used.',
+			);
 		});
 
 		test('hover on description attribute', async () => {
