@@ -67,6 +67,7 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/changesetsChanged
+      - method: notifications/tools/list_changed
       - channel: ${chat_0}
         action:
           type: chat/usage
