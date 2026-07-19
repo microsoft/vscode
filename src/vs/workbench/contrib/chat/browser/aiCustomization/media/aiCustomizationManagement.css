@@ -414,6 +414,20 @@
 	margin-top: 16px;
 }
 
+/* Sessions empty state */
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header > .empty-state-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
+}
+
 /* Group header styling */
 .ai-customization-group-header {
 	display: flex;
@@ -1395,13 +1409,14 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-height: 0;
 	overflow: hidden;
 }
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
 	min-height: 0;
-	overflow: auto;
+	overflow: hidden;
 }
 
 /* MCP Empty State */
@@ -1431,6 +1446,20 @@
 
 .mcp-list-widget .mcp-empty-state .monaco-button {
 	margin-top: 16px;
+}
+
+/* Sessions empty state */
+.agent-sessions-workbench .mcp-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .mcp-empty-state .empty-state-header > .empty-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
 }
 
 /* MCP Disabled (access blocked) state */
@@ -1506,9 +1535,10 @@
 	align-items: center;
 	padding: 6px 8px 6px 30px;
 	cursor: pointer;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 32px;
 	gap: 10px;
+	box-sizing: border-box;
 }
 
 .mcp-server-item:not(.has-detail):not(.builtin) {
@@ -1553,37 +1583,58 @@
 	line-height: 14px;
 }
 
+.mcp-server-item .mcp-server-actions {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.mcp-server-item .mcp-server-sign-in.monaco-button {
+	min-width: 0;
+	min-height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-agents-fontSize-label1);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label2);
-	padding: 2px 8px;
-	border-radius: 4px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button {
+	min-width: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+}
+
+.mcp-server-item .mcp-server-status-action.monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .mcp-server-item .mcp-server-status.running {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-charts-green);
 }
 
 .mcp-server-item .mcp-server-status.starting {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 
 .mcp-server-item .mcp-server-status.auth-required {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
-	color: var(--vscode-editor-background);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
 }
 
 .mcp-server-item .mcp-server-status.error {
-	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
-	color: var(--vscode-editor-background);
-}
-
-.mcp-server-item .mcp-server-status.stopped {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
 }
 
 .mcp-server-item.disabled {
@@ -1591,8 +1642,7 @@
 }
 
 .mcp-server-item .mcp-server-status.disabled {
-	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-disabledForeground);
 }
 
 /* Button group for Add Server + Browse Marketplace */
@@ -2035,11 +2085,11 @@ pane is first mounted. View switches inside the modal are not animated. */
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row:not(.automations-row-disabled):hover {
+.automations-list-widget .automations-row-wrapper-expanded .automations-row:not(.automations-row-disabled):hover {
 	background-color: transparent;
 }
 
-.automations-list-widget .automations-row:has(:focus-visible) {
+.automations-list-widget .automations-row:focus-within {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -2144,9 +2194,12 @@ pane is first mounted. View switches inside the modal are not animated. */
 
 /*
  * When a wrapper has an expanded history panel, flatten the row's bottom
- * corners so the row + history read as one visually connected card.
+ * corners so the row + history read as one visually connected card. The
+ * `automations-row-wrapper-expanded` class is toggled in
+ * `automationsListWidget.ts` (`renderElement`) to mirror the row's
+ * expanded state without a structural `:has()` selector.
  */
-.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row {
+.automations-list-widget .automations-row-wrapper-expanded .automations-row {
 	border-bottom-left-radius: 0;
 	border-bottom-right-radius: 0;
 }
@@ -2560,32 +2613,34 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /*
- * Hide chips from the embedded chat input that don't fit the automation
- * dialog's reduced surface:
+ * Hide chips from the embedded chat input's primary toolbar that don't fit
+ * the automation dialog's reduced surface:
  *  - "Configure Tools" (`workbench.action.chat.configureTools`,
- *    `.codicon-settings`). Tool selection is not relevant for a
- *    scheduled prompt.
- *  - "Attach context" (`workbench.action.chat.attachContext`,
- *    `.codicon-add`, the `+`). The dialog doesn't support attachments.
- *    the prompt is the only payload sent at run time.
- *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`)
- *    MCP server management belongs in the live chat surface, not in
- *    a one-off prompt definition. The action view item is custom
- *    (`MenuEntryActionViewItem`) but still renders the standard
- *    `.action-label.codicon-server` icon, so the same selector pattern
- *    matches.
- * Other chips in this toolbar use either custom action view items
- * (Model / Mode / Session pickers) or different codicons, so codicon
- * selectors are unique to the chips we want to remove. The descendant
- * selector (not `>`) matches even when the action-view-item wraps the
- * `.action-label` in an extra container (e.g. dropdown variants), which
- * keeps the rule resilient to view-item refactors. Hiding the
- * `.action-item` (not just the `.action-label`) removes the slot from
- * keyboard tab order too.
+ *    `.codicon-settings`) — tool selection is not relevant for a scheduled
+ *    prompt.
+ *  - "Add Context" (`workbench.action.chat.attachContext`, `.codicon-add`,
+ *    the `+`) — the dialog doesn't support attachments; the prompt is the
+ *    only payload sent at run time.
+ *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`) —
+ *    MCP server management belongs in the live chat surface, not a one-off
+ *    prompt definition.
+ *
+ * We hide the `.action-label` (which carries the codicon class) rather than
+ * the parent `.action-item`. Targeting the `.action-item` would require a
+ * `:has()` selector, whose invalidation bookkeeping is paid across every
+ * `.action-item` in the workbench (see microsoft/vscode#324985). Since
+ * `.action-item` has no intrinsic padding/margin (actionbar.css), hiding the
+ * label collapses the slot to zero width, so there is no visual gap.
+ *
+ * Known limitation: the hidden chips remain in the toolbar's arrow-key focus
+ * rotation (the action bar skips only disabled/separator items, not
+ * `display:none` ones). This is an accepted temporary trade-off — the dialog
+ * will migrate to `newChatInput.ts`, which builds its own toolbars and never
+ * renders these `MenuId.ChatInput` chips at all.
  */
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-settings),
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-add),
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-server) {
+.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-settings,
+.automation-form-prompt-host .chat-input-toolbar .action-label.codicon-add,
+.automation-form-prompt-host .chat-input-toolbar .action-item.chat-mcp {
 	display: none;
 }
 
@@ -2873,61 +2928,78 @@ pane is first mounted. View switches inside the modal are not animated. */
  * Visual styling mirrors the new-session view's
  * `.new-chat-bottom-container` chip vocabulary (see
  * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
- * 16px tall, 11px font, 12px codicons, icon-foreground color, no
- * border. The `|` divider between the Folder chip and the branch slot
+ * compact label text and codicons, icon-foreground color, no border.
+ * The `|` divider between the Folder chip and the branch slot
  * uses the same `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)`
  * trick the new-session row uses to draw a 1px vertical separator
  * without adding a DOM element.
- *
- * Communicates *where* the automation will run. It is presentational only (no
- * click handler, no keyboard target).
  */
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
 	display: inline-flex;
 	align-items: center;
 	margin-left: auto;
 	min-width: 0;
-	gap: 5px;
+	gap: var(--vscode-spacing-size60);
+}
+
+.automation-form-prompt-host .automation-form-branch-picker-slot {
+	display: inline-flex;
+	min-width: 0;
 }
 
 .automation-form-prompt-host .automation-form-isolation-chip,
 .automation-form-prompt-host .automation-form-branch-slot {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	gap: var(--vscode-spacing-size40);
 	height: 16px;
-	padding: 3px 6px;
-	font-size: 11px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-agents-fontSize-label2);
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
 	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	touch-action: manipulation;
 }
 
 .automation-form-prompt-host .automation-form-isolation-chip > .codicon,
 .automation-form-prompt-host .automation-form-branch-slot > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
 	flex-shrink: 0;
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip {
+.automation-form-prompt-host .automation-form-isolation-chip,
+.automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled) {
 	cursor: pointer;
-	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover {
+.automation-form-prompt-host .automation-form-isolation-chip:not(.automation-form-isolation-chip-disabled):hover,
+.automation-form-prompt-host .automation-form-branch-slot:not(.branch-picker-disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
+.automation-form-prompt-host .automation-form-branch-slot:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .automation-form-prompt-host .automation-form-isolation-chip-disabled {
 	cursor: default;
 }
 
+.automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled,
+.automation-form-prompt-host .automation-form-branch-slot.branch-picker-disabled > .codicon {
+	cursor: default;
+	color: var(--vscode-descriptionForeground);
+}
+
 .automation-form-prompt-host .automation-form-isolation-label,
 .automation-form-prompt-host .automation-form-branch-name {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 }
 
 .automation-form-prompt-host .automation-form-branch-name {
@@ -2940,7 +3012,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 /* Mirror the new-session `|` divider between repo-config chips:
  * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
  * a 1px-wide bar in the gap to the chip's left. */
-.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-slot {
+.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-picker-slot {
 	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
@@ -2970,13 +3042,20 @@ pane is first mounted. View switches inside the modal are not animated. */
 /* Missing-branch state (no folder / no git repo / detached / empty): use
  * description-foreground + italic so it visually reads as "informational
  * placeholder, not a real ref name". */
-.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing,
-.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing > .codicon {
+.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing,
+.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing > .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 
-.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing .automation-form-branch-name {
+.automation-form-prompt-host .automation-form-branch-slot.branch-picker-missing .automation-form-branch-name {
 	font-style: italic;
+}
+
+.hc-black .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
+.hc-black .automation-form-prompt-host .automation-form-branch-slot:focus-visible,
+.hc-light .automation-form-prompt-host .automation-form-isolation-chip:focus-visible,
+.hc-light .automation-form-prompt-host .automation-form-branch-slot:focus-visible {
+	outline-color: var(--vscode-contrastActiveBorder);
 }
 
 .automations-list-widget .automations-row-folder {

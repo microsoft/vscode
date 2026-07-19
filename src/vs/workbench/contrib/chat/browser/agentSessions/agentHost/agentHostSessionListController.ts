@@ -136,6 +136,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._sessionListStore.removeSession(this._provider, rawId);
 	}
 
+	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		if (resource.scheme !== this._sessionType) {
+			return;
+		}
+
+		this._sessionListStore.setSessionArchived(this._provider, AgentSession.id(resource), archived);
+	}
+
 	async refresh(token: CancellationToken): Promise<void> {
 		// The store fans out a delta during the await when its list changes, which
 		// projects into a change event. When nothing changed (e.g. the store cache

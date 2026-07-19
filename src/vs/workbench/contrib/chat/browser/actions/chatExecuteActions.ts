@@ -23,6 +23,8 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -39,7 +41,6 @@ import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } fr
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -909,6 +910,8 @@ class SendToNewChatAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const storageService = accessor.get(IStorageService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -930,7 +933,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService, storageService, workspaceContextService.getWorkspace(), agentHostEnablementService.enabled);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
@@ -983,7 +986,6 @@ export class CancelAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		const voiceController = accessor.get(IVoiceSessionController);
 		if (!widget) {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
@@ -1006,11 +1008,6 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: Canceled chat widget has no view model');
-		}
-		// Also disconnect voice session if active
-
-		if (voiceController.isConnected.get()) {
-			voiceController.disconnect();
 		}
 	}
 }

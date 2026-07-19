@@ -87,6 +87,7 @@ import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligible
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
+import { compact } from './consoleCompactor/consoleCompactor.js';
 
 // #region Tool data
 
@@ -990,12 +991,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
 			: undefined;
+		const canInstallMissingDependencies = !!missingDependencies && sandboxPrereqs.canInstallMissingDependencies === true;
 		const sandboxRemediations = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && sandboxPrereqs.remediations?.length
 			? [...sandboxPrereqs.remediations]
 			: undefined;
 		const sandboxPrerequisiteFailure = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && !sandboxRemediations
 			? localize('runInTerminal.bubblewrap.unusable', "Bubblewrap is installed but cannot create the required sandbox namespace on this system. The command was not executed.")
-			: undefined;
+			: missingDependencies && !canInstallMissingDependencies
+				? localize('runInTerminal.missingDeps.unsupportedInstaller', "The following dependencies required for sandboxed execution are not installed: {0}. Install them using your system package manager, then run the command again.", missingDependencies.join(', '))
+				: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -1092,7 +1096,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let sandboxPrerequisiteConfirmation: IToolConfirmationMessages | undefined = undefined;
 		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
 		// This is handled before the tool is invoked so the model never sees the dependency error.
-		if (missingDependencies) {
+		if (missingDependencies && canInstallMissingDependencies) {
 			const depsList = missingDependencies.join(', ');
 			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),
@@ -2514,8 +2518,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (outputAnalyzerMessage) {
 			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
+		let outputForResult = terminalResult;
+		if (this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputCompaction) === true) {
+			try {
+				const commandForCompaction = toolSpecificData.commandLine.forDisplay ?? command;
+				const report = compact(commandForCompaction, terminalResult);
+				this._telemetry.logCompaction(report);
+				if (report.applied) {
+					outputForResult = report.compactedOutput;
+				}
+			} catch {
+				this._telemetry.logCompactionFailed();
+			}
+		}
 		// Process large output: write to file if needed, then truncate with file path
-		const processedOutput = await this._largeOutputFileWriter.processOutput(terminalResult);
+		const processedOutput = await this._largeOutputFileWriter.processOutput(outputForResult);
 		resultText.push(processedOutput);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
@@ -2536,7 +2553,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			},
 			toolResultDetails: isError ? {
 				input: command,
-				output: [{ type: 'embed', isText: true, value: terminalResult }],
+				output: [{ type: 'embed', isText: true, value: outputForResult }],
 				isError: true
 			} : undefined,
 			content: [

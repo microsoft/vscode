@@ -670,11 +670,25 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStarted'
 	});
 
+	public static readonly voiceModeStarted = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStarted', 'Voice Mode Started'),
+		sound: Sound.voiceRecordingStarted,
+		announcementMessage: localize('accessibility.signals.voiceModeStarted', 'Voice Mode Started'),
+		settingsKey: 'accessibility.signals.voiceModeStarted'
+	});
+
 	public static readonly voiceRecordingStopped = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.voiceRecordingStopped', 'Voice Recording Stopped'),
 		sound: Sound.voiceRecordingStopped,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
+	});
+
+	public static readonly voiceModeStopped = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStopped', 'Voice Mode Stopped'),
+		sound: Sound.voiceRecordingStopped,
+		announcementMessage: localize('accessibility.signals.voiceModeStopped', 'Voice Mode Stopped'),
+		settingsKey: 'accessibility.signals.voiceModeStopped'
 	});
 
 	public static readonly editsKept = AccessibilitySignal.register({

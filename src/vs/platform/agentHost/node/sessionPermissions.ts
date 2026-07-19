@@ -316,9 +316,13 @@ export class SessionPermissionManager extends Disposable {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
+	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
+		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+	}
+
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
-		// `autoApprove` (Bypass Approvals) auto-approves every tool call.
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
+		// `autoApprove` (Allow All) auto-approves every tool call.
+		return this.getEffectiveApprovalLevel(sessionKey) === 'autoApprove';
 	}
 
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
@@ -336,11 +340,10 @@ export class SessionPermissionManager extends Disposable {
 				type: ActionType.ChatToolCallReady,
 				turnId,
 				toolCallId: state.toolCallId,
-				contributor: state.contributor,
-				intention: state.intention,
 				invocationMessage: state.invocationMessage,
 				toolInput: state.toolInput,
 				confirmationTitle: state.confirmationTitle,
+				riskAssessment: state.riskAssessment,
 				edits: state.edits,
 				editable: state.editable,
 				...(state._meta ? { _meta: state._meta } : {}),
@@ -354,8 +357,6 @@ export class SessionPermissionManager extends Disposable {
 			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: state.toolCallId,
-			contributor: state.contributor,
-			intention: state.intention,
 			invocationMessage: state.invocationMessage,
 			toolInput: state.toolInput,
 			confirmed: ToolCallConfirmationReason.NotNeeded,

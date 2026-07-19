@@ -18,38 +18,42 @@ export const CLAUDE_THINKING_LEVEL_KEY = 'thinkingLevel';
 
 /**
  * Reasoning-effort values accepted by the Claude SDK's `Options.effort`
- * (sdk.d.ts:443 + sdk.d.ts:1214). Hand-rolled here — not imported from the
- * SDK — to keep `common/` SDK-free; structurally identical to the SDK's
- * `EffortLevel` so it assigns into `Options.effort` without a cast.
- *
- * NOTE: the live hot-swap path `applyFlagSettings({ effortLevel })`
- * (sdk.d.ts:4292) only accepts a 4-value subset that omits `'max'`; that
- * clamp lives at the hot-swap seam (Phase 9), not here.
+ * (startup). Hand-rolled here — not imported from the SDK — to keep `common/`
+ * SDK-free; structurally identical to the SDK's exported `EffortLevel` so it
+ * assigns into `Options.effort` without a cast.
  */
 export type ClaudeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /**
- * Subset of {@link ClaudeEffortLevel} accepted by the SDK runtime hot-swap
- * setter `Query.applyFlagSettings({ effortLevel })` (sdk.d.ts:4914) — the
- * runtime union deliberately excludes `'max'` because Copilot CAPI does
- * not yet route a `'max'` reasoning tier (no upstream model exposes it).
- * {@link clampEffortForRuntime} is the single seam that maps the wider
- * startup union onto this narrower runtime union.
+ * The effort union the SDK's runtime hot-swap setter
+ * `Query.applyFlagSettings({ effortLevel })` is *declared* to accept. Note it
+ * excludes `'max'` — but see {@link toRuntimeEffortLevel}: a `'max'` value can
+ * still flow through this type at runtime, because the SDK's declared type is
+ * narrower than what the API actually accepts.
  */
 export type ClaudeRuntimeEffortLevel = 'low' | 'medium' | 'high' | 'xhigh';
 
 /**
- * Clamp an effort level for the runtime SDK setter. `Options.effort`
- * (startup) accepts `'max'`; `Query.applyFlagSettings({ effortLevel })`
- * does not — Copilot CAPI does not currently expose a `'max'` reasoning
- * tier, so mid-session `'max'` selections degrade to `'xhigh'` here. If
- * CAPI later adds a `'max'` model, the SDK runtime union widens and this
- * clamp becomes a passthrough (CONTEXT.md M11 effort-clamp; Phase 9 D7).
+ * Coerce a startup {@link ClaudeEffortLevel} to the {@link ClaudeRuntimeEffortLevel}
+ * union the SDK's `applyFlagSettings({ effortLevel })` setter is typed to accept.
+ *
+ * This used to clamp `'max'` down to `'xhigh'`, because the SDK's
+ * `Settings.effortLevel` .d.ts type omits `'max'`. That type is wrong: the
+ * Anthropic API / Copilot CAPI accept `'max'` end-to-end — confirmed with
+ * Anthropic, and verified by watching a `'max'` turn round-trip successfully
+ * (the exported `EffortLevel` union and the wire `output_config.effort` field
+ * both include `'max'`). So `'max'` is now passed straight through.
+ *
+ * The cast is deliberate: this returns a value its own return type says it
+ * cannot — `'max'` is not a member of {@link ClaudeRuntimeEffortLevel}. Keeping
+ * the narrow return type lets every downstream consumer stay honest against the
+ * SDK's declared surface while the single lie lives here. Drop the cast (and
+ * widen the return type, or restore a real clamp) once the SDK's
+ * `Settings.effortLevel` type is corrected upstream
+ * (anthropics/claude-agent-sdk-typescript#377).
  */
-export function clampEffortForRuntime(effort: ClaudeEffortLevel | undefined): ClaudeRuntimeEffortLevel | undefined {
-	if (effort === undefined) { return undefined; }
-	if (effort === 'max') { return 'xhigh'; }
-	return effort;
+export function toRuntimeEffortLevel(effort: ClaudeEffortLevel | undefined): ClaudeRuntimeEffortLevel | undefined {
+	return effort as ClaudeRuntimeEffortLevel | undefined;
 }
 
 /**

@@ -32,16 +32,46 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
 	return Math.min(1, (sum / dataArray.value.length) / 80);
 }
 
+/**
+ * A subtle breathing intensity for connected-idle voice mode, used to show that
+ * the surface is still armed even when no audio is flowing. Returns a static
+ * midpoint when motion is reduced so the glow renders without animating.
+ */
+export function readIdleVoiceGlowIntensity(timestampMs: number, reducedMotion = false): number {
+	if (reducedMotion) {
+		return 0.4;
+	}
+	return 0.25 + ((Math.sin(timestampMs / 600) + 1) * 0.5) * 0.3;
+}
+
 export interface IVoiceGlowStyle {
 	readonly borderColor: string;
 	readonly boxShadow: string;
 }
 
 /**
- * Compute the glow border color and box-shadow. Blue while listening (flashier
- * when the transcript is hidden), purple while speaking.
+ * The theme-aware base color for the connected-idle glow. Derived from the themed
+ * foreground so it stays visible against the input background in every theme
+ * (a fixed white would vanish on light themes whose input background is white).
+ */
+export const IDLE_VOICE_GLOW_COLOR = 'var(--vscode-foreground)';
+
+/**
+ * Compute the glow border color and box-shadow. Themed foreground while
+ * connected-idle, blue while listening (flashier when the transcript is hidden),
+ * and purple while speaking.
  */
 export function computeVoiceGlowStyle(voiceState: VoiceGlowState, intensity: number, transcriptHidden: boolean): IVoiceGlowStyle {
+	if (voiceState === 'idle') {
+		const shadowSpread = 7 + intensity * 14;
+		const shadowAlpha = 0.16 + intensity * 0.22;
+		const mix = (alpha: number) => `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(alpha * 100).toFixed(2)}%, transparent)`;
+		return {
+			borderColor: mix(0.3 + intensity * 0.3),
+			boxShadow: `0 0 ${shadowSpread}px ${mix(shadowAlpha)}, inset 0 0 ${shadowSpread * 0.35}px ${mix(shadowAlpha * 0.5)}`
+		};
+	}
+
 	// Blue when listening, purple when speaking.
 	const rgb = voiceState === 'speaking' ? '163,113,247' : '88,166,255';
 	const flashy = voiceState === 'listening' && transcriptHidden;

@@ -35,7 +35,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, type ICAPIModelB
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSessionEntry, decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentPeerChats.js';
 import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../../common/agentService.js';
@@ -54,7 +54,8 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -65,7 +66,8 @@ import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForward
 import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
-import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
+import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -145,8 +147,8 @@ export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
  * worktree to remove and no on-disk state to delete.
  *
  * `model` absorbs {@link CopilotAgent.changeModel} updates that arrive
- * before the first message. The latest session config (isolation / branch /
- * etc.) is read straight from the state manager via
+ * before the first message. The latest provider-owned session config is read
+ * straight from the state manager via
  * {@link IAgentConfigurationService.getSessionConfigValues} at
  * materialization time, so no bespoke forwarding is required for it.
  */
@@ -168,6 +170,15 @@ interface IProvisionalSession {
 	readonly project: IAgentSessionProjectInfo | undefined;
 	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
+}
+
+interface ICopilotAgentSessionIdentity {
+	readonly sessionUri: URI;
+	readonly chatChannelUri: URI;
+}
+
+function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
+	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
 }
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';
@@ -226,21 +237,6 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 		return undefined;
 	}
 	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
-}
-
-/**
- * Returns a copy of `enablement` with keys that live under `fromDir` rebased
- * onto `toDir`. Keys that aren't rebased are preserved **verbatim** (no
- * `URI.parse(...).toString()` round-trip) so a non-URI-shaped or already-relocated
- * key can't be mutated and lose its toggle.
- */
-export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
-	const migrated = new Map<string, boolean>();
-	for (const [uri, enabled] of enablement) {
-		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-		migrated.set(rebased ? rebased.toString() : uri, enabled);
-	}
-	return migrated;
 }
 
 /**
@@ -379,6 +375,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
+	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -390,6 +387,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
@@ -406,6 +404,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._ensureClient().then(c => c.rpc.commands.list().then(c => c.commands)), this._logService);
+		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
+			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
+			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
 		// chat channel so the orchestrator manages sub-agent chats
@@ -425,7 +426,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
-				this._logService.error('[Copilot] Failed to restart client after config change', err)
+				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
 		}));
 
@@ -471,6 +472,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastRubberDuckEnabled: boolean = this._isRubberDuckEnabled();
 	private _lastCopilotSdkLogLevelSetting: CopilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
+	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -496,6 +498,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostPreferLongContextEnabledConfigKey) === true;
 	}
 
+	private _isSystemProxyEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
+	}
+
 	/**
 	 * Restarts the CLI client when a config value that is only read at client
 	 * startup has changed. Any active sessions are disposed before the client is
@@ -507,7 +513,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const rubberDuck = this._isRubberDuckEnabled();
 		const copilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
 		const enterpriseHost = this._getEnterpriseHost();
-		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost) {
+		const systemProxyEnabled = this._isSystemProxyEnabled();
+		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled) {
 			return;
 		}
 		const changed = [
@@ -515,11 +522,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._lastRubberDuckEnabled !== rubberDuck ? `rubberDuck=${rubberDuck}` : undefined,
 			this._lastCopilotSdkLogLevelSetting !== copilotSdkLogLevelSetting ? `copilotSdkLogLevel=${copilotSdkLogLevelSetting}` : undefined,
 			this._lastEnterpriseHost !== enterpriseHost ? `enterpriseHost=${enterpriseHost}` : undefined,
+			this._lastSystemProxyEnabled !== systemProxyEnabled ? `systemProxy=${systemProxyEnabled}` : undefined,
 		].filter((v): v is string => v !== undefined).join(', ');
 		this._lastSessionSyncEnabled = sessionSync;
 		this._lastRubberDuckEnabled = rubberDuck;
 		this._lastCopilotSdkLogLevelSetting = copilotSdkLogLevelSetting;
 		this._lastEnterpriseHost = enterpriseHost;
+		this._lastSystemProxyEnabled = systemProxyEnabled;
 		if (this._client) {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
@@ -582,10 +591,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const entry = this._findAnySession(sessionId);
 		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
-		if (topLevelMcp.length === 0) {
-			return fromPlugins;
-		}
-		return [...fromPlugins, ...topLevelMcp];
+		const customizations = [...fromPlugins, ...topLevelMcp];
+		const desired = this._stateManager.getSessionState(session.toString())?.customizations ?? [];
+		return applyMcpServerEnablement(customizations, desired);
 	}
 
 	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -656,7 +664,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `rt`/`tid` claims — those live in the Copilot session token, which the API service mints —
 		// so the real values are resolved asynchronously below. Mirrors how the Copilot extension
 		// reads `rt`/`tid` off its `CopilotToken` rather than the GitHub token.
-		this._applyRestrictedTelemetry(false, undefined, undefined);
+		this._applyRestrictedTelemetry(undefined);
 		if (githubToken) {
 			void this._resolveRestrictedTelemetry(githubToken);
 		}
@@ -668,17 +676,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubToken !== githubToken) {
 				return; // token changed while resolving; a newer call owns the state
 			}
-			this._applyRestrictedTelemetry(
-				ctx.restrictedTelemetryEnabled,
-				ctx.trackingId,
-				ctx.telemetryEndpoint ? `${ctx.telemetryEndpoint}/telemetry` : undefined,
-			);
+			this._applyRestrictedTelemetry({
+				...ctx,
+				telemetryEndpoint: toRestrictedTelemetryEndpoint(ctx.telemetryEndpoint),
+			});
 		} catch (err) {
 			this._logService.debug(`[Copilot] Restricted telemetry resolution failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
-	private _applyRestrictedTelemetry(rtEnabled: boolean, trackingId: string | undefined, telemetryEndpoint: string | undefined): void {
+	private _applyRestrictedTelemetry(context: IRestrictedTelemetryContext | undefined): void {
+		const rtEnabled = context?.restrictedTelemetryEnabled === true;
 		if (rtEnabled !== this._restrictedTelemetryEnabled) {
 			this._restrictedTelemetryEnabled = rtEnabled;
 			this._logService.info(`[Copilot] Enhanced (restricted) telemetry ${rtEnabled ? 'enabled for this account' : 'disabled'}`);
@@ -689,8 +697,44 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// the endpoint routes at the user's CAPI telemetry host (dotcom, GHE, or proxy).
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._telemetryService.setRestrictedTelemetryEnabled(rtEnabled);
-			this._telemetryService.setCopilotTrackingId(trackingId);
-			this._telemetryService.setRestrictedTelemetryEndpoint(telemetryEndpoint);
+			this._telemetryService.setCopilotTrackingId(context?.trackingId);
+			this._telemetryService.setRestrictedTelemetryEndpoint(context?.telemetryEndpoint);
+		}
+	}
+
+	private async _routeGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const router = this._githubTelemetryRouter;
+		if (!router?.isTarget(notification)) {
+			this._gitHubTelemetryForwarder.forward(notification);
+			return;
+		}
+		if (!notification.restricted) {
+			router.route(notification);
+			return;
+		}
+
+		const sessionId = notification.sessionId;
+		const githubToken = this._githubToken;
+		if (!githubToken) {
+			router.route(notification);
+			return;
+		}
+
+		try {
+			const context = await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken);
+			if (this._githubToken !== githubToken) {
+				return;
+			}
+			router.route(notification, {
+				restrictedTelemetryEnabled: context.restrictedTelemetryEnabled,
+				trackingId: context.trackingId,
+				telemetryEndpoint: toRestrictedTelemetryEndpoint(context.telemetryEndpoint),
+				isInternal: context.isInternal === true,
+				userName: context.userName,
+				isVscodeTeamMember: context.isVscodeTeamMember === true,
+			});
+		} catch (error) {
+			this._logService.debug(`[Copilot:${sessionId}] Restricted telemetry context resolution failed; dropping ${notification.event.kind}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -857,6 +901,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const rubberDuckAtStartup = this._isRubberDuckEnabled();
 		const copilotSdkLogLevelSettingAtStartup = this._getCopilotSdkLogLevelSetting();
 		const enterpriseHostAtStartup = this._getEnterpriseHost();
+		const systemProxyEnabledAtStartup = this._isSystemProxyEnabled();
 		const clientStarting = (async () => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
 
@@ -882,6 +927,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 			env['COPILOT_MCP_APPS'] = 'true';
+			// Required by the currently bundled SDK to enable its experimental auto-approval judge.
+			env['AUTO_APPROVAL'] = 'true';
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -962,11 +1009,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: sessionSyncAtStartup,
-				onGitHubTelemetry: (notification: GitHubTelemetryNotification) => this._gitHubTelemetryForwarder.forward(notification),
+				onGitHubTelemetry: notification => this._routeGitHubTelemetry(notification),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();
-			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup) {
+			if (this._isSessionSyncEnabled() !== sessionSyncAtStartup || this._isRubberDuckEnabled() !== rubberDuckAtStartup || this._getCopilotSdkLogLevelSetting() !== copilotSdkLogLevelSettingAtStartup || this._getEnterpriseHost() !== enterpriseHostAtStartup || this._isSystemProxyEnabled() !== systemProxyEnabledAtStartup) {
 				await client.stop();
 				throw new Error('Copilot startup config changed while the client was starting');
 			}
@@ -1671,8 +1718,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * naturally.
 	 *
 	 * The latest model lives on the provisional record (kept in sync via
-	 * {@link changeModel}). The latest session config (isolation / branch /
-	 * etc.) is read straight from the state manager via
+	 * {@link changeModel}). The latest provider-owned session config is read
+	 * straight from the state manager via
 	 * {@link IAgentConfigurationService.getSessionConfigValues} so any
 	 * `SessionConfigChanged` actions that arrived after `createSession` are
 	 * honoured without bespoke forwarding.
@@ -1856,15 +1903,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._logService.info(`[Copilot:${sessionId}] Routing client tool completion to default chat: chat=${chat.toString()}, toolCallId=${toolCallId}, success=${result.success}`);
 			entry.handleClientToolCallComplete(toolCallId, result);
-		}
-	}
-
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		// Enablement is per-session: fan out to every existing session
-		// controller (provisional + materialized). New sessions start with
-		// the default value baked into their customizations.
-		for (const activeClient of this._activeClients.values()) {
-			activeClient.pluginController.setEnabled(uri, enabled);
 		}
 	}
 
@@ -2221,7 +2259,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			let agentSession: CopilotAgentSession | undefined;
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat });
 				await agentSession.initializeSession();
 				if (options?.fork?.turnIdMapping) {
 					await agentSession.remapTurnIds(options.fork.turnIdMapping);
@@ -2455,7 +2493,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 			let agentSession: CopilotAgentSession | undefined;
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, chat);
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: session, chatChannelUri: chat });
 				await agentSession.initializeSession();
 				this._ensureEntry(sessionId).registerPeerChat(chatKey, new CopilotSessionEntry(agentSession));
 				this._logService.info(`[Copilot] Resumed additional chat ${chatKey} in session ${session.toString()}`);
@@ -2627,6 +2665,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _resolveProxyForSdk(env: Record<string, string | undefined> = process.env): Promise<string | undefined> {
+		if (!this._isSystemProxyEnabled()) {
+			return undefined;
+		}
 		if (COPILOT_PROXY_ENV_KEYS.some(key => env[key])) {
 			this._logService.debug('[Copilot] Proxy env var already set; leaving Copilot SDK proxy configuration to the environment');
 			return undefined;
@@ -2709,7 +2750,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
-			const pluginController = this._plugins.createSessionController(directory);
+			const pluginController = this._plugins.createSessionController(session, directory);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
@@ -2726,9 +2767,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link _resumeSession} for the same id cannot dispose this entry mid-init
 	 * via {@link DisposableMap.set}.
 	 */
-	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, channelUri?: URI): CopilotAgentSession {
-		const sessionUri = channelUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
-		const chatChannelUri = channelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
+	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
+		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
+		const chatChannelUri = identity?.chatChannelUri ?? URI.parse(buildDefaultChatUri(sessionUri));
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
@@ -2911,11 +2952,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient);
 		try {
 			await agentSession.initializeSession();
+			this._registerInitializedSession(sessionId, agentSession);
 		} catch (err) {
 			agentSession.dispose();
 			throw err;
 		}
-		this._registerInitializedSession(sessionId, agentSession);
 
 		return agentSession;
 	}
@@ -3424,9 +3465,8 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
  *  - parsing + resolution helpers used by both host- and client-side
  *    customizations
  *
- * Per-session state (client-published customizations, on-disk
- * customization discovery for the session's working directory,
- * enablement overrides) lives on {@link SessionPluginController},
+ * Per-session state (client-published customizations and on-disk
+ * customization discovery for the session's working directory) lives on {@link SessionPluginController},
  * one per {@link CopilotAgentSession}. Each session controller holds
  * a reference back to this shared controller for the resolve/sync
  * helpers it needs.
@@ -3485,8 +3525,8 @@ class PluginController extends Disposable {
 	 * the caller; disposing it releases the session's disk-discovery
 	 * watchers and detaches from this controller's change event.
 	 */
-	public createSessionController(directory: URI | undefined): SessionPluginController {
-		return new SessionPluginController(this, directory);
+	public createSessionController(session: URI, directory: URI | undefined): SessionPluginController {
+		return this.instantiationService.createInstance(SessionPluginController, this, session, directory);
 	}
 
 	/**
@@ -3603,9 +3643,8 @@ interface IClientCustomizationState {
  * Per-session view over {@link PluginController}.
  *
  * Owns the session-scoped slice of plugin state — published client
- * customizations, on-disk-discovered customizations under the session's
- * customization directory, and the user's per-session enablement
- * overrides — and exposes a {@link onDidPublish} stream of
+ * customizations and on-disk-discovered customizations under the session's
+ * customization directory — and exposes a {@link onDidPublish} stream of
  * {@link SessionAction}s targeted at *this* session (no cross-session
  * routing).
  *
@@ -3618,13 +3657,15 @@ class SessionPluginController extends Disposable {
 	/** Per-session action stream (reset + per-item updates). */
 	readonly onDidPublish = this._onDidPublish.event;
 
-	private readonly _enablement = new Map<string, boolean>();
+	private readonly _previousDirectories: URI[] = [];
+	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
+	private readonly _desiredCustomizationById = new Map<string, Customization | ChildCustomization>();
 	/**
 	 * Live runtime state (`state`/`channel`) per MCP server customization id,
 	 * kept up to date by the owning session from its MCP controller. Overlaid
 	 * onto published customizations by {@link _overlayMcpState} so a re-sync
 	 * preserves the live state of otherwise-unchanged MCP servers instead of
-	 * resetting them to the `Starting` default baked into
+	 * resetting them to the `Stopped` default baked into
 	 * `makeMcpServerCustomization`. Exposed (not injected) so the session can
 	 * write to it once it holds this controller.
 	 */
@@ -3642,7 +3683,9 @@ class SessionPluginController extends Disposable {
 
 	constructor(
 		private readonly _parent: PluginController,
+		private readonly _session: URI,
 		private _directory: URI | undefined,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
@@ -3667,9 +3710,7 @@ class SessionPluginController extends Disposable {
 	/**
 	 * Move the session's customization anchor to a new directory (e.g. from the
 	 * user-picked folder to the worktree at materialization). Recreates the
-	 * discovered entry so discovery/watchers re-scan the new directory, and
-	 * rebases per-session enablement overrides whose URI lived under the old
-	 * directory so the user's toggles survive the move.
+	 * discovered entry so discovery/watchers re-scan the new directory.
 	 */
 	public reanchor(directory: URI): void {
 		if (this._directory && isEqual(this._directory, directory)) {
@@ -3678,16 +3719,8 @@ class SessionPluginController extends Disposable {
 		const previous = this._directory;
 		this._directory = directory;
 		this._sessionDiscovered.clear();
-		if (previous) {
-			this._migrateEnablement(previous, directory);
-		}
-	}
-
-	private _migrateEnablement(fromDir: URI, toDir: URI): void {
-		const migrated = migrateEnablementKeys(this._enablement, fromDir, toDir);
-		this._enablement.clear();
-		for (const [uri, enabled] of migrated) {
-			this._enablement.set(uri, enabled);
+		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
+			this._previousDirectories.push(previous);
 		}
 	}
 
@@ -3769,17 +3802,6 @@ class SessionPluginController extends Disposable {
 				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir })),
 			...sessionPlugins,
 		];
-	}
-
-	/**
-	 * Set per-session enablement for a customization (by protocol URI).
-	 */
-	public setEnabled(pluginProtocolUri: string, enabled: boolean): void {
-		const prev = this._enablement.get(pluginProtocolUri);
-		if (prev === enabled) {
-			return;
-		}
-		this._enablement.set(pluginProtocolUri, enabled);
 	}
 
 	/**
@@ -3949,17 +3971,68 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _isEnabled(customization: Customization): boolean {
-		return this._enablement.get(customization.uri) ?? customization.enabled !== false;
+		return this._desiredEnabled(customization) ?? customization.enabled !== false;
 	}
 
 	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
-		return customization.enabled === enabled ? customization : { ...customization, enabled };
+		if (customization.type === CustomizationType.McpServer) {
+			return customization.enabled === enabled ? customization : { ...customization, enabled };
+		}
+		let changed = customization.enabled !== enabled;
+		const children = customization.children?.map(child => {
+			const desiredEnabled = this._desiredEnabled(child);
+			if (desiredEnabled === undefined || desiredEnabled === child.enabled) {
+				return child;
+			}
+			changed = true;
+			return { ...child, enabled: desiredEnabled };
+		});
+		return changed ? { ...customization, enabled, children } : customization;
+	}
+
+	private _desiredEnabled(customization: Customization | ChildCustomization): boolean | undefined {
+		const exact = this._getDesiredCustomization(customization.id);
+		if (exact) {
+			return exact.enabled;
+		}
+		if (!this._directory) {
+			return undefined;
+		}
+		for (const previousDirectory of this._previousDirectories) {
+			const previousUri = rebaseUnder(URI.parse(customization.uri), this._directory, previousDirectory);
+			if (!previousUri) {
+				continue;
+			}
+			const previousId = customizationId(previousUri.toString(), customization.range);
+			const previous = this._getDesiredCustomization(previousId);
+			if (previous) {
+				return previous.enabled;
+			}
+		}
+		return undefined;
+	}
+
+	private _getDesiredCustomization(id: string): Customization | ChildCustomization | undefined {
+		const customizations = this._stateManager.getSessionState(this._session.toString())?.customizations;
+		if (customizations !== this._indexedDesiredCustomizations) {
+			this._indexedDesiredCustomizations = customizations;
+			this._desiredCustomizationById.clear();
+			for (const customization of customizations ?? []) {
+				this._desiredCustomizationById.set(customization.id, customization);
+				if (customization.type !== CustomizationType.McpServer) {
+					for (const child of customization.children ?? []) {
+						this._desiredCustomizationById.set(child.id, child);
+					}
+				}
+			}
+		}
+		return this._desiredCustomizationById.get(id);
 	}
 
 	/**
-	 * Projects a raw customization into its published form: applies the
-	 * user's per-session enablement override, then overlays the latest
+	 * Projects a raw customization into its published form: applies reducer-backed
+	 * per-session enablement, then overlays the latest
 	 * known MCP runtime `state`/`channel` (see {@link mcpServerStates}).
 	 * Every publish path runs customizations through this so enablement and
 	 * live MCP state stay consistent. Object identity is preserved when

@@ -72,7 +72,6 @@ export class MockAgent implements IAgent {
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
 	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
-	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
@@ -156,6 +155,11 @@ export class MockAgent implements IAgent {
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages, chat });
+	}
+
+	readonly onSessionConfigChangedCalls: { session: URI; values: Record<string, unknown> }[] = [];
+	onSessionConfigChanged(session: URI, values: Record<string, unknown>): void {
+		this.onSessionConfigChangedCalls.push({ session, values });
 	}
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
@@ -284,10 +288,6 @@ export class MockAgent implements IAgent {
 			},
 		});
 		return results;
-	}
-
-	setCustomizationEnabled(id: string, enabled: boolean): void {
-		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
 	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
@@ -845,10 +845,6 @@ export class ScriptedMockAgent implements IAgent {
 
 	removeActiveClient(): void { }
 
-	setCustomizationEnabled() {
-
-	}
-
 	private didCompleteToolCalls = new Set<string>();
 
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
@@ -1027,12 +1023,12 @@ function _reasoning(session: URI, sessionStr: string, turnId: string, content: s
 
 /** Creates a {@link ActionType.ChatTurnComplete} signal. */
 function _idle(session: URI, sessionStr: string, turnId: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatTurnComplete, turnId });
+	return _action(session, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 }
 
 /** Creates a {@link ActionType.ChatError} signal. */
 function _error(session: URI, sessionStr: string, turnId: string, errorType: string, message: string, stack?: string): IAgentActionSignal {
-	return _action(session, { type: ActionType.ChatError, turnId, error: { errorType, message, stack } });
+	return _action(session, { type: ActionType.ChatError, turnId, duration: 1, error: { errorType, message, stack } });
 }
 
 /** Creates a {@link ActionType.SessionTitleChanged} signal. */
