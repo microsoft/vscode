@@ -1360,27 +1360,26 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client tool call stamped for a never-connected client fails after the grace period', () => {
+	test('client tool call stamped for a disconnected protocol client fails after the grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			const chatUri = buildDefaultChatUri(sessionUri);
+			const transport = connectClient('disconnected-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			// Tool call stamped for a clientId that never connected (e.g. a
-			// stale stamp from a long-dead window). No disconnect event ever
-			// fires for it; the issuance-time orphan check must arm the timeout.
 			stateManager.dispatchServerAction(chatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
 			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
@@ -1396,8 +1395,41 @@ suite('ProtocolServerHandler', () => {
 			} : undefined, {
 				status: ToolCallStatus.Completed,
 				success: false,
-				error: 'Client ghost-client disconnected before completing Run Task',
+				error: 'Client disconnected-client disconnected before completing Run Task',
 			});
+		});
+	});
+
+	test('client tool call owned by an active local IPC client is not treated as orphaned', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'local-client',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'local-client' },
+			});
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
 		});
 	});
 
@@ -1405,6 +1437,8 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			const transport = connectClient('late-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
@@ -1420,8 +1454,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'late-client' },
 			});
 
-			// The owning client connects (and subscribes) within the grace
-			// window — the subscribe path clears the armed timeout.
+			// The owning client reconnects within the grace window.
 			connectClient('late-client', [sessionUri]);
 
 			await new Promise(r => setTimeout(r, 30_001));
@@ -1435,27 +1468,25 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			const transport = connectClient('disconnected-client', [sessionUri]);
+			transport.simulateClose();
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
-			// First orphaned tool call (owner never connected) arms the grace timer.
+			// First orphaned tool call arms the grace timer.
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
-			// A second call for the same never-connected owner arrives partway
-			// through the window and re-arms the (shared) timer. The grace clock
-			// is pinned to the first arm, so the re-arm must NOT reset the
-			// deadline — otherwise the first call could be kept alive
-			// indefinitely.
+			// Re-arming for a later call must retain the original deadline.
 			await new Promise(r => setTimeout(r, 20_000));
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatToolCallStart,
@@ -1463,7 +1494,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-2',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'disconnected-client' },
 			});
 
 			// 31s after the FIRST call: both must have failed.

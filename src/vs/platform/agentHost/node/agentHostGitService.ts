@@ -16,7 +16,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, IAgentHostGitService, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { Limiter, SequencerByKey } from '../../../base/common/async.js';
 
@@ -41,12 +41,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
-	async getDefaultBranch(workingDirectory: URI): Promise<string | undefined> {
+	async getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined> {
 		// Try to read the default branch from the remote HEAD reference
 		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
 		if (remoteRef) {
 			if (!remoteRef.startsWith('refs/remotes/origin/')) {
-				return remoteRef;
+				return { name: remoteRef, startPoint: remoteRef };
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
@@ -59,10 +59,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// (e.g. fresh clone with no remote-tracking refs yet).
 			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
 			if (hasRemoteRef) {
-				return `origin/${branch}`;
+				return { name: branch, startPoint: `origin/${branch}` };
 			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : undefined;
+			return hasLocalBranch ? { name: branch, startPoint: branch } : undefined;
 		}
 		return undefined;
 	}

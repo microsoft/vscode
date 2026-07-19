@@ -77,10 +77,15 @@ export interface IPullOptions {
 
 export const IAgentHostGitService = createDecorator<IAgentHostGitService>('agentHostGitService');
 
+export interface IDefaultBranch {
+	readonly name: string;
+	readonly startPoint: string;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getDefaultBranch(workingDirectory: URI): Promise<string | undefined>;
+	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;

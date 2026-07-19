@@ -41,7 +41,7 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as Ahp
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { buildSubagentChatUri, getToolSubagentContent, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getToolSubagentContent, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, type ChatState, type ISessionWithDefaultChat, type ClientPluginCustomization, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -408,6 +408,9 @@ function inputRequestResponsePartKey(part: InputRequestResponsePart): string {
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
+	readonly isReadOnly: IObservable<boolean>;
+	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
+	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -424,6 +427,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
 		readonly title: string | undefined,
+		sessionSubscription: IAgentSubscription<SessionState> | undefined,
+		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
@@ -433,6 +438,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this.setStateSubscriptions(sessionSubscription, chatSubscription);
+		this.isReadOnly = derived(this, reader => {
+			const sessionArchived = Boolean((this._sessionState.read(reader).read(reader)?.status ?? 0) & SessionStatus.IsArchived);
+			return isChatReadOnly(this._chatState.read(reader).read(reader)?.interactivity, sessionArchived);
+		});
 
 		const hasActiveTurn = initialProgress !== undefined;
 		this.transferredState = inputState ? { editingSession: undefined, inputState } : undefined;
@@ -450,6 +461,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 		this.forkSession = this._forkSession;
 		this.renameSession = this._renameSession;
+	}
+
+	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
+		transaction(tx => {
+			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
+			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
+		});
 	}
 
 	override dispose(): void {
@@ -851,6 +869,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let activeTurnId: string | undefined;
 		let sessionTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
+		let sessionSubscription: IAgentSubscription<SessionState> | undefined;
+		let chatSubscription: IAgentSubscription<ChatState> | undefined;
 		// Mark this session as hydrating so that a sibling chat of the same
 		// session closing while we await our subscriptions does not tear down
 		// the shared session subscription (which would strand us forever).
@@ -860,6 +880,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!isNewSession) {
 				try {
 					const sub = this._ensureSessionSubscription(resolvedSession.toString());
+					sessionSubscription = sub;
 					// Wait for both the session summary and its default-chat
 					// conversation state to hydrate from the server. After the
 					// multi-chat protocol adoption, turns/activeTurn live on the
@@ -879,6 +900,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					chatURI = this._resolveChatUriFromState(sessionResource, rawState);
 					this._setChatURI(sessionResource, chatURI);
 					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatURI);
+					chatSubscription = chatSub;
 					await this._whenSubscriptionHydrated(chatSub, token);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
 					if (sessionState) {
@@ -1000,6 +1022,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionResource,
 			history,
 			sessionTitle,
+			sessionSubscription,
+			chatSubscription,
 			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 				if (!this._getSessionState(resolvedSession.toString())) {
 					throw new Error('Cannot fork session before the initial request');
@@ -1213,8 +1237,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// handler observes state changes for the duration of the chat
 				// session, then wire up the per-turn machinery that
 				// `_createAndSubscribe` would normally set up.
-				this._ensureSessionSubscription(sessionKey);
-				this._setChatURI(request.sessionResource, this._resolveChatUriFromState(request.sessionResource, existingState));
+				const sessionSub = this._ensureSessionSubscription(sessionKey);
+				const chatURI = this._resolveChatUriFromState(request.sessionResource, existingState);
+				this._setChatURI(request.sessionResource, chatURI);
+				const chatSub = this._ensureChatSubscription(sessionKey, chatURI);
+				this._activeSessions.get(request.sessionResource)?.setStateSubscriptions(sessionSub, chatSub);
 				this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
 				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
@@ -3753,7 +3780,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const rawState = this._requireRawSessionState(session.toString());
 		const chatURI = this._resolveChatUriFromState(sessionResource, rawState);
 		this._setChatURI(sessionResource, chatURI);
-		this._ensureChatSubscription(session.toString(), chatURI);
+		const chatSub = this._ensureChatSubscription(session.toString(), chatURI);
+		if (!fork) {
+			this._activeSessions.get(sessionResource)?.setStateSubscriptions(newSub, chatSub);
+		}
 
 		// Start syncing the chat model's pending requests to the protocol
 		this._ensurePendingMessageSubscription(sessionResource, session);

@@ -96,6 +96,27 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.strictEqual(result.incomingChanges, undefined);
 	});
 
+	(hasGit ? test : test.skip)('resolves the default branch name and remote-tracking start point', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
+			name: 'main',
+			startPoint: 'origin/main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('falls back to the local branch when the default remote-tracking ref is missing', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
+			name: 'main',
+			startPoint: 'main',
+		});
+	});
+
 	(hasGit ? test : test.skip)('counts uncommitted changes', async () => {
 		const dir = initRepo({ remote: 'git@gitlab.com:owner/repo.git' });
 		const fs = await import('fs/promises');
