@@ -10,7 +10,7 @@ export interface ITask<T> {
 export class Delayer<T> {
 
 	public defaultDelay: number;
-	#timeout: any; // Timer
+	#timeout: ReturnType<typeof setTimeout> | null;
 	#cancelTimeout: Promise<T | null> | null;
 	#onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
 	#task: ITask<T> | null;

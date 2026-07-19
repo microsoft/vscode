@@ -73,10 +73,29 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 		responseHeaders['Content-Type'] = textMimeType[extname(filePath)] || getMediaMime(filePath) || 'text/plain';
 
-		res.writeHead(200, responseHeaders);
-
-		// Data
-		createReadStream(filePath).pipe(res);
+		// Create the stream first and wait for it to open before sending
+		// headers so that errors (e.g. ENOENT race) can still produce a
+		// proper 404 response instead of aborting a half-sent 200.
+		const fileStream = createReadStream(filePath);
+		await new Promise<void>((resolve, reject) => {
+			fileStream.on('error', reject);
+			fileStream.on('open', () => {
+				// File opened successfully - send headers and pipe
+				res.writeHead(200, responseHeaders);
+				fileStream.pipe(res);
+				// Destroy the read stream if the response is closed prematurely
+				// (e.g. client disconnect) to avoid leaking the file descriptor.
+				res.once('close', () => fileStream.destroy());
+				fileStream.on('end', resolve);
+				// Replace the initial error handler now that headers are sent
+				fileStream.removeAllListeners('error');
+				fileStream.on('error', error => {
+					logService.error(error);
+					console.error(error.toString());
+					res.destroy();
+				});
+			});
+		});
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			logService.error(error);
@@ -345,12 +364,6 @@ export class WebClientServer {
 			} : undefined
 		};
 
-		const proposedApi = this._environmentService.args['enable-proposed-api'];
-		if (proposedApi?.length) {
-			productConfiguration.extensionsEnabledWithApiProposalVersion ??= [];
-			productConfiguration.extensionsEnabledWithApiProposalVersion.push(...proposedApi);
-		}
-
 		if (!this._environmentService.isBuilt) {
 			try {
 				const productOverrides = JSON.parse((await promises.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
@@ -418,7 +431,7 @@ export class WebClientServer {
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-2Q+j4hfT09+1+imS46J2YlkCtHWQt0/BE79PXjJ0ZJ8=';
+		const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
 
 		const cspDirectives = [
 			'default-src \'self\';',

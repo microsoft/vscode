@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -12,7 +13,7 @@ import { EnablementState } from '../../../../services/extensionManagement/common
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
-	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 	providerExtensionId: product.defaultChatAgent?.providerExtensionId ?? '',
 };
@@ -58,12 +59,59 @@ export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled
 export interface IChatSetupResult {
 	readonly success: ChatSetupResultValue;
 	readonly dialogSkipped: boolean;
+	readonly error?: Error;
+	readonly errorAlreadyHandled?: boolean;
+}
+
+export class ChatSetupError extends Error {
+	constructor(
+		readonly originalError: Error,
+		readonly userNotified: boolean,
+	) {
+		super(originalError.message, { cause: originalError });
+		this.name = originalError.name;
+	}
+}
+
+export interface IChatSetupRunOptions {
+	readonly disableChatViewReveal?: boolean;
+	readonly forceSignInDialog?: boolean;
+	readonly additionalScopes?: readonly string[];
+	readonly forceAnonymous?: ChatSetupAnonymous;
+	readonly dialogIcon?: ThemeIcon;
+	readonly dialogTitle?: string;
+	readonly setupStrategy?: ChatSetupStrategy;
+	readonly disableCloseButton?: boolean;
+	readonly onSignInStarted?: () => void;
+}
+
+export interface IChatSetupCommandOptions extends IChatSetupRunOptions {
+	readonly inputValue?: string;
+	readonly returnResult?: boolean;
 }
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
-	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
+	commandService.executeCommand(defaultChat.chatRefreshTokenCommand).catch(() => { /* command may not be registered */ });
+}
+
+/**
+ * Builds a redirect URL that GitHub will use to return the user to VS Code
+ * after completing a plan upgrade. The redirect goes through `vscode.dev/redirect`
+ * which triggers the native protocol handler back into the desktop app.
+ *
+ * @param baseUpgradeUrl The direct GitHub upgrade URL (from `resolveGitHubUrl`).
+ * @param urlProtocol The VS Code URL protocol scheme (e.g. `vscode`, `vscode-insiders`, `code-oss`).
+ * @param quality The product quality (`stable`, `insider`, or `undefined` for OSS).
+ * @returns The upgrade URL with a `return_to` query parameter appended.
+ */
+export function buildUpgradeUrlWithRedirect(baseUpgradeUrl: string, urlProtocol: string, quality: string | undefined): string {
+	const vscodeUri = `${urlProtocol}://${defaultChat.chatExtensionId}/upgrade-success`;
+	const redirectHost = quality === 'stable' ? 'vscode.dev' : 'insiders.vscode.dev';
+	const returnTo = `https://${redirectHost}/redirect?url=${encodeURIComponent(vscodeUri)}`;
+
+	const separator = baseUpgradeUrl.includes('?') ? '&' : '?';
+	return `${baseUpgradeUrl}${separator}return_to=${encodeURIComponent(returnTo)}`;
 }
 
 /**

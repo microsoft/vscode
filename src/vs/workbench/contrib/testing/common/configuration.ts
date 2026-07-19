@@ -25,6 +25,7 @@ export const enum TestingConfigKeys {
 	ShowCoverageInExplorer = 'testing.showCoverageInExplorer',
 	CoverageBarThresholds = 'testing.coverageBarThresholds',
 	CoverageToolbarEnabled = 'testing.coverageToolbarEnabled',
+	CoverageMinimapEnabled = 'testing.coverageMinimapEnabled',
 	ResultsViewLayout = 'testing.resultsView.layout',
 }
 
@@ -197,6 +198,11 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false, // todo@connor4312: disabled by default until UI sync
 		},
+		[TestingConfigKeys.CoverageMinimapEnabled]: {
+			description: localize('testing.coverageMinimapEnabled', 'Controls whether coverage indicators are shown in the minimap.'),
+			type: 'boolean',
+			default: true,
+		},
 		[TestingConfigKeys.ResultsViewLayout]: {
 			description: localize('testing.resultsView.layout', 'Controls the layout of the Test Results view.'),
 			enum: [
@@ -215,11 +221,6 @@ export const testingConfiguration: IConfigurationNode = {
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'testing.openTesting',
-		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
-			return [[TestingConfigKeys.OpenResults, { value }]];
-		}
-	}, {
-		key: 'testing.automaticallyOpenResults', // insiders only during 1.96, remove after 1.97
 		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
 			return [[TestingConfigKeys.OpenResults, { value }]];
 		}
@@ -246,6 +247,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.ShowCoverageInExplorer]: boolean;
 	[TestingConfigKeys.CoverageBarThresholds]: ITestingCoverageBarThresholds;
 	[TestingConfigKeys.CoverageToolbarEnabled]: boolean;
+	[TestingConfigKeys.CoverageMinimapEnabled]: boolean;
 	[TestingConfigKeys.ResultsViewLayout]: TestingResultsViewLayout;
 }
 

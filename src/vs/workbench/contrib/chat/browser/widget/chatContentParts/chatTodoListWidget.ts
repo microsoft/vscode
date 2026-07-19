@@ -16,6 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKeyService, IContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 
@@ -129,7 +130,8 @@ export class ChatTodoListWidget extends Disposable {
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -215,6 +217,14 @@ export class ChatTodoListWidget extends Disposable {
 		this._register(this.clearButton);
 
 		this._register(this.clearButton.onDidClick(() => {
+			const todoCount = this._currentSessionResource ? this.chatTodoListService.getTodos(this._currentSessionResource).length : 0;
+			this.telemetryService.publicLog2<ChatTodoListWidgetEvent, ChatTodoListWidgetClassification>(
+				'chatTodoListWidget',
+				{
+					action: 'clear',
+					todoCount
+				}
+			);
 			this.clearAllTodos();
 		}));
 	}
@@ -277,6 +287,7 @@ export class ChatTodoListWidget extends Disposable {
 
 		if (!shouldShow) {
 			this.domNode.classList.remove('has-todos');
+			this.hideWidget();
 			return;
 		}
 
@@ -349,6 +360,15 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
 
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
+
+		const todoCount = this._currentSessionResource ? this.chatTodoListService.getTodos(this._currentSessionResource).length : 0;
+		this.telemetryService.publicLog2<ChatTodoListWidgetEvent, ChatTodoListWidgetClassification>(
+			'chatTodoListWidget',
+			{
+				action: this._isExpanded ? 'expand' : 'collapse',
+				todoCount
+			}
+		);
 
 		if (this._currentSessionResource) {
 			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
@@ -455,3 +475,15 @@ export class ChatTodoListWidget extends Disposable {
 		}
 	}
 }
+
+type ChatTodoListWidgetEvent = {
+	action: 'expand' | 'collapse' | 'clear';
+	todoCount: number;
+};
+
+type ChatTodoListWidgetClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user action on the todo list widget (expand, collapse, or clear).' };
+	todoCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of todos at the time of the action.' };
+	owner: 'bhavyaus';
+	comment: 'Tracks user interactions with the chat todo list widget.';
+};

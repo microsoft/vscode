@@ -198,7 +198,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path, this.modifiedURI.scheme, this.modifiedURI.authority),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
@@ -217,6 +217,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async resetToInitialContent() {
 		await this._textModelChangeService.resetDocumentValues(undefined, this.initialContent);
+	}
+
+	async resetEditTrackerToInitialContent() {
+		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

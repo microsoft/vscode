@@ -74,7 +74,7 @@ suite('ExtHostBrowsers', () => {
 		const extHost = createExtHostBrowsers();
 		const dto = createDto({ id: 'b1', url: 'https://active.com' });
 		extHost.$onDidOpenBrowserTab(dto);
-		extHost.$onDidChangeActiveBrowserTab(dto);
+		extHost.$onDidChangeActiveBrowserTab('b1');
 
 		assert.strictEqual(extHost.activeBrowserTab?.url, 'https://active.com');
 	});
@@ -83,23 +83,19 @@ suite('ExtHostBrowsers', () => {
 		const extHost = createExtHostBrowsers();
 		const dto = createDto({ id: 'b1' });
 		extHost.$onDidOpenBrowserTab(dto);
-		extHost.$onDidChangeActiveBrowserTab(dto);
+		extHost.$onDidChangeActiveBrowserTab('b1');
 		assert.ok(extHost.activeBrowserTab);
 
 		extHost.$onDidChangeActiveBrowserTab(undefined);
 		assert.strictEqual(extHost.activeBrowserTab, undefined);
 	});
 
-	test('$onDidChangeActiveBrowserTab with unknown tab creates it and fires open event', () => {
+	test('$onDidChangeActiveBrowserTab with unknown tab returns undefined', () => {
 		const extHost = createExtHostBrowsers();
-		const opened: vscode.BrowserTab[] = [];
-		store.add(extHost.onDidOpenBrowserTab(tab => opened.push(tab)));
 
-		extHost.$onDidChangeActiveBrowserTab(createDto({ id: 'new-tab', url: 'https://new.com' }));
+		extHost.$onDidChangeActiveBrowserTab('non-existent');
 
-		assert.strictEqual(extHost.activeBrowserTab?.url, 'https://new.com');
-		assert.strictEqual(extHost.browserTabs.length, 1);
-		assert.strictEqual(opened.length, 1, 'onDidOpenBrowserTab should fire for the new tab');
+		assert.strictEqual(extHost.activeBrowserTab, undefined);
 	});
 
 	// #endregion
@@ -186,7 +182,7 @@ suite('ExtHostBrowsers', () => {
 		store.add(extHost.onDidChangeBrowserTabState(tab => changes.push(tab)));
 
 		extHost.$onDidOpenBrowserTab(createDto({ id: 'b1', url: 'https://old.com' }));
-		extHost.$onDidChangeBrowserTabState('b1', createDto({ id: 'b1', url: 'https://new.com' }));
+		extHost.$onDidChangeBrowserTabState(createDto({ id: 'b1', url: 'https://new.com' }));
 
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].url, 'https://new.com');
@@ -196,7 +192,7 @@ suite('ExtHostBrowsers', () => {
 		const extHost = createExtHostBrowsers();
 		extHost.$onDidOpenBrowserTab(createDto({ id: 'b1', url: 'https://example.com', title: 'Old Title' }));
 
-		extHost.$onDidChangeBrowserTabState('b1', createDto({ id: 'b1', url: 'https://example.com', title: 'New Title' }));
+		extHost.$onDidChangeBrowserTabState(createDto({ id: 'b1', url: 'https://example.com', title: 'New Title' }));
 
 		assert.strictEqual(extHost.browserTabs[0].url, 'https://example.com');
 		assert.strictEqual(extHost.browserTabs[0].title, 'New Title');
@@ -213,7 +209,7 @@ suite('ExtHostBrowsers', () => {
 
 		const dto = createDto({ id: 'b1' });
 		extHost.$onDidOpenBrowserTab(dto);
-		extHost.$onDidChangeActiveBrowserTab(dto);
+		extHost.$onDidChangeActiveBrowserTab('b1');
 		extHost.$onDidChangeActiveBrowserTab(undefined);
 
 		assert.deepStrictEqual(activeChanges, ['https://example.com', undefined]);
@@ -242,7 +238,7 @@ suite('ExtHostBrowsers', () => {
 		extHost.$onDidOpenBrowserTab(createDto({ id: 'b1', favicon: undefined }));
 		assert.strictEqual((extHost.browserTabs[0].icon as { id: string }).id, 'globe');
 
-		extHost.$onDidChangeBrowserTabState('b1', createDto({ id: 'b1', favicon: 'https://example.com/new.ico' }));
+		extHost.$onDidChangeBrowserTabState(createDto({ id: 'b1', favicon: 'https://example.com/new.ico' }));
 		assert.strictEqual(String(extHost.browserTabs[0].icon), 'https://example.com/new.ico');
 	});
 
@@ -251,7 +247,7 @@ suite('ExtHostBrowsers', () => {
 		extHost.$onDidOpenBrowserTab(createDto({ id: 'b1', favicon: 'https://example.com/icon.ico' }));
 		assert.strictEqual(String(extHost.browserTabs[0].icon), 'https://example.com/icon.ico');
 
-		extHost.$onDidChangeBrowserTabState('b1', createDto({ id: 'b1', favicon: undefined }));
+		extHost.$onDidChangeBrowserTabState(createDto({ id: 'b1', favicon: undefined }));
 		assert.strictEqual((extHost.browserTabs[0].icon as { id: string }).id, 'globe');
 	});
 
@@ -379,7 +375,7 @@ suite('ExtHostBrowsers', () => {
 		extHost.$onDidOpenBrowserTab(createDto({ id: 'b1', url: 'https://old.com', title: 'Old' }));
 		const tabBefore = extHost.browserTabs[0];
 
-		extHost.$onDidChangeBrowserTabState('b1', createDto({ id: 'b1', url: 'https://new.com', title: 'New' }));
+		extHost.$onDidChangeBrowserTabState(createDto({ id: 'b1', url: 'https://new.com', title: 'New' }));
 		const tabAfter = extHost.browserTabs[0];
 
 		assert.strictEqual(tabBefore, tabAfter);
@@ -417,7 +413,7 @@ suite('ExtHostBrowsers', () => {
 		const extHost = createExtHostBrowsers();
 		const dto = createDto({ id: 'b1' });
 		extHost.$onDidOpenBrowserTab(dto);
-		extHost.$onDidChangeActiveBrowserTab(dto);
+		extHost.$onDidChangeActiveBrowserTab('b1');
 		assert.ok(extHost.activeBrowserTab);
 
 		extHost.$onDidCloseBrowserTab('b1');

@@ -92,8 +92,8 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 |--------|-------------|
 | `--branch <name>` | Source branch to build (default: current git branch) |
 | `--definition <id>` | Pipeline definition ID (default: 111) |
-| `--parameter <entry>` | Pipeline parameter in `KEY=value` format (repeatable) |
-| `--parameters <list>` | Space-separated parameters in `KEY=value KEY2=value2` format |
+| `--parameter <entry>` | Pipeline parameter in `KEY=value` format (repeatable); **use this when the value contains spaces** |
+| `--parameters <list>` | Space-separated parameters in `KEY=value KEY2=value2` format; values **must not** contain spaces |
 | `--dry-run` | Print the command without executing |
 
 ### Product Build Queue Parameters (`build/azure-pipelines/product-build.yml`)
@@ -119,6 +119,7 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | `VSCODE_PUBLISH` | boolean | `true` | `true`, `false` | Publish to builds.code.visualstudio.com |
 | `VSCODE_RELEASE` | boolean | `false` | `true`, `false` | Trigger release flow if successful |
 | `VSCODE_STEP_ON_IT` | boolean | `false` | `true`, `false` | Skip tests |
+| `VSCODE_USE_LEGACY_OSS_NOTICE` | boolean | `false` | `true`, `false` | Keep the legacy mixin ThirdPartyNotices.txt instead of the Component Governance notice |
 
 Example: run a quick CI-oriented validation with minimal publish/release side effects:
 

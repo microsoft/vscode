@@ -1,0 +1,10 @@
+{
+    "question": "github links",
+    "isRegex": true,
+    "queryShouldFind": [
+        [ "bar.html", [
+                "https://github.com/",
+                "https://github.com/microsoft/vscode/issues/189964"
+            ] ]
+    ]
+}

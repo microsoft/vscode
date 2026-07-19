@@ -16,7 +16,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -958,7 +958,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						}
 						const initialName = profileElement?.root.getInitialName();
 						value = value.trim();
-						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === value)) {
+						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isInternal && p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
 								type: MessageType.WARNING
@@ -1331,7 +1331,7 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 		for (const profile of this.userDataProfilesService.profiles) {
-			if (!profile.isTransient) {
+			if (!profile.isInternal) {
 				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
 			}
 		}
@@ -2141,7 +2141,7 @@ class ChangeProfileAction implements IAction {
 
 	getSwitchProfileActions(): IAction[] {
 		return this.userDataProfilesService.profiles
-			.filter(profile => !profile.isTransient)
+			.filter(profile => !profile.isInternal)
 			.sort((a, b) => a.isDefault ? -1 : b.isDefault ? 1 : a.name.localeCompare(b.name))
 			.map<IAction>(profile => ({
 				id: `switchProfileTo${profile.id}`,
@@ -2249,6 +2249,10 @@ export class UserDataProfilesEditorInput extends EditorInput {
 			this._dirty = dirty;
 			this._onDidChangeDirty.fire();
 		}
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.RequiresModal;
 	}
 
 	constructor(

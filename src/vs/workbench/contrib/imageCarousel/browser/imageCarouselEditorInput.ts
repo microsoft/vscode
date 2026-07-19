@@ -4,16 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IImageCarouselCollection } from './imageCarouselTypes.js';
+
+const imageCarouselEditorIcon = registerIcon('image-carousel-editor-label-icon', Codicon.fileMedia, localize('imageCarouselEditorLabelIcon', 'Icon of the image carousel editor label.'));
 
 export class ImageCarouselEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.imageCarousel';
 
 	private _resource: URI;
 	private _name: string;
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
+	}
 
 	constructor(
 		public readonly collection: IImageCarouselCollection,
@@ -37,6 +47,10 @@ export class ImageCarouselEditorInput extends EditorInput {
 
 	override getName(): string {
 		return this._name;
+	}
+
+	override getIcon(): ThemeIcon {
+		return imageCarouselEditorIcon;
 	}
 
 	setName(name: string): void {

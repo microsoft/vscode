@@ -13,7 +13,12 @@ export const additionalDeps = [
 	'rpmlib(FileDigests) <= 4.6.0-1',
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
-	'xdg-utils' // OS integration
+	'xdg-utils', // OS integration
+];
+
+export const recommendedDeps = [
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -49,7 +54,6 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.28)(64bit)',
 		'libc.so.6(GLIBC_2.3)(64bit)',
 		'libc.so.6(GLIBC_2.3.2)(64bit)',
-		'libc.so.6(GLIBC_2.3.3)(64bit)',
 		'libc.so.6(GLIBC_2.3.4)(64bit)',
 		'libc.so.6(GLIBC_2.4)(64bit)',
 		'libc.so.6(GLIBC_2.5)(64bit)',
@@ -58,6 +62,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.8)(64bit)',
 		'libc.so.6(GLIBC_2.9)(64bit)',
 		'libcairo.so.2()(64bit)',
+		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
 		'libdbus-1.so.3(LIBDBUS_1_3)(64bit)',
@@ -76,6 +81,7 @@ export const referenceGeneratedDepsByArch = {
 		'libgtk-3.so.0()(64bit)',
 		'libm.so.6()(64bit)',
 		'libm.so.6(GLIBC_2.2.5)(64bit)',
+		'libm.so.6(GLIBC_2.27)(64bit)',
 		'libnspr4.so()(64bit)',
 		'libnss3.so()(64bit)',
 		'libnss3.so(NSS_3.11)(64bit)',
@@ -104,6 +110,17 @@ export const referenceGeneratedDepsByArch = {
 		'libsmime3.so(NSS_3.10)(64bit)',
 		'libsmime3.so(NSS_3.2)(64bit)',
 		'libssl3.so(NSS_3.28)(64bit)',
+		'libstdc++.so.6()(64bit)',
+		'libstdc++.so.6(CXXABI_1.3)(64bit)',
+		'libstdc++.so.6(CXXABI_1.3.5)(64bit)',
+		'libstdc++.so.6(CXXABI_1.3.8)(64bit)',
+		'libstdc++.so.6(CXXABI_1.3.9)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.11)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.18)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.20)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.21)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.9)(64bit)',
 		'libudev.so.1()(64bit)',
 		'libudev.so.1(LIBUDEV_183)(64bit)',
 		'libutil.so.1()(64bit)',
@@ -151,6 +168,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.8)',
 		'libc.so.6(GLIBC_2.9)',
 		'libcairo.so.2',
+		'libcups.so.2',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3',
 		'libdbus-1.so.3(LIBDBUS_1_3)',
@@ -161,6 +179,7 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1',
 		'libgcc_s.so.1(GCC_3.0)',
 		'libgcc_s.so.1(GCC_3.5)',
+		'libgcc_s.so.1(GCC_4.0.0)',
 		'libgcc_s.so.1(GCC_4.3.0)',
 		'libgio-2.0.so.0',
 		'libglib-2.0.so.0',
@@ -248,6 +267,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.27)(64bit)',
 		'libc.so.6(GLIBC_2.28)(64bit)',
 		'libcairo.so.2()(64bit)',
+		'libcups.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
 		'libdbus-1.so.3(LIBDBUS_1_3)(64bit)',
@@ -258,6 +278,7 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1()(64bit)',
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
 		'libgcc_s.so.1(GCC_3.3)(64bit)',
+		'libgcc_s.so.1(GCC_4.0.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.2.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.5.0)(64bit)',
 		'libgio-2.0.so.0()(64bit)',
@@ -266,6 +287,7 @@ export const referenceGeneratedDepsByArch = {
 		'libgtk-3.so.0()(64bit)',
 		'libm.so.6()(64bit)',
 		'libm.so.6(GLIBC_2.17)(64bit)',
+		'libm.so.6(GLIBC_2.27)(64bit)',
 		'libnspr4.so()(64bit)',
 		'libnss3.so()(64bit)',
 		'libnss3.so(NSS_3.11)(64bit)',

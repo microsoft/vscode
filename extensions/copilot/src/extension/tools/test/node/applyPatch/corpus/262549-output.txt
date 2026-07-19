@@ -1,0 +1,46 @@
+function Write-ViolationLine {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string[]] $ViolatingFiles,
+        [Parameter(Mandatory)] [regex]    $DetectRegex,
+        [Parameter(Mandatory)] [string]   $RepoRoot,
+        [Parameter()] [switch]            $NoColor,
+        [Parameter()] [switch]            $ListViolationNames
+    )
+    $defsLocal = $script:definitions
+    $pattern = $DetectRegex.ToString()
+    $lineMatches = Select-String -Path $ViolatingFiles -Pattern $pattern -Encoding utf8 -ErrorAction SilentlyContinue
+    foreach ($mi in $lineMatches) {
+        $rel = [System.IO.Path]::GetRelativePath($RepoRoot, $mi.Path)
+        $lineText = $mi.Line.TrimEnd("`r")
+        $esc = [char]27
+        $redPrefix = if ($NoColor) { "- " } else { "${esc}[31m- ${esc}[0m" }
+        $greenPrefix = if ($NoColor) { "+ " } else { "${esc}[32m+ ${esc}[0m" }
+        $display = if ($NoColor) { $lineText } else { Show-HighlightedChar -Text $lineText -Pattern $DetectRegex }
+        Write-Information -MessageData ("{0}{1}: {2}{3}" -f $redPrefix, $rel, $mi.LineNumber, $display)
+
+        $fixedText = $lineText
+        $charKeys = @($defsLocal.chars.Keys)
+        foreach ($k in $charKeys) {
+            $replacement = $defsLocal.chars[$k].replacement
+            $fixedText = $fixedText.Replace([string]$k, $replacement)
+        }
+        Write-Information -MessageData ("{0}{1}: {2}{3}" -f $greenPrefix, $rel, $mi.LineNumber, $fixedText)
+
+        if ($ListViolationNames) {
+            $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+            $colored = [System.Collections.Generic.List[string]]::new()
+            foreach ($m in $DetectRegex.Matches($mi.Line)) {
+                $c = $m.Value[0]
+                $meta = $defsLocal.chars[$c]
+                $nm = if ($meta -and $meta.name) { $meta.name } else { ('U+{0:X4}' -f [int][char]$c) }
+                if (-not $seen.Add($nm)) { continue }
+                $grp = if ($meta) { $meta.group } else { $null }
+                $pair = if ($grp) { $defsLocal.groups[$grp] } else { $null }
+                $entry = if (-not $NoColor -and $pair) { $pair[0] + $nm + $pair[1] } else { $nm }
+                [void]$colored.Add($entry)
+            }
+            if ($colored.Count -gt 0) { Write-Information -MessageData ("  [" + ($colored -join ", ") + "]") }
+        }
+    }
+}

@@ -5,8 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -33,8 +31,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this.domNode = this.createOutputContents();
@@ -55,8 +51,13 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			if (part.kind === 'code') {
 				// Collect adjacent code parts and combine their contents
 				const codeParts = [part];
-				while (i + 1 < this.parts.length && this.parts[i + 1].kind === 'code') {
-					codeParts.push(this.parts[++i] as IChatCollapsibleIOCodePart);
+				while (i + 1 < this.parts.length) {
+					const nextPart = this.parts[i + 1];
+					if (nextPart.kind !== 'code' || nextPart.title) {
+						break;
+					}
+					codeParts.push(nextPart);
+					i++;
 				}
 				this.addCodeBlock(codeParts, container);
 				continue;
@@ -92,26 +93,20 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			container.appendChild(title);
 		}
 
-		// Combine text from all adjacent code parts and create model lazily
+		// Combine text from all adjacent code parts
 		const combinedText = parts.map(p => p.data).join('\n');
-		const textModel = this._register(this.modelService.createModel(
-			combinedText,
-			this.languageService.createById(firstPart.languageId),
-			undefined,
-			true
-		));
 
 		const data: ICodeBlockData = {
 			languageId: firstPart.languageId,
-			textModel: Promise.resolve(textModel),
+			text: combinedText,
 			codeBlockIndex: firstPart.codeBlockIndex,
-			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: firstPart.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, firstPart.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get());
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
@@ -121,8 +116,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			ownerMarkdownPartId: firstPart.ownerMarkdownPartId,
 			codeBlockIndex: firstPart.codeBlockIndex,
 			elementId: this.context.element.id,
-			uri: textModel.uri,
-			uriPromise: Promise.resolve(textModel.uri),
+			uri: editorReference.object.uri,
 			codemapperUri: undefined,
 			chatSessionResource: this.context.element.sessionResource,
 			focus: () => { }

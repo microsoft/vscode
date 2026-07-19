@@ -3,43 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const SandboxHelperChannelName = 'SandboxHelper';
+import { Event } from '../../../base/common/event.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
 
-export interface ISandboxNetworkHostPattern {
-	readonly host: string;
-	readonly port: number | undefined;
+interface IBuildWindowsMxcSandboxPayloadArgs {
+	commandLine: string;
+	policy: IWindowsMxcSandboxPolicy;
+	workingDirectory?: string;
+	containerName?: string;
+	containment?: IWindowsMxcPolicyContainment;
 }
 
-export interface ISandboxNetworkConfig {
-	readonly allowedDomains?: string[];
-	readonly deniedDomains?: string[];
-	readonly allowUnixSockets?: string[];
-	readonly allowAllUnixSockets?: boolean;
-	readonly allowLocalBinding?: boolean;
-	readonly httpProxyPort?: number;
-	readonly socksProxyPort?: number;
+export const SANDBOX_HELPER_CHANNEL_NAME = 'sandboxHelper';
+
+export class SandboxHelperChannel implements IServerChannel {
+
+	constructor(private readonly service: ISandboxHelperService) { }
+
+	listen<T>(_context: unknown, _event: string): Event<T> {
+		throw new Error('Invalid listen');
+	}
+
+	call<T>(_context: unknown, command: string, _arg?: unknown, _cancellationToken?: CancellationToken): Promise<T> {
+		switch (command) {
+			case 'checkSandboxDependencies':
+				return this.service.checkSandboxDependencies() as Promise<T>;
+			case 'getWindowsMxcFilesystemPolicy':
+				return this.service.getWindowsMxcFilesystemPolicy() as Promise<T>;
+			case 'getWindowsMxcEnvironment':
+				return this.service.getWindowsMxcEnvironment() as Promise<T>;
+			case 'buildWindowsMxcSandboxPayload': {
+				const { commandLine, policy, workingDirectory, containerName, containment } = _arg as IBuildWindowsMxcSandboxPayloadArgs;
+				return this.service.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment) as Promise<T>;
+			}
+		}
+
+		throw new Error('Invalid call');
+	}
 }
 
-export interface ISandboxFilesystemConfig {
-	readonly denyRead?: string[];
-	readonly allowWrite?: string[];
-	readonly denyWrite?: string[];
-	readonly allowGitConfig?: boolean;
-}
+export class SandboxHelperChannelClient implements ISandboxHelperService {
+	declare readonly _serviceBrand: undefined;
 
-export interface ISandboxRuntimeConfig {
-	readonly network?: ISandboxNetworkConfig;
-	readonly filesystem?: ISandboxFilesystemConfig;
-	readonly ignoreViolations?: Record<string, string[]>;
-	readonly enableWeakerNestedSandbox?: boolean;
-	readonly ripgrep?: {
-		readonly command: string;
-		readonly args?: string[];
-	};
-	readonly mandatoryDenySearchDepth?: number;
-	readonly allowPty?: boolean;
-}
+	constructor(private readonly channel: IChannel) { }
 
-export interface ISandboxPermissionRequest extends ISandboxNetworkHostPattern {
-	readonly requestId: string;
+	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
+		return this.channel.call<ISandboxDependencyStatus | undefined>('checkSandboxDependencies');
+	}
+
+	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
+		return this.channel.call<IWindowsMxcFilesystemPolicy | undefined>('getWindowsMxcFilesystemPolicy');
+	}
+
+	getWindowsMxcEnvironment(): Promise<string[] | undefined> {
+		return this.channel.call<string[] | undefined>('getWindowsMxcEnvironment');
+	}
+
+	buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> {
+		return this.channel.call<IWindowsMxcConfig | undefined>('buildWindowsMxcSandboxPayload', { commandLine, policy, workingDirectory, containerName, containment } satisfies IBuildWindowsMxcSandboxPayloadArgs);
+	}
 }

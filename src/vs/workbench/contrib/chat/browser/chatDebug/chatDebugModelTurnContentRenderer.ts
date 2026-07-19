@@ -20,7 +20,7 @@ const numberFormatter = safeIntl.NumberFormat();
  * request metadata, token usage, and timing.
  * When JSON is detected in section content, renders it with syntax highlighting.
  */
-export async function renderModelTurnContent(content: IChatDebugEventModelTurnContent, languageService: ILanguageService, clipboardService?: IClipboardService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
+export async function renderModelTurnContent(content: IChatDebugEventModelTurnContent, languageService: ILanguageService, clipboardService?: IClipboardService, scrollable?: { scanDomNode(): void }): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -82,7 +82,7 @@ export async function renderModelTurnContent(content: IChatDebugEventModelTurnCo
 
 		for (const section of content.sections) {
 			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
-			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService, scrollable);
 		}
 	}
 

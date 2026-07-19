@@ -643,7 +643,7 @@ export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
-	deps?: IExtensionPoint<any>[];
+	deps?: IExtensionPoint<unknown>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
 	canHandleResolver?: boolean;
@@ -674,7 +674,7 @@ export class ExtensionsRegistryImpl {
 		return result;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
+	public getExtensionPoints(): ExtensionPoint<unknown>[] {
 		return Array.from(this._extensionPoints.values());
 	}
 }

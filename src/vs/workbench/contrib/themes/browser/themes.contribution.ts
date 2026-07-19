@@ -40,6 +40,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -73,7 +74,8 @@ class MarketplaceThemesPicker implements IDisposable {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
 			const result = new Set<string>();
@@ -126,6 +128,9 @@ class MarketplaceThemesPicker implements IDisposable {
 						break;
 					}
 					const ext = gallery[i];
+					if (this.environmentService.isSessionsWindow && ext.properties.executesCode) {
+						continue; // Ideally would be in sync with canExecuteOnSessionsWindow
+					}
 					if (!installedExtensions.has(ext.identifier.id) && !this._marketplaceExtensions.has(ext.identifier.id)) {
 						this._marketplaceExtensions.add(ext.identifier.id);
 						promises.push(this.getMarketplaceColorThemes(ext.publisher, ext.name, ext.version));
@@ -569,6 +574,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const previousTheme = themeService.getColorTheme();
 		const allThemes = await themeService.getColorThemes();
@@ -604,13 +610,25 @@ registerAction2(class extends Action2 {
 
 		disposables.add(picker.onDidAccept(() => {
 			const selected = picker.activeItems[0];
-			if (selected) {
-				const theme = themes.find(t => t.id === selected.id);
-				if (theme) {
-					themeService.setColorTheme(theme, 'auto');
-				}
-			}
+			const theme = selected ? themes.find(t => t.id === selected.id) : undefined;
+
 			picker.hide();
+
+			if (!theme) {
+				return;
+			}
+
+			(async () => {
+				try {
+					await themeService.setColorTheme(theme, 'auto');
+					await configurationService.updateValue(ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettingDefaults.COLOR_THEME_LIGHT);
+					await configurationService.updateValue(ThemeSettings.PREFERRED_DARK_THEME, ThemeSettingDefaults.COLOR_THEME_DARK);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						onUnexpectedError(error);
+					}
+				}
+			})();
 		}));
 
 		const result = new Promise<void>(resolve => {
