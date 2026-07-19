@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ISessionDataService, ITurnAttachmentMetadata } from '../../common/sessionDataService.js';
 import type { Message } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
@@ -17,6 +17,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
 	private readonly _localTurns = new Map<string, ILocalTurnRecord>();
+	private readonly _turnEventIds = new Map<string, string>();
+	private readonly _turnAttachmentMetadata = new Map<string, readonly ITurnAttachmentMetadata[]>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -30,6 +32,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async createTurn(): Promise<void> { }
 
 	async deleteTurn(turnId: string): Promise<void> {
+		this._turnEventIds.delete(turnId);
+		this._turnAttachmentMetadata.delete(turnId);
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
@@ -96,9 +100,32 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
-	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
+	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
+		if (!this._turnEventIds.has(turnId)) {
+			this._turnEventIds.set(turnId, eventId);
+		}
+	}
 
-	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
+	async getTurnEventId(turnId: string): Promise<string | undefined> { return this._turnEventIds.get(turnId); }
+
+	async setTurnAttachmentMetadata(turnId: string, attachmentMetadata: readonly ITurnAttachmentMetadata[]): Promise<void> {
+		if (attachmentMetadata.length > 0) {
+			this._turnAttachmentMetadata.set(turnId, attachmentMetadata.map(metadata => ({ ...metadata })));
+		} else {
+			this._turnAttachmentMetadata.delete(turnId);
+		}
+	}
+
+	async getTurnAttachmentMetadataByEventId(): Promise<ReadonlyMap<string, readonly ITurnAttachmentMetadata[]>> {
+		const result = new Map<string, readonly ITurnAttachmentMetadata[]>();
+		for (const [turnId, attachmentMetadata] of this._turnAttachmentMetadata) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (eventId) {
+				result.set(eventId, attachmentMetadata);
+			}
+		}
+		return result;
+	}
 
 	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 
@@ -113,6 +140,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
 		this._edits.length = 0;
+		this._turnEventIds.clear();
+		this._turnAttachmentMetadata.clear();
 	}
 
 	async insertLocalTurn(record: ILocalTurnRecord): Promise<void> {

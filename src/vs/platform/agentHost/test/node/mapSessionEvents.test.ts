@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSession } from '../../common/agentService.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 
 suite('mapSessionEvents — history replay', () => {
@@ -308,6 +310,86 @@ suite('mapSessionEvents — history replay', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('restores attachment display kinds from the turn sidecar', async () => {
+		const db = await SessionDatabase.open(':memory:');
+		try {
+			await db.setTurnAttachmentMetadata('request-1', [
+				{ index: 1, displayKind: 'workspace' },
+				{ index: 2, displayKind: 'paste' },
+			]);
+			await db.setTurnEventId('request-1', 'event-1');
+			const events: ISessionEvent[] = [
+				{
+					type: 'user.message',
+					id: 'event-1',
+					data: {
+						interactionId: 'm1',
+						content: 'first',
+						attachments: [
+							{
+								type: 'blob',
+								mimeType: 'text/plain',
+								displayName: 'Unavailable context',
+							},
+							{
+								type: 'blob',
+								data: encodeBase64(VSBuffer.fromString('Current branch: main')),
+								mimeType: 'text/plain',
+								displayName: 'microsoft/vscode',
+							},
+							{
+								type: 'blob',
+								data: encodeBase64(VSBuffer.fromString('Other text')),
+								mimeType: 'text/plain',
+								displayName: 'Other context',
+							},
+						],
+					},
+				},
+				{
+					type: 'user.message',
+					id: 'event-2',
+					data: {
+						interactionId: 'm2',
+						content: 'second',
+						attachments: [{
+							type: 'blob',
+							data: encodeBase64(VSBuffer.fromString('Current branch: main')),
+							mimeType: 'text/plain',
+							displayName: 'microsoft/vscode',
+						}],
+					},
+				},
+			];
+
+			const { turns } = await mapSessionEvents(session, db, toSessionEvents(events));
+
+			assert.deepStrictEqual(turns.map(turn => turn.message.attachments), [
+				[
+					{
+						type: MessageAttachmentKind.Simple,
+						label: 'microsoft/vscode',
+						modelRepresentation: 'Current branch: main',
+						displayKind: 'workspace',
+					},
+					{
+						type: MessageAttachmentKind.Simple,
+						label: 'Other context',
+						modelRepresentation: 'Other text',
+						displayKind: 'paste',
+					},
+				],
+				[{
+					type: MessageAttachmentKind.Simple,
+					label: 'microsoft/vscode',
+					modelRepresentation: 'Current branch: main',
+				}],
+			]);
+		} finally {
+			await db.close();
+		}
 	});
 
 	test('uses top-level user messages as turn boundaries', async () => {

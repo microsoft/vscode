@@ -414,6 +414,36 @@ suite('SessionDatabase', () => {
 
 	suite('turn event ids', () => {
 
+		test('stores attachment metadata by SDK event id and cleans it up with turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnAttachmentMetadata('turn-1', [
+				{ index: 0, displayKind: 'workspace' },
+				{ index: 2, displayKind: 'browser' },
+			]);
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setTurnAttachmentMetadata('turn-2', [{ index: 1, displayKind: 'selection' }]);
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			assert.deepStrictEqual([...await db.getTurnAttachmentMetadataByEventId()], [
+				['evt-1', [
+					{ index: 0, displayKind: 'workspace' },
+					{ index: 2, displayKind: 'browser' },
+				]],
+				['evt-2', [{ index: 1, displayKind: 'selection' }]],
+			]);
+
+			await db.deleteTurnsAfter('turn-1');
+			assert.deepStrictEqual([...await db.getTurnAttachmentMetadataByEventId()], [
+				['evt-1', [
+					{ index: 0, displayKind: 'workspace' },
+					{ index: 2, displayKind: 'browser' },
+				]],
+			]);
+
+			await db.deleteTurn('turn-1');
+			assert.deepStrictEqual([...await db.getTurnAttachmentMetadataByEventId()], []);
+		});
+
 		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');

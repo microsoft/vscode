@@ -5,8 +5,9 @@
 
 import * as fs from 'fs';
 import { SequencerByKey } from '../../../base/common/async.js';
+import { isObject } from '../../../base/common/types.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase } from '../common/sessionDataService.js';
+import type { IFileEditContent, IFileEditRecord, ILocalTurnRecord, IReviewedFileRecord, ISessionDatabase, ITurnAttachmentMetadata } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import type { Message } from '../common/state/sessionState.js';
@@ -112,6 +113,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			payload        TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 9,
+		sql: `ALTER TABLE turns ADD COLUMN attachment_metadata TEXT`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -172,6 +177,17 @@ function dbOpen(path: string): Promise<Database> {
 			});
 		}, reject);
 	});
+}
+
+function isTurnAttachmentMetadata(value: unknown): value is ITurnAttachmentMetadata {
+	if (!isObject(value) || !('index' in value)) {
+		return false;
+	}
+	const displayKind = 'displayKind' in value ? value.displayKind : undefined;
+	return typeof value.index === 'number'
+		&& Number.isInteger(value.index)
+		&& value.index >= 0
+		&& (displayKind === undefined || typeof displayKind === 'string');
 }
 
 /**
@@ -335,6 +351,42 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT event_id FROM turns WHERE id = ?', [turnId]);
 		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	setTurnAttachmentMetadata(turnId: string, attachmentMetadata: readonly ITurnAttachmentMetadata[]): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(
+				db,
+				'UPDATE turns SET attachment_metadata = ? WHERE id = ?',
+				[attachmentMetadata.length > 0 ? JSON.stringify(attachmentMetadata) : null, turnId],
+			);
+		});
+	}
+
+	async getTurnAttachmentMetadataByEventId(): Promise<ReadonlyMap<string, readonly ITurnAttachmentMetadata[]>> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT event_id, attachment_metadata FROM turns
+				WHERE event_id IS NOT NULL AND attachment_metadata IS NOT NULL`,
+			[],
+		);
+		const result = new Map<string, readonly ITurnAttachmentMetadata[]>();
+		for (const row of rows) {
+			const eventId = row.event_id;
+			const serializedMetadata = row.attachment_metadata;
+			if (typeof eventId !== 'string' || typeof serializedMetadata !== 'string') {
+				continue;
+			}
+			const parsed: unknown = JSON.parse(serializedMetadata);
+			if (!Array.isArray(parsed) || !parsed.every(isTurnAttachmentMetadata)) {
+				continue;
+			}
+			result.set(eventId, parsed);
+		}
+		return result;
 	}
 
 	async getNextTurnEventId(turnId: string): Promise<string | undefined> {

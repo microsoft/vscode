@@ -17,7 +17,7 @@ import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
-import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString, type Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -36,7 +36,7 @@ import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiM
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
-import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, type ITurnAttachmentMetadata } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, getToolSubagentContent, isSubagentSession, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -459,6 +459,7 @@ class CopilotTurn {
 	parallelToolCallsTotal = 0;
 	/** Model of the most recent round, reported as the turn's model. */
 	lastModel: string | undefined;
+	attachmentMetadata: readonly ITurnAttachmentMetadata[] = [];
 
 	constructor(readonly id: string, readonly ordinal: number, readonly senderClientId: string | undefined) { }
 
@@ -1412,17 +1413,29 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 
-		const sdkAttachments = attachments?.length
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
-			: undefined;
-		if (sdkAttachments?.length) {
+		const sdkAttachments: CopilotSdkAttachment[] = [];
+		const attachmentMetadata: ITurnAttachmentMetadata[] = [];
+		for (const attachment of attachments ?? []) {
+			const sdkAttachment = await this._toSdkAttachment(attachment);
+			if (!sdkAttachment) {
+				continue;
+			}
+			if (attachment.displayKind !== undefined) {
+				attachmentMetadata.push({ index: sdkAttachments.length, displayKind: attachment.displayKind });
+			}
+			sdkAttachments.push(sdkAttachment);
+		}
+		if (this._currentTurn) {
+			this._currentTurn.attachmentMetadata = attachmentMetadata;
+		}
+		if (sdkAttachments.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
 		await this.syncPermissionMode('turn-start');
 		await this._applyEffectiveSandboxConfig();
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -2733,8 +2746,15 @@ export class CopilotAgentSession extends Disposable {
 			if (steering) {
 				this._beginSteeringTurn(steering);
 			}
-			if (this._turnId) {
-				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
+			const turn = this._currentTurn;
+			if (turn) {
+				const writes: Promise<void>[] = [this._databaseRef.object.setTurnEventId(turn.id, e.id)];
+				if (turn.attachmentMetadata.length > 0) {
+					writes.push(this._databaseRef.object.setTurnAttachmentMetadata(turn.id, turn.attachmentMetadata));
+				}
+				Promise.all(writes).catch(err => {
+					this._logService.warn(`[Copilot:${this.sessionId}] Failed to persist SDK event metadata for turn ${turn.id}`, err);
+				});
 			}
 		}));
 

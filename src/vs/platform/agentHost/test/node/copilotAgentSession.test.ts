@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, PermissionAllowAllMode, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, MessageOptions, PermissionAllowAllMode, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -39,7 +39,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledCo
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
@@ -51,7 +51,7 @@ import { IAgentServerToolHost } from '../../common/agentServerTools.js';
  */
 class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
-	readonly sendRequests: unknown[] = [];
+	readonly sendRequests: MessageOptions[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
@@ -117,7 +117,7 @@ class MockCopilotSession {
 	}
 
 	// Stubs for methods the wrapper / session class calls
-	async send(request: unknown) {
+	async send(request: MessageOptions) {
 		this.sendRequests.push(request);
 		return `message-${this.sendRequests.length}`;
 	}
@@ -301,6 +301,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
 	mockSession: MockCopilotSession;
+	database: TestSessionDatabase;
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
@@ -386,7 +387,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			storedFileContents.delete(resource.fsPath);
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService());
+	const database = new TestSessionDatabase();
+	services.set(ISessionDataService, createSessionDataService(database));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -449,6 +451,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		session,
 		runtime: launchedRuntime,
 		mockSession,
+		database,
 		signals,
 		waitForSignal,
 		sessionConfigUpdates,
@@ -813,6 +816,75 @@ suite('CopilotAgentSession', () => {
 			label: 'Previous conversation',
 			modelRepresentation: 'Transcript text',
 		}]);
+	});
+
+	test('persists attachment display kinds after SDK attachment filtering', async () => {
+		const { session, mockSession, database } = await createAgentSession(disposables);
+
+		await session.send('continue', [
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'Not sent',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'microsoft/vscode',
+				displayKind: 'workspace',
+				modelRepresentation: 'Current branch: main',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'Other context',
+				displayKind: 'paste',
+				modelRepresentation: 'Other text',
+			},
+		], 'turn-1');
+		assert.deepStrictEqual([...await database.getTurnAttachmentMetadataByEventId()], []);
+		mockSession.fire('user.message', {
+			interactionId: 'message-1',
+			content: 'continue',
+			attachments: [
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Current branch: main')),
+					mimeType: 'text/plain',
+					displayName: 'microsoft/vscode',
+				},
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString('Other text')),
+					mimeType: 'text/plain',
+					displayName: 'Other context',
+				},
+			],
+		}, { id: 'evt-1' });
+
+		assert.deepStrictEqual({
+			request: mockSession.sendRequests[0],
+			attachmentMetadata: [...await database.getTurnAttachmentMetadataByEventId()],
+		}, {
+			request: {
+				prompt: 'continue',
+				attachments: [
+					{
+						type: 'blob',
+						data: encodeBase64(VSBuffer.fromString('Current branch: main')),
+						mimeType: 'text/plain',
+						displayName: 'microsoft/vscode',
+					},
+					{
+						type: 'blob',
+						data: encodeBase64(VSBuffer.fromString('Other text')),
+						mimeType: 'text/plain',
+						displayName: 'Other context',
+					},
+				],
+			},
+			attachmentMetadata: [['evt-1', [
+				{ index: 0, displayKind: 'workspace' },
+				{ index: 1, displayKind: 'paste' },
+			]]],
+		});
 	});
 
 	test('`/compact` runs the history compact RPC and completes the turn with output', async () => {

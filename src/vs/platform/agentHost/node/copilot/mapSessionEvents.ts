@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
-import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
+import { IFileEditRecord, ISessionDatabase, type ITurnAttachmentMetadata } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
@@ -282,6 +282,14 @@ export async function mapSessionEvents(
 			// Database may not exist yet for new sessions — that's fine.
 		}
 	}
+	let attachmentMetadataByEventId: ReadonlyMap<string, readonly ITurnAttachmentMetadata[]> | undefined;
+	if (db) {
+		try {
+			attachmentMetadataByEventId = await db.getTurnAttachmentMetadataByEventId();
+		} catch {
+			// Database may not exist yet for new sessions — that's fine.
+		}
+	}
 
 	const sessionUriStr = session.toString();
 	const providerId = session.scheme;
@@ -383,7 +391,10 @@ export async function mapSessionEvents(
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
 				const content = d.content ?? '';
-				const attachments = sdkAttachmentsToProtocol(d.attachments);
+				const attachments = sdkAttachmentsToProtocol(
+					d.attachments,
+					e.id ? attachmentMetadataByEventId?.get(e.id) : undefined,
+				);
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
@@ -637,15 +648,21 @@ export async function mapSessionEvents(
  */
 function sdkAttachmentsToProtocol(
 	attachments: readonly Attachment[] | undefined,
+	attachmentMetadata: readonly ITurnAttachmentMetadata[] | undefined,
 ): MessageAttachment[] | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
 	const out: MessageAttachment[] = [];
-	for (const a of attachments) {
+	const metadataByIndex = attachmentMetadata?.length
+		? new Map(attachmentMetadata.map(metadata => [metadata.index, metadata]))
+		: undefined;
+	for (let index = 0; index < attachments.length; index++) {
+		const a = attachments[index];
 		const converted = sdkAttachmentToProtocol(a);
 		if (converted) {
-			out.push(converted);
+			const metadata = metadataByIndex?.get(index);
+			out.push(metadata?.displayKind !== undefined ? { ...converted, displayKind: metadata.displayKind } : converted);
 		}
 	}
 	return out.length > 0 ? out : undefined;

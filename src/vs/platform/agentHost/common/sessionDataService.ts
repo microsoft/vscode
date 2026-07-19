@@ -98,6 +98,11 @@ export interface ILocalTurnRecord {
 	payload: string;
 }
 
+/** Presentation metadata retained for one provider attachment in a turn. */
+export interface ITurnAttachmentMetadata {
+	readonly index: number;
+	readonly displayKind?: string;
+}
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -130,6 +135,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no event ID has been set.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/** Store attachment metadata that the provider transcript does not preserve. */
+	setTurnAttachmentMetadata(turnId: string, attachmentMetadata: readonly ITurnAttachmentMetadata[]): Promise<void>;
+
+	/** Retrieve attachment metadata keyed by provider event ID. */
+	getTurnAttachmentMetadataByEventId(): Promise<ReadonlyMap<string, readonly ITurnAttachmentMetadata[]>>;
 
 	/**
 	 * Returns the SDK event ID of the turn inserted immediately after the
