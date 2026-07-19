@@ -115,7 +115,8 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | File | Purpose |
 |------|---------|
 | `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
-| `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
+| `browser/media/phoneLayout.css` | Shared phone-layout CSS imported by the sessions workbench: touch behavior, quick picks, dialogs, notifications, modal editors, and panel/auxiliary-bar overlays. |
+| `mobileChatShell.css` | Phone chat-shell CSS: flex column layout, split-view positioning, card chrome removal, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, and chip row styling. |
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |
 | `mobileChipLaneScroll.ts` | Pointer-event-based horizontal scroll helper for the config chip row. Overcomes monaco's `Gesture.addTarget` eating `touchmove` by translating `pointermove` into `scrollLeft` updates. Phone-gated via `isPhoneLayout()` — no-ops on desktop. |
@@ -149,9 +150,11 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 | `contrib/chat/browser/mobile/mobileSessionTypePicker.ts` | `SessionTypePicker` | Renders session-type choices as a bottom sheet on phone. |
 | `contrib/providers/agentHost/browser/mobile/mobileAgentHostModePicker.ts` | `AgentHostModePicker` | Renders agent-host mode choices as a bottom sheet on phone. |
 | `contrib/chat/browser/webWorkspacePicker.ts` | `WorkspacePicker` | Web variant: scopes to active host filter and renders as a bottom sheet on phone. Note: this is the only "mobile" picker that lives in a non-`mobile*`-named file because the same class also handles the desktop-web case (host scoping). |
+| `contrib/automations/browser/automationDialog.ts` | `AutomationsWorkspacePicker` | `MobileAutomationsWorkspacePicker` renders the Automation workspace target, including **No workspace**, through the workspace bottom sheet on phone. |
 | `contrib/chat/browser/mobile/mobileWorkspacePickerSheet.ts` | (helper) | Builds `IMobilePickerSheetItem[]` from workspace picker items + browse actions. Used by `WebWorkspacePicker` on phone. |
 | `contrib/providers/agentHost/browser/agentHostSessionConfigPicker.ts` | `AgentHostSessionConfigPicker` | The phone variant `MobileAgentHostSessionConfigPicker` is a private subclass defined **in the same file** as the base (to avoid a circular ESM import); it routes Isolation + Branch to a unified bottom sheet on phone. |
-| `contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only chat-input chip that combines Mode + Model into a unified bottom sheet. Replaces the desktop mode + model pickers (gated off via `when:` clauses) on phone-layout viewports. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.ts` | (standalone) | Phone-only compact Mode and Model picker button that opens a unified bottom sheet. It consumes the input-scoped `SessionModelSelectionModel`, so it shares the desktop picker's models snapshot, current selection, canonical persistence, and empty-model state without enumerating language models itself. |
+| `contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts` | `IChatPhonePresenterImpl` | Builds the combined sheet for an opened chat. Agent Host rows come from `ISessionsProvider.getModelsSnapshot`; model actions route through the owning workbench delegate or input-scoped `SessionModelSelectionModel`, while every action revalidates provider/session/chat identity through `IUriIdentityService`. |
 
 ### Layout & Navigation
 

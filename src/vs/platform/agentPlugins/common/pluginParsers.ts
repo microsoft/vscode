@@ -258,6 +258,11 @@ function makeHookCustomization(hookUri: URI): HookCustomization {
  * multiple servers declared in one file get distinct ids, and the entry
  * carries {@link DEFAULT_MCP_APP} so MCP App support is advertised
  * consistently with every other MCP customization.
+ *
+ * The seed state is {@link McpServerStatus.Stopped}: a declared-but-not-yet
+ * connected server has not been started by any SDK, so it must not claim to
+ * be {@link McpServerStatus.Starting}. The live state is enriched from the
+ * SDK's reported status once a session materializes.
  */
 export function makeMcpServerCustomization(definitionUri: URI, name: string): McpServerCustomization {
 	return {
@@ -266,7 +271,7 @@ export function makeMcpServerCustomization(definitionUri: URI, name: string): Mc
 		uri: definitionUri.toString(),
 		name,
 		enabled: true,
-		state: { kind: McpServerStatus.Starting },
+		state: { kind: McpServerStatus.Stopped },
 		mcpApp: DEFAULT_MCP_APP,
 	};
 }

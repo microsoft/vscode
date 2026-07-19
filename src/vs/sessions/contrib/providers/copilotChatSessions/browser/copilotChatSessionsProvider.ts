@@ -26,7 +26,7 @@ import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGrou
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints, ChatInteractivity } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -34,6 +34,7 @@ import { ChatMode, IChatMode, IChatModeService, isBuiltinChatMode } from '../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { getRegisteredLanguageModels, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -712,16 +713,16 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	// --- Option group accessors ---
 
-	getModelOptionGroup(): ISessionOptionGroup | undefined {
+	getModelOptionsSnapshot(): { readonly modelOption: ISessionOptionGroup | undefined; readonly isResolved: boolean } {
 		const groups = this._getOptionGroups();
 		if (!groups) {
-			return undefined;
+			return { modelOption: undefined, isResolved: false };
 		}
 		const group = groups.find(g => isModelOptionGroup(g));
 		if (!group) {
-			return undefined;
+			return { modelOption: undefined, isResolved: true };
 		}
-		return { group, value: this._getValueForGroup(group) };
+		return { modelOption: { group, value: this._getValueForGroup(group) }, isResolved: true };
 	}
 
 	getOtherOptionGroups(): ISessionOptionGroup[] {
@@ -947,6 +948,24 @@ function toSessionStatus(status: ChatSessionStatus): SessionStatus {
 		case ChatSessionStatus.Failed:
 			return SessionStatus.Error;
 	}
+}
+
+/**
+ * Display label for a `github-remote-file://` repo URI, in `owner/repo` form. Returns
+ * `undefined` for non-GitHub URIs so callers can fall back. Used by both the new-session
+ * workspace ({@link CopilotChatSessionsProvider.resolveWorkspace}) and the committed
+ * session adapter ({@link AgentSessionAdapter._buildWorkspace}) so a cloud session groups
+ * under the same `owner/repo` label before and after commit.
+ * TODO: at some point this should be standardized and in the same list as all sessions.
+ * Doing it this way for now just to keep supporting the new chat button from the group.
+ */
+function githubRemoteRepoLabel(uri: URI): string | undefined {
+	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	// Path is `/<owner>/<repo>[/<ref>…]`; take the first two segments.
+	const parts = uri.path.replace(/^\//, '').split('/');
+	return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : undefined;
 }
 
 /**
@@ -1327,7 +1346,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		return {
 			uri: repoUriResolved,
-			label: getRepositoryName(session) ?? basename(repoUriResolved),
+			label: githubRemoteRepoLabel(repoUriResolved) ?? getRepositoryName(session) ?? basename(repoUriResolved),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			folders: [folder],
@@ -1707,29 +1726,32 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		));
 	}
 
-	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		const session = this.getSession(sessionId);
 		if (session instanceof RemoteNewSession) {
 			// Cloud sessions: models come from the extension-host `models` option
 			// group rather than from registered language models. Synthesize
 			// language-model metadata from each option item so the shared model
 			// picker widget can render them like regular language models.
-			const modelOption = session.getModelOptionGroup();
-			return modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+			const { modelOption, isResolved } = session.getModelOptionsSnapshot();
+			const models = modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+			// Cloud model readiness comes from the extension-host option group, not language-model vendors.
+			return { models, desiredModelResolution: resolveModelIdentifier(models, desiredModelId, isResolved), modelTarget: session.sessionType };
 		}
 
 		// CLI / Claude sessions: language models registered against the session's
 		// `targetChatSessionType`.
 		const sessionType = session?.sessionType;
 		if (!sessionType) {
-			return [];
+			return { models: [], desiredModelResolution: resolveModelIdentifier([], desiredModelId, false), modelTarget: undefined };
 		}
-		return this.languageModelsService.getLanguageModelIds()
-			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
-				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata && metadata.targetChatSessionType === sessionType ? { identifier: id, metadata } : undefined;
-			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+		const allModels = getRegisteredLanguageModels(this.languageModelsService);
+		const models = allModels.filter(model => model.metadata.targetChatSessionType === sessionType);
+		return {
+			models,
+			desiredModelResolution: resolveModelIdentifierFromLanguageModels(models, desiredModelId, this.languageModelsService, allModels),
+			modelTarget: sessionType,
+		};
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
@@ -1794,7 +1816,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Cloud sessions additionally persist the selection as the value of
 			// the `models` option group so the extension host honours it.
 			if (newSession instanceof RemoteNewSession) {
-				const modelOption = newSession.getModelOptionGroup();
+				const { modelOption } = newSession.getModelOptionsSnapshot();
 				const item = modelOption?.group.items.find(i => i.id === modelId);
 				if (item) {
 					newSession.setOptionValue(modelOption!.group.id, item);
@@ -1865,7 +1887,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	setIsolationMode(sessionId: string, mode: string): void {
+	async setIsolationMode(sessionId: string, mode: string): Promise<void> {
 		if (mode !== 'worktree' && mode !== 'workspace') {
 			return;
 		}
@@ -1879,7 +1901,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._findChatSession(sessionId)?.setIsolationMode(mode);
 	}
 
-	setBranch(sessionId: string, branch: string): void {
+	async setBranch(sessionId: string, branch: string): Promise<void> {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setBranch(branch);
@@ -1925,6 +1947,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const agentSession = this._findAgentSession(sessionId);
 		if (agentSession) {
 			agentSession.setArchived(false);
+		}
+	}
+
+	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+		// A grouped session's read state aggregates across all its chats, so
+		// update every chat in the group; fall back to the id itself when the
+		// session is ungrouped.
+		const chatIds = this._getChatIdsInGroup(sessionId);
+		const targetIds = chatIds.length > 0 ? chatIds : [sessionId];
+		for (const chatId of targetIds) {
+			const agentSession = this._findAgentSession(chatId);
+			if (agentSession && agentSession.isRead() !== isRead) {
+				agentSession.setRead(isRead);
+			}
 		}
 	}
 
@@ -2188,14 +2224,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
 
-		// For non-CLI sessions, chatResource is already the resource we will later
-		// wait for in the committed session cache. Protect it from spurious
-		// removal by _refreshSessionCache before any async work begins — a
-		// concurrent model re-resolve can transiently drop the session from
-		// agentSessionsService.model.sessions while the send is still in-flight.
-		// _refreshSessionCache to fire a `removed` event that tears down the
-		// UI while the send is still in-flight.
-		const committedKey = !(session instanceof CopilotCLISession)
+		// CLI and cloud sessions swap their resource mid-request (untitled → real),
+		// so their committed resource is unknown up-front. Claude commits before
+		// `sendRequest`, so `chatResource` is already committed — protect it from a
+		// spurious `_refreshSessionCache` removal while the send is in-flight.
+		const resourceChangesOnCommit = session instanceof CopilotCLISession || session instanceof RemoteNewSession;
+		const committedKey = !resourceChangesOnCommit
 			? chatResource.toString()
 			: undefined;
 		if (committedKey) {
@@ -2269,11 +2303,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			try {
 				let committedResource = chatResource;
-				if (session instanceof CopilotCLISession) {
-					committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
-					// For CopilotCLI, protect the committed resource now that
-					// we know it (Claude sessions were already protected at the
-					// top of _sendFirstChat).
+				if (resourceChangesOnCommit) {
+					// Learn the committed resource (untitled → real) from the commit
+					// event, then protect it now that we know it. Cloud sessions defer
+					// their commit behind a confirmation + network delegation.
+					committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise, { deferred: session instanceof RemoteNewSession });
 					this._inFlightCommits.add(committedResource.toString());
 				}
 
@@ -2455,20 +2489,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Waits for the committed (real) URI for a session by listening to the
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
-	 * When {@link responseCompletePromise} is provided, the wait is bounded by
-	 * response completion. If the response finishes before the commit event,
-	 * the commit may still be in-flight (e.g. the user cancelled after the
-	 * worktree was initiated but before the commit IPC finished, or the
-	 * extension fired the commit mid-turn but it hasn't been delivered yet).
-	 * In both cases we wait with the safety timeout. Only if the timeout
-	 * expires *and* the response was cancelled do we throw a
-	 * {@link CancellationError} — signalling that the commit will never come.
+	 * By default the wait is bounded by response completion: if the response
+	 * finishes before the commit event, we fall through to a short safety
+	 * timeout. Cloud sessions instead pass {@link IWaitForCommitOptions.deferred}
+	 * because their commit is delayed by a confirmation round-trip and network
+	 * delegation — response completion fires early (at the confirmation) and is
+	 * not a signal that the commit won't come — so they skip the response race
+	 * and use a longer timeout.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
 		responseCompletePromise?: Promise<void>,
 		responseCreatedPromise?: Promise<IChatResponseModel>,
+		options?: { deferred?: boolean },
 	): Promise<URI> {
+		const timeoutMs = options?.deferred ? 5 * 60_000 : 5_000;
 		const disposables = new DisposableStore();
 		try {
 			const commitPromise = new Promise<URI>(resolve => {
@@ -2479,7 +2514,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}));
 			});
 
-			if (responseCompletePromise) {
+			if (!options?.deferred && responseCompletePromise) {
 				// Race the commit event against the response completing.
 				const committed = await Promise.race([
 					commitPromise.then(uri => ({ committed: true as const, uri })),
@@ -2501,7 +2536,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// promise is available, also race it so we can detect
 			// cancellation immediately instead of waiting for the timeout.
 			const candidates: Promise<{ kind: 'commit'; uri: URI } | { kind: 'timeout' } | { kind: 'cancelled' }>[] = [
-				raceTimeout(commitPromise, 5_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
+				raceTimeout(commitPromise, timeoutMs).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
 			];
 			if (responseCreatedPromise) {
 				candidates.push(responseCreatedPromise.then(r => r?.isCanceled ? { kind: 'cancelled' as const } : new Promise<never>(() => { /* never resolves */ })));
@@ -2623,10 +2658,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _labelFromUri(uri: URI): string {
-		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			return uri.path.substring(1).replace(/\/HEAD$/, '');
-		}
-		return basename(uri);
+		return githubRemoteRepoLabel(uri) ?? basename(uri);
 	}
 
 	private _descriptionFromUri(uri: URI): string | undefined {
@@ -2774,6 +2806,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const currentKeys = new Set<string>();
 		const addedData: ICopilotChatSession[] = [];
 		const changedData: ICopilotChatSession[] = [];
+		// Underlying agent sessions whose turn just completed and should be marked
+		// unread. Processed after the loop so `setRead` does not re-enter mid-iteration.
+		const sessionsToMarkUnread: IAgentSession[] = [];
 		let cacheChanged = false;
 
 		for (const session of this.agentSessionsService.model.sessions) {
@@ -2792,8 +2827,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			const existing = this._sessionCache.get(key);
 			if (existing) {
+				const previousStatus = existing.status.get();
 				if (existing.update(session)) {
 					changedData.push(existing);
+				}
+				// A completed turn (InProgress → terminal) marks the session
+				// unread. Copilot read state is owned by the agent session model,
+				// so route through `setRead(false)`; the adapter mirrors it back.
+				const currentStatus = existing.status.get();
+				if (previousStatus === SessionStatus.InProgress
+					&& currentStatus !== SessionStatus.InProgress
+					&& currentStatus !== SessionStatus.Untitled
+					&& existing.isRead.get()) {
+					sessionsToMarkUnread.push(session);
 				}
 			} else {
 				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
@@ -2841,6 +2887,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					changed: changedData.map(d => this._chatToSession(d)),
 				});
 			}
+		}
+
+		// Mark completed-turn sessions unread after the change events above (and
+		// outside the iteration) so the model's change event re-enters cleanly.
+		for (const session of sessionsToMarkUnread) {
+			session.setRead(false);
 		}
 	}
 

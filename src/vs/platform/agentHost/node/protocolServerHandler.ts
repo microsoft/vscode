@@ -424,6 +424,7 @@ export class ProtocolServerHandler extends Disposable {
 				}
 
 				if (!client) {
+					transport.send(jsonRpcError(msg.id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${msg.method}`));
 					return;
 				}
 				this._handleRequest(client, msg.method, msg.params, msg.id);
@@ -874,9 +875,8 @@ export class ProtocolServerHandler extends Disposable {
 	 * any armed timers, so this is a no-op when the client is active. The delay
 	 * is the remaining grace measured from when the client disconnected — so a
 	 * client that disconnected a while before the call was issued gets the
-	 * residual window rather than a fresh one, and a stamp from a long-dead
-	 * client fails promptly. A never-connected client has its grace clock pinned
-	 * to the first arm, so re-arms triggered by later orphaned tool calls in the
+	 * residual window rather than a fresh one, and a stamp from a long-disconnected
+	 * client fails promptly. Re-arms triggered by later orphaned tool calls in the
 	 * same session shrink the remaining window instead of resetting it.
 	 */
 	private _startClientToolCallDisconnectTimeout(clientId: string, session: string, chatChannel: string): void {
@@ -894,20 +894,21 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	/**
-	 * Scan a session for pending client tool calls whose owning client is not
-	 * currently connected, and arm the disconnect timeout for each such owner.
+	 * Scan a chat for pending client tool calls owned by a disconnected client
+	 * of this protocol server, and arm the disconnect timeout for each owner.
 	 * Called when a `ChatToolCallStart` / `ChatToolCallReady` envelope is
 	 * observed — covering calls issued for an already-gone client, which the
 	 * live disconnect path never sees. Ownerless client tool calls (no client
 	 * connected at stamp time) are failed immediately by the provider, so they
-	 * never reach a pending state here.
+	 * never reach a pending state here. Unknown client ids are ignored because
+	 * they may belong to another transport such as local IPC.
 	 */
 	private _checkOrphanedClientToolCalls(session: string, chatChannel: string): void {
 		const state = this._stateManager.getSessionState(chatChannel);
 		const orphanOwners = new Set<string>();
 		for (const { clientId } of this._pendingClientToolCalls(state)) {
 			const ownerRecord = this._clients.get(clientId);
-			if (ownerRecord?.state !== 'active') {
+			if (ownerRecord?.state === 'grace') {
 				orphanOwners.add(clientId);
 			}
 		}
@@ -1393,7 +1394,7 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 
-		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
+		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
 	}
 
 	/**

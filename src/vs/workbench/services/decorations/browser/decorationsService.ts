@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { hash } from '../../../../base/common/hash.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { asArray, distinct } from '../../../../base/common/arrays.js';
-import { asCssVariable, ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, asCssVariableWithDefault, ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 
 class DecorationRule {
@@ -80,7 +80,7 @@ class DecorationRule {
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 		if (ThemeIcon.isThemeIcon(letter)) {
-			this._createIconCSSRule(letter, color, element);
+			this._createIconCSSRule(letter, getColor(color), element);
 		} else if (letter) {
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(color)};`, element);
 		}
@@ -88,8 +88,8 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
-		const { color } = data.find(d => !!d.color) ?? data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+		const color = data.reduceRight((fallback, decoration) => decoration.color ? asCssVariableWithDefault(decoration.color, fallback) : fallback, 'inherit');
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${color};`, element);
 
 		// badge or icon
 		const letters: string[] = [];
@@ -108,20 +108,20 @@ class DecorationRule {
 			this._createIconCSSRule(icon, color, element);
 		} else {
 			if (letters.length) {
-				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(color)};`, element);
+				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${color};`, element);
 			}
 
 			// bubble badge
 			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
+				`content: "\uea71"; color: ${color}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
 		}
 	}
 
-	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement) {
+	private _createIconCSSRule(icon: ThemeIcon, color: string, element: HTMLStyleElement) {
 
 		const modifier = ThemeIcon.getModifier(icon);
 		if (modifier) {
@@ -138,7 +138,7 @@ class DecorationRule {
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
-			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
+			color: ${icon.color ? getColor(icon.color.id) : color};
 			font-family: ${cssValue.stringValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;

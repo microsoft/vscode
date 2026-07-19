@@ -18,7 +18,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, IGitHubInfo, ISession, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -26,7 +26,7 @@ import { ISessionsListModelService } from '../../../../../sessions/services/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionsList } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
+import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionCIFixModel, ISessionCIFixState } from '../../../../../sessions/contrib/sessions/browser/views/sessionsList.js';
 import { IVoicePlaybackService } from '../../../../contrib/chat/common/voicePlaybackService.js';
@@ -182,9 +182,7 @@ function buildCIFixScenario(specs: readonly ICIBlockedSessionOptions[]): { sessi
 function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
-		override isSessionRead(): boolean { return true; }
 		override isSessionPinned(): boolean { return false; }
-		override markRead(): void { }
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:
@@ -250,6 +248,9 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 			}());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
+			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+				override markRead(): Promise<void> { return Promise.resolve(); }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return []; }
@@ -268,6 +269,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 	// the markdown renderer emits empty code-block spans and the command is blank.
 	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
 	instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
+	disposableStore.add(registerBlockedSessionsItemActions());
 
 	// The blocked-sessions list is shown as a floating dropdown anchored below
 	// the command center box in the agents window; approximate that surface (and
@@ -279,6 +281,7 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 
 	const list = disposableStore.add(instantiationService.createInstance(BlockedSessionsList, container, {
 		onSessionOpen: () => { },
+		onIgnoreSession: () => { },
 		approvalModel,
 		ciFixModel,
 	}));

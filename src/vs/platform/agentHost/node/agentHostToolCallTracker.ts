@@ -6,7 +6,7 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import type { SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
+import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
 import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
@@ -14,7 +14,7 @@ export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
 const TOOL_CALL_STALL_THRESHOLD_MS = 5 * 60 * 1000;
 
-type ToolCallBlockerRequest = SessionToolConfirmationRequest | SessionToolClientExecutionRequest;
+type ToolCallBlockerRequest = SessionToolConfirmationRequest | SessionToolClientExecutionRequest | SessionToolAuthenticationRequest;
 
 /**
  * Maps a completed tool call's result to the telemetry result bucket. Mirrors

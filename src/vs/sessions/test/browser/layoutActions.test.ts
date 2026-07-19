@@ -47,7 +47,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
 	});
 
-	test('single-pane editor layout actions render in the layout cluster ordered maximize/restore, then hide', async () => {
+	test('single-pane editor layout actions render in the layout cluster ordered hide, then maximize/restore', async () => {
 		await import('../../contrib/editor/browser/editor.contribution.js');
 
 		// Single-pane layout entries live on the shared editor-title layout menu (so
@@ -60,9 +60,9 @@ suite('Sessions - Layout Actions', () => {
 			.filter(item => item.command.id === id)
 			.map(item => ({ group: item.group, order: item.order }));
 
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'), [{ group: 'navigation', order: 10 }]);
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.restoreMainEditorPart'), [{ group: 'navigation', order: 10 }]);
-		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.hideMainEditorPart'), [{ group: 'navigation', order: 20 }]);
+		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.maximizeMainEditorPart'), [{ group: 'navigation', order: 20 }]);
+		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.restoreMainEditorPart'), [{ group: 'navigation', order: 20 }]);
+		assert.deepStrictEqual(groupOrder('workbench.action.agentSessions.hideMainEditorPart'), [{ group: 'navigation', order: 10 }]);
 
 		// Hide is additionally gated on the changes/files detail being active.
 		const hideWhen = layoutItems.find(item => item.command.id === 'workbench.action.agentSessions.hideMainEditorPart')?.when?.serialize() ?? '';

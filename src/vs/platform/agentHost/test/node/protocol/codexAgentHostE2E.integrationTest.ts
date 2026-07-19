@@ -53,12 +53,15 @@ const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	exitPlanModeToolName: 'exit_plan_mode',
 	enabled: !!CODEX_SDK_ROOT,
 	codexSdkRoot: CODEX_SDK_ROOT,
-	supportsWorktreeIsolation: false,
+	supportsWorktreeIsolation: true,
+	// Codex runs shell commands inside its own app-server subprocess, not the
+	// host-managed custom terminal tool, so the worktree suite verifies
+	// isolation via the resolved working directory alone.
+	supportsHostTerminalTool: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,
-	// Codex's `exec_command` shell tool call is not emitted by the bundled Codex
-	// CLI on Windows during replay, so the shell-permission test is POSIX-only.
-	shellPermissionReplayUnstableOnWindows: true,
+	// Packaged Linux replay completes recorded exec_command turns without tool events.
+	shellToolReplayUnstableOnLinux: true,
 };
 
 defineAgentHostE2ETests(CODEX_CONFIG);

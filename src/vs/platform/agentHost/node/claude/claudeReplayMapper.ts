@@ -110,21 +110,30 @@ interface AssistantBlock { readonly type: string; readonly text?: string; readon
  * stateful reduction (the {@link ReplayBuilder}) — see CONTEXT M7.
  */
 type ParsedSessionMessage =
-	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string }
-	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[] }
-	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean }
-	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string };
+	| { readonly kind: 'user-text'; readonly uuid: string; readonly text: string; readonly timestamp?: string }
+	| { readonly kind: 'user-tool-results'; readonly uuid: string; readonly results: readonly UserToolResultBlock[]; readonly timestamp?: string }
+	| { readonly kind: 'assistant'; readonly uuid: string; readonly blocks: readonly AssistantBlock[]; readonly isInner: boolean; readonly timestamp?: string }
+	| { readonly kind: 'system-notification'; readonly uuid: string; readonly subtype: string; readonly text: string; readonly timestamp?: string };
 
 function parseSessionMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+	const timestamp = readTimestamp(msg);
 	switch (msg.type) {
-		case 'user': return parseUserMessage(msg);
-		case 'assistant': return parseAssistantMessage(msg);
-		case 'system': return parseSystemMessage(msg);
+		case 'user': return parseUserMessage(msg, timestamp);
+		case 'assistant': return parseAssistantMessage(msg, timestamp);
+		case 'system': return parseSystemMessage(msg, timestamp);
 		default: return undefined;
 	}
 }
 
-function parseUserMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function readTimestamp(msg: SessionMessage & { readonly timestamp?: unknown }): string | undefined {
+	if (typeof msg.timestamp !== 'string') {
+		return undefined;
+	}
+	const timestamp = Date.parse(msg.timestamp);
+	return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
+}
+
+function parseUserMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const content = readUserContent(msg.message);
 	if (content === undefined) {
 		return undefined;
@@ -133,19 +142,19 @@ function parseUserMessage(msg: SessionMessage): ParsedSessionMessage | undefined
 		return undefined;
 	}
 	if (typeof content === 'string') {
-		return { kind: 'user-text', uuid: msg.uuid, text: content };
+		return { kind: 'user-text', uuid: msg.uuid, text: content, timestamp };
 	}
 	const textBlocks = content.filter((b): b is UserTextBlock => b.type === 'text');
 	if (textBlocks.length === 0) {
 		const results = content.filter((b): b is UserToolResultBlock => b.type === 'tool_result');
-		return results.length > 0 ? { kind: 'user-tool-results', uuid: msg.uuid, results } : undefined;
+		return results.length > 0 ? { kind: 'user-tool-results', uuid: msg.uuid, results, timestamp } : undefined;
 	}
 	// Mixed or text-only: text wins — matches prior behavior where tool_results
 	// in a text-bearing envelope are dropped (they should already have been delivered).
-	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n') };
+	return { kind: 'user-text', uuid: msg.uuid, text: textBlocks.map(b => b.text).join('\n'), timestamp };
 }
 
-function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function parseAssistantMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const blocks = readAssistantBlocks(msg.message);
 	if (blocks === undefined || blocks.length === 0) {
 		return undefined;
@@ -154,16 +163,16 @@ function parseAssistantMessage(msg: SessionMessage): ParsedSessionMessage | unde
 	// `parent_tool_use_id` on every envelope and have no synthetic spawning
 	// user prompt, so they legitimately open with an assistant message —
 	// `isInner` lets the builder synthesize a turn instead of dropping it.
-	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null };
+	return { kind: 'assistant', uuid: msg.uuid, blocks, isInner: msg.parent_tool_use_id !== null, timestamp };
 }
 
-function parseSystemMessage(msg: SessionMessage): ParsedSessionMessage | undefined {
+function parseSystemMessage(msg: SessionMessage, timestamp: string | undefined): ParsedSessionMessage | undefined {
 	const subtype = readSystemSubtype(msg.message);
 	if (subtype === undefined || !ALLOWED_SYSTEM_SUBTYPES.has(subtype)) {
 		return undefined;
 	}
 	const text = readSystemText(msg.message) ?? `[${subtype}]`;
-	return { kind: 'system-notification', uuid: msg.uuid, subtype, text };
+	return { kind: 'system-notification', uuid: msg.uuid, subtype, text, timestamp };
 }
 
 // #endregion
@@ -198,6 +207,8 @@ const CLI_ECHO_MARKER_PATTERN = /^<(command-name|command-message|command-args|lo
 interface InProgressTurn {
 	readonly id: string;
 	readonly userText: string;
+	readonly startedAt?: string;
+	lastResponseAt?: string;
 	readonly responseParts: ResponsePart[];
 	/**
 	 * `tool_use_id`s announced by THIS turn. Drained when the matching
@@ -238,16 +249,22 @@ class ReplayBuilder {
 				this._active = {
 					id: msg.uuid,
 					userText: msg.text,
+					startedAt: msg.timestamp,
 					responseParts: [],
 					pendingToolUseIds: new Set(),
 					toolCallParts: new Map(),
 				};
 				return;
-			case 'user-tool-results':
+			case 'user-tool-results': {
+				let updatesActiveTurn = false;
 				for (const block of msg.results) {
-					this._attachToolResult(block);
+					updatesActiveTurn = this._attachToolResult(block) === this._active?.id || updatesActiveTurn;
+				}
+				if (updatesActiveTurn && this._active && msg.timestamp) {
+					this._active.lastResponseAt = msg.timestamp;
 				}
 				return;
+			}
 			case 'assistant':
 				this._consumeAssistant(msg);
 				return;
@@ -260,6 +277,9 @@ class ReplayBuilder {
 					kind: ResponsePartKind.SystemNotification,
 					content: msg.text,
 				});
+				if (msg.timestamp) {
+					this._active.lastResponseAt = msg.timestamp;
+				}
 				return;
 		}
 	}
@@ -286,6 +306,7 @@ class ReplayBuilder {
 			this._active = {
 				id: msg.uuid,
 				userText: '',
+				startedAt: msg.timestamp,
 				responseParts: [],
 				pendingToolUseIds: new Set(),
 				toolCallParts: new Map(),
@@ -314,6 +335,9 @@ class ReplayBuilder {
 				this._openToolUse(block.id, stripClientToolNamePrefix(block.name), block.input);
 			}
 			// Other block types (server_tool_use, etc.) are dropped silently per M7.
+		}
+		if (msg.timestamp) {
+			this._active.lastResponseAt = msg.timestamp;
 		}
 	}
 
@@ -345,17 +369,17 @@ class ReplayBuilder {
 		this._toolUses.set(toolUseId, { turnId: this._active.id, parsedInput });
 	}
 
-	private _attachToolResult(block: UserToolResultBlock): void {
+	private _attachToolResult(block: UserToolResultBlock): string | undefined {
 		const entry = this._toolUses.get(block.tool_use_id);
 		if (entry === undefined) {
 			this._logService.warn(`[claudeReplayMapper] tool_result for unknown tool_use_id ${block.tool_use_id}`);
-			return;
+			return undefined;
 		}
 		const announcingTurnId = entry.turnId;
 		// Find the part — it lives on the announcing turn (which may be `_active` or one already pushed to `_turns`).
 		const part = this._findToolCallPart(announcingTurnId, block.tool_use_id);
 		if (part === undefined) {
-			return;
+			return undefined;
 		}
 		const isError = block.is_error;
 		const previousState = part.toolCall;
@@ -394,6 +418,7 @@ class ReplayBuilder {
 		if (this._active?.id === announcingTurnId) {
 			this._active.pendingToolUseIds.delete(block.tool_use_id);
 		}
+		return announcingTurnId;
 	}
 
 	private _findToolCallPart(turnId: string, toolUseId: string): ToolCallResponsePart | undefined {
@@ -421,8 +446,15 @@ class ReplayBuilder {
 		}
 		const a = this._active;
 		const state = a.pendingToolUseIds.size === 0 ? TurnState.Complete : TurnState.Cancelled;
+		const startedAt = a.startedAt === undefined ? undefined : Date.parse(a.startedAt);
+		const endedAt = a.lastResponseAt === undefined ? undefined : Date.parse(a.lastResponseAt);
+		const duration = startedAt !== undefined && endedAt !== undefined && Number.isFinite(startedAt) && Number.isFinite(endedAt)
+			? Math.max(0, endedAt - startedAt)
+			: undefined;
 		const turn: Turn = {
 			id: a.id,
+			startedAt: a.startedAt,
+			duration,
 			message: { text: a.userText, origin: { kind: MessageKind.User } },
 			responseParts: a.responseParts,
 			usage: undefined,

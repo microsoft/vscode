@@ -103,14 +103,6 @@ export interface ISessionTypePickerDelegate {
 	 * Used to gate cloud delegation which requires a GitHub repository.
 	 */
 	hasGitRepository?(): boolean;
-	/**
-	 * Optional visibility filter for the session-type dropdown. When
-	 * provided, the picker hides any session type for which this returns
-	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
-	 * the automations dialog, which only supports a handful of session
-	 * types). When omitted, every contributed session type is shown.
-	 */
-	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -260,8 +252,12 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
-	/** Action triggered when 'clear' is called on the widget. */
-	clear?: () => Promise<void>;
+	/**
+	 * Action triggered when 'clear' is called on the widget. The optional
+	 * `targetSessionType` carries the already-resolved new session type so the
+	 * host can open a session of that type instead of recomputing the default.
+	 */
+	clear?: (targetSessionType?: string) => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -460,7 +456,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): Promise<void>;
+	clear(targetSessionType?: string): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string, agentHostProviderId?: string): void;
 	unlockFromCodingAgent(): void;

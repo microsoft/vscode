@@ -5,9 +5,12 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -16,12 +19,12 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -58,6 +61,7 @@ export class SlashCommandHandler extends Disposable {
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
 	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
+	private _promptCommandsRefreshGeneration = 0;
 
 	private readonly _commandDecorations: IEditorDecorationsCollection;
 	private readonly _placeholderDecorations: IEditorDecorationsCollection;
@@ -66,10 +70,9 @@ export class SlashCommandHandler extends Disposable {
 		private readonly _editor: CodeEditorWidget,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
-		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionContext private readonly sessionContext: ISessionContext,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
@@ -77,19 +80,45 @@ export class SlashCommandHandler extends Disposable {
 		this._registerSlashCommands();
 		this._registerCompletions();
 		this._registerDecorations();
-		this._refreshPromptCommands();
-		this._register(this.promptsService.onDidChangeSlashCommands(() => this._refreshPromptCommands()));
+
+		this._register(autorun(reader => {
+			this._refreshPromptCommands(this.sessionContext.session.read(reader)?.resource);
+		}));
+
+		this._register(this.harnessService.onDidChangeSlashCommands((e) => {
+			const sessionResource = this.sessionContext.session.get()?.resource;
+			if (sessionResource && e.sessionType === getChatSessionType(sessionResource)) {
+				this._refreshPromptCommands(sessionResource);
+			}
+		}));
 	}
 
 	clearInput(): void {
 		this._editor.getModel()?.setValue('');
 	}
 
-	private _refreshPromptCommands(): void {
-		this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(CancellationToken.None).then(commands => {
+	private _refreshPromptCommands(sessionResource: URI | undefined): void {
+		const refreshGeneration = ++this._promptCommandsRefreshGeneration;
+		if (!sessionResource) {
+			this._cachedPromptCommands = [];
+			this._updateDecorations();
+			return;
+		}
+		this.harnessService.getSlashCommands(sessionResource, CancellationToken.None).then(commands => {
+			const currentSessionResource = this.sessionContext.session.get()?.resource;
+			if (refreshGeneration !== this._promptCommandsRefreshGeneration || !currentSessionResource || !isEqual(currentSessionResource, sessionResource)) {
+				return;
+			}
 			this._cachedPromptCommands = commands;
 			this._updateDecorations();
-		}, () => { /* swallow errors from stale refresh */ });
+		}, () => {
+			const currentSessionResource = this.sessionContext.session.get()?.resource;
+			if (refreshGeneration !== this._promptCommandsRefreshGeneration || !currentSessionResource || !isEqual(currentSessionResource, sessionResource)) {
+				return;
+			}
+			this._cachedPromptCommands = [];
+			this._updateDecorations();
+		});
 	}
 
 	/**
@@ -155,6 +184,10 @@ export class SlashCommandHandler extends Disposable {
 
 	private _registerDecorations(): void {
 		this._register(this._editor.onDidChangeModelContent(() => this._updateDecorations()));
+		this._register(autorun(reader => {
+			this.sessionContext.session.read(reader);
+			this._updateDecorations();
+		}));
 		this._updateDecorations();
 	}
 
@@ -162,8 +195,10 @@ export class SlashCommandHandler extends Disposable {
 		const model = this._editor.getModel();
 		const value = model?.getValue() ?? '';
 		const match = value.match(/^\/([\w\p{L}\d_\-\.:]+)\s?/u);
+		const activeSession = this.sessionContext.session.get();
 
-		if (!match) {
+		// Agent-host sessions should not get decorations as this class is only for use with Local Agent Harness and Copilot Chat Extension.
+		if (!match || (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource)))) {
 			this._commandDecorations.clear();
 			this._placeholderDecorations.clear();
 			return;
@@ -197,7 +232,7 @@ export class SlashCommandHandler extends Disposable {
 					// The range is collapsed (nothing follows the command), so injected
 					// text only renders with `showIfCollapsed`.
 					showIfCollapsed: true,
-					after: { content: detail, inlineClassName: SlashCommandHandler._placeholderClassName },
+					after: { content: detail, inlineClassName: SlashCommandHandler._placeholderClassName, cursorStops: InjectedTextCursorStops.None },
 				},
 			} satisfies IModelDeltaDecoration]);
 		} else {
@@ -249,12 +284,16 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
-				const activeSession = this.sessionsService.activeSession.get();
-				if (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource))) {
+				const activeSession = this.sessionContext.session.get();
+				if (!activeSession) {
+					return null;
+				}
+				if (isAgentHostTarget(getChatSessionType(activeSession.resource))) {
 					// Agent-host sessions delegate completions to the host
 					// process via `AgentHostInputCompletions`.
 					return null;
 				}
+
 
 				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
@@ -266,7 +305,7 @@ export class SlashCommandHandler extends Disposable {
 					return null;
 				}
 
-				const promptCommands = await this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(token);
+				const promptCommands = await this.harnessService.getSlashCommands(activeSession?.resource, token);
 				const userInvocable = promptCommands.filter(c => c.userInvocable);
 				if (userInvocable.length === 0) {
 					return null;

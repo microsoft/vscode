@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { ISessionGitHubState, readSessionGitHubState, readSessionGitState, SessionLifecycle, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { IAgentService } from '../common/agentService.js';
@@ -30,7 +30,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostOctoKitService private readonly _octoKitService: IAgentHostOctoKitService,
 		@IAgentService private readonly _agentService: IAgentService,

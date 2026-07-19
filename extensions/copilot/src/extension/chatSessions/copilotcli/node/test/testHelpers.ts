@@ -21,6 +21,7 @@ export class MockCliSdkSession {
 	public events: {}[] = [];
 	public title: string | undefined;
 	public name: string | undefined;
+	public clientName: string | undefined;
 	public readonly renameSession = async (name: string): Promise<void> => {
 		this.title = name;
 		this.name = name;
@@ -90,11 +91,11 @@ export class MockCliSdkSessionManager {
 		return Promise.resolve(undefined);
 	}
 	listSessions() {
-		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name })));
+		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name, clientName: s.clientName })));
 	}
 	getSessionMetadata({ sessionId }: { sessionId: string }) {
 		const session = this.sessions.get(sessionId);
-		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, isRemote: false } : undefined);
+		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, clientName: session.clientName, isRemote: false } : undefined);
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }

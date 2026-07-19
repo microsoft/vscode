@@ -1005,12 +1005,17 @@ export interface ResourceMkdirResult {
 // ─── authenticate ────────────────────────────────────────────────────────────
 
 /**
- * Pushes a Bearer token for a protected resource. The `resource` field MUST
- * match a `ProtectedResourceMetadata.resource` value declared by an agent
- * in `AgentInfo.protectedResources`.
+ * Pushes a ****** for a protected resource. The `resource` field MUST
+ * match a protected-resource identifier the client has discovered from the
+ * server — whether declared statically in `AgentInfo.protectedResources`,
+ * or discovered dynamically from a live `McpServerAuthRequiredState.resource`
+ * or `ToolCallAuthRequiredState.auth.resource` (both surfaced only once the
+ * corresponding MCP server or tool call actually challenges for auth).
+ * Servers MUST accept any `resource` value they have themselves advertised
+ * through one of these three mechanisms.
  *
  * Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
- * (Bearer Token Usage) semantics. The client obtains the token from the
+ * (****** Usage) semantics. The client obtains the token from the
  * authorization server(s) listed in the resource's metadata and pushes it
  * to the server via this command.
  *
@@ -1036,12 +1041,23 @@ export interface ResourceMkdirResult {
 export interface AuthenticateParams extends BaseParams {
 	channel: 'ahp-root://';
 	/**
-	 * The protected resource identifier. MUST match a `resource` value from
-	 * `ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`.
+	 * The protected resource identifier. MUST match a `resource` value the
+	 * server has advertised — via `ProtectedResourceMetadata` in
+	 * `AgentInfo.protectedResources`, or via a live
+	 * `McpServerAuthRequiredState.resource` / `ToolCallAuthRequiredState.auth.resource`.
 	 */
 	resource: string;
-	/** Bearer token obtained from the resource's authorization server */
+	/** ****** obtained from the resource's authorization server */
 	token: string;
+	/**
+	 * OAuth scopes the token grants, when known. Lets the server determine
+	 * whether a specific challenge — e.g. the `requiredScopes` on a live
+	 * `McpServerAuthRequiredState` or `ToolCallAuthRequiredState.auth` — is
+	 * satisfied without decoding the (opaque, server-specific) token itself.
+	 * Omit when the client doesn't track granted scopes separately from the
+	 * token.
+	 */
+	scopes?: string[];
 }
 
 /**

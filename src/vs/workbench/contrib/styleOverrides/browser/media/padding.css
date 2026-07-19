@@ -222,9 +222,14 @@
 }
 
 .style-override.monaco-workbench .monaco-count-badge.long {
-	padding: 2px 6px;
+	padding: 2px 4px;
+	min-height: 18px;
 }
 
 .style-override.monaco-workbench .debug-pane .debug-call-stack .session > .state.label {
 	margin-right: 0;
+}
+
+.style-override.monaco-workbench .sidebar .has-composite-bar.header-or-footer .monaco-action-bar .actions-container {
+	gap: 2px;
 }

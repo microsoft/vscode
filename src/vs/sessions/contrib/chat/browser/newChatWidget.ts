@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,8 +22,6 @@ import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
-import { sessionHasNoSelectableModel } from './modelPicker.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -85,7 +83,6 @@ export class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._workspacePickerVisibleKey = SessionWorkspacePickerVisibleContext.bindTo(contextKeyService);
@@ -123,16 +120,7 @@ export class NewChatWidget extends Disposable {
 			if (session.loading.read(reader)) {
 				return false;
 			}
-			// Re-evaluate the no-available-model gate whenever the active
-			// session's provider reports a model-list change. The provider
-			// aggregates both language-model registry changes and (for cloud
-			// sessions) option-group changes, matching the model picker's own
-			// reactivity so the gate never goes stale.
-			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			if (provider) {
-				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
-			}
-			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
+			return true;
 		});
 
 		const loading = derived(reader => {
