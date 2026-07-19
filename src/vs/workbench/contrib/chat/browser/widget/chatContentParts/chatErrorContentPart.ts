@@ -21,22 +21,16 @@ export class ChatErrorContentPart extends Disposable implements IChatContentPart
 	constructor(
 		kind: ChatErrorLevel,
 		content: IMarkdownString,
-		errorDetails: IChatRendererContent,
+		private readonly errorDetails: IChatRendererContent,
 		renderer: IMarkdownRenderer,
 	) {
 		super();
 
 		this.domNode = this._register(new ChatErrorWidget(kind, content, renderer)).domNode;
-		this.errorMessage = errorDetails.kind === 'errorDetails' ? errorDetails.errorDetails.message : '';
 	}
 
-	private readonly errorMessage: string;
-
 	hasSameContent(other: IChatRendererContent): boolean {
-		if (other.kind !== 'errorDetails') {
-			return false;
-		}
-		return this.errorMessage === other.errorDetails.message;
+		return other.kind === this.errorDetails.kind;
 	}
 }
 
