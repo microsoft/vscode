@@ -22,6 +22,7 @@ import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../.
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
+import { parsePartialToolInput } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { formatCopilotCredits, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionCreatedData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -29,7 +30,7 @@ import { type IQuotaSnapshot } from '../../../../../services/chat/common/chatEnt
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { type IPreparedToolInvocation, type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
@@ -1820,8 +1821,16 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		);
 	}
 
-	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	const invocation = tc.status === ToolCallStatus.Streaming
+		? ChatToolInvocation.createStreaming({
+			toolCallId: tc.toolCallId,
+			toolId: toolData.id,
+			toolData,
+			subagentInvocationId: subAgentInvocationId,
+		})
+		: new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	updateStreamingToolInvocation(invocation, tc, connectionAuthority);
 
 	// Tools that render a bespoke, client-authored invocation message override
 	// the server text here. Add new per-tool cases alongside this branch.
@@ -1862,6 +1871,50 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	return invocation;
+}
+
+export function getStreamingToolInput(tc: ToolCallState): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming || tc.partialInput === undefined) {
+		return undefined;
+	}
+	const partialInput = parsePartialToolInput(tc.partialInput);
+	return partialInput.value ?? partialInput.raw;
+}
+
+export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string): unknown | undefined {
+	if (tc.status !== ToolCallStatus.Streaming) {
+		return undefined;
+	}
+	const partialInput = getStreamingToolInput(tc);
+	if (partialInput !== undefined) {
+		existing.updatePartialInput(partialInput);
+	}
+	const invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority);
+	if (invocationMessage) {
+		existing.updateStreamingMessage(invocationMessage);
+	}
+	return partialInput;
+}
+
+export function transitionToolInvocationFromStreaming(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string): void {
+	if (tc.status !== ToolCallStatus.PendingConfirmation && tc.status !== ToolCallStatus.Running) {
+		return;
+	}
+	const finalInvocation = toolCallStateToInvocation(tc, existing.subAgentInvocationId, sessionResource, connectionAuthority);
+	const preparedInvocation: IPreparedToolInvocation = {
+		invocationMessage: finalInvocation.invocationMessage,
+		pastTenseMessage: finalInvocation.pastTenseMessage,
+		originMessage: finalInvocation.originMessage,
+		confirmationMessages: finalInvocation.confirmationMessages,
+		presentation: finalInvocation.presentation,
+		icon: finalInvocation.icon,
+		toolSpecificData: finalInvocation.toolSpecificData,
+	};
+	existing.transitionFromStreaming(
+		preparedInvocation,
+		getToolRawInput(tc),
+		tc.status === ToolCallStatus.Running ? { type: ToolConfirmKind.ConfirmationNotNeeded } : undefined,
+	);
 }
 
 /**

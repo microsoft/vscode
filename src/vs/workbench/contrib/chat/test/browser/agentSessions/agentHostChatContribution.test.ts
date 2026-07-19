@@ -83,6 +83,7 @@ import { IAgentHostCustomizationService, NullAgentHostCustomizationService } fro
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -3170,6 +3171,102 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
+		}));
+
+		test('tool deltas update one streaming invocation and transition it in place', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-stream', toolName: 'view', displayName: 'View' } as ChatAction);
+			const invocation = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			fire({
+				type: 'chat/toolCallDelta',
+				session,
+				turnId,
+				toolCallId: 'tc-stream',
+				content: '{"path":"/workspace/file.ts"}',
+				invocationMessage: 'Viewing file',
+			} as ChatAction);
+
+			const streamingState = invocation.state.get();
+			assert.strictEqual(streamingState.type, IChatToolInvocation.StateKind.Streaming);
+			assert.strictEqual(collected.flat().filter(part => part.kind === 'toolInvocation').length, 1);
+			if (streamingState.type === IChatToolInvocation.StateKind.Streaming) {
+				assert.deepStrictEqual({
+					partialInput: streamingState.partialInput.get(),
+					streamingMessage: streamingState.streamingMessage.get(),
+				}, {
+					partialInput: { path: '/workspace/file.ts' },
+					streamingMessage: 'Viewing file',
+				});
+			}
+
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-stream',
+				invocationMessage: 'Viewing file',
+				toolInput: '{"path":"/workspace/file.ts"}',
+				confirmed: 'not-needed',
+			} as ChatAction);
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
+			assert.strictEqual(collected.flat().filter(part => part.kind === 'toolInvocation').length, 1);
+
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('client tool deltas are forwarded to the language model tools service', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const toolData = { id: 'client_tool', source: ToolDataSource.Internal, displayName: 'Client Tool', modelDescription: 'Runs a client tool' };
+			const invocation = ChatToolInvocation.createStreaming({ toolCallId: 'tc-client-stream', toolId: toolData.id, toolData });
+			const streamedInputs: unknown[] = [];
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				languageModelToolsServiceOverride: {
+					getToolByName: () => toolData,
+					beginToolCall: () => invocation,
+					updateToolStream: async (_toolCallId, partialInput) => {
+						streamedInputs.push(partialInput);
+						invocation.updatePartialInput(partialInput);
+					},
+					invokeTool: async () => ({ content: [] }),
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/toolCallStart',
+				session,
+				turnId,
+				toolCallId: 'tc-client-stream',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: agentHostService.clientId },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallDelta',
+				session,
+				turnId,
+				toolCallId: 'tc-client-stream',
+				content: '{"query":"streaming"}',
+			} as ChatAction);
+			await timeout(0);
+
+			assert.deepStrictEqual(streamedInputs, [{ query: 'streaming' }]);
+
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-client-stream',
+				invocationMessage: 'Running client tool',
+				toolInput: '{"query":"streaming"}',
+				confirmed: 'not-needed',
+			} as ChatAction);
+			await timeout(0);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
+			await turnPromise;
 		}));
 
 		test('tool_complete event transitions toolInvocation to completed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -6855,6 +6952,54 @@ suite('AgentHostChatContribution', () => {
 			const toolInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
 			assert.ok(toolInvocation, 'Should have a live tool invocation in progress');
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
+		});
+
+		test('adopts and updates an active streaming tool call after reconnect', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-streaming-tool');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.push({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-streaming',
+					toolName: 'view',
+					displayName: 'View',
+					status: ToolCallStatus.Streaming,
+					partialInput: '{"path":"/workspace/file.ts"}',
+					invocationMessage: 'Viewing file',
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-streaming-tool' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const progress = session.progressObs?.get() ?? [];
+			const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			const streamingState = invocation.state.get();
+			assert.strictEqual(streamingState.type, IChatToolInvocation.StateKind.Streaming);
+			if (streamingState.type === IChatToolInvocation.StateKind.Streaming) {
+				assert.deepStrictEqual(streamingState.partialInput.get(), { path: '/workspace/file.ts' });
+			}
+
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: {
+					type: ActionType.ChatToolCallReady,
+					turnId: 'turn-active',
+					toolCallId: 'tc-streaming',
+					invocationMessage: 'Viewing file',
+					toolInput: '{"path":"/workspace/file.ts"}',
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(0);
+
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
+			assert.strictEqual((session.progressObs?.get() ?? []).filter(part => part.kind === 'toolInvocation').length, 1);
 		});
 
 		test('handles active turn with pending tool confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

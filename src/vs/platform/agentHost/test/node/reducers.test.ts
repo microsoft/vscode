@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ResponsePartKind, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationType, ToolCallContributorKind } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -223,6 +223,44 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
 			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
 		]);
+	});
+
+	test('ChatToolCallReady enriches a streaming tool call without duplicating it', () => {
+		let state = withActiveTurnAndToolCall(makeChat());
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallDelta,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			content: '{"path":"/workspace/file.ts"}',
+			intention: 'Read a workspace file',
+		});
+		state = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			intention: 'Read the selected workspace file',
+			invocationMessage: 'Reading file',
+			toolInput: '{"path":"/workspace/file.ts"}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+
+		const toolParts = state.activeTurn?.responseParts.filter(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual(toolParts, [{
+			kind: ResponsePartKind.ToolCall,
+			toolCall: {
+				status: ToolCallStatus.Running,
+				toolCallId: 'tc-1',
+				toolName: 'readFile',
+				displayName: 'Read File',
+				intention: 'Read the selected workspace file',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+				_meta: undefined,
+				invocationMessage: 'Reading file',
+				toolInput: '{"path":"/workspace/file.ts"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		}]);
 	});
 });
 

@@ -13,7 +13,7 @@ import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/age
 import { buildSubagentChatUri, MessageKind, ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, transitionToolInvocationFromStreaming as rawTransitionToolInvocationFromStreaming, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -780,6 +780,59 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
+		test('creates a streaming invocation with best-effort partial input', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-streaming',
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"command":"npm test","description":"Run',
+				invocationMessage: 'Running npm test',
+			});
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+				invocationMessage: invocation.invocationMessage,
+			}, {
+				partialInput: { command: 'npm test', description: 'Run' },
+				streamingMessage: 'Running npm test',
+				invocationMessage: 'Running npm test',
+			});
+		});
+
+		test('transitions the same streaming invocation to running with final input', () => {
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'tc-streaming',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				status: ToolCallStatus.Streaming,
+				partialInput: '{"path":"/workspace',
+			});
+			rawTransitionToolInvocationFromStreaming(invocation, createToolCallState({
+				toolCallId: 'tc-streaming',
+				toolInput: '{"path":"/workspace/file.ts"}',
+				invocationMessage: 'Reading file',
+			}), URI.file('/'), 'local');
+
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Executing);
+			if (state.type !== IChatToolInvocation.StateKind.Executing) {
+				return;
+			}
+			assert.deepStrictEqual({
+				parameters: state.parameters,
+				invocationMessage: invocation.invocationMessage,
+			}, {
+				parameters: { path: '/workspace/file.ts' },
+				invocationMessage: 'Reading file',
+			});
+		});
+
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
 				toolInput: 'ls -la',
@@ -1468,6 +1521,37 @@ suite('stateToProgressAdapter', () => {
 			// Live ChatToolInvocation - check it has the right toolCallId
 			const invocation = result[0] as { toolCallId?: string; kind?: string };
 			assert.strictEqual(invocation.toolCallId, 'tc-running');
+		});
+
+		test('restores streaming tool calls with accumulated partial input', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'tc-streaming',
+						toolName: 'view',
+						displayName: 'View',
+						status: ToolCallStatus.Streaming,
+						partialInput: '{"path":"/workspace/file.ts"}',
+						invocationMessage: 'Viewing file',
+					},
+				},
+			]), undefined);
+			const invocation = result[0] as IChatToolInvocation;
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.Streaming);
+			if (state.type !== IChatToolInvocation.StateKind.Streaming) {
+				return;
+			}
+			assert.deepStrictEqual({
+				toolCallId: invocation.toolCallId,
+				partialInput: state.partialInput.get(),
+				streamingMessage: state.streamingMessage.get(),
+			}, {
+				toolCallId: 'tc-streaming',
+				partialInput: { path: '/workspace/file.ts' },
+				streamingMessage: 'Viewing file',
+			});
 		});
 
 		test('creates confirmation invocations for pending tool confirmations', () => {

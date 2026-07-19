@@ -25,7 +25,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, readUsageInfoMeta, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
@@ -2365,6 +2365,111 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(action.toolCallId, 'tc-10');
 				assert.strictEqual(action.toolName, 'bash');
 			}
+		});
+
+		test('tool call deltas start once, accumulate buffered input, and finalize at tool start', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream',
+				inputDelta: '{"command":"npm ',
+			});
+			assert.strictEqual(signals.length, 0);
+
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				inputDelta: 'test","description":"Run',
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-stream',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run all tests' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
+			const deltas = actions.filter(action => action.type === ActionType.ChatToolCallDelta) as ChatToolCallDeltaAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				starts: starts.map(action => ({ toolCallId: action.toolCallId, toolName: action.toolName })),
+				deltas: deltas.map(action => ({ content: action.content, hasInvocationMessage: action.invocationMessage !== undefined })),
+				ready: ready && { toolCallId: ready.toolCallId, toolInput: ready.toolInput, intention: ready.intention },
+			}, {
+				starts: [{ toolCallId: 'tc-stream', toolName: 'bash' }],
+				deltas: [{ content: '{"command":"npm test","description":"Run', hasInvocationMessage: true }],
+				ready: { toolCallId: 'tc-stream', toolInput: 'npm test', intention: 'Run all tests' },
+			});
+		});
+
+		test('tool start enriches a streamed call with MCP contributor metadata', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+				},
+			});
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'docs',
+				status: 'connected',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-stream-mcp',
+				toolName: 'mcp_tool',
+				inputDelta: '{"topic":"metadata"}',
+			});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-stream-mcp',
+				toolName: 'mcp_tool',
+				mcpServerName: 'docs',
+				arguments: { topic: 'metadata' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const actions = getActions(signals);
+			const starts = actions.filter(action => action.type === ActionType.ChatToolCallStart) as ChatToolCallStartAction[];
+			const ready = actions.find(action => action.type === ActionType.ChatToolCallReady) as ChatToolCallReadyAction | undefined;
+			assert.deepStrictEqual({
+				startCount: starts.length,
+				startContributor: starts[0]?.contributor,
+				readyContributor: ready?.contributor,
+			}, {
+				startCount: 1,
+				startContributor: undefined,
+				readyContributor: {
+					kind: ToolCallContributorKind.MCP,
+					customizationId: 'mcp-top-level:copilot:test-session-1:docs',
+				},
+			});
+		});
+
+		test('full assistant message does not duplicate markdown emitted before a tool delta', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-stream-dedup');
+			mockSession.fire('assistant.message_delta', {
+				deltaContent: 'I will inspect the file.',
+			} as SessionEventPayload<'assistant.message_delta'>['data']);
+			mockSession.fire('assistant.tool_call_delta', {
+				toolCallId: 'tc-dedup',
+				toolName: 'view',
+				inputDelta: '{"path":"/workspace/file.ts"}',
+			});
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-dedup',
+				content: 'I will inspect the file.',
+				toolRequests: [{
+					toolCallId: 'tc-dedup',
+					name: 'view',
+					arguments: { path: '/workspace/file.ts' },
+					type: 'function',
+				}],
+			} as SessionEventPayload<'assistant.message'>['data']);
+
+			const markdownParts = getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+					? [{ kind: action.part.kind, content: action.part.content }]
+					: []);
+			assert.deepStrictEqual(markdownParts, [{
+				kind: ResponsePartKind.Markdown,
+				content: 'I will inspect the file.',
+			}]);
 		});
 
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {

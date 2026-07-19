@@ -46,6 +46,7 @@ import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiv
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
@@ -80,6 +81,23 @@ interface IPendingMcpAuthRequest {
 	readonly resource: ProtectedResourceMetadata;
 	readonly requiredScopes: readonly string[];
 	readonly deferred: DeferredPromise<McpAuthResult | null | undefined>;
+}
+
+interface ICopilotActiveToolCall {
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly parameters: Record<string, unknown> | undefined;
+	readonly content: ToolResultContent[];
+	readonly parentToolCallId: string | undefined;
+	readonly mcpServerName: string | undefined;
+	meta: IToolCallMeta | undefined;
+}
+
+interface ICopilotStreamingToolCall {
+	input: string;
+	toolName: string | undefined;
+	parentToolCallId: string | undefined;
+	started: boolean;
 }
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
@@ -484,7 +502,8 @@ export class CopilotAgentSession extends Disposable {
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; mcpServerName: string | undefined; meta: IToolCallMeta | undefined }>();
+	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
+	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	/**
 	 * Maps a running subagent's `agentId` to its parent tool call id. Session-
 	 * scoped rather than per-turn: a subagent's lifetime is bounded by its
@@ -833,6 +852,36 @@ export class CopilotAgentSession extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	private _getToolCallContributor(toolName: string, mcpServerName: string | undefined) {
+		if (this._clientToolNames.has(toolName)) {
+			const clientId = this._activeClientToolSet.ownerOf(toolName, this._currentTurn?.senderClientId);
+			return clientId ? { kind: ToolCallContributorKind.Client, clientId } as const : undefined;
+		}
+		if (mcpServerName) {
+			const customizationId = this._mcpCustomizations.customizationIdForServer(mcpServerName);
+			return customizationId ? { kind: ToolCallContributorKind.MCP, customizationId } as const : undefined;
+		}
+		return undefined;
+	}
+
+	private _createToolCallMeta(toolName: string, parameters: Record<string, unknown> | undefined, toolArgs?: string): Mutable<IToolCallMeta> {
+		const toolKind = getToolKind(toolName);
+		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
+		return {
+			toolKind,
+			language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
+			subagentDescription: subagentMeta?.description,
+			subagentAgentName: subagentMeta?.agentName,
+			toolArguments: toolArgs,
+		};
+	}
+
+	private _beginToolCallRound(parentToolCallId: string | undefined): void {
+		const scope = parentToolCallId ?? '';
+		this._currentTurn?.markdownPartIds.delete(scope);
+		this._currentTurn?.reasoningPartIds.delete(scope);
 	}
 
 	/**
@@ -2567,37 +2616,85 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 			}
-			// The SDK fires a `message` event with the full assembled content after
-			// streaming deltas. If deltas already created a markdown part for this
-			// turn, the live state is up to date and we skip. Only emit a fresh
-			// part when no deltas preceded the message (e.g. text after tool calls
-			// where the SDK delivered the full message at once).
-			//
-			// Other fields (toolRequests, reasoningText, encryptedContent) are
-			// only used for history reconstruction and live tool calls fire their
-			// own tool_start events, so we can safely drop them here.
-			if (!e.data.content) {
-				return;
-			}
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			const markdownScope = parentToolCallId ?? '';
-			if (this._currentTurn?.markdownPartIds.has(markdownScope)) {
+			if (e.data.content && !this._currentTurn?.markdownPartIds.has(markdownScope)) {
+				const partId = generateUuid();
+				this._currentTurn?.markdownPartIds.set(markdownScope, partId);
+				this._emitAction({
+					type: ActionType.ChatResponsePart,
+					turnId: this._turnId,
+					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
+				}, parentToolCallId);
+			}
+			if (e.data.toolRequests?.length) {
+				this._beginToolCallRound(parentToolCallId);
+			}
+		}));
+
+		this._register(wrapper.onToolCallDelta(e => {
+			const existing = this._streamingToolCalls.get(e.data.toolCallId);
+			const streamed: ICopilotStreamingToolCall = existing ?? {
+				input: '',
+				toolName: undefined,
+				parentToolCallId: undefined,
+				started: false,
+			};
+			streamed.input += e.data.inputDelta;
+			if (e.data.toolName) {
+				if (streamed.toolName && streamed.toolName !== e.data.toolName) {
+					this._logService.warn(`[Copilot:${sessionId}] Tool call ${e.data.toolCallId} changed name while streaming from ${streamed.toolName} to ${e.data.toolName}`);
+				} else {
+					streamed.toolName = e.data.toolName;
+				}
+			}
+			this._streamingToolCalls.set(e.data.toolCallId, streamed);
+
+			const toolName = streamed.toolName;
+			if (!toolName || isHiddenTool(toolName) || isTaskCompleteTool(toolName)) {
 				return;
 			}
-			const partId = generateUuid();
-			this._currentTurn?.markdownPartIds.set(markdownScope, partId);
+			if (!streamed.started) {
+				if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.tool_call_delta')) {
+					return;
+				}
+				streamed.parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			}
+
+			const wasStarted = streamed.started;
+			const partialInput = parsePartialToolInput(streamed.input);
+			const displayName = getToolDisplayName(toolName);
+			const meta = this._createToolCallMeta(toolName, partialInput.value, streamed.input);
+			if (!streamed.started) {
+				streamed.started = true;
+				this._emitAction({
+					type: ActionType.ChatToolCallStart,
+					turnId: this._turnId,
+					toolCallId: e.data.toolCallId,
+					toolName,
+					displayName,
+					intention: getShellIntention(toolName, partialInput.value),
+					contributor: this._getToolCallContributor(toolName, undefined),
+					_meta: toToolCallMeta(meta),
+				}, streamed.parentToolCallId);
+			}
 			this._emitAction({
-				type: ActionType.ChatResponsePart,
+				type: ActionType.ChatToolCallDelta,
 				turnId: this._turnId,
-				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
-			}, parentToolCallId);
+				toolCallId: e.data.toolCallId,
+				content: wasStarted ? e.data.inputDelta : streamed.input,
+				invocationMessage: getInvocationMessage(toolName, displayName, partialInput.value),
+				intention: getShellIntention(toolName, partialInput.value),
+				_meta: toToolCallMeta(meta),
+			}, streamed.parentToolCallId);
 		}));
 
 		this._register(wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
+				this._streamingToolCalls.delete(e.data.toolCallId);
 				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
 				return;
 			}
@@ -2614,50 +2711,28 @@ export class CopilotAgentSession extends Disposable {
 				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			if (this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
+			const streamed = this._streamingToolCalls.get(e.data.toolCallId);
+			this._streamingToolCalls.delete(e.data.toolCallId);
+			if (streamed?.toolName && streamed.toolName !== e.data.toolName) {
+				this._logService.warn(`[Copilot:${sessionId}] Tool call ${e.data.toolCallId} started as ${e.data.toolName} after streaming as ${streamed.toolName}`);
+			}
+			if (!streamed?.started && this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
 				return;
 			}
-			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			const parentToolCallId = streamed?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, mcpServerName: e.data.mcpServerName, meta: undefined });
 			if (isTaskCompleteTool(e.data.toolName)) {
-				const scope = parentToolCallId ?? '';
-				this._currentTurn?.markdownPartIds.delete(scope);
-				this._currentTurn?.reasoningPartIds.delete(scope);
+				this._beginToolCallRound(parentToolCallId);
 				return;
 			}
-			const toolKind = getToolKind(e.data.toolName);
-			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
-			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | { readonly kind: ToolCallContributorKind.MCP; readonly customizationId: string } | undefined;
 			const isClientTool = this._clientToolNames.has(e.data.toolName);
-			const ownerClientId = isClientTool ? this._activeClientToolSet.ownerOf(e.data.toolName, this._currentTurn?.senderClientId) : undefined;
-			if (ownerClientId) {
-				contributor = { kind: ToolCallContributorKind.Client, clientId: ownerClientId };
-			} else if (e.data.mcpServerName) {
-				const customizationId = this._mcpCustomizations.customizationIdForServer(e.data.mcpServerName);
-				if (customizationId !== undefined) {
-					contributor = { kind: ToolCallContributorKind.MCP, customizationId };
-				}
+			const contributor = this._getToolCallContributor(e.data.toolName, e.data.mcpServerName);
+			if (!streamed?.started) {
+				this._beginToolCallRound(parentToolCallId);
 			}
 
-			// A new tool call invalidates the current markdown and reasoning
-			// parts so the next text/reasoning delta after the tool call
-			// starts a fresh part. Without invalidating reasoning here, a
-			// later round of reasoning (after tool_start/tool_complete)
-			// would silently append to the pre-tool-call reasoning block.
-			this._currentTurn?.markdownPartIds.delete(parentToolCallId ?? '');
-			this._currentTurn?.reasoningPartIds.delete(parentToolCallId ?? '');
-
-			const meta: Mutable<IToolCallMeta> = { toolKind, language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined };
-			if (subagentMeta?.description) {
-				meta.subagentDescription = subagentMeta.description;
-			}
-			if (subagentMeta?.agentName) {
-				meta.subagentAgentName = subagentMeta.agentName;
-			}
-			if (toolArgs !== undefined) {
-				meta.toolArguments = toolArgs;
-			}
+			const meta = this._createToolCallMeta(e.data.toolName, parameters, toolArgs);
 			if (e.data.mcpServerName) {
 				meta.mcpServerName = e.data.mcpServerName;
 			}
@@ -2677,16 +2752,18 @@ export class CopilotAgentSession extends Disposable {
 				tracked.meta = meta;
 			}
 
-			this._emitAction({
-				type: ActionType.ChatToolCallStart,
-				turnId: this._turnId,
-				toolCallId: e.data.toolCallId,
-				toolName: e.data.toolName,
-				displayName,
-				intention: getShellIntention(e.data.toolName, parameters),
-				contributor,
-				_meta: toToolCallMeta(meta),
-			}, parentToolCallId);
+			if (!streamed?.started) {
+				this._emitAction({
+					type: ActionType.ChatToolCallStart,
+					turnId: this._turnId,
+					toolCallId: e.data.toolCallId,
+					toolName: e.data.toolName,
+					displayName,
+					intention: getShellIntention(e.data.toolName, parameters),
+					contributor,
+					_meta: toToolCallMeta(meta),
+				}, parentToolCallId);
+			}
 
 			// No client is connected to run this client tool. Fail it
 			// immediately instead of leaving it pending until the
@@ -2700,9 +2777,12 @@ export class CopilotAgentSession extends Disposable {
 					type: ActionType.ChatToolCallReady,
 					turnId: this._turnId,
 					toolCallId: e.data.toolCallId,
+					contributor,
+					intention: getShellIntention(e.data.toolName, parameters),
 					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: toToolCallMeta(meta),
 				}, parentToolCallId);
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
@@ -2731,9 +2811,12 @@ export class CopilotAgentSession extends Disposable {
 				type: ActionType.ChatToolCallReady,
 				turnId: this._turnId,
 				toolCallId: e.data.toolCallId,
+				contributor,
+				intention: getShellIntention(e.data.toolName, parameters),
 				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
 				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: toToolCallMeta(meta),
 			}, parentToolCallId);
 		}));
 

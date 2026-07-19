@@ -93,7 +93,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, formatTurnResponseDetails, getStreamingToolInput, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallStateToInvocation, transitionToolInvocationFromStreaming, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -2485,12 +2485,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
-			const isReconfirmation = previousStatus !== undefined
-				&& previousStatus !== ToolCallStatus.PendingConfirmation
+			const priorStatus = previousStatus;
+			const isReconfirmation = priorStatus !== undefined
+				&& priorStatus !== ToolCallStatus.Streaming
+				&& priorStatus !== ToolCallStatus.PendingConfirmation
 				&& status === ToolCallStatus.PendingConfirmation;
 			previousStatus = status;
 
-			if (isReconfirmation) {
+			if (status === ToolCallStatus.Streaming) {
+				updateStreamingToolInvocation(invocation, tc, this._config.connectionAuthority);
+			} else if (priorStatus === ToolCallStatus.Streaming && invocation.state.read(undefined).type === IChatToolInvocation.StateKind.Streaming) {
+				transitionToolInvocationFromStreaming(invocation, tc, opts.backendSession, this._config.connectionAuthority);
+				if (status === ToolCallStatus.PendingConfirmation) {
+					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, tc.options, opts.chatURI);
+				} else if (status === ToolCallStatus.Running) {
+					this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
+					updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);
+				}
+			} else if (isReconfirmation) {
 				// Server bounced the call back to PendingConfirmation
 				// (e.g. write confirmation after edit). Settle the old
 				// invocation and replace it with a fresh one carrying the
@@ -2599,6 +2611,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let invoked = false;
 		let approvedDispatched = false;
 		let confirmationDispatched = false;
+		let previousPartialInput: string | undefined;
 
 		// Drive `ChatToolCallConfirmed` from the invocation's confirmation
 		// gate. The autorun runs synchronously many times; the guards keep it
@@ -2679,6 +2692,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const state = invocation.state.read(reader);
+			if (tc.status === ToolCallStatus.Streaming && tc.partialInput !== previousPartialInput) {
+				previousPartialInput = tc.partialInput;
+				const partialInput = getStreamingToolInput(tc);
+				if (partialInput !== undefined) {
+					this._toolsService.updateToolStream(toolCallId, partialInput, cts.token).catch(error => {
+						this._logService.error(`[AgentHost] Failed to update client tool stream: ${toolName}`, error);
+					});
+				}
+			}
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
 				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
 			}

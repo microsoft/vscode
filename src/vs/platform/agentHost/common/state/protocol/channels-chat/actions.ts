@@ -159,6 +159,8 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
 	content: string;
 	/** Updated progress message */
 	invocationMessage?: StringOrMarkdown;
+	/** Updated description of what the tool invocation intends to do */
+	intention?: string;
 }
 
 /**
@@ -181,6 +183,13 @@ export interface ChatToolCallDeltaAction extends ToolCallActionBase {
  */
 export interface ChatToolCallReadyAction extends ToolCallActionBase {
 	type: ActionType.ChatToolCallReady;
+	/**
+	 * Reference to the contributor of the tool being called. May be supplied
+	 * here when the contributor was not known at `chat/toolCallStart`.
+	 */
+	contributor?: ToolCallContributor;
+	/** Final description of what the tool invocation intends to do */
+	intention?: string;
 	/** Message describing what the tool will do or what confirmation is needed */
 	invocationMessage: StringOrMarkdown;
 	/** Raw tool input */

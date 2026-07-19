@@ -779,6 +779,9 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'));
 			assert.ok(toolStarts.length > 0, 'expected at least one shell tool call');
+			const toolDeltas = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
+				.map(n => getActionEnvelope(n).action as { content: string });
+			assert.ok(toolDeltas.some(action => action.content.length > 0), 'expected streamed tool input before the tool became ready');
 			// While recording, let the post-tool continuation finish so its
 			// model call lands in the fixture. Replay always issues that
 			// continuation, so without capturing it here replay would hit an
