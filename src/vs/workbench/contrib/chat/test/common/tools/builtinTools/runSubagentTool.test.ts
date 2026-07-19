@@ -998,7 +998,7 @@ suite('RunSubagentTool', () => {
 			} as IToolInvocation;
 		}
 
-		test('prepared structured fallback forwards paired defaults over global configuration', async () => {
+		test('prepared structured fallback forwards paired defaults for named and current agents', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const availableMetadata: ILanguageModelChatMetadata = {
 				extension: new ExtensionIdentifier('test.extension'),
@@ -1014,7 +1014,7 @@ suite('RunSubagentTool', () => {
 				configurationSchema: {
 					properties: {
 						thinkingLevel: { type: 'string', enum: ['low', 'high'], group: 'navigation' },
-						maxPromptTokens: { type: 'number', enum: [100_000], group: 'tokens' },
+						maxPromptTokens: { type: 'number', enum: [100_000, 300_000], group: 'tokens' },
 					}
 				}
 			};
@@ -1038,28 +1038,41 @@ suite('RunSubagentTool', () => {
 				visibility: { userInvocable: true, agentInvocable: true },
 				enabled: true,
 			};
-			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, customAgents: [customAgent], languageModelsService });
+			const currentModeInstructions: IChatRequestModeInstructions = {
+				uri: customAgent.uri,
+				name: customAgent.name,
+				content: customAgent.agentInstructions.content,
+				toolReferences: [],
+			};
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, currentModeInstructions, customAgents: [customAgent], languageModelsService });
 			const sessionUri = URI.parse('test://session/structured');
-			const invocation = createInvocation(sessionUri);
-			invocation.parameters = { prompt: 'do something', description: 'test', agentName: 'Structured' };
-			invocation.modelId = 'main-id';
+			for (const agentName of ['Structured', undefined]) {
+				const invocation = createInvocation(sessionUri);
+				invocation.parameters = { prompt: 'do something', description: 'test', ...(agentName ? { agentName } : {}) };
+				invocation.modelId = 'main-id';
 
-			await tool.prepareToolInvocation({
-				parameters: invocation.parameters,
-				toolCallId: invocation.callId,
-				modelId: invocation.modelId,
-				chatSessionResource: sessionUri,
-			}, CancellationToken.None);
-			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+				await tool.prepareToolInvocation({
+					parameters: invocation.parameters,
+					toolCallId: invocation.callId,
+					modelId: invocation.modelId,
+					chatSessionResource: sessionUri,
+				}, CancellationToken.None);
+				await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			}
 
-			assert.strictEqual(capturedRequests.length, 1, JSON.stringify(result.content));
-			assert.deepStrictEqual({
-				modelId: capturedRequests[0].userSelectedModelId,
-				configuration: capturedRequests[0].modelConfiguration,
-			}, {
-				modelId: 'available-id',
-				configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
-			});
+			assert.deepStrictEqual(capturedRequests.map(request => ({
+				modelId: request.userSelectedModelId,
+				configuration: request.modelConfiguration,
+			})), [
+				{
+					modelId: 'available-id',
+					configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
+				},
+				{
+					modelId: 'available-id',
+					configuration: { temperature: 0.5, thinkingLevel: 'high', maxPromptTokens: 222_222 },
+				},
+			]);
 		});
 
 		test('prepared structured fallback merges defaults over the configuration at invocation time', async () => {

@@ -9,6 +9,7 @@ import { Emitter, type Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import type { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -234,7 +235,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					resolvedModelName = cached.resolvedModelName;
 					modelConfigurationOverrides = cached.modelConfigurationOverrides;
 				} else {
-					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
+					const currentSubagent = await this.getSubAgentForModeInstructions(currentModeInstructions);
+					const resolved = this.resolveSubagentModel(currentSubagent, invocation.modelId, args.model);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
 					modelConfigurationOverrides = resolved.modelConfigurationOverrides;
@@ -443,6 +445,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		return agents.find(agent => agent.name === name && agent.enabled);
 	}
 
+	private async getSubAgentForModeInstructions(modeInstructions: IChatRequestModeInstructions | undefined): Promise<ICustomAgent | undefined> {
+		if (!modeInstructions) {
+			return undefined;
+		}
+		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		return agents.find(agent => agent.enabled && (modeInstructions.uri ? isEqual(agent.uri, modeInstructions.uri) : agent.name === modeInstructions.name));
+	}
+
 	/**
 	 * Checks if a model exceeds the main model's cost tier based on multiplier.
 	 * @returns An object with `exceeds: true` and a reason string if blocked, or `exceeds: false` if allowed.
@@ -574,8 +584,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IRunSubagentToolInputParams;
 		const requestedAgentName = this.normalizeRequestedAgentName(args.agentName);
 
-		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 		const currentModeInstructions = context.chatSessionResource ? this.getCurrentModeInstructions(context.chatSessionResource) : undefined;
+		const subagent = requestedAgentName
+			? await this.getSubAgentByName(requestedAgentName)
+			: await this.getSubAgentForModeInstructions(currentModeInstructions);
 
 		// Resolve the model early and cache it for invoke()
 		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
