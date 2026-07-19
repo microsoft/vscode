@@ -77,6 +77,8 @@ Automation run history stores the created session as a serialized URI. Its Open 
 
 Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
 
+Automations use a discriminated target that is either workspace-backed or a workspace-less quick chat. The workspace dropdown owns both choices: selecting **No workspace** switches to the existing quick-chat provider/session-type catalog, while selecting a folder restores repository configuration. Workspace-less targets display and announce as `without a workspace` in the list and cannot carry folder, isolation, or branch configuration; workspace-backed targets require a folder, with Worktree isolation requiring its base branch. Ledger schema v3 persists this target union and migrates schema-v1/v2 flat records while preserving valid workspace-backed targets.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:

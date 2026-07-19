@@ -3573,7 +3573,8 @@ suite('AgentSideEffects', () => {
 				kind: 'action', resource: URI.parse(defaultChatUri),
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
-					toolCallId: 'tc-1', invocationMessage: 'Delegating task...', toolInput: undefined,
+					toolCallId: 'tc-1', invocationMessage: 'Delegating task...',
+					toolInput: JSON.stringify({ prompt: 'Review the auth module for security issues' }),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
@@ -3595,6 +3596,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(subagentSummary?.title, 'Code Reviewer');
 			assert.deepStrictEqual(subagentSummary?.origin, { kind: 'tool', chat: defaultChatUri, toolCallId: 'tc-1' });
 			assert.ok(subState!.activeTurn, 'subagent chat should have an active turn');
+			assert.strictEqual(subState!.activeTurn!.message.text, 'Review the auth module for security issues', 'subagent turn should render the spawning tool call prompt as its request');
 
 			// Verify content was dispatched on the parent tool call
 			const parentState = stateManager.getSessionState(sessionUri.toString());
@@ -3633,7 +3635,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(stateManager.getSnapshot(expectedUri), undefined);
 		});
 
-		test('nested subagent_started routes its discovery content block to the immediate parent chat (arbitrary depth)', () => {
+		test('nested subagent_started routes discovery block and seeds each request prompt via the immediate parent chat (arbitrary depth)', () => {
 			// Regression: for a subagent spawned by another subagent, the
 			// `subagent_started` signal's `chat` is the top-level chat, but
 			// its spawning tool call lives in the immediate parent's subagent
@@ -3650,14 +3652,14 @@ suite('AgentSideEffects', () => {
 
 			// Level-1 subagent spawned from the default chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l1', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l1', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l1 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l1', agentName: 'l1', agentDisplayName: 'L1', agentDescription: 'first' });
 
 			// Level-2 subagent's spawning tool runs INSIDE the level-1
 			// subagent (parentToolCallId = tc-l1), so it lands on the level-1
 			// subagent chat rather than the default chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l2', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l2', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l2', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l2 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Level-2 subagent starts. Its spawning tool (tc-l2) lives in the
 			// level-1 subagent chat, so the signal carries parentToolCallId = tc-l1.
@@ -3666,7 +3668,7 @@ suite('AgentSideEffects', () => {
 			// Level-3 subagent's spawning tool runs INSIDE the level-2
 			// subagent (parentToolCallId = tc-l2), landing on the level-2 chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l3', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l3', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l3', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l3 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Level-3 subagent starts. Its spawning tool (tc-l3) lives in the
 			// level-2 subagent chat, so the signal carries parentToolCallId = tc-l2.
@@ -3700,6 +3702,14 @@ suite('AgentSideEffects', () => {
 			// Each level's discovery block lands on its immediate parent chat.
 			assertDiscoveryBlock(l1ChatUri, 'tc-l2', l2ChatUri, 'the level-1 chat');
 			assertDiscoveryBlock(l2ChatUri, 'tc-l3', l3ChatUri, 'the level-2 chat');
+
+			// Each child chat's opening request is seeded from its spawning tool
+			// call's prompt, resolved via the immediate parent chat — so a
+			// fallback to the top-level chat would surface the wrong prompt.
+			assert.deepStrictEqual(
+				[l1ChatUri, l2ChatUri, l3ChatUri].map(uri => stateManager.getSessionState(uri)?.activeTurn?.message.text),
+				['l1 prompt', 'l2 prompt', 'l3 prompt'],
+			);
 
 			// Nested spawning tools must NOT be misrouted to the top-level
 			// default chat, where they do not exist.

@@ -840,28 +840,23 @@ export class AgentSideEffects extends Disposable {
 
 		this._logService.info(`[AgentSideEffects] Starting subagent turn: ${subagentChatUri} (parent=${chatURI}, toolCallId=${toolCallId})`);
 
-		// Start a turn on the subagent session
+		// The spawning tool call lives in the immediate parent chat (top-level, or the parent subagent chat when nested).
+		const contentChatUri = spawningToolParentId
+			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri ?? chatURI
+			: chatURI;
+
+		// Seed the subagent's opening request with the spawning tool call's prompt.
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(subagentChatUri, {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
-			message: { text: '', origin: { kind: MessageKind.User } },
+			message: { text: this._taskPromptFromToolInput(contentChatUri, toolCallId) ?? '', origin: { kind: MessageKind.User } },
 		});
 
 		this._subagentChats.set({ parentChatUri: chatURI, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false) }, chatURI, toolCallId);
 
-		// Dispatch content on the spawning tool call so clients discover the
-		// subagent. The tool call lives in the immediate parent chat, which is
-		// the top-level chat for a first-level subagent or the immediate
-		// parent subagent chat when nested (at any depth) — resolve it via
-		// `spawningToolParentId` so the block lands where the tool call is
-		// (dispatching on the top-level chat would be a no-op, leaving nested
-		// subagents undiscoverable). Merge with any existing content to avoid
-		// dropping prior content blocks.
-		const contentChatUri = spawningToolParentId
-			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri ?? chatURI
-			: chatURI;
+		// Dispatch the discovery content on the spawning tool call's own chat; the top-level chat is a no-op when nested.
 		const parentTurnId = this._stateManager.getActiveTurnId(contentChatUri);
 		if (parentTurnId) {
 			const parentState = this._stateManager.getSessionState(contentChatUri);
@@ -882,6 +877,33 @@ export class AgentSideEffects extends Disposable {
 				],
 			});
 		}
+	}
+
+	/**
+	 * Recovers the spawning Task tool call's `prompt` input from the parent
+	 * chat's running tool call state — the provider-agnostic source for seeding
+	 * the subagent's opening request.
+	 */
+	private _taskPromptFromToolInput(chatURI: ProtocolURI, toolCallId: string): string | undefined {
+		const state = this._stateManager.getSessionState(chatURI);
+		if (!state?.activeTurn) {
+			return undefined;
+		}
+		for (const rp of state.activeTurn.responseParts) {
+			if (rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === toolCallId) {
+				const toolInput = (rp.toolCall as { toolInput?: unknown }).toolInput;
+				if (typeof toolInput !== 'string') {
+					return undefined;
+				}
+				try {
+					const parsed = JSON.parse(toolInput) as Record<string, unknown>;
+					return typeof parsed.prompt === 'string' && parsed.prompt.length > 0 ? parsed.prompt : undefined;
+				} catch {
+					return undefined;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	/**

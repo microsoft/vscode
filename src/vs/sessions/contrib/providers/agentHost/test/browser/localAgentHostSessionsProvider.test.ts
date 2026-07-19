@@ -1838,11 +1838,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			status: session.status.get(),
 			workspace: session.workspace.get(),
 			sessionType: session.sessionType,
+			isQuickChat: session.isQuickChat?.get(),
 		}, {
 			providerId: provider.id,
 			status: SessionStatus.Untitled,
 			workspace: undefined,
 			sessionType: provider.sessionTypes[0].id,
+			isQuickChat: true,
 		});
 	});
 
