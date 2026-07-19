@@ -267,8 +267,7 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 	// 1: Detect link suffixes on the line
 	const suffixes = detectLinkSuffixes(line);
 	for (const suffix of suffixes) {
-		// A line and column suffix cannot be followed immediately by a path separator. Ignore these
-		// matches so numeric Git diff prefixes such as `1/` are handled as part of the path instead.
+		// Ignore suffixes followed by `/` so numeric Git diff prefixes such as `1/` are parsed as paths.
 		const suffixEndIndex = suffix.suffix.index + suffix.suffix.text.length;
 		if (line[suffixEndIndex] === '/') {
 			continue;
