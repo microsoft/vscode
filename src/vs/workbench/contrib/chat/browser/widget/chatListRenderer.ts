@@ -1344,13 +1344,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 		// The part will hide itself if the list is empty.
-		content.push({ kind: 'references', references: element.contentReferences });
+		content.push({ kind: 'references', references: isFiltered ? [] : element.contentReferences });
 
 		if (!isFiltered) {
 			content.push(...annotateSpecialMarkdownContent(element.response.value));
 		}
 
-		const codeCitations = element.codeCitations.length
+		const codeCitations = !isFiltered && element.codeCitations.length
 			? { kind: 'codeCitations' as const, citations: element.codeCitations }
 			: undefined;
 		const hasErrorDetails = element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName;
@@ -2715,9 +2715,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'systemNotification') {
 				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
-				if (!content.content && !content.state) {
-					return this.renderNoContent(other => other.kind === 'working' && !other.content && !other.state);
-				}
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
 				return this.renderProgressTask(content, templateData, context);
