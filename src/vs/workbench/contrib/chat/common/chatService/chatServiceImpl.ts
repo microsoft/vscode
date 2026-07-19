@@ -520,8 +520,8 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState });
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly } = props;
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -739,6 +739,7 @@ export class ChatService extends Disposable implements IChatService {
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState,
+			isReadOnly: providedSession.isReadOnly,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);
@@ -1021,6 +1022,9 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model && model !== request.session) {
 			throw new Error(`Unknown session: ${request.session.sessionResource}`);
 		}
+		if (model.isReadOnly.get()) {
+			return;
+		}
 
 		const cts = this._pendingRequests.get(request.session.sessionResource);
 		if (cts) {
@@ -1100,6 +1104,13 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
+		if (model.isReadOnly.get()) {
+			return {
+				kind: 'rejected',
+				reason: 'Session is read-only',
+				...(newSessionResource ? { newSessionResource } : {}),
+			};
+		}
 
 		// Internally blank widgets use special sessions with an untitled- path.
 		// We do not want these leaking out to the rest of code. On the first
@@ -1113,6 +1124,9 @@ export class ChatService extends Disposable implements IChatService {
 				sessionResource = materialized.sessionResource;
 				newSessionResource = materialized.newSessionResource;
 			}
+		}
+		if (model.isReadOnly.get()) {
+			return { kind: 'rejected', reason: 'Session is read-only', newSessionResource };
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);

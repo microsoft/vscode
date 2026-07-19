@@ -126,8 +126,8 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 	}
 }
 
-function isSafeSessionConfigKey(property: string): boolean {
-	return !UNSAFE_SESSION_CONFIG_KEYS.has(property);
+function isRememberedSessionConfigKey(property: string): boolean {
+	return property !== SessionConfigKey.Branch && !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
 function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
@@ -2446,9 +2446,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/**
 	 * Initial session-config values applied to a brand-new agent-host session
-	 * before its schema is resolved. Values are seeded from the profile-scoped
-	 * remembered session-config map (plus legacy isolation fallback) and then
-	 * normalized against policy/feature constraints.
+	 * before its schema is resolved. Values are seeded from portable picks in
+	 * the profile-scoped remembered session-config map and then normalized
+	 * against policy/feature constraints.
 	 *
 	 * The agent-host defaults are controlled by the single
 	 * `chat.defaultConfiguration` object setting (with `mode` and
@@ -2478,7 +2478,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `mode='autopilot'` shape before the per-axis precedence below runs.
 		const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 		for (const [property, value] of Object.entries(rememberedValues)) {
-			if (typeof value === 'string' && isSafeSessionConfigKey(property)) {
+			if (typeof value === 'string' && isRememberedSessionConfigKey(property)) {
 				config[property] = value;
 			}
 		}
@@ -2566,12 +2566,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
 
-		// Remember config picks across sessions
-		if (typeof normalizedValue === 'string' && isSafeSessionConfigKey(property)) {
+		// Remember portable config picks across sessions.
+		if (typeof normalizedValue === 'string' && isRememberedSessionConfigKey(property)) {
 			const rememberedValues = this._storageService.getObject<Record<string, unknown>>(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {});
 			const nextRememberedValues = Object.create(null) as Record<string, string>;
 			for (const [key, rememberedValue] of Object.entries(rememberedValues)) {
-				if (typeof rememberedValue === 'string' && isSafeSessionConfigKey(key)) {
+				if (typeof rememberedValue === 'string' && isRememberedSessionConfigKey(key)) {
 					nextRememberedValues[key] = rememberedValue;
 				}
 			}

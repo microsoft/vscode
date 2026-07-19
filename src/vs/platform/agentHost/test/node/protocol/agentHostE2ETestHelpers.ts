@@ -30,7 +30,7 @@ import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, buildSubagentSessionUri, parseChatUri,
-	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type TerminalState,
+	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type ChatState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
@@ -1311,7 +1311,13 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			// The subagent's conversation contents (its inner tool calls) are
 			// emitted on the chat channel carried by the tool result.
-			await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+			const subagentSnap = await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+			const subagentState = subagentSnap.snapshot?.state as ChatState | undefined;
+			const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
+			assert.ok(
+				subagentFirstTurn?.message.text && subagentFirstTurn.message.text.includes('List the files'),
+				`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
+			);
 
 			await client.waitForNotification(n => {
 				if (!isActionNotification(n, 'chat/turnComplete')) {
