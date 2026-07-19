@@ -42,17 +42,17 @@ hooks:                       # Optional, inline hooks for this agent's lifecycle
 ### Model Fallback
 
 ```yaml
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']  # First available model is used
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5.4 (copilot)']  # First available model is used
 ```
 
 VS Code-target and default-target agents can mix model names with structured entries. Each structured entry requires `name` and can declare `reasoning-effort` and a positive-integer `context-size` cap:
 
 ```yaml
 model:
-  - name: GPT-5 (copilot)
-    reasoning-effort: high
-    context-size: 200000
-  - Claude Sonnet 4.5 (copilot)
+  - name: Claude Sonnet 4.6 (copilot)
+    reasoning-effort: low
+    context-size: 100000
+  - GPT-5.4 (copilot)
 ```
 
 VS Code checks entries in order and selects the first available model. Defaults come from that same entry; an unavailable entry's configuration is never applied to a later fallback. Reasoning effort must be supported by the selected provider. Context size can use a custom value between 10,000 tokens and the model's maximum, including a value that is not one of the provider's advertised picker tiers. If the provider declares a minimum, VS Code uses it; otherwise the minimum is 10,000, capped at the model's maximum.
