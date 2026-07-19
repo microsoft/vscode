@@ -1170,6 +1170,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	releaseToolStream(toolCallId: string): void {
+		this._pendingToolCalls.delete(toolCallId);
+	}
+
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[], chatSessionResource: URI | undefined): void {
 		const autoApproved = this._configurationService.getValue(ChatConfiguration.GlobalAutoApprove);
 		if (autoApproved) {

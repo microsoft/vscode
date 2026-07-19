@@ -2860,10 +2860,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return;
 				}
 				cts.cancel();
-				if (!invoked && tc.status === ToolCallStatus.Cancelled) {
-					// No `invokeTool` is listening to the CTS — transition
-					// the invocation to `Cancelled` ourselves.
-					invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
+				if (state.type === IChatToolInvocation.StateKind.Streaming) {
+					this._toolsService.releaseToolStream(toolCallId);
+					if (tc.status === ToolCallStatus.Cancelled) {
+						invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
+					} else {
+						void invocation.didExecuteTool(undefined);
+					}
 				}
 				return;
 			}

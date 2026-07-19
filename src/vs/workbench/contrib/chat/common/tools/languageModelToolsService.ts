@@ -677,6 +677,7 @@ export interface ILanguageModelToolsService {
 	 * Calls the tool's handleToolStream method to get a custom invocation message.
 	 */
 	updateToolStream(toolCallId: string, partialInput: unknown, token: CancellationToken): Promise<void>;
+	releaseToolStream(toolCallId: string): void;
 
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	cancelToolCallsForRequest(requestId: string): void;

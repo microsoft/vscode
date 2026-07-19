@@ -741,6 +741,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		observeTools: () => observableValue('tools', []),
 		onDidChangeTools: Event.None,
 		getTools: () => [],
+		releaseToolStream: () => { },
 		_serviceBrand: undefined,
 		...languageModelToolsServiceOverride,
 	});
@@ -3489,6 +3490,77 @@ suite('AgentHostChatContribution', () => {
 				streamedInputs: [{ query: 'stream' }, { query: 'streaming' }],
 				invokedInputs: [{ query: 'streaming' }],
 			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('client tool completion releases a stream while an update is pending', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const toolData = { id: 'client_tool', source: ToolDataSource.Internal, displayName: 'Client Tool', modelDescription: 'Runs a client tool' };
+			const invocation = ChatToolInvocation.createStreaming({ toolCallId: 'tc-client-release', toolId: toolData.id, toolData });
+			const pendingUpdate = new DeferredPromise<void>();
+			const releasedToolCalls: string[] = [];
+			let invokeCount = 0;
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				languageModelToolsServiceOverride: {
+					getToolByName: () => toolData,
+					beginToolCall: () => invocation,
+					updateToolStream: async () => pendingUpdate.p,
+					releaseToolStream: toolCallId => releasedToolCalls.push(toolCallId),
+					invokeTool: async () => {
+						invokeCount++;
+						return { content: [] };
+					},
+				},
+			});
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: 'chat/toolCallStart',
+				session,
+				turnId,
+				toolCallId: 'tc-client-release',
+				toolName: 'client_tool',
+				displayName: 'Client Tool',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: agentHostService.clientId },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallDelta',
+				session,
+				turnId,
+				toolCallId: 'tc-client-release',
+				content: '{"query":"streaming"}',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-client-release',
+				invocationMessage: 'Running client tool',
+				toolInput: '{"query":"streaming"}',
+				confirmed: 'not-needed',
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-client-release',
+				result: { success: true, pastTenseMessage: 'Ran client tool' },
+			} as ChatAction);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				releasedToolCalls,
+				invokeCount,
+				isComplete: IChatToolInvocation.isComplete(invocation),
+			}, {
+				releasedToolCalls: ['tc-client-release'],
+				invokeCount: 0,
+				isComplete: true,
+			});
+
+			pendingUpdate.complete();
+			await timeout(0);
+			assert.strictEqual(invokeCount, 0);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 		}));
