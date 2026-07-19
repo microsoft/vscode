@@ -11,7 +11,7 @@ import {
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
 
@@ -19,7 +19,7 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
@@ -87,5 +87,65 @@ suite('Protocol WebSocket — Handshake & Errors', function () {
 			n.method === 'root/sessionAdded'
 		);
 		assert.ok(notif);
+	});
+
+	test('ping succeeds before initialize', async function () {
+		const result = await client.call('ping');
+		assert.strictEqual(result, null);
+	});
+
+	test('requests other than ping are rejected before initialize', async function () {
+		await assert.rejects(() => client.call('listSessions', { channel: ROOT_STATE_URI }), /method not found/i);
+	});
+
+	test('initialize rejects incompatible protocol versions', async function () {
+		await assert.rejects(() => client.call('initialize', {
+			protocolVersions: ['999.0.0'],
+			clientId: 'test-incompatible-version',
+		}), /none of which are compatible/i);
+	});
+
+	test('initialize rejects an empty protocol version list', async function () {
+		await assert.rejects(() => client.call('initialize', {
+			protocolVersions: [],
+			clientId: 'test-empty-versions',
+		}), /none of which are compatible/i);
+	});
+
+	test('initialize without subscriptions returns no snapshots', async function () {
+		const result = await client.call<InitializeResult>('initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'test-no-initial-subscriptions',
+		});
+		assert.deepStrictEqual(result.snapshots, []);
+	});
+
+	test('initialize omits unknown initial subscriptions', async function () {
+		const result = await client.call<InitializeResult>('initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'test-unknown-initial-subscription',
+			initialSubscriptions: ['mock:/missing-session'],
+		});
+		assert.deepStrictEqual(result.snapshots, []);
+	});
+
+	test('unknown requests are rejected after initialize', async function () {
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'test-unknown-request' });
+		await assert.rejects(() => client.call('unknown/request', {}), /method not found/i);
+	});
+
+	test('notifications before initialize are ignored', async function () {
+		client.notify('unsubscribe', { channel: ROOT_STATE_URI });
+		client.notify('dispatchAction', {
+			channel: ROOT_STATE_URI,
+			clientSeq: 1,
+			action: { type: 'root/configChanged', config: { values: {} } },
+		});
+
+		const result = await client.call<InitializeResult>('initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'test-pre-initialize-notifications',
+		});
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 	});
 });

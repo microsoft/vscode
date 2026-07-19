@@ -74,6 +74,18 @@ Key properties:
 
 ---
 
+## Test layers in this folder
+
+This folder contains three related integration-test layers:
+
+1. **Provider E2E replay tests** — `{claude,codex,copilot}AgentHostE2E.integrationTest.ts` are the provider entry points. Each calls `defineAgentHostE2ETests(config)`, so the cross-provider test bodies live in `agentHostE2ETestHelpers.ts` and are registered once per provider. Provider-specific bodies can still live directly in the entry-point files. These tests start the real Agent Host server and real provider SDK/CLI, use committed LLM fixtures, and may assert committed AHP snapshots.
+2. **Real-SDK, mocked-LLM tests** — files such as `copilotAgentHostE2EMocked.integrationTest.ts` start the real Copilot SDK but point it at the local mock LLM server. They need no recorded CAPI fixture; assertions are written directly in TypeScript.
+3. **Mock-agent protocol integration tests** — files such as `handshake.integrationTest.ts`, `sessionLifecycle.integrationTest.ts`, and `resourceOperations.integrationTest.ts` start the real WebSocket Agent Host server with `ScriptedMockAgent`. They exercise protocol, persistence, filesystem, and multi-client behavior without loading a provider SDK. They normally use direct TypeScript assertions rather than LLM fixtures or AHP snapshot YAML.
+
+The coverage command aggregates native V8 output from all three layers. In this README, **provider E2E** refers specifically to layer 1; the other two are still integration tests across a real server process, but they do not exercise the full real-provider stack.
+
+---
+
 ## Fixture format
 
 Fixtures live in `captures/agentHostE2E/` and are named `${provider}-${slugified-test-title}.yaml`. They are intentionally minimal and human-reviewable:
@@ -144,6 +156,32 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 
 ---
 
+## Collecting coverage
+
+Run the complete replay suite and collect native V8 coverage from the agent host processes:
+
+```bash
+npm run test-agent-host-e2e-coverage
+```
+
+The command retranspiles the sources, runs the deterministic Agent Host protocol integration suites plus the Claude, Codex, and Copilot E2E suites in replay mode, and sets `AGENT_HOST_E2E_COVERAGE=1`. That opt-in makes the test helpers set `NODE_V8_COVERAGE` only on agent host child processes. Provider suite teardown closes the server's stdin and awaits its graceful shutdown so Node flushes coverage after the host finishes its existing persistence cleanup. The mocked customization watcher suite remains in normal CI but is excluded here because filesystem-watch delivery is not reliable under V8 coverage.
+
+After the tests pass, `c8` combines the raw process data and source-maps it to TypeScript. The report includes only loaded executable files under `src/vs/platform/agentHost/common/` and `src/vs/platform/agentHost/node/`; unloaded files, tests, provider dependencies, and generated type-only modules are outside the denominator.
+
+Outputs:
+
+- `.build/agent-host-e2e-coverage/raw/` — raw V8 process coverage.
+- `.build/agent-host-e2e-coverage/report/index.html` — browsable HTML report.
+- `.build/agent-host-e2e-coverage/report/lcov.info` — LCOV output for editor tooling.
+- `.build/agent-host-e2e-coverage/report/coverage-summary.json` — full c8 JSON summary.
+- `coverage/agentHostE2E.json` — checked-in combined totals and sorted per-file metrics.
+
+Every successful coverage run rewrites the checked-in stats. Test, report, or normalization failures leave the previous stats untouched. The stats are informational for now: there is no threshold, regression check, or commit gate yet. Asynchronous host and provider startup can cover slightly different executable ranges across otherwise identical runs, so a future gate must define an intentional tolerance or ratchet policy rather than assuming byte-identical stats.
+
+Per-provider reports are deferred until there is a concrete need. Per-test attribution is also intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
+
+---
+
 ## Updating snapshots and fixtures
 
 Normal test runs are read-only. An AHP mismatch fails and writes a sibling `.actual` file for diagnosis. Use an explicit update mode to accept changes in place:
@@ -206,7 +244,11 @@ An AHP snapshot is executable and contains one or more `rounds`. In each round, 
 
 Each round stores separate `clientToServer` and `serverToClient` streams. Ordering is exact within each direction, without asserting accidental scheduling between a client dispatch and concurrently emitted server notifications. The final `serverToClient` entry must be a stable synchronization boundary such as `chat/toolCallReady` or `chat/turnComplete`. The snapshot is a semantic projection rather than raw JSON-RPC: request ids, sequence numbers, resource ids, and other volatile details are omitted or normalized, and high-frequency environment-dependent customization updates are excluded. Each action keeps only fields that define its tested behavior, so adding an unrelated optional protocol property does not rewrite every snapshot. Newly emitted action types remain exact.
 
+Code-driven scenarios can request the `behavior` snapshot profile when the tested contract is the real tool execution and its observable result rather than provider-specific presentation. That profile retains user turns, tool identity, tool completion success, assistant responses, errors, and turn completion. It omits raw tool output, display strings, usage, repeated ready/delta notifications, confirmation UI traffic, and incidental session updates. The tools still execute normally; mutation scenarios assert their filesystem side effects directly in TypeScript, while read-only scenarios retain their final-response assertions. Permission and protocol-lifecycle tests continue to use the default detailed profile.
+
 To accept an AHP output change, run the affected test with `AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1`; the snapshot is rewritten in place and Git shows the diff. If the behavior also changes the LLM request/response sequence, use `AGENT_HOST_UPDATE_SNAPSHOTS=1` instead so both boundaries update in one run. Editing `clientToServer` remains deliberate because it changes the test input.
+
+Tests that need imperative setup or filesystem assertions can drive AHP in code and call `assertRecordedAhpSnapshot(...)` at the end. Update mode records the code-driven client actions and semantic server traffic; replay mode compares both directions with the committed snapshot. Unlike `runAhpSnapshotTest(...)`, the committed `clientToServer` entries document the scenario but the test code remains the executable input.
 
 ---
 

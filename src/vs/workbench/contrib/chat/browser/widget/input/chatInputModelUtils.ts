@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isLanguageModelVendorAbsenceConclusive } from '../../../common/languageModels.js';
+import { resolveModelIdentifier } from '../../../common/modelSelection.js';
 
 /**
  * Describes the context needed for model selection decisions.
@@ -242,6 +243,18 @@ export function findDefaultModel(
 	return models.find(m => m.metadata.isDefaultForLocation[location]) || models[0];
 }
 
+export function findReplacementForProvisionalModel(
+	currentModelId: string | undefined,
+	provisionalModelId: string | undefined,
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	location: ChatAgentLocation,
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	if (!provisionalModelId || currentModelId !== provisionalModelId) {
+		return undefined;
+	}
+	return models.find(model => model.metadata.isDefaultForLocation[location]);
+}
+
 /**
  * Determine whether a persisted model selection should be restored.
  *
@@ -260,10 +273,11 @@ export function shouldRestorePersistedModel(
 	availableModels: ILanguageModelChatMetadataAndIdentifier[],
 	location: ChatAgentLocation,
 ): { shouldRestore: boolean; model: ILanguageModelChatMetadataAndIdentifier | undefined } {
-	const model = availableModels.find(m => m.identifier === persistedModelId);
-	if (!model) {
+	const resolution = resolveModelIdentifier(availableModels, persistedModelId, true);
+	if (resolution.kind !== 'available') {
 		return { shouldRestore: false, model: undefined };
 	}
+	const model = resolution.model;
 
 	if (!persistedAsDefault || model.metadata.isDefaultForLocation[location]) {
 		return { shouldRestore: true, model };
@@ -382,9 +396,7 @@ export function mergeModelsWithCache(
 		if (!contributedVendors.has(vendor) || liveVendors.has(vendor)) {
 			return false;
 		}
-		// A resolved vendor with no live models is authoritatively empty and its cache is dropped — except Copilot, whose
-		// empty resolution is transient while its token is still pending (see doc comment above).
-		if (resolvedVendors?.has(vendor) && vendor !== COPILOT_VENDOR_ID) {
+		if (isLanguageModelVendorAbsenceConclusive(vendor, liveVendors.has(vendor), resolvedVendors?.has(vendor) ?? false)) {
 			return false;
 		}
 		return true;
@@ -409,177 +421,3 @@ export function shouldResetOnModelListChange(
 	return !availableModels.some(m => m.identifier === currentModelId);
 }
 
-/**
- * Determines whether a late-arriving persisted model should be restored.
- * This handles the startup race where the model wasn't available during
- * `initSelectedModel` but arrives later via `onDidChangeLanguageModels`.
- *
- * The model must pass both the persisted-default check and the user-selectable
- * check. `isUserSelectable` defaults to `true`; only an explicit `false` blocks
- * restoration.
- */
-export function shouldRestoreLateArrivingModel(
-	persistedModelId: string,
-	persistedAsDefault: boolean,
-	model: ILanguageModelChatMetadataAndIdentifier,
-	location: ChatAgentLocation,
-): boolean {
-	if (model.metadata.isUserSelectable === false) {
-		return false;
-	}
-	const result = shouldRestorePersistedModel(
-		persistedModelId,
-		persistedAsDefault,
-		[model],
-		location,
-	);
-	return result.shouldRestore;
-}
-
-/**
- * The synthetic "Auto" model id. A configured default of `auto` resolves to the
- * model contributed with this id (automatic model selection).
- */
-const AUTO_MODEL_ID = 'auto';
-
-/**
- * Compare two model version strings by their numeric segments (e.g. `4.6` > `4.5`,
- * `5.10` > `5.9`). Non-numeric characters are ignored for the numeric comparison;
- * the raw strings break ties for stability. A missing version sorts before any
- * present one. Returns a negative number when `a` sorts before `b`, positive when
- * after, and `0` when equal.
- */
-function compareModelVersions(a: string | undefined, b: string | undefined): number {
-	const rawA = a ?? '';
-	const rawB = b ?? '';
-	const segmentsA = rawA.match(/\d+/g)?.map(Number) ?? [];
-	const segmentsB = rawB.match(/\d+/g)?.map(Number) ?? [];
-	const length = Math.max(segmentsA.length, segmentsB.length);
-	for (let i = 0; i < length; i++) {
-		const numA = segmentsA[i] ?? 0;
-		const numB = segmentsB[i] ?? 0;
-		if (numA !== numB) {
-			return numA - numB;
-		}
-	}
-	return rawA.localeCompare(rawB);
-}
-
-/**
- * Resolve a configured default-model value to a concrete model from the given pool.
- *
- * The configured value (e.g. from `chat.defaultModel`, which may be set
- * by enterprise policy) is matched case-insensitively in this order:
- * 1. `auto` — the synthetic "Auto" model (id `auto`), when present.
- * 2. A full model id — an exact match on `metadata.id`.
- * 3. A model family name (e.g. `opus`, `gemini`) — the model with the highest
- *    {@link compareModelVersions version} among models whose `metadata.family` matches.
- *
- * Returns `undefined` when the value is empty or no model matches, letting the caller
- * fall back to its normal default selection.
- */
-export function resolveConfiguredModel(
-	configuredValue: string | undefined,
-	models: ILanguageModelChatMetadataAndIdentifier[],
-): ILanguageModelChatMetadataAndIdentifier | undefined {
-	const value = configuredValue?.trim().toLowerCase();
-	if (!value) {
-		return undefined;
-	}
-
-	if (value === AUTO_MODEL_ID) {
-		return models.find(m => m.metadata.id?.trim().toLowerCase() === AUTO_MODEL_ID);
-	}
-
-	const byId = models.find(m => m.metadata.id?.trim().toLowerCase() === value);
-	if (byId) {
-		return byId;
-	}
-
-	const family = models.filter(m => m.metadata.family?.trim().toLowerCase() === value);
-	if (family.length > 0) {
-		return family.reduce((latest, candidate) =>
-			compareModelVersions(candidate.metadata.version, latest.metadata.version) > 0 ? candidate : latest
-		);
-	}
-
-	return undefined;
-}
-
-/**
- * Why a model picker has no model to offer, when that is the case. Drives a
- * "Models" placeholder plus a contextual action instead of a misleading
- * lone "Auto".
- */
-export const enum ModelPickerUnavailableReason {
-	/** The workspace is untrusted, which disables the model providers. */
-	Restricted = 'restricted',
-	/** Chat requires sign-in / setup before any model is available. */
-	SetupRequired = 'setupRequired',
-}
-
-/**
- * Determines whether a model picker should present an "unavailable" state and,
- * if so, why. Returns `undefined` when the picker has a usable model (or its
- * state is not yet known), so the normal model / Auto label is shown.
- *
- * A model counts as usable only when it is both offered by this picker
- * (`pickerModels`, already filtered to the picker's location / session type) AND
- * currently live in the language model registry (`liveModelIds`). This ignores
- * two kinds of phantom models that would otherwise mask the unavailable state:
- * - stale cross-window machine cache entries (present in `pickerModels` but not live), and
- * - models registered for other surfaces such as agent-host session-scoped models
- *   (live in the global registry but not offered by this picker).
- *
-	 * Once trust has initialized, Restricted Mode takes precedence: an untrusted workspace is
-	 * reported as Restricted even when a live picker-offered model exists, because Restricted Mode disables all model providers. This matters because a
-	 * harness's session-scoped models (e.g. `claude-code`, `copilotcli`) register
- * without a trust gate and stay live while untrusted, which would otherwise mask
- * the Restricted state behind a misleading "Auto". In a *trusted* workspace, a
- * live, picker-offered model (e.g. BYOK) wins over setup, so BYOK and anonymous
- * access are never shown a setup-required state regardless of sign-in. `trusted`
- * reflects `isWorkspaceTrusted()` (which is `true` when trust is disabled
- * entirely) and is only authoritative once `trustInitialized` is `true`; until
- * then this returns `undefined` to avoid a trusted workspace briefly rendering as
- * unavailable at startup.
- */
-export function getModelPickerUnavailableReason(context: {
-	readonly trustInitialized: boolean;
-	readonly trusted: boolean;
-	readonly pickerModels: readonly ILanguageModelChatMetadataAndIdentifier[];
-	readonly liveModelIds: Iterable<string>;
-	readonly requiresSetup: boolean;
-}): ModelPickerUnavailableReason | undefined {
-	if (!context.trustInitialized) {
-		return undefined;
-	}
-	// In Restricted Mode, report Restricted before considering live models.
-	if (!context.trusted) {
-		return ModelPickerUnavailableReason.Restricted;
-	}
-	const live = context.liveModelIds instanceof Set ? context.liveModelIds : new Set(context.liveModelIds);
-	if (context.pickerModels.some(model => live.has(model.identifier))) {
-		return undefined;
-	}
-	if (context.requiresSetup) {
-		return ModelPickerUnavailableReason.SetupRequired;
-	}
-	return undefined;
-}
-
-/**
- * Whether a picker should show the cache-break hint: suppressed when dismissed, when the cache is cold, or
- * when there is nothing to switch to (#325185). `excludeAutoModel` also suppresses it under Auto (model picker only).
- */
-export function shouldShowCacheBreakHint(context: {
-	readonly dismissed: boolean;
-	readonly cacheWarm: boolean;
-	readonly noModelsAvailable: boolean;
-	readonly excludeAutoModel: boolean;
-	readonly selectedModelIsAuto: boolean;
-}): boolean {
-	if (context.dismissed || !context.cacheWarm || context.noModelsAvailable) {
-		return false;
-	}
-	return !(context.excludeAutoModel && context.selectedModelIsAuto);
-}

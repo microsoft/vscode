@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -12,11 +13,12 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
-import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileOperationResult, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
+import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -173,6 +175,8 @@ interface IPersistedPeerChat {
  */
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
 
 	/** Protocol: fires when state is mutated by an action. */
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -2979,6 +2983,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
 		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			const parent = await this._fileService.stat(resourcesDirname(fileUri));
+			if (!parent.isDirectory) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
+			}
+		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Parent directory not found: ${fileUri.toString()}`);
+		}
 		let content: VSBuffer;
 		if (params.encoding === ContentEncoding.Base64) {
 			content = decodeBase64(params.data);
@@ -2988,29 +3007,74 @@ export class AgentService extends Disposable implements IAgentService {
 		const mode = params.mode ?? ResourceWriteMode.Truncate;
 		const position = params.position ?? 0;
 		try {
-			if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
-				await this._resourceWriteWithMode(fileUri, content, mode, position, params);
-			} else if (params.createOnly) {
-				await this._fileService.createFile(fileUri, content, { overwrite: false });
-			} else {
-				await this._fileService.writeFile(fileUri, content);
-			}
+			await this._resourceWriteQueue.queueFor(fileUri, async () => {
+				if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
+					await this._resourceWriteWithMode(fileUri, content, mode, position, params);
+				} else if (params.createOnly) {
+					await this._createFileExclusive(fileUri, content);
+				} else {
+					await this._fileService.writeFile(fileUri, content);
+				}
+			}, extUriBiasedIgnorePathCase);
 			return {};
 		} catch (e) {
 			if (e instanceof ProtocolError) {
 				throw e;
 			}
-			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
-			}
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (params.createOnly && (result === FileOperationResult.FILE_MODIFIED_SINCE || result === FileOperationResult.FILE_MOVE_CONFLICT)) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_MODIFIED_SINCE) {
+				const message = params.ifMatch !== undefined
+					? `ifMatch precondition failed for: ${fileUri.toString()}`
+					: `File changed while writing: ${fileUri.toString()}`;
+				throw new ProtocolError(AhpErrorCodes.Conflict, message);
+			}
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
+		}
+	}
+
+	private async _createFileExclusive(fileUri: URI, content: VSBuffer): Promise<void> {
+		if (fileUri.scheme !== Schemas.file) {
+			await this._fileService.createFile(fileUri, content, { overwrite: false });
+			return;
+		}
+
+		let handle: FileHandle;
+		try {
+			handle = await open(fileUri.fsPath, 'wx');
+		} catch (error) {
+			if (isErrorWithCode(error, 'EEXIST')) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			throw error;
+		}
+
+		let failure: unknown;
+		try {
+			await handle.writeFile(content.buffer);
+		} catch (error) {
+			failure = error;
+		}
+		try {
+			await handle.close();
+		} catch (error) {
+			failure = failure ? new AggregateError([failure, error]) : error;
+		}
+		if (failure) {
+			try {
+				await unlink(fileUri.fsPath);
+			} catch (cleanupError) {
+				throw new AggregateError([failure, cleanupError], `Failed to create and clean up file: ${fileUri.toString()}`);
+			}
+			throw failure;
 		}
 	}
 
@@ -3032,15 +3096,20 @@ export class AgentService extends Disposable implements IAgentService {
 	): Promise<void> {
 		let existing: VSBuffer | undefined;
 		let currentEtag: string | undefined;
+		let currentMtime: number | undefined;
 		try {
 			const file = await this._fileService.readFile(fileUri);
 			existing = file.value;
 			currentEtag = file.etag;
+			currentMtime = file.mtime;
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code !== FileSystemProviderErrorCode.FileNotFound) {
+			if (toFileOperationResult(e as Error) !== FileOperationResult.FILE_NOT_FOUND) {
 				throw e;
 			}
+		}
+
+		if (params.createOnly && existing !== undefined) {
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
 		}
 
 		if (params.ifMatch !== undefined) {
@@ -3072,7 +3141,11 @@ export class AgentService extends Disposable implements IAgentService {
 				break;
 			}
 		}
-		await this._fileService.writeFile(fileUri, next, { etag: currentEtag });
+		if (params.createOnly) {
+			await this._createFileExclusive(fileUri, next);
+		} else {
+			await this._fileService.writeFile(fileUri, next, { etag: currentEtag, mtime: currentMtime });
+		}
 	}
 
 	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
@@ -3082,11 +3155,11 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.copy(source, destination, !params.failIfExists);
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
@@ -3099,8 +3172,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.del(fileUri, { recursive: params.recursive });
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${fileUri.toString()}`);
@@ -3114,11 +3186,11 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._fileService.move(source, destination, !params.failIfExists);
 			return {};
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
+			const result = toFileOperationResult(e as Error);
+			if (result === FileOperationResult.FILE_MOVE_CONFLICT) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Destination already exists: ${destination.toString()}`);
 			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (result === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${source.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
@@ -3151,8 +3223,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			return result;
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
@@ -3175,8 +3246,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (e instanceof ProtocolError) {
 				throw e;
 			}
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to create directory: ${uri.toString()}`);
@@ -3195,8 +3265,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await this._fileService.stat(root);
 		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
+			if (toFileOperationResult(e as Error) === FileOperationResult.FILE_PERMISSION_DENIED) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${root.toString()}`);
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
@@ -3609,6 +3678,14 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providers.clear();
 		super.dispose();
 	}
+}
+
+function isErrorWithCode(error: unknown, code: string): boolean {
+	return error instanceof Error && hasErrorCode(error, code);
+}
+
+function hasErrorCode(error: Error | { code: unknown }, code: string): boolean {
+	return hasKey(error, { code: true }) && error.code === code;
 }
 
 /**

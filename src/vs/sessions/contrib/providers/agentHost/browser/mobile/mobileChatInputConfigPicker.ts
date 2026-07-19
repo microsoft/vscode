@@ -31,7 +31,7 @@ import { ISessionContext } from '../../../../../services/sessions/browser/sessio
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
-import { ISessionModelSelectionModel } from '../../../../chat/browser/modelPickerModel.js';
+import { ISessionModelSelectionModel } from '../../../../chat/browser/sessionModelSelectionModel.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
 import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
 
@@ -287,6 +287,7 @@ class MobileChatInputConfigPicker extends Disposable {
 			await this._phonePresenter.showCombinedModeAndModelSheet(trigger, {
 				kind: 'session',
 				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get()),
+				selectModel: modelIdentifier => this._switchToModel(modelIdentifier),
 			});
 			const afterCtx = this._getContext();
 			if (beforeCtx && afterCtx && matchesChatPhoneInputTarget(target, createChatPhoneInputSessionContext(afterCtx.session), this._uriIdentityService)) {

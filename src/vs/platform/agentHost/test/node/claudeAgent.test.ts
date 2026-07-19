@@ -29,7 +29,7 @@ import {
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -92,6 +92,24 @@ function listPeerChats(agent: ClaudeAgent, session: URI): string[] {
 
 function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
+}
+
+async function startActiveTurn(disposables: Pick<DisposableStore, 'add'>, ctx: ITestContext, session: URI, sessionId: string): Promise<void> {
+	const turnActive = new DeferredPromise<void>();
+	const finishTurn = new DeferredPromise<void>();
+	ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+	ctx.sdk.queryAdvance = async index => {
+		if (index === 1) {
+			turnActive.complete();
+			await finishTurn.p;
+		}
+	};
+	const sendPromise = ctx.agent.chats.sendMessage(defaultChatUri(session), 'hi', undefined, undefined, 'turn-1');
+	await turnActive.p;
+	disposables.add(toDisposable(() => {
+		finishTurn.complete();
+		void sendPromise.catch(() => { });
+	}));
 }
 
 class FakeAgentPluginManager implements IAgentPluginManager {
@@ -4779,7 +4797,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 	/**
 	 * Materialize a session and return its captured `canUseTool` closure
 	 * alongside the {@link ITestContext} pieces tests need. Drives a
-	 * minimal `system_init → result_success` turn so
+	 * minimal in-flight turn so
 	 * {@link FakeClaudeAgentSdkService.capturedStartupOptions}[0] is
 	 * populated and the session lives in `_sessions`.
 	 *
@@ -4799,7 +4817,6 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		const state = ctx.stateManager.createSession({
 			resource: created.session.toString(),
@@ -4818,7 +4835,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			values: { ...(seedConfig ?? {}) },
 		};
 
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		await startActiveTurn(disposables, ctx, created.session, sessionId);
 
 		const canUseTool = ctx.sdk.capturedStartupOptions[0]?.canUseTool;
 		assert.ok(canUseTool, 'canUseTool callback was wired into Options');
@@ -5074,7 +5091,6 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		const state = ctx.stateManager.createSession({
 			resource: created.session.toString(),
@@ -5100,7 +5116,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			}
 		}));
 
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		await startActiveTurn(disposables, ctx, created.session, sessionId);
 		const canUseTool = ctx.sdk.capturedStartupOptions[0]?.canUseTool;
 		assert.ok(canUseTool, 'canUseTool callback was wired into Options');
 		return { ctx, canUseTool, inputRequests, sessionUri: created.session };
@@ -5390,7 +5406,6 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
 		const sessionId = AgentSession.id(created.session);
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		const inputRequests: ChatInputRequest[] = [];
 		disposables.add(ctx.agent.onDidSessionProgress(s => {
@@ -5399,7 +5414,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 			}
 		}));
 
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1');
+		await startActiveTurn(disposables, ctx, created.session, sessionId);
 		const onElicitation = ctx.sdk.capturedStartupOptions[0]?.onElicitation;
 		assert.ok(onElicitation, 'onElicitation callback was wired into Options');
 		return { ctx, onElicitation, inputRequests };

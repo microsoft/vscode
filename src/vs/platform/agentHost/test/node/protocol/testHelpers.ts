@@ -5,10 +5,12 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { createRequire } from 'module';
+import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode } from './capiReplayProxy.js';
+import { resolve as resolvePath } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
@@ -26,7 +28,7 @@ import {
 	type JsonRpcSuccessResponse,
 	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
-import { AhpSnapshotRecorder } from './ahpSnapshot.js';
+import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -46,6 +48,7 @@ export class TestProtocolClient {
 	constructor(
 		port: number,
 		private readonly _takeReplayError?: () => Error | undefined,
+		private readonly _setWorkingDirectory?: (workingDirectory: string) => void,
 	) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
 	}
@@ -220,12 +223,20 @@ export class TestProtocolClient {
 		this._ahpSnapshot.clear();
 	}
 
+	setAhpSnapshotNormalization(normalization: IAhpSnapshotNormalization): void {
+		this._ahpSnapshot.setNormalization(normalization);
+	}
+
+	setWorkingDirectory(workingDirectory: string): void {
+		this._setWorkingDirectory?.(workingDirectory);
+	}
+
 	beginAhpSnapshotRound(): void {
 		this._ahpSnapshot.beginRound();
 	}
 
-	serializeAhpSnapshot(): string {
-		return this._ahpSnapshot.serialize();
+	serializeAhpSnapshot(options?: IAhpSnapshotOptions): string {
+		return this._ahpSnapshot.serialize(options);
 	}
 
 	takeReplayError(): Error | undefined {
@@ -270,6 +281,24 @@ export interface IMockScenario {
 	readonly definition: unknown;
 }
 
+const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
+
+export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, coverageTimeoutMs: number): number {
+	return AGENT_HOST_E2E_COVERAGE ? coverageTimeoutMs : normalTimeoutMs;
+}
+
+function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	const childEnvironment = { ...environment };
+	if (AGENT_HOST_E2E_COVERAGE) {
+		const coveragePath = resolvePath(process.cwd(), '.build', 'agent-host-e2e-coverage', 'raw');
+		mkdirSync(coveragePath, { recursive: true });
+		childEnvironment.NODE_V8_COVERAGE = coveragePath;
+	} else {
+		delete childEnvironment.NODE_V8_COVERAGE;
+	}
+	return childEnvironment;
+}
+
 function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'free'): string {
 	return Buffer.from(JSON.stringify({
 		token: 'smoketest-fake-token',
@@ -300,7 +329,7 @@ async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise
 	return { ...serverHandle, logMessages: messages };
 }
 
-export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
+export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly startupTimeoutMs?: number }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
@@ -312,13 +341,13 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-			env: options?.env ? { ...process.env, ...options.env } : process.env,
+			env: withAgentHostCoverage({ ...process.env, ...options?.env }),
 		});
 
 		const timer = setTimeout(() => {
 			child.kill();
 			reject(new Error('Server startup timed out'));
-		}, 10_000);
+		}, options?.startupTimeoutMs ?? getAgentHostE2ETestTimeout(10_000, 45_000));
 
 		child.stdout!.on('data', (data: Buffer) => {
 			const text = data.toString();
@@ -390,7 +419,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 		if (options?.userDataDir) {
 			args.push('--user-data-dir', options.userDataDir);
 		}
-		const childEnv = {
+		const childEnv = withAgentHostCoverage({
 			...process.env,
 			...(options?.env ?? {}),
 			...(options?.homeDir ? {
@@ -428,7 +457,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 				// fake token.
 				VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: capiUrl,
 			} : {}),
-		};
+		});
 		let child: ChildProcess;
 		try {
 			child = fork(serverPath, args, {

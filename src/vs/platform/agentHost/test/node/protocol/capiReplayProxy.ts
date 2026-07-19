@@ -36,8 +36,8 @@
 import type * as http from 'http';
 import type * as https from 'https';
 import { createRequire } from 'module';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname } from '../../../../../base/common/path.js';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { basename, dirname } from '../../../../../base/common/path.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
 import { getAncillaryStub } from './capiStubs.js';
 
@@ -57,7 +57,8 @@ const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/message
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
 const TEMP_DIR_SUFFIX_PLACEHOLDER = '${temp}';
-const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const TEMP_DIR_SUFFIX_RE = /(\$\{workdir\}(?:\/|\\\\)(?:ahp-(?:snapshot|perm-test|plan-test|abort|test|wt-test|subagent-test|subagent-replay|attachment-test|cd-strip-test|coverage-[a-z-]+)-|copilot-(?:cost-report|text-blob)-|read-sdk-simple))[A-Za-z0-9]{6}/g;
+const FILE_LISTING_DATE_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\b/g;
 /**
  * Placeholder for the recorder's OS username. It appears in captured tool output
  * (e.g. the owner column of `ls -la`) where it is not part of a path, so
@@ -223,6 +224,7 @@ export class CapiReplayProxy {
 	/** Exchanges captured during recording, in arrival order. */
 	private readonly _recorded: IRecordedExchange[] = [];
 	private readonly _cacheMisses: string[] = [];
+	private _workingDirectory: string | undefined;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -234,6 +236,7 @@ export class CapiReplayProxy {
 
 	constructor(private readonly _options: ICapiReplayProxyOptions) {
 		this._fixturePath = _options.fixturePath;
+		this._workingDirectory = _options.workDir;
 		const fixtureExists = existsSync(this._fixturePath);
 		this._mode = _options.mode ?? 'replay';
 		this._strict = _options.strict ?? true;
@@ -316,9 +319,14 @@ export class CapiReplayProxy {
 			throw new Error(`[capi-replay] replay mode requires a fixture but none exists at ${fixturePath}`);
 		}
 		this._fixturePath = fixturePath;
+		this._workingDirectory = undefined;
 		this._replayBuckets.clear();
 		this._cacheMisses.length = 0;
 		this._loadFixture();
+	}
+
+	setWorkingDirectory(workingDirectory: string): void {
+		this._workingDirectory = workingDirectory;
 	}
 
 	/**
@@ -425,7 +433,8 @@ export class CapiReplayProxy {
 
 		if (item.kind === 'turn') {
 			// Regenerate the dialect's SSE stream from the captured reply.
-			const sseBody = item.dialect === 'responses' ? responsesMessageToSse(item.message) : anthropicMessageToSse(item.message);
+			const message = this._expandReplayMessage(item.message);
+			const sseBody = item.dialect === 'responses' ? responsesMessageToSse(message) : anthropicMessageToSse(message);
 			res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
 			res.end(sseBody);
 			return;
@@ -436,7 +445,7 @@ export class CapiReplayProxy {
 		delete headers['content-length'];
 		delete headers['transfer-encoding'];
 		res.writeHead(item.response.status, headers);
-		res.end(replaceAll(item.response.body, CAPI_PLACEHOLDER, this.url));
+		res.end(this._expandReplayPlaceholders(item.response.body));
 	}
 
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
@@ -719,8 +728,17 @@ export class CapiReplayProxy {
 
 	private _normalize(text: string): string {
 		let result = text;
-		if (this._options.workDir) {
-			result = replaceAll(result, this._options.workDir, WORKDIR_PLACEHOLDER);
+		if (this._workingDirectory) {
+			const workDirs = new Set([this._workingDirectory]);
+			try {
+				workDirs.add(realpathSync.native(this._workingDirectory));
+			} catch {
+				// The recording work directory can disappear during teardown.
+			}
+			for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
+				result = replaceAll(result, escapeJsonString(workDir), WORKDIR_PLACEHOLDER);
+				result = replaceAll(result, workDir, WORKDIR_PLACEHOLDER);
+			}
 		}
 		if (this._options.homeDir) {
 			result = replaceAll(result, this._options.homeDir, HOMEDIR_PLACEHOLDER);
@@ -729,6 +747,71 @@ export class CapiReplayProxy {
 			result = replaceAll(result, this._options.userName, USER_PLACEHOLDER);
 		}
 		result = result.replace(TEMP_DIR_SUFFIX_RE, `$1${TEMP_DIR_SUFFIX_PLACEHOLDER}`);
+		result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, WORKDIR_PLACEHOLDER);
+		result = result.replace(FILE_LISTING_DATE_RE, '${timestamp}');
+		return result;
+	}
+
+	private _expandReplayMessage(message: IAnthropicMessage): IAnthropicMessage {
+		return {
+			...message,
+			content: message.content.map(block => block.type === 'text'
+				? { ...block, text: this._expandReplayPlaceholders(block.text) }
+				: { ...block, input: this._expandReplayValue(block.input) }),
+		};
+	}
+
+	private _expandReplayValue(value: unknown): unknown {
+		if (typeof value === 'string') {
+			return this._expandReplayPlaceholders(value);
+		}
+		if (Array.isArray(value)) {
+			return value.map(item => this._expandReplayValue(item));
+		}
+		if (value && typeof value === 'object') {
+			const result: Record<string, unknown> = {};
+			for (const [key, item] of Object.entries(value)) {
+				result[key] = this._expandReplayValue(item);
+			}
+			return result;
+		}
+		return value;
+	}
+
+	private _expandReplayPlaceholders(text: string): string {
+		let result = replaceAll(text, CAPI_PLACEHOLDER, this.url);
+		if (this._workingDirectory) {
+			const workspaceName = basename(this._workingDirectory);
+			const suffix = /-(?<suffix>[A-Za-z0-9]{6})$/.exec(workspaceName)?.groups?.suffix;
+			let canonicalWorkingDirectory = this._workingDirectory;
+			try {
+				canonicalWorkingDirectory = realpathSync.native(this._workingDirectory);
+			} catch {
+				// The replay working directory can disappear during teardown.
+			}
+			if (suffix) {
+				const workspaceStem = workspaceName.slice(0, -suffix.length);
+				const normalizedWorkspaceName = `${workspaceStem}${TEMP_DIR_SUFFIX_PLACEHOLDER}`;
+				const legacyWorkspacePlaceholder = `${WORKDIR_PLACEHOLDER}/${normalizedWorkspaceName}`;
+				result = replaceAll(result, `/private${legacyWorkspacePlaceholder}`, canonicalWorkingDirectory);
+				result = replaceAll(result, legacyWorkspacePlaceholder, this._workingDirectory);
+				result = result.replace(
+					new RegExp(`(?:\\/private)?${escapeRegExpCharacters(WORKDIR_PLACEHOLDER)}\\/${escapeRegExpCharacters(workspaceStem)}[A-Za-z0-9]{6}`, 'g'),
+					match => match.startsWith('/private') ? canonicalWorkingDirectory : this._workingDirectory!,
+				);
+			}
+			result = replaceAll(result, `/private${WORKDIR_PLACEHOLDER}`, canonicalWorkingDirectory);
+			result = replaceAll(result, WORKDIR_PLACEHOLDER, this._workingDirectory);
+			if (suffix) {
+				result = replaceAll(result, TEMP_DIR_SUFFIX_PLACEHOLDER, suffix);
+			}
+		}
+		if (this._options.homeDir) {
+			result = replaceAll(result, HOMEDIR_PLACEHOLDER, this._options.homeDir);
+		}
+		if (this._options.userName) {
+			result = replaceAll(result, USER_PLACEHOLDER, this._options.userName);
+		}
 		return result;
 	}
 }
@@ -738,6 +821,14 @@ function replaceAll(text: string, search: string, replacement: string): string {
 		return text;
 	}
 	return text.split(search).join(replacement);
+}
+
+function escapeJsonString(value: string): string {
+	return JSON.stringify(value).slice(1, -1);
+}
+
+function escapeRegExpCharacters(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Decompress a response body per its `content-encoding` into a UTF-8 string. */

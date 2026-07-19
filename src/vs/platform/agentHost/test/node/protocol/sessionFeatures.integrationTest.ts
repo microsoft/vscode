@@ -16,6 +16,7 @@ import {
 	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	isActionNotification,
 	IServerHandle,
@@ -30,7 +31,7 @@ suite('Protocol WebSocket — Session Features', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 

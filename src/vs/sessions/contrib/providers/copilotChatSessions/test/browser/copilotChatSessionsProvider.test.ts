@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -18,6 +20,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
@@ -26,7 +29,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -144,6 +147,7 @@ interface ICreateProviderOptions {
 	readonly agentHostEnabled?: boolean;
 	readonly commandExecutions?: IExecutedCommand[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
+	readonly languageModelsService?: Partial<ILanguageModelsService>;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
@@ -224,9 +228,7 @@ function createProviderWithConfig(
 		lastFocusedWidget: undefined,
 		onDidChangeFocusedSession: Event.None,
 	});
-	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
-	});
+	instantiationService.stub(ILanguageModelsService, opts?.languageModelsService ?? { lookupLanguageModel: () => undefined });
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});
@@ -281,6 +283,7 @@ function createProviderForSendTests(
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
+		getOptionGroupsForSessionType: () => undefined,
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
@@ -311,6 +314,7 @@ function createProviderForSendTests(
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: opts?.agentHostEnabled ?? true });
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -688,11 +692,47 @@ suite('CopilotChatSessionsProvider', () => {
 		const afterResolve = provider.getModelsSnapshot(session.sessionId, 'removed-cloud-model');
 
 		assert.deepStrictEqual({
-			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), isResolved: beforeResolve.isResolved },
-			afterResolve: { models: afterResolve.models.map(model => model.identifier), isResolved: afterResolve.isResolved },
+			beforeResolve: { models: beforeResolve.models.map(model => model.identifier), desiredModelResolution: beforeResolve.desiredModelResolution, modelTarget: beforeResolve.modelTarget },
+			afterResolve: { models: afterResolve.models.map(model => model.identifier), desiredModelResolution: afterResolve.desiredModelResolution, modelTarget: afterResolve.modelTarget },
 		}, {
-			beforeResolve: { models: [], isResolved: false },
-			afterResolve: { models: ['synthetic-cloud-model'], isResolved: true },
+			beforeResolve: { models: [], desiredModelResolution: { kind: 'pending', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+			afterResolve: { models: ['synthetic-cloud-model'], desiredModelResolution: { kind: 'unavailable', identifier: 'removed-cloud-model' }, modelTarget: AgentSessionProviders.Cloud },
+		});
+	});
+
+	test('Copilot CLI keeps an empty Copilot catalog pending until live models arrive', () => {
+		const models = new Map<string, ILanguageModelChatMetadata>();
+		const provider = createProvider(disposables, model, {
+			languageModelsService: {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: identifier => models.get(identifier),
+				hasResolvedVendor: () => true,
+			},
+		});
+		const session = provider.createNewSession(URI.file('/test/project'), CopilotCLISessionType.id);
+		const empty = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		models.set('copilot/other', {
+			extension: new ExtensionIdentifier('test.extension'),
+			id: 'other',
+			name: 'Other',
+			vendor: 'copilot',
+			version: '1.0',
+			family: 'other',
+			maxInputTokens: 1,
+			maxOutputTokens: 1,
+			isUserSelectable: true,
+			isDefaultForLocation: {},
+			targetChatSessionType: CopilotCLISessionType.id,
+		});
+		const live = provider.getModelsSnapshot(session.sessionId, 'copilot/remembered');
+
+		assert.deepStrictEqual({
+			empty: { resolution: empty.desiredModelResolution, modelTarget: empty.modelTarget },
+			live: { resolution: live.desiredModelResolution, modelTarget: live.modelTarget },
+		}, {
+			empty: { resolution: { kind: 'pending', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
+			live: { resolution: { kind: 'unavailable', identifier: 'copilot/remembered' }, modelTarget: CopilotCLISessionType.id },
 		});
 	});
 
@@ -1722,4 +1762,71 @@ suite('CopilotChatSessionsProvider', () => {
 
 		await sendPromise;
 	});
+
+	test('cloud session that commits a new resource resolves without timing out', async () => {
+		// Regression: a cloud session commits a different resource mid-request
+		// (untitled → /task/<id>), so _sendFirstChat must wait for the committed
+		// resource, not the untitled one, otherwise it times out and removes the session.
+		const committedResource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${generateUuid()}` });
+		const onDidCommit = disposables.add(new Emitter<{ original: URI; committed: URI }>());
+
+		let resolveComplete!: () => void;
+		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
+		const responseCreatedPromise = new Promise<IChatResponseModel>(() => { /* never resolves */ });
+
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise,
+				responseCreatedPromise,
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}), { onDidCommitSession: onDidCommit.event });
+
+		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' });
+		const session = provider.createNewSession(workspace, CopilotCloudSessionType.id);
+
+		const removals: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => {
+			for (const r of e.removed) {
+				removals.push(r.resource.toString());
+			}
+		}));
+
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const untitledResource = chat.resource;
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'hi' });
+		await added;
+
+		// The response completes early (cloud returns a confirmation) before the
+		// commit lands — this must not cause the wait to give up.
+		resolveComplete();
+
+		model.addSession(createMockAgentSession(committedResource, { providerType: AgentSessionProviders.Cloud }));
+
+		// _waitForCommittedSession subscribes to onDidCommitSession only after
+		// sendRequest resolves, so re-fire until the send settles to avoid the race.
+		let sendSettled = false;
+		const fireCommitUntilSettled = async () => {
+			while (!sendSettled) {
+				onDidCommit.fire({ original: untitledResource, committed: committedResource });
+				await timeout(5);
+			}
+		};
+		const commitLoop = fireCommitUntilSettled();
+
+		try {
+			await assert.doesNotReject(sendPromise);
+		} finally {
+			sendSettled = true;
+			await commitLoop;
+		}
+
+		assert.ok(
+			!removals.includes(untitledResource.toString()),
+			`Cloud session should not be removed after committing. Removals seen: [${removals.join(', ')}]`,
+		);
+	});
 });
+

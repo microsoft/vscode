@@ -16,6 +16,7 @@ import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	isActionNotification,
 	IServerHandle,
 	nextSessionUri,
@@ -34,7 +35,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 	const RELEASE_GRACE_MS = 200;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer({ env: { [AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS) } });
 	});
 

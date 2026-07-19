@@ -16,8 +16,8 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
@@ -30,7 +30,7 @@ import {
 	MessageKind,
 	ResponsePartKind, ROOT_STATE_URI, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
 	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri, buildSubagentSessionUri, parseChatUri,
-	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type TerminalState,
+	type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type ISessionWithDefaultChat, type SessionState, type ChatState, type TerminalState,
 	type ToolResultContent, type ToolResultSubagentContent,
 } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
@@ -47,7 +47,7 @@ import { CapiReplayMode } from './capiReplayProxy.js';
 import {
 	getActionEnvelope, isActionNotification, fetchSessionWithChat, IServerHandle, startRealServer, TestProtocolClient,
 } from './testHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, assertRecordedAhpSnapshot } from './ahpSnapshot.js';
 
 // #region Record/replay
 
@@ -68,6 +68,7 @@ const isLinux = process.platform === 'linux';
 const isWindows = process.platform === 'win32';
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
+const BEHAVIOR_SNAPSHOT = { profile: 'behavior' } as const;
 
 async function stopServer(server: IServerHandle | undefined): Promise<void> {
 	const serverProcess = server?.process;
@@ -129,8 +130,8 @@ function fixturePathFor(provider: string, testTitle: string): string {
  * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
  * {@link defineAgentHostE2ETests} and provider-specific suites.
  */
-export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode; workDir: string } {
-	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE, workDir: tmpdir() };
+export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode } {
+	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
 }
 
 // #endregion
@@ -269,6 +270,7 @@ export async function createRealSession(
 	trackingList: string[],
 	workingDirectory: URI,
 ): Promise<string> {
+	c.setWorkingDirectory(workingDirectory.fsPath);
 	await c.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 	await c.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken ?? resolveGitHubToken() }, 30_000);
 
@@ -295,6 +297,11 @@ export async function createRealSession(
 	// channel in the multi-chat protocol; subscribe to it as well so `chat/*`
 	// action notifications are delivered to this client.
 	await c.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	c.setAhpSnapshotNormalization({
+		workingDirectory: workingDirectory.fsPath,
+		homeDirectory: homedir(),
+		userName: userInfo().username,
+	});
 	c.clearReceived();
 	c.clearAhpSnapshot();
 
@@ -685,7 +692,11 @@ export class AgentHostE2EServerLease {
 		} else {
 			this._server = await startRealServer({ ...this._startOptions, capiReplay });
 		}
-		this._client = new TestProtocolClient(this._server.port, () => this._server?.capiReplay?.takeCacheMissError());
+		this._client = new TestProtocolClient(
+			this._server.port,
+			() => this._server?.capiReplay?.takeCacheMissError(),
+			workingDirectory => this._server?.capiReplay?.setWorkingDirectory(workingDirectory),
+		);
 		await this._client.connect();
 		return { server: this._server, client: this._client };
 	}
@@ -757,7 +768,9 @@ export class AgentHostE2EServerLease {
 export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): void {
 	(config.enabled ? suite : suite.skip)(config.suiteTitle, function () {
 
-		const shellToolReplayEnabled = RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux;
+		const shellToolReplayEnabled = !isWindows && (RECORD || !isLinux || !config.shellToolReplayUnstableOnLinux);
+		// Codex currently duplicates every response part during aggregation.
+		const stableNewScenarioResponse = config.provider !== 'codex';
 		let client: TestProtocolClient;
 		let lease: AgentHostE2EServerLease | undefined;
 		let suiteDataDir: string | undefined;
@@ -885,6 +898,219 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 				assert.ok(model.supportsVision === undefined || typeof model.supportsVision === 'boolean',
 					`model.supportsVision should be boolean or undefined: ${JSON.stringify(model)}`);
 			}
+		});
+
+		(stableNewScenarioResponse ? test : test.skip)('retains context across consecutive turns', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(client, config, `coverage-memory-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const first = await driveTurnToCompletion(client, sessionUri, 'turn-memory-1', 'Remember the code word ORCHID. Reply exactly "ready".', 1);
+			assert.match(first.responseText, /ready/i);
+
+			client.beginAhpSnapshotRound();
+			const second = await driveTurnToCompletion(client, sessionUri, 'turn-memory-2', 'What code word did I ask you to remember? Reply with only the code word.', 10);
+			assert.match(second.responseText, /ORCHID/i);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Expected to pass, but Copilot never completed this turn during recording and Codex duplicates its response.
+		(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('reads an existing text file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-read-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'note.txt'), 'ALPHA BETA GAMMA');
+			const sessionUri = await createRealSession(client, config, `coverage-read-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-read', 'Read note.txt and reply with its exact contents only.', 1);
+			assert.match(result.responseText, /ALPHA BETA GAMMA/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(stableNewScenarioResponse && (config.provider !== 'copilotcli' || shellToolReplayEnabled) ? test : test.skip)('reads a file from a nested directory', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-read-'));
+			tempDirs.push(workspace);
+			mkdirSync(join(workspace, 'nested'));
+			writeFileSync(join(workspace, 'nested', 'value.txt'), 'NESTED_VALUE_42');
+			const sessionUri = await createRealSession(client, config, `coverage-nested-read-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-nested-read', 'Read nested/value.txt and reply with its exact contents only.', 1);
+			assert.match(result.responseText, /NESTED_VALUE_42/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(stableNewScenarioResponse && shellToolReplayEnabled ? test : test.skip)('lists workspace entries', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-list-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'first.txt'), 'first');
+			writeFileSync(join(workspace, 'second.md'), 'second');
+			const sessionUri = await createRealSession(client, config, `coverage-list-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-list', 'List the files in the current working directory. Reply with the filenames only.', 1);
+			assert.match(result.responseText, /first\.txt/);
+			assert.match(result.responseText, /second\.md/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Codex does not honor the exact-response contract on replay; Copilot never completes the replayed turn.
+		(stableNewScenarioResponse && config.provider === 'claude' ? test : test.skip)('reads a value from JSON', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-json-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'config.json'), JSON.stringify({ answer: 42 }));
+			const sessionUri = await createRealSession(client, config, `coverage-json-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-json', 'Read config.json and reply with the numeric value of "answer" only.', 1);
+			assert.match(result.responseText, /\b42\b/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Codex duplicates its response.
+		(stableNewScenarioResponse && shellToolReplayEnabled ? test : test.skip)('counts lines in a file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-lines-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'lines.txt'), 'one\ntwo\nthree\nfour\n');
+			const sessionUri = await createRealSession(client, config, `coverage-lines-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-lines', 'Count the lines in lines.txt and reply with the number only.', 1);
+			assert.match(result.responseText, /\b4\b/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(stableNewScenarioResponse && (config.provider !== 'copilotcli' || shellToolReplayEnabled) ? test : test.skip)('handles a missing file without a session error', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-missing-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(client, config, `coverage-missing-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-missing', 'Try to read missing.txt. If it does not exist, reply exactly "missing".', 1);
+			assert.match(result.responseText, /missing/i);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Copilot does not consistently emit tool completion for this scenario.
+		(stableNewScenarioResponse && config.provider !== 'copilotcli' ? test : test.skip)('creates a new text file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(client, config, `coverage-create-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			await driveTurnToCompletion(client, sessionUri, 'turn-create', 'Create result.txt containing exactly CREATED_VALUE.', 1);
+			assert.strictEqual(readFileSync(join(workspace, 'result.txt'), 'utf8'), 'CREATED_VALUE');
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Copilot never completes this turn.
+		(stableNewScenarioResponse && config.provider === 'claude' && shellToolReplayEnabled ? test : test.skip)('edits an existing text file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-edit-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'edit.txt'), 'BEFORE_VALUE');
+			const sessionUri = await createRealSession(client, config, `coverage-edit-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			await driveTurnToCompletion(client, sessionUri, 'turn-edit', 'Replace the complete contents of edit.txt with AFTER_VALUE.', 1);
+			assert.strictEqual(readFileSync(join(workspace, 'edit.txt'), 'utf8'), 'AFTER_VALUE');
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Copilot's fixture uses a POSIX shell.
+		(stableNewScenarioResponse && (config.provider !== 'copilotcli' || shellToolReplayEnabled) ? test : test.skip)('creates a file in a new nested directory', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-create-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(client, config, `coverage-nested-create-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			await driveTurnToCompletion(client, sessionUri, 'turn-nested-create', 'Create output/report.txt containing exactly NESTED_CREATED.', 1);
+			assert.strictEqual(readFileSync(join(workspace, 'output', 'report.txt'), 'utf8'), 'NESTED_CREATED');
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(stableNewScenarioResponse && shellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-rename-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'before.txt'), 'RENAME_VALUE');
+			const sessionUri = await createRealSession(client, config, `coverage-rename-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			await driveTurnToCompletion(client, sessionUri, 'turn-rename', 'Rename before.txt to after.txt without changing its contents.', 1);
+			assert.strictEqual(existsSync(join(workspace, 'before.txt')), false);
+			assert.strictEqual(readFileSync(join(workspace, 'after.txt'), 'utf8'), 'RENAME_VALUE');
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Copilot never completed this turn.
+		(stableNewScenarioResponse && config.provider === 'claude' && shellToolReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'delete-me.txt'), 'DELETE_VALUE');
+			const sessionUri = await createRealSession(client, config, `coverage-delete-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			await driveTurnToCompletion(client, sessionUri, 'turn-delete', 'Delete delete-me.txt.', 1);
+			assert.strictEqual(existsSync(join(workspace, 'delete-me.txt')), false);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(shellToolReplayEnabled && stableNewScenarioResponse ? test : test.skip)('runs a deterministic shell command', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
+			tempDirs.push(workspace);
+			const sessionUri = await createRealSession(client, config, `coverage-shell-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-shell', 'Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.', 1);
+			assert.match(result.responseText, /SHELL_VALUE_73/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		// Claude and Codex emit customization/changeset updates at nondeterministic points in this snapshot.
+		(shellToolReplayEnabled && stableNewScenarioResponse && config.provider === 'copilotcli' ? test : test.skip)('inspects git status', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
+			tempDirs.push(workspace);
+			execSync('git init', { cwd: workspace });
+			execSync('git config user.name "Agent Host Test"', { cwd: workspace });
+			execSync('git config user.email "agent-host-test@example.com"', { cwd: workspace });
+			writeFileSync(join(workspace, 'tracked.txt'), 'initial');
+			execSync('git add tracked.txt && git commit -m "initial"', { cwd: workspace });
+			writeFileSync(join(workspace, 'tracked.txt'), 'modified');
+			writeFileSync(join(workspace, 'untracked.txt'), 'new');
+			const sessionUri = await createRealSession(client, config, `coverage-git-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-git', 'Inspect git status. Reply with the names of the modified and untracked files only.', 1);
+			assert.match(result.responseText, /tracked\.txt/);
+			assert.match(result.responseText, /untracked\.txt/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
+		});
+
+		(stableNewScenarioResponse ? test : test.skip)('reads a filename containing spaces', async function () {
+			this.timeout(180_000);
+			const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-spaces-'));
+			tempDirs.push(workspace);
+			writeFileSync(join(workspace, 'file with spaces.txt'), 'SPACED_VALUE');
+			const sessionUri = await createRealSession(client, config, `coverage-spaces-${config.provider}`, createdSessions, URI.file(workspace));
+
+			client.beginAhpSnapshotRound();
+			const result = await driveTurnToCompletion(client, sessionUri, 'turn-spaces', 'Read "file with spaces.txt" and reply with its exact contents only.', 1);
+			assert.match(result.responseText, /SPACED_VALUE/);
+			await assertRecordedAhpSnapshot(this.test!, client, BEHAVIOR_SNAPSHOT);
 		});
 
 		(shellToolReplayEnabled ? test : test.skip)('tool call triggers permission request and can be approved', async function () {
@@ -1040,6 +1266,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			tempDirs.push(tempDir);
 			const workingDirUri = URI.file(tempDir).toString();
 
+			client.setWorkingDirectory(tempDir);
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-workdir-${config.provider}` }, 30_000);
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
@@ -1068,6 +1295,7 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 			const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 			const workingDirUri = URI.file(tempDir).toString();
 
+			client.setWorkingDirectory(tempDir);
 			await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `real-sdk-worktree-${config.provider}` });
 			await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() });
 
@@ -1311,7 +1539,13 @@ export function defineAgentHostE2ETests(config: IAgentHostE2EProviderConfig): vo
 
 			// The subagent's conversation contents (its inner tool calls) are
 			// emitted on the chat channel carried by the tool result.
-			await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+			const subagentSnap = await client.call<SubscribeResult>('subscribe', { channel: subagentChatUri });
+			const subagentState = subagentSnap.snapshot?.state as ChatState | undefined;
+			const subagentFirstTurn = subagentState?.turns?.[0] ?? subagentState?.activeTurn;
+			assert.ok(
+				subagentFirstTurn?.message.text && subagentFirstTurn.message.text.includes('List the files'),
+				`subagent chat's opening request should render the task prompt, got: ${JSON.stringify(subagentFirstTurn?.message.text)}`,
+			);
 
 			await client.waitForNotification(n => {
 				if (!isActionNotification(n, 'chat/turnComplete')) {

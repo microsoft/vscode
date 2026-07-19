@@ -456,6 +456,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender, options);
 			},
+			setTelemetryExperimentProperty(name: string, value: string): void {
+				checkProposedApiEnabled(extension, 'telemetryExperimentProperty');
+				rpcProtocol.getProxy(MainContext.MainThreadTelemetry).$setExperimentProperty(name, value);
+			},
 			async openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
 					allowTunneling: initData.remote.isRemote ?? (initData.remote.authority ? await extHostTunnelService.hasTunnelProvider() : false),

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createRequire } from 'module';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, realpathSync, writeFileSync } from 'fs';
 import { FileAccess } from '../../../../../base/common/network.js';
+import { dirname, win32 } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
@@ -67,14 +68,29 @@ interface IAhpSnapshotClient {
 	dispatch(params: DispatchActionParams): void;
 	receivedNotifications(): AhpNotification[];
 	waitForNotification(predicate: (notification: AhpNotification) => boolean, timeoutMs?: number): Promise<AhpNotification>;
-	serializeAhpSnapshot(): string;
+	serializeAhpSnapshot(options?: IAhpSnapshotOptions): string;
 	takeReplayError(): Error | undefined;
+}
+
+export interface IAhpSnapshotOptions {
+	readonly profile?: 'protocol' | 'behavior';
+}
+
+export interface IAhpSnapshotNormalization {
+	readonly workingDirectory: string;
+	readonly homeDirectory: string;
+	readonly userName: string;
 }
 
 /** Captures AHP wire messages and serializes a stable semantic projection for snapshots. */
 export class AhpSnapshotRecorder {
 	private readonly _messages: ICapturedAhpMessage[] = [];
 	private readonly _roundStarts: number[] = [];
+	private _normalization: IAhpSnapshotNormalization | undefined;
+
+	setNormalization(normalization: IAhpSnapshotNormalization): void {
+		this._normalization = normalization;
+	}
 
 	record(direction: AhpSnapshotDirection, message: object): void {
 		this._messages.push({ direction, message });
@@ -89,7 +105,8 @@ export class AhpSnapshotRecorder {
 		this._roundStarts.length = 0;
 	}
 
-	serialize(): string {
+	serialize(options: IAhpSnapshotOptions = {}): string {
+		const profile = options.profile ?? 'protocol';
 		const clientRequests = new Map<number, string>();
 		const serverRequests = new Map<number, string>();
 		const channels = new Map<string, string>();
@@ -121,8 +138,11 @@ export class AhpSnapshotRecorder {
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
+						if (profile === 'behavior' && isBehaviorSnapshotNoise(action.type)) {
+							continue;
+						}
 						const channel = typeof params?.channel === 'string' ? params.channel : '';
-						const projectedAction = projectAction(action, turns, toolCalls, responseParts, channel);
+						const projectedAction = projectAction(action, turns, toolCalls, responseParts, channel, profile);
 						if (!projectedAction) {
 							continue;
 						}
@@ -149,8 +169,22 @@ export class AhpSnapshotRecorder {
 			(direction === 'c2s' ? rounds[roundIndex].clientToServer : rounds[roundIndex].serverToClient).push(projected);
 		}
 
+		for (const round of rounds) {
+			normalizeSnapshotObjects(round.clientToServer, this._normalization);
+			normalizeSnapshotObjects(round.serverToClient, this._normalization);
+		}
 		return serializeFixture({ version: 1, rounds });
 	}
+}
+
+/** Records code-driven AHP traffic during snapshot updates and asserts it during replay. */
+export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
+	const actual = client.serializeAhpSnapshot(options);
+	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
+		writeFileSync(snapshotPathForTest(test), actual);
+		return;
+	}
+	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
 }
 
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
@@ -268,6 +302,7 @@ function projectAction(
 	toolCalls: Map<string, string>,
 	responseParts: Map<string, { content: string }>,
 	channel: string,
+	profile: NonNullable<IAhpSnapshotOptions['profile']>,
 ): object | undefined {
 	switch (action.type) {
 		case ActionType.SessionActiveClientSet:
@@ -327,8 +362,10 @@ function projectAction(
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
 				toolName: action.toolName,
-				displayName: action.displayName,
-				contributor: projectContributor(action.contributor),
+				...(profile === 'protocol' ? {
+					displayName: action.displayName,
+					contributor: projectContributor(action.contributor),
+				} : {}),
 			};
 		case ActionType.ChatToolCallReady:
 			return {
@@ -354,17 +391,49 @@ function projectAction(
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
 				result: {
 					success: action.result.success,
-					pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
-					content: action.result.content?.map(content => content.type === ToolResultContentType.Text
-						? { type: content.type, text: content.text }
-						: { type: content.type }),
+					...(profile === 'protocol' ? {
+						pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
+						content: action.result.content?.map(content => content.type === ToolResultContentType.Text
+							? { type: content.type, text: content.text }
+							: { type: content.type }),
+					} : {}),
 				},
 			};
+		case ActionType.ChatError:
+			return profile === 'behavior' ? {
+				type: action.type,
+				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
+				error: {
+					errorType: action.error.errorType,
+					message: action.error.message,
+				},
+			} : { type: action.type };
 		case ActionType.ChatUsage:
 		case ActionType.ChatTurnComplete:
 			return { type: action.type, turnId: normalizeIdentifier(action.turnId, 'turn', turns) };
 		default:
 			return { type: action.type };
+	}
+}
+
+function isBehaviorSnapshotNoise(type: ActionType): boolean {
+	switch (type) {
+		case ActionType.SessionChatUpdated:
+		case ActionType.SessionServerToolsChanged:
+		case ActionType.SessionInputNeededSet:
+		case ActionType.SessionInputNeededRemoved:
+		case ActionType.SessionCustomizationsChanged:
+		case ActionType.SessionChangesetsChanged:
+		case ActionType.SessionActivityChanged:
+		case ActionType.ChatActivityChanged:
+		case ActionType.ChatUsage:
+		case ActionType.ChatToolCallDelta:
+		case ActionType.ChatToolCallReady:
+		case ActionType.ChatToolCallConfirmed:
+		case ActionType.ChatToolCallContentChanged:
+			return true;
+		default:
+			return false;
 	}
 }
 
@@ -392,6 +461,83 @@ function projectContributor(contributor: ToolCallContributor | undefined): objec
 
 function projectStringOrMarkdown(value: StringOrMarkdown): string {
 	return typeof value === 'string' ? value : value.markdown;
+}
+
+function normalizeSnapshotObjects(values: object[], normalization: IAhpSnapshotNormalization | undefined): void {
+	if (!normalization) {
+		return;
+	}
+	for (let index = 0; index < values.length; index++) {
+		values[index] = normalizeSnapshotObject(values[index], normalization);
+	}
+}
+
+function normalizeSnapshotObject(value: object, normalization: IAhpSnapshotNormalization): object {
+	if (Array.isArray(value)) {
+		return value.map(item => normalizeSnapshotValue(item, normalization));
+	}
+	const result: Record<string, unknown> = {};
+	for (const [key, item] of Object.entries(value)) {
+		result[key] = normalizeSnapshotValue(item, normalization);
+	}
+	return result;
+}
+
+function normalizeSnapshotValue(value: unknown, normalization: IAhpSnapshotNormalization): unknown {
+	if (typeof value === 'string') {
+		return normalizeSnapshotText(value, normalization);
+	}
+	if (Array.isArray(value)) {
+		return value.map(item => normalizeSnapshotValue(item, normalization));
+	}
+	if (value && typeof value === 'object') {
+		return normalizeSnapshotObject(value, normalization);
+	}
+	return value;
+}
+
+function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormalization): string {
+	const workDirs = new Set([normalization.workingDirectory]);
+	try {
+		workDirs.add(realpathSync.native(normalization.workingDirectory));
+	} catch {
+		// The workspace can be deleted during teardown after the traffic was captured.
+	}
+	let normalized = value;
+	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
+		normalized = normalized
+			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')
+			.replaceAll(workDir, '${workdir}')
+			.replaceAll(URI.file(workDir).toString(), '${workdir}');
+	}
+	normalized = normalized.replaceAll('/private${workdir}', '${workdir}');
+	const tempRoots = new Set([...workDirs].flatMap(workDir => [dirname(workDir), win32.dirname(workDir)]).filter(root => root !== '.'));
+	for (const tempRoot of tempRoots) {
+		const win32FileUri = win32.isAbsolute(tempRoot) ? `file:///${tempRoot.replaceAll('\\', '/')}` : undefined;
+		const rootVariants = new Set([
+			tempRoot,
+			JSON.stringify(tempRoot).slice(1, -1),
+			URI.file(tempRoot).toString(),
+			...(win32FileUri ? [win32FileUri] : []),
+		]);
+		for (const rootVariant of [...rootVariants].sort((a, b) => b.length - a.length)) {
+			const escapedRoot = escapeRegExpCharacters(rootVariant);
+			normalized = normalized.replace(new RegExp(`${escapedRoot}(?:/|\\\\|\\\\\\\\)ahp-coverage-[^\\s\`"')]*`, 'g'), '${workdir}');
+		}
+	}
+	normalized = normalized
+		.replaceAll(normalization.homeDirectory, '${homedir}')
+		.replaceAll(URI.file(normalization.homeDirectory).toString(), '${homedir}')
+		.replaceAll(normalization.userName, '${user}');
+	if (!normalized.includes('${temp}')) {
+		normalized = normalized.replace(/ahp-coverage-([a-z-]+)-[A-Za-z0-9]{6}/g, 'ahp-coverage-$1-${temp}');
+	}
+	normalized = normalized.replace(/<shellId: \d+/g, '<shellId: ${shellId}');
+	return normalized.replace(/^[dlcbps-][rwxStTs-]{9}[+@.]?\s+\d+\s+\S+\s+\S+\s+\d+\s+\w{3}\s+\d{1,2}\s+(?:\d{2}:\d{2}|\d{4})\s+/gm, '${listing} ');
+}
+
+function escapeRegExpCharacters(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function snapshotPathForTest(test: Mocha.Runnable): string {
