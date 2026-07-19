@@ -191,7 +191,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const filtered = metadata
-			? filterConfigurationToSchema(values, metadata.configurationSchema)
+			? filterConfigurationToSchema(values, metadata)
 			: { ...values };
 		// Restore only seeds this editor's scoped snapshot; unlike a user-made
 		// change it must NOT write the profile-global value, since restoring a

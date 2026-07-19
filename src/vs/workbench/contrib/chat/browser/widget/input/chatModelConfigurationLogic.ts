@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { getCustomAgentContextSizeBounds } from '../../../common/promptSyntax/customAgentModels.js';
 
-function isCustomContextSizeValue(propSchema: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], value: unknown): boolean {
+function isCustomContextSizeValue(metadata: ILanguageModelChatMetadata | undefined, propSchema: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], value: unknown): boolean {
+	if (!metadata) {
+		return false;
+	}
 	if (propSchema.group !== 'tokens') {
 		return false;
 	}
@@ -14,10 +18,15 @@ function isCustomContextSizeValue(propSchema: NonNullable<ILanguageModelConfigur
 		return false;
 	}
 	const type = propSchema.type;
-	return type === 'number'
+	const acceptsNumber = type === 'number'
 		|| type === 'integer'
 		|| Array.isArray(type) && (type.includes('number') || type.includes('integer'))
 		|| type === undefined && !!propSchema.enum?.length && propSchema.enum.every(item => typeof item === 'number');
+	if (!acceptsNumber) {
+		return false;
+	}
+	const bounds = getCustomAgentContextSizeBounds(metadata, propSchema);
+	return value >= bounds.minimum && value <= bounds.maximum;
 }
 
 /**
@@ -43,17 +52,17 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
  *   1. Keys absent from the current schema are dropped (removed properties).
  *   2. Values that violate the property's `enum` constraint are dropped, so the
  *      property falls back to its live default instead of an invalid value.
- *      Numeric context-size values are allowed outside the enum because the
- *      picker supports custom token caps.
+ *      Numeric context-size values within the current model bounds are allowed
+ *      outside the enum because the picker supports custom token caps.
  * Properties without an `enum` keep their value (no constraint to validate
  * against). When the schema is missing entirely, nothing can be validated and an
  * empty configuration is returned.
  */
 export function filterConfigurationToSchema(
 	values: IStringDictionary<unknown>,
-	schema: ILanguageModelConfigurationSchema | undefined,
+	metadata: ILanguageModelChatMetadata | undefined,
 ): IStringDictionary<unknown> {
-	const properties = schema?.properties;
+	const properties = metadata?.configurationSchema?.properties;
 	if (!properties) {
 		return {};
 	}
@@ -63,7 +72,7 @@ export function filterConfigurationToSchema(
 		if (!propSchema) {
 			continue;
 		}
-		if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(value) && !isCustomContextSizeValue(propSchema, value)) {
+		if (Array.isArray(propSchema.enum) && !propSchema.enum.includes(value) && !isCustomContextSizeValue(metadata, propSchema, value)) {
 			continue;
 		}
 		result[key] = value;

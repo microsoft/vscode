@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import {
 	computeStoredConfiguration,
 	extractSchemaDefaults,
@@ -18,11 +19,28 @@ const effortSchema: ILanguageModelConfigurationSchema = {
 	properties: {
 		thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' },
 		contextSize: { type: 'number' }, // no default
-		tieredContextSize: { type: 'number', enum: [200_000, 1_000_000], group: 'tokens' },
+		tieredContextSize: { type: 'number', enum: [200_000, 1_000_000], maximum: 500_000, group: 'tokens' },
 		inferredContextSize: { enum: [200_000, 1_000_000], group: 'tokens' },
 		numericChoice: { type: 'number', enum: [1, 2] },
 	}
 };
+
+function createModelMetadata(configurationSchema?: ILanguageModelConfigurationSchema): ILanguageModelChatMetadata {
+	return {
+		extension: new ExtensionIdentifier('test.extension'),
+		name: 'Test Model',
+		id: 'test-model',
+		vendor: 'test',
+		version: '1',
+		family: 'test',
+		maxInputTokens: 1_000_000,
+		maxOutputTokens: 10_000,
+		isDefaultForLocation: {},
+		configurationSchema,
+	};
+}
+
+const effortModelMetadata = createModelMetadata(effortSchema);
 
 suite('chatModelConfigurationLogic', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -94,39 +112,52 @@ suite('chatModelConfigurationLogic', () => {
 
 	suite('filterConfigurationToSchema', () => {
 		test('drops keys that are absent from the current schema (removed property)', () => {
-			const filtered = filterConfigurationToSchema({ thinkingEffort: 'high', removedProp: 42 }, effortSchema);
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'high', removedProp: 42 }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, { thinkingEffort: 'high' });
 		});
 
 		test('drops values that violate the enum constraint, falling back to the live default', () => {
 			// 'extreme' was valid against an older schema but is no longer an enum member.
-			const filtered = filterConfigurationToSchema({ thinkingEffort: 'extreme' }, effortSchema);
+			const filtered = filterConfigurationToSchema({ thinkingEffort: 'extreme' }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, {});
 		});
 
 		test('keeps values for non-enum properties (no constraint to validate)', () => {
-			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
+			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, { contextSize: 2000 });
 		});
 
 		test('keeps custom numeric values for enum-backed context-size properties', () => {
-			const filtered = filterConfigurationToSchema({ tieredContextSize: 333_333, inferredContextSize: 333_333 }, effortSchema);
+			const filtered = filterConfigurationToSchema({ tieredContextSize: 333_333, inferredContextSize: 333_333 }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, { tieredContextSize: 333_333, inferredContextSize: 333_333 });
 		});
 
 		test('drops invalid custom context-size values', () => {
-			const filtered = filterConfigurationToSchema({ tieredContextSize: -1 }, effortSchema);
+			const filtered = filterConfigurationToSchema({ tieredContextSize: -1 }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, {});
 		});
 
+		test('drops custom context-size values outside the current model bounds', () => {
+			assert.deepStrictEqual({
+				aboveSchemaMaximum: filterConfigurationToSchema({ tieredContextSize: 750_000 }, effortModelMetadata),
+				aboveAdvertisedMaximum: filterConfigurationToSchema({ inferredContextSize: 1_000_001 }, effortModelMetadata),
+				belowMinimum: filterConfigurationToSchema({ inferredContextSize: 9_999 }, effortModelMetadata),
+			}, {
+				aboveSchemaMaximum: {},
+				aboveAdvertisedMaximum: {},
+				belowMinimum: {},
+			});
+		});
+
 		test('still drops enum misses for non-context numeric properties', () => {
-			const filtered = filterConfigurationToSchema({ numericChoice: 3 }, effortSchema);
+			const filtered = filterConfigurationToSchema({ numericChoice: 3 }, effortModelMetadata);
 			assert.deepStrictEqual(filtered, {});
 		});
 
 		test('returns empty when the schema (or its properties) is missing', () => {
 			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, undefined), {});
-			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, {}), {});
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, createModelMetadata()), {});
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingEffort: 'high' }, createModelMetadata({})), {});
 		});
 	});
 

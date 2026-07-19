@@ -617,12 +617,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	}
 
 	private provideModelObjectCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue): CompletionList | undefined {
-		const mapItems = arrayValue.items.filter((item): item is IMapValue => item.type === 'map');
-		const mapItem = mapItems.find(item => item.range.containsPosition(position))
-			?? mapItems.findLast((item, index) => item.range.startLineNumber <= position.lineNumber && (mapItems[index + 1]?.range.startLineNumber ?? Number.POSITIVE_INFINITY) > position.lineNumber);
-		if (!mapItem) {
+		const item = arrayValue.items.find(item => item.range.containsPosition(position))
+			?? arrayValue.items.findLast((item, index) => item.range.startLineNumber <= position.lineNumber && (arrayValue.items[index + 1]?.range.startLineNumber ?? Number.POSITIVE_INFINITY) > position.lineNumber);
+		if (item?.type !== 'map') {
 			return undefined;
 		}
+		const mapItem = item;
 
 		const lineText = model.getLineContent(position.lineNumber);
 		const property = mapItem.properties.find(candidate => candidate.key.range.startLineNumber === position.lineNumber || candidate.value.range.containsPosition(position));

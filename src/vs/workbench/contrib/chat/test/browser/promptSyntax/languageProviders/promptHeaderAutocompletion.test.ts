@@ -233,6 +233,19 @@ suite('PromptHeaderAutocompletion', () => {
 			].sort(sortByLabel));
 		});
 
+		test('do not complete structured properties after a scalar model fallback', async () => {
+			const content = [
+				'---',
+				'model:',
+				'  - name: MAE 4 (olama)',
+				'  - MAE 4.1 (copilot)',
+				'    |',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await getCompletions(content, PromptsType.agent), []);
+		});
+
 		test('complete provider reasoning values and advertised context tiers', async () => {
 			const effort = await getCompletions([
 				'---',
