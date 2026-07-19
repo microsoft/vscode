@@ -289,8 +289,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._shouldShowFindWidgetOnRestore = false;
 		}
 
-		// Do not unhide here: callers bind the CSS anchor after `claim`/`_show`.
-		// Showing early lets retained iframes flash at the default size (#323890).
+		// Visibility is updated only after a connected CSS anchor has been bound (#323890).
 	}
 
 	public setHtml(html: string) {
