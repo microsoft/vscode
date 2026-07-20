@@ -48,4 +48,17 @@ suite('SessionRouter helpers', () => {
 		assert.strictEqual(ranked[0].sessionId, 's1');
 		assert.ok(ranked[0].confidence > ranked[1].confidence);
 	});
+
+	test('heuristicScore gives an obvious label match a routable (>= 0.5) confidence', () => {
+		const ROUTE_CONFIDENCE_THRESHOLD = 0.5;
+		const ranked = heuristicScore({
+			utterance: 'can you keep working on the voice narration session please',
+			sessions: [
+				{ sessionId: 's1', label: 'voice narration', repo: 'meganrogge/momentum-map', status: 'idle' },
+				{ sessionId: 's2', label: 'docs cleanup', repo: 'microsoft/vscode-docs' }
+			]
+		});
+		assert.strictEqual(ranked[0].sessionId, 's1');
+		assert.ok(ranked[0].confidence >= ROUTE_CONFIDENCE_THRESHOLD, `expected >= ${ROUTE_CONFIDENCE_THRESHOLD}, got ${ranked[0].confidence}`);
+	});
 });

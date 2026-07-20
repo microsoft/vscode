@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatMessageRole, getTextResponseFromStream, IChatMessage, ILanguageModelsService } from '../../common/languageModels.js';
 import { buildRouterMessages, heuristicScore, ISessionRouteRequest, ISessionRouteResult, ISessionRouter, parseRouterResponse } from '../../common/sessionRouter.js';
@@ -57,6 +58,11 @@ export class SessionRouterService implements ISessionRouter {
 			const validIds = new Set(request.sessions.map(session => session.sessionId));
 			return parseRouterResponse(text, validIds);
 		} catch (err) {
+			// Preserve cancellation semantics: a canceled token must reject so the
+			// caller can abort routing, rather than silently degrading to the heuristic.
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			this.logService.trace('[SessionRouter] scoring request failed, falling back to heuristic', err);
 			return undefined;
 		}

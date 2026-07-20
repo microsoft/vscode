@@ -59,7 +59,7 @@ export interface ISessionRouter {
 	route(request: ISessionRouteRequest, token: CancellationToken): Promise<ISessionRouteResult[]>;
 }
 
-// ─── Prompt + parsing helpers (pure; reused by any scoring backend) ──────────
+// --- Prompt + parsing helpers (pure; reused by any scoring backend) ---
 
 /** A provider-agnostic chat message used to prompt the scoring model. */
 export interface ISessionRouterMessage {
@@ -151,23 +151,45 @@ export function parseRouterResponse(text: string, validSessionIds: ReadonlySet<s
 
 /**
  * Zero-dependency offline ranking used as the fallback when no scoring model is
- * available. Token-overlap heuristic over the session label/repo/cwd; good
- * enough to keep the routing UI functional without a model.
+ * available. Token-overlap heuristic over the session label/repo/cwd.
+ *
+ * The score is calibrated against the candidate's own metadata rather than the
+ * raw utterance length: it blends how much of the session's strongest identity
+ * field the utterance covers (recall, taken as the best match across label /
+ * repo / cwd so a strong label match is not diluted by repo or path tokens) with
+ * how much of the utterance those tokens consume (precision). This keeps an
+ * obvious label match routable even for long sentences instead of drowning it in
+ * unrelated utterance tokens.
  */
 export function heuristicScore(request: ISessionRouteRequest): ISessionRouteResult[] {
-	const terms = tokenize(request.utterance);
+	const terms = new Set(tokenize(request.utterance));
 	const results = request.sessions.map(session => {
-		const haystack = new Set(tokenize([session.label, session.repo, session.cwd].filter(isNonEmpty).join(' ')));
-		if (!terms.length || !haystack.size) {
+		if (!terms.size) {
 			return { sessionId: session.sessionId, confidence: 0 };
 		}
-		let hits = 0;
-		for (const term of terms) {
-			if (haystack.has(term)) {
-				hits++;
+		const fields = [session.label, session.repo, session.cwd].filter(isNonEmpty);
+		let bestRecall = 0;
+		const matchedTerms = new Set<string>();
+		for (const field of fields) {
+			const fieldTokens = new Set(tokenize(field));
+			if (!fieldTokens.size) {
+				continue;
 			}
+			let fieldHits = 0;
+			for (const token of fieldTokens) {
+				if (terms.has(token)) {
+					fieldHits++;
+					matchedTerms.add(token);
+				}
+			}
+			bestRecall = Math.max(bestRecall, fieldHits / fieldTokens.size);
 		}
-		return { sessionId: session.sessionId, confidence: hits / terms.length };
+		if (!matchedTerms.size) {
+			return { sessionId: session.sessionId, confidence: 0 };
+		}
+		const precision = matchedTerms.size / terms.size;
+		const confidence = 0.75 * bestRecall + 0.25 * precision;
+		return { sessionId: session.sessionId, confidence };
 	});
 	results.sort((a, b) => b.confidence - a.confidence);
 	return results;

@@ -97,7 +97,7 @@ import './voiceClient/ttsPlaybackService.js';
 import './voiceClient/voiceToolDispatchService.js';
 import './voiceClient/voiceSessionController.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
-import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { AgentChatAccessibilityHelp, ChatInputWindowAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ModeOpenChatGlobalAction, registerChatActions } from './actions/chatActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
@@ -2743,6 +2743,7 @@ AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
 AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
+AccessibleViewRegistry.register(new ChatInputWindowAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);

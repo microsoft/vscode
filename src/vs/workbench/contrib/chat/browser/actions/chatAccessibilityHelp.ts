@@ -43,6 +43,16 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export class ChatInputWindowAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly priority = 121;
+	readonly name = 'chatInputWindow';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ChatContextKeys.inChatInputWindow;
+	getProvider(accessor: ServicesAccessor) {
+		return getChatAccessibilityHelpProvider(accessor, undefined, 'chatInputWindow');
+	}
+}
+
 export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 119;
 	readonly name = 'editsView';
@@ -63,8 +73,17 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false): string {
 	const content = [];
+	if (type === 'chatInputWindow') {
+		content.push(localize('chatInputWindow.overview', 'The floating chat input window is an input-only surface. It has no response list; instead each request you submit is routed to the coding session it best matches, and its response appears in that session rather than here.'));
+		content.push(localize('chatInputWindow.routing', 'When no existing session is a confident match, a new session is started for the request. When several sessions match with comparable confidence, you are asked to choose one from a picker, which also offers starting a new session.'));
+		content.push(localize('chatInputWindow.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use Enter or the submit button to route a new request.'));
+		content.push(localize('chatInputWindow.dictate', 'To dictate your request using on-device speech-to-text, invoke the Dictate command{0}. Invoke it again to stop.', '<keybinding:workbench.action.chat.toggleSpeechToText>'));
+		content.push(localize('chatInputWindow.close', 'To close the floating chat input window, invoke the Close Floating Chat Input Window command, or toggle it with the Toggle Floating Chat Input Window command{0}.', '<keybinding:workbench.action.chat.toggleInputWindow>'));
+		content.push(localize('chatInputWindow.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
+		return content.join('\n');
+	}
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
 	}
@@ -167,7 +186,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	return content.join('\n');
 }
 
-export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView'): AccessibleContentProvider | undefined {
+export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow'): AccessibleContentProvider | undefined {
 	const widgetService = accessor.get(IChatWidgetService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const environmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -187,11 +206,11 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService));
 	return new AccessibleContentProvider(
-		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
+		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : type === 'chatInputWindow' ? AccessibleViewProviderId.ChatInputWindow : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
-			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
+			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat' || type === 'chatInputWindow') {
 				if (cachedPosition) {
 					inputEditor.setPosition(cachedPosition);
 				}

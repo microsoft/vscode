@@ -2712,7 +2712,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
 			const inputValue = !query ? this.getInput() : query.query;
-			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind);
+			const attachedContext = this.input.getAttachedContext().asArray();
+			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext);
 			if (handled) {
 				return;
 			}
