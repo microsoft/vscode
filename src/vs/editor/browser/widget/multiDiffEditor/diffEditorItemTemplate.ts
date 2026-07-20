@@ -305,6 +305,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
+			// Recycled templates keep the previous resource's content height until the new
+			// diff model reports size; seed from this view model's last height instead.
+			const lastContentHeight = data.viewModel.lastTemplateData.get().contentHeight;
+			this._editorContentHeight.set(Math.max(0, lastContentHeight - this._outerEditorHeight), tx);
 			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
 			this.editor.updateOptions(updateOptions(value.options ?? {}));
 		});
