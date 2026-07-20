@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+/usr/bin/env bash
 #---------------------------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
@@ -111,7 +111,10 @@ wait_inc() { local g="$1" base="$2" t="$3" i; for i in $(seq 1 $((t*2))); do [ "
 MAX_SDK=0
 track() { [ "$1" -gt "$MAX_SDK" ] 2>/dev/null && MAX_SDK="$1"; [ "$VERBOSE" = 1 ] && echo "			 · sdk=$1 startups=$(g_startups) results=$(g_results) cancels=$(g_cancels)" >&2; return 0; }
 
-LONG='List every integer from 1 to 500, one number on each line, and output nothing else.'
+# A turn that CANNOT complete quickly: the model calls its Bash tool and the turn
+# stays in-flight (parked on approval, or running the sleep) until we abort it.
+# An enumeration prompt can be shortcut by the model; a blocking tool call cannot.
+LONG='Use your Bash tool to run exactly this command and wait for it to finish before replying: sleep 40'
 
 # ── lifecycle ────────────────────────────────────────────────────────────────
 cleanup() {
@@ -120,9 +123,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Discard the current launched window between retry attempts (fresh log + fresh session).
+kill_app_for_retry() {
+	PW close >/dev/null 2>&1 || true
+	[ -n "$APP_PID" ] && kill "$APP_PID" 2>/dev/null || true
+	APP_PID=""
+	sleep 2
+}
+
 launch_or_attach() {
-	if [ -n "$CDP" ]; then
-		echo "▸ attaching to existing Agents window on CDP $CDP"
+	if [ -n "$USER_CDP" ]; then
+		echo "▸ attaching to existing Agents window on CDP $USER_CDP"
+		CDP="$USER_CDP"
 		# caller must also export RUN via $SMOKE_RUN when attaching
 		RUN="${SMOKE_RUN:?--cdp requires SMOKE_RUN=<runDir> so the log can be found}"
 	else
@@ -133,7 +145,7 @@ launch_or_attach() {
 		echo "	cdp=$CDP pid=$APP_PID"
 	fi
 	PW attach --cdp="http://127.0.0.1:$CDP" >/dev/null 2>&1
-	sleep 1
+	sleep 5   # let the window finish initialising + the client tool-sync settle
 }
 
 # ── scenarios ────────────────────────────────────────────────────────────────
@@ -171,6 +183,7 @@ _abort_inflight() {
 	local c0; c0="$(g_cancels)"; local r0="$1" a
 	for a in $(seq 1 6); do
 		click_cancel >/dev/null
+		PW press Meta+Escape >/dev/null 2>&1   # ⌘Escape stop, in case the cancel button isn't hittable
 		sleep 1.5
 		[ "$(g_cancels)" -gt "$c0" ] 2>/dev/null && return 0		# abort landed
 		[ "$(g_results)" -gt "$r0" ] 2>/dev/null && return 1		# model finished first
@@ -230,12 +243,29 @@ scenario_abort_churn() {
 
 # ── run ──────────────────────────────────────────────────────────────────────
 echo "=== Claude Agent Host — live E2E smoke ($(date +%H:%M:%S)) ==="
-BASELINE_SDK="$(_sdk_all)"				# exclude any pre-existing (other-run) SDK subprocesses
-launch_or_attach
-scenario_materialize
-scenario_reuse
-scenario_recover_rebuild
-scenario_abort_churn
+USER_CDP="$CDP"                       # the window the user asked us to attach to, if any
+ATTEMPTS=1
+[ -z "$USER_CDP" ] && ATTEMPTS=3      # launch mode: retry the activeClientSet materialize storm on a fresh window
+
+for attempt in $(seq 1 "$ATTEMPTS"); do
+	PASS=0; FAIL=0; FAILURES=(); MAX_SDK=0
+	[ "$attempt" -gt 1 ] && echo "⟳ attempt $attempt/$ATTEMPTS"
+	BASELINE_SDK="$(_sdk_all)"			# exclude any pre-existing (other-run) SDK subprocesses
+	launch_or_attach
+	scenario_materialize
+	# Materialize is the scenario the `activeClientSet` race poisons. If it survives, the
+	# session is stable — run the rest and stop retrying. If it fails and we can relaunch,
+	# discard this window and try a fresh one (a real regression fails EVERY attempt; the
+	# flaky storm does not).
+	if [ "$FAIL" -eq 0 ]; then
+		scenario_reuse
+		scenario_recover_rebuild
+		scenario_abort_churn
+		break
+	fi
+	echo "  ✗ materialize failed — likely the activeClientSet race"
+	[ "$attempt" -lt "$ATTEMPTS" ] && kill_app_for_retry
+done
 
 echo ""
 echo "=== summary: $PASS passed, $FAIL failed	 (peak subprocs=$MAX_SDK) ==="

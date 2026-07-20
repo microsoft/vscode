@@ -129,10 +129,10 @@ export class ClaudeAgentSession extends Disposable {
 	/**
 	 * Pre-materialize custom-agent selection. Mutable; flows into
 	 * `Options.agent` (resolved to the SDK agent name) on materialize
-	 * and on every rematerializer call. Mid-session changes via
+	 * and on every rebuild. Mid-session changes via
 	 * {@link setAgent} flip {@link clientCustomizationsDiff} dirty so the
-	 * next `send()` rebinds and the new agent reaches the SDK on the
-	 * rebuilt `Query`. The SDK's `Options.agent` is captured at startup
+	 * next `send()` rebuilds and the new agent reaches the SDK on the
+	 * fresh `Query`. The SDK's `Options.agent` is captured at startup
 	 * — there is no runtime control-plane equivalent.
 	 */
 	private _provisionalAgent: AgentSelection | undefined;
@@ -223,8 +223,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * Phase 10 — owns the workbench-registered client-tool snapshot
 	 * (via {@link SessionClientToolsDiff.model}) plus the
 	 * "changed since last successful build" dirty bit. Read by the
-	 * agent's sendMessage diff check; used by the materialize /
-	 * rematerializer flow to pin the SDK build against a specific
+	 * agent's sendMessage diff check; used by the materialize / rebuild
+	 * flow to pin the SDK build against a specific
 	 * snapshot. See {@link SessionClientToolsDiff} for the C6 race
 	 * semantics this collaborator enforces.
 	 */
@@ -423,10 +423,11 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Bring the session up: build SDK `Options`, start the SDK, open the
-	 * session-scoped DB ref, construct the pipeline, and attach the
-	 * rematerializer used for yield-restart (e.g. after a client-tool
-	 * snapshot change). Idempotent on re-call: extra calls throw rather
-	 * than silently re-materialize.
+	 * session-scoped DB ref, and install the pipeline. Yield-restart
+	 * rebuilds (e.g. after a client-tool snapshot change) are orchestrated
+	 * by `send()` via {@link _installPipeline}, not attached here.
+	 * Idempotent on re-call: extra calls throw rather than silently
+	 * re-materialize.
 	 *
 	 * If the supplied {@link IMaterializeContext.proxyHandle}'s underlying
 	 * `abortController` fires while `sdk.startup()` is in flight, the SDK
@@ -507,43 +508,45 @@ export class ClaudeAgentSession extends Disposable {
 	 *
 	 * An abort or session-dispose landing during the `startup()` await is honored
 	 * by the post-await gate on {@link abortController} — the session-owned abort
-	 * target that replaces the pipeline's old placeholder-controller dance.
+	 * target that replaces the pipeline's old placeholder-controller dance. The
+	 * `warm` is handed to the pipeline as its sole owner (its dispose/teardown
+	 * async-disposes it), so the session never touches `warm` itself: on that raced
+	 * abort the gate disposes the just-built pipeline, which tears the `warm` down.
 	 */
 	private async _installPipeline(isResume: boolean, freshController: boolean): Promise<ClaudePermissionMode> {
 		if (freshController) {
 			this.abortController = new AbortController();
 		}
 		const { warm, permissionMode } = await this._startSdkQuery(isResume, this.abortController);
-		if (this.abortController.signal.aborted || this._store.isDisposed) {
-			await warm[Symbol.asyncDispose]();
-			throw new CancellationError();
-		}
 		const dbRef = this._sessionDataService.openDatabase(this._storageUri);
 		const store = new DisposableStore();
-		let pipeline: ClaudeSdkPipeline;
-		try {
-			pipeline = store.add(this._instantiationService.createInstance(
-				ClaudeSdkPipeline,
-				this.sessionId,
-				this.sessionUri,
-				this._chatChannelUri,
-				warm,
-				this.abortController,
-				dbRef,
-				this.subagents,
-				(toolName: string) => this.toolDiff.model.ownerOf(toolName),
-				{
-					model: toSdkModelId(this._provisionalModel?.id),
-					effort: toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
-					permissionMode,
-				},
-			));
-		} catch (err) {
-			dbRef.dispose();
-			await warm[Symbol.asyncDispose]();
-			throw err;
-		}
+		// Hand `warm` (and `dbRef`) to the pipeline as their SOLE owner: its dispose/teardown
+		// async-disposes them, so the session never touches `warm` again. The construction
+		// chain is pure field-assignment + sub-construction on always-registered services, so
+		// it does not throw — no orphan-cleanup path is needed.
+		const pipeline = store.add(this._instantiationService.createInstance(
+			ClaudeSdkPipeline,
+			this.sessionId,
+			this.sessionUri,
+			this._chatChannelUri,
+			warm,
+			this.abortController,
+			dbRef,
+			this.subagents,
+			(toolName: string) => this.toolDiff.model.ownerOf(toolName),
+			{
+				model: toSdkModelId(this._provisionalModel?.id),
+				effort: toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
+				permissionMode,
+			},
+		));
 		store.add(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
+		// An abort or session-dispose that raced `startup()`: tear the just-built pipeline
+		// down (it owns `warm`'s teardown now) and bail, rather than installing a dead one.
+		if (this.abortController.signal.aborted || this._store.isDisposed) {
+			store.dispose();
+			throw new CancellationError();
+		}
 		// Swap in the new pipeline, disposing the previous (pipeline + its signal
 		// subscription + the dbRef it transitively owns) via the store.
 		this._pipelineStore.value = store;
@@ -597,7 +600,7 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Build the SDK tool wiring shared by the initial materialize and every
-	 * yield-restart rematerialize: the in-process MCP servers plus the
+	 * yield-restart rebuild: the in-process MCP servers plus the
 	 * auto-approve allow-list.
 	 *
 	 * The MCP servers are the workbench client tools (which round-trip to the
