@@ -470,7 +470,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				const delay = this._reconnectAttempts <= FAST_RETRY_COUNT
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
-				this._logService.warn(`[voice] reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
+				this._logService.warn(`[voice] ws closed abnormally (code=${evt.code} reason=${evt.reason || 'none'} wasClean=${evt.wasClean}); reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
 				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
 			}
 		};
