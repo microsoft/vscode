@@ -591,7 +591,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * live press. See `_retryDeferredNarration` for the revalidation on retry.
 	 * Cleared on a new turn (`thinking`) or teardown.
 	 */
-	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string }>();
+	private readonly _deferredNarrations = new Map<string, { narrationId: string; kind: 'response' | 'confirmation'; text: string; reuseNarrationId: boolean }>();
 
 	/**
 	 * The confirmation detail text last actually HEARD (final audio arrived) per
@@ -1014,7 +1014,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// its timeout) so clicking the session again re-requests immediately.
 				const pending = this._pendingSolicitedNarrations.get(finishedResponseId);
 				if (pending) {
-					this._clearPendingSolicitedNarration(finishedResponseId, pending);
+					this._deferInterruptedNarration(finishedResponseId, pending);
 				}
 			}
 
@@ -1511,12 +1511,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._voiceEventDisposables.add(this.voiceClientService.onSpeechStarted(() => {
 			this._clearAutoListenTimer();
 			this._userSpeechActive = true;
-			this.ttsPlaybackService.stopPlayback();
-			this._audioQueue.length = 0;
-			this._currentPlaybackSessionId = null;
-			this._currentPlaybackResponseId = undefined;
-			this._isProcessingQueue = false;
-			this._suppressIncomingAudio = true;
+			this._interruptAssistantPlayback();
 			this._startUserTurn();
 		}));
 
@@ -1537,6 +1532,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Audio response → fade transcript, queue for sequential playback
 		this._voiceEventDisposables.add(this.voiceClientService.onAudioResponse(e => {
+			if (this._isInterruptedAudio(e)) {
+				return;
+			}
 			// Latency telemetry: first audio chunk marks end of turn
 			if (e.isFirstChunk && this._telemetryPttUpMs) {
 				const ttft = this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs
@@ -1555,9 +1553,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// (otherwise it is stranded and never read). Untagged / non-agent-host
 			// ids pass through unchanged.
 			const codingSessionId = this._canonicalSessionId(e.codingSessionId);
-			if (this._isInterruptedAudio(e)) {
-				return;
-			}
 			// A confirmation was resolved (e.g. the user pressed Allow) while its
 			// narration was still being requested/streamed: drop the now-stale
 			// approval narration so it isn't read aloud after the fact. Matched
@@ -2044,13 +2039,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		this._userSpeechActive = true;
 		this._startUserTurn();
+		this._rememberInterruptedAudioId(event.interruptedTurnId);
+		this._dropInterruptedDeferredAudio();
+		this._interruptAssistantPlayback();
+	}
+
+	private _rememberInterruptedPlaybackIds(): void {
 		this._rememberInterruptedAudioId(this._currentPlaybackResponseId);
 		for (const queued of this._audioQueue) {
 			this._rememberInterruptedAudioId(queued.responseId);
 		}
-		this._rememberInterruptedAudioId(event.interruptedTurnId);
-		this._dropInterruptedDeferredAudio();
-		this._interruptAssistantPlayback();
 	}
 
 	private _rememberInterruptedAudioId(id: string | undefined): void {
@@ -2167,7 +2165,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._telemetryPttDownMs = Date.now();
 			this._telemetryFirstTranscriptionMs = undefined;
 			this._telemetryTurnCount++;
-			this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+			this._rememberInterruptedPlaybackIds();
+			this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 			if (this._delayedMicStopTimer) {
 				clearTimeout(this._delayedMicStopTimer);
 				this._delayedMicStopTimer = undefined;
@@ -2205,7 +2204,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._telemetryPttDownMs = Date.now();
 		this._telemetryFirstTranscriptionMs = undefined;
 		this._telemetryTurnCount++;
-		this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
+		this._rememberInterruptedPlaybackIds();
+		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 		if (this._delayedMicStopTimer) {
 			clearTimeout(this._delayedMicStopTimer);
 			this._delayedMicStopTimer = undefined;
@@ -3535,7 +3535,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const text = solicited?.text;
 		if (kind && text) {
 			this.logService.trace(`[voice] narration_ack busy id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; deferring`);
-			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text });
+			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind, text, reuseNarrationId: true });
 		}
 	}
 
@@ -3546,25 +3546,33 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * once the barge-in turn ends).
 	 */
 	private _handleNarrationInterrupted(e: IVoiceNarrationSignal): void {
-		const key = this._sessionKey(e.codingSessionId);
 		const solicited = this._pendingSolicitedNarrations.get(e.narrationId);
 		if (solicited) {
-			this._clearPendingSolicitedNarration(e.narrationId, solicited);
-		}
-		this._solicitedNarrationIds.delete(e.narrationId);
-		if (solicited) {
+			this._deferInterruptedNarration(e.narrationId, solicited);
 			this.logService.trace(`[voice] narration_interrupted id=${e.narrationId.slice(0, 8)}; deferring for revalidation`);
-			this._deferredNarrations.set(key, { narrationId: e.narrationId, kind: solicited.kind, text: solicited.text });
+		} else {
+			this._solicitedNarrationIds.delete(e.narrationId);
 		}
+	}
+
+	private _deferInterruptedNarration(narrationId: string, solicited: IPendingSolicitedNarration): void {
+		this._clearPendingSolicitedNarration(narrationId, solicited);
+		this._solicitedNarrationIds.delete(narrationId);
+		this._deferredNarrations.set(this._sessionKey(solicited.sessionId), {
+			narrationId,
+			kind: solicited.kind,
+			text: solicited.text,
+			reuseNarrationId: false,
+		});
 	}
 
 	/**
 	 * The `narration_unblocked` nudge fired for a deferred narration. Revalidate
 	 * against the current session state and only re-request if it is still
-	 * warranted, reusing the same id when the text is unchanged (so the backend
-	 * dedups a lost ack) and minting a fresh one when the text changed. If it is
-	 * no longer warranted (resolved, or a different kind), drop it without
-	 * speaking.
+	 * warranted, reusing the same id for a busy retry when the text is unchanged
+	 * (so the backend dedups a lost ack), but minting a fresh id after an
+	 * interruption because the old id is tombstoned for late-audio suppression.
+	 * If it is no longer warranted (resolved, or a different kind), drop it.
 	 */
 	private _retryDeferredNarration(sessionKey: string): void {
 		const deferred = this._deferredNarrations.get(sessionKey);
@@ -3594,7 +3602,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._clearDeferred(sessionKey);
 			return;
 		}
-		const reuseId = narratable.text === deferred.text ? deferred.narrationId : undefined;
+		const reuseId = deferred.reuseNarrationId && narratable.text === deferred.text ? deferred.narrationId : undefined;
 		this.logService.trace(`[voice] retrying deferred narration for ${sessionKey.slice(-32)} reuse=${!!reuseId}`);
 		this._clearDeferred(sessionKey);
 		this._narrate(sessionKey, narratable.kind, narratable.text, reuseId);
@@ -4197,6 +4205,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// --- Audio FIFO queue ---
 
 	private _interruptAssistantPlayback(): void {
+		this._rememberInterruptedPlaybackIds();
 		this._telemetryTtsInterrupted = this._telemetryTtsInterrupted || this.ttsPlaybackService.isPlaying;
 		this._audioQueue.length = 0;
 		this._currentPlaybackSessionId = null;
