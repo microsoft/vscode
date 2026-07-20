@@ -38,6 +38,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentSessionRegistry } from './agentSessionRegistry.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -188,6 +189,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
+
+	/**
+	 * Orchestrator-owned durable index of the sessions that exist (Stage 1 of
+	 * I3 removal). Populated alongside the existing create/delete paths; not yet
+	 * driving enumeration.
+	 */
+	private readonly _sessionRegistry: AgentSessionRegistry;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
 	get stateManager(): AgentHostStateManager { return this._stateManager; }
@@ -354,6 +362,7 @@ export class AgentService extends Disposable implements IAgentService {
 		super();
 		this._logService.info('AgentService initialized');
 		this._authService = new AgentHostAuthenticationService(_logService);
+		this._sessionRegistry = this._register(new AgentSessionRegistry(this._sessionDataService, _logService));
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
 			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
 			changesetStateRetention: {
@@ -916,6 +925,17 @@ export class AgentService extends Disposable implements IAgentService {
 		return combined;
 	}
 
+	/**
+	 * Stage 1 (I3 removal) validation surface: the session URIs currently held
+	 * by the orchestrator-owned {@link AgentSessionRegistry}. This does NOT yet
+	 * drive {@link listSessions}; it exists so the registry can be validated for
+	 * parity against the live provider-derived enumeration before Stage 2
+	 * switches enumeration over to it.
+	 */
+	async getRegisteredSessions(): Promise<URI[]> {
+		return (await this._sessionRegistry.list()).map(s => s.session);
+	}
+
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const providerId = config?.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
@@ -1131,6 +1151,11 @@ export class AgentService extends Disposable implements IAgentService {
 			const workingDirectory = created.workingDirectory ?? config?.workingDirectory;
 			void this._gitStateService.refreshSessionGitState(session.toString(), workingDirectory);
 		}
+
+		// Stage 1 (I3 removal): record the session in the orchestrator-owned
+		// registry alongside the existing state-manager creation. Additive and
+		// fire-and-forget — it does not yet drive enumeration.
+		void this._sessionRegistry.register(session, provider.id, Date.now());
 
 		return session;
 	}
@@ -1736,6 +1761,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+		// Stage 1 (I3 removal): drop the session from the orchestrator-owned
+		// registry on true delete, mirroring the session-data deletion below.
+		void this._sessionRegistry.unregister(session);
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
 		await this._sessionDataService.deleteSessionData(session);
@@ -2499,6 +2527,11 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
+
+		// Stage 1 (I3 removal): a session restored from disk (created in a prior
+		// process) enters the orchestrator-owned registry too, so the registry
+		// reflects every live session regardless of how it was surfaced.
+		void this._sessionRegistry.register(session, agent.id, meta.startTime);
 
 		const promises: Promise<unknown>[] = [];
 		// Eagerly register subagent child sessions discovered in the event log

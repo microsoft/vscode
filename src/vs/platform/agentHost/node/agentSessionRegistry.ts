@@ -1,0 +1,175 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable, IReference, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentProvider } from '../common/agentService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+
+/** A session recorded in the orchestrator-owned {@link AgentSessionRegistry}. */
+export interface IRegisteredSession {
+	readonly session: URI;
+	readonly provider: AgentProvider;
+	/** Session creation time (ms since epoch) as first observed by the orchestrator. */
+	readonly startTime: number;
+}
+
+interface IPersistedRegistryEntry {
+	readonly provider: AgentProvider;
+	readonly startTime: number;
+}
+
+/**
+ * The reserved URI whose per-session database backs the registry index. Its
+ * scheme (`agent-host-registry`) cannot collide with a real session URI, which
+ * always carries a provider scheme (`copilot`/`claude`/`codex`/`copilotcli`).
+ */
+const REGISTRY_URI = URI.from({ scheme: 'agent-host-registry', path: '/sessions' });
+const REGISTRY_METADATA_KEY = 'sessionRegistry';
+
+/**
+ * A durable, orchestrator-owned index of the sessions that exist, keyed by
+ * session URI. Unlike the agents' `listSessions()` (which enumerates their own
+ * SDK sessions/threads and maps them to session URIs via invariant I3), this
+ * registry is authoritative on the AH side and does not depend on the agent
+ * exposing a session whose SDK id equals the session id.
+ *
+ * Persisted as a single JSON blob in a reserved session database, with
+ * serialized read-modify-write (mirroring the peer-chat catalog) so concurrent
+ * register/unregister calls never clobber each other.
+ *
+ * Stage 1 (this component) is purely additive: it is populated alongside the
+ * existing create/delete paths and validated against the live `listSessions`
+ * output, but does NOT yet drive enumeration.
+ */
+export class AgentSessionRegistry extends Disposable {
+
+	private _dbRef: IReference<ISessionDatabase> | undefined;
+	/** In-memory mirror of the persisted index; the source of truth once loaded. */
+	private _cache: Map<string, IPersistedRegistryEntry> | undefined;
+	/** Serializes read-modify-write of the persisted blob. */
+	private _writeChain: Promise<void> = Promise.resolve();
+	private _loadPromise: Promise<Map<string, IPersistedRegistryEntry>> | undefined;
+
+	constructor(
+		private readonly _sessionDataService: ISessionDataService,
+		private readonly _logService: ILogService,
+	) {
+		super();
+		this._register(toDisposable(() => this._dbRef?.dispose()));
+	}
+
+	/** Record (or refresh) a session in the registry. Idempotent per session URI. */
+	async register(session: URI, provider: AgentProvider, startTime: number): Promise<void> {
+		await this._enqueueWrite(cache => {
+			const key = session.toString();
+			const existing = cache.get(key);
+			// Preserve the first-observed startTime so a later re-register (e.g.
+			// a reconnect issuing createSession again) never rewrites it.
+			cache.set(key, { provider, startTime: existing?.startTime ?? startTime });
+		});
+	}
+
+	/** Remove a session from the registry (true delete). No-op if absent. */
+	async unregister(session: URI): Promise<void> {
+		await this._enqueueWrite(cache => {
+			cache.delete(session.toString());
+		});
+	}
+
+	/** Every session currently recorded, in no particular order. */
+	async list(): Promise<IRegisteredSession[]> {
+		const cache = await this._load();
+		const result: IRegisteredSession[] = [];
+		for (const [key, entry] of cache) {
+			result.push({ session: URI.parse(key), provider: entry.provider, startTime: entry.startTime });
+		}
+		return result;
+	}
+
+	/** Whether the registry has ever been populated (used to gate one-time backfill). */
+	async isEmpty(): Promise<boolean> {
+		return (await this._load()).size === 0;
+	}
+
+	/**
+	 * One-time backfill: when the registry is empty (a host that predates it, or
+	 * a fresh index), seed it from the supplied sessions. Safe to call on every
+	 * startup — it only writes when the registry is currently empty.
+	 */
+	async backfillIfEmpty(sessions: readonly IRegisteredSession[]): Promise<void> {
+		if (sessions.length === 0 || !(await this.isEmpty())) {
+			return;
+		}
+		await this._enqueueWrite(cache => {
+			if (cache.size > 0) {
+				return; // a concurrent register won the race; don't overwrite
+			}
+			for (const s of sessions) {
+				cache.set(s.session.toString(), { provider: s.provider, startTime: s.startTime });
+			}
+		});
+	}
+
+	private _enqueueWrite(mutate: (cache: Map<string, IPersistedRegistryEntry>) => void): Promise<void> {
+		const next = this._writeChain
+			.catch(() => { /* a failed prior write must not block later ones */ })
+			.then(async () => {
+				const cache = await this._load();
+				mutate(cache);
+				await this._persist(cache);
+			});
+		this._writeChain = next.catch(() => { /* keep the chain alive */ });
+		return next;
+	}
+
+	private _load(): Promise<Map<string, IPersistedRegistryEntry>> {
+		if (this._cache) {
+			return Promise.resolve(this._cache);
+		}
+		this._loadPromise ??= this._doLoad();
+		return this._loadPromise;
+	}
+
+	private async _doLoad(): Promise<Map<string, IPersistedRegistryEntry>> {
+		const cache = new Map<string, IPersistedRegistryEntry>();
+		try {
+			const raw = await this._db().getMetadata(REGISTRY_METADATA_KEY);
+			if (raw !== undefined) {
+				const parsed = JSON.parse(raw);
+				if (parsed && typeof parsed === 'object') {
+					for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+						const entry = value as Partial<IPersistedRegistryEntry>;
+						if (entry && typeof entry.provider === 'string' && typeof entry.startTime === 'number') {
+							cache.set(key, { provider: entry.provider, startTime: entry.startTime });
+						}
+					}
+				}
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentSessionRegistry] Failed to load registry; starting empty: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		this._cache = cache;
+		return cache;
+	}
+
+	private async _persist(cache: Map<string, IPersistedRegistryEntry>): Promise<void> {
+		const obj: Record<string, IPersistedRegistryEntry> = {};
+		for (const [key, entry] of cache) {
+			obj[key] = entry;
+		}
+		try {
+			await this._db().setMetadata(REGISTRY_METADATA_KEY, JSON.stringify(obj));
+		} catch (err) {
+			this._logService.warn(`[AgentSessionRegistry] Failed to persist registry: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	private _db(): ISessionDatabase {
+		this._dbRef ??= this._sessionDataService.openDatabase(REGISTRY_URI);
+		return this._dbRef.object;
+	}
+}

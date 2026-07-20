@@ -1020,6 +1020,28 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
+		test('session registry stays in parity with listSessions across create/delete', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+
+			const first = await svc.createSession({ provider: 'copilot' });
+			const second = await svc.createSession({ provider: 'copilot' });
+
+			const listedAfterCreate = new Set((await svc.listSessions()).map(s => s.session.toString()));
+			const registeredAfterCreate = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
+			assert.deepStrictEqual(registeredAfterCreate, listedAfterCreate);
+			assert.deepStrictEqual(registeredAfterCreate, new Set([first.toString(), second.toString()]));
+
+			await svc.disposeSession(first);
+
+			const listedAfterDelete = new Set((await svc.listSessions()).map(s => s.session.toString()));
+			const registeredAfterDelete = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
+			assert.deepStrictEqual(registeredAfterDelete, listedAfterDelete);
+			assert.deepStrictEqual(registeredAfterDelete, new Set([second.toString()]));
+		});
+
 		test('listSessions overlays custom title from session database', async () => {
 			// Pre-seed a custom title in an in-memory database
 			const db = disposables.add(await SessionDatabase.open(':memory:'));
