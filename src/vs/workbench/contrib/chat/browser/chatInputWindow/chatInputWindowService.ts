@@ -103,8 +103,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this.closeWindow();
 			}
 		};
-		mainWindow.addEventListener('beforeunload', onBeforeUnload);
-		this._register({ dispose: () => mainWindow.removeEventListener('beforeunload', onBeforeUnload) });
+		this._register(dom.addDisposableListener(mainWindow, 'beforeunload', onBeforeUnload));
 
 		const wasOpen = this.storageService.getBoolean(ChatInputWindowStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
 		if (wasOpen) {
