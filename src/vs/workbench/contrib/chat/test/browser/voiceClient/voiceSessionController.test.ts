@@ -32,7 +32,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
@@ -45,7 +45,8 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override readonly onBargeIn = this.bargeInEmitter.event;
 	private readonly transcriptionEmitter = new Emitter<IVoiceTranscription>();
 	override readonly onTranscription = this.transcriptionEmitter.event;
-	override readonly onToolCall = Event.None;
+	private readonly toolCallEmitter = new Emitter<IVoiceToolCall>();
+	override readonly onToolCall = this.toolCallEmitter.event;
 	override readonly onNarrationAck = Event.None;
 	override readonly onNarrationUnblocked = Event.None;
 	override readonly onNarrationInterrupted = Event.None;
@@ -60,7 +61,13 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	override async connect(): Promise<void> { }
 	override sendSessionContext(): void { }
 	override flushSessionContext(): void { }
-	override sendToolResult(): void { }
+	readonly toolResults: { callId: string; result: string }[] = [];
+	private toolResultResolver: (() => void) | undefined;
+	readonly toolResultReceived = new Promise<void>(resolve => this.toolResultResolver = resolve);
+	override sendToolResult(callId: string, result: string): void {
+		this.toolResults.push({ callId, result });
+		this.toolResultResolver?.();
+	}
 
 	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
@@ -80,10 +87,15 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.transcriptionEmitter.fire(event);
 	}
 
+	fireToolCall(event: IVoiceToolCall): void {
+		this.toolCallEmitter.fire(event);
+	}
+
 	dispose(): void {
 		this.audioResponseEmitter.dispose();
 		this.bargeInEmitter.dispose();
 		this.transcriptionEmitter.dispose();
+		this.toolCallEmitter.dispose();
 	}
 }
 
@@ -136,6 +148,20 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override getAllWidgets() { return []; }
 }
 
+class TestCommandService extends mock<ICommandService>() {
+	readonly acceptedInputs: string[] = [];
+
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		let result: string | undefined;
+		if (commandId === '_chat.voice.getCurrentSession') {
+			result = 'chat-session';
+		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
+			this.acceptedInputs.push(args[0]);
+		}
+		return result as T;
+	}
+}
+
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
@@ -149,7 +175,7 @@ suite('VoiceSessionController', () => {
 		sinon.restore();
 	});
 
-	function createController(voiceClientService: TestVoiceClientService, ttsPlaybackService = new TestTtsPlaybackService()): IVoiceSessionController {
+	function createController(voiceClientService: TestVoiceClientService, ttsPlaybackService = new TestTtsPlaybackService(), commandService: ICommandService = new TestCommandService()): IVoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		return store.add(new VoiceSessionController(
 			voiceClientService,
@@ -173,9 +199,7 @@ suite('VoiceSessionController', () => {
 			}(),
 			new TestAgentSessionsService(),
 			new TestChatService(),
-			new class extends mock<ICommandService>() {
-				override async executeCommand(): Promise<undefined> { return undefined; }
-			}(),
+			commandService,
 			new class extends mock<IAuthenticationService>() {
 				override async getSessions(): Promise<[]> { return []; }
 			}(),
@@ -196,7 +220,8 @@ suite('VoiceSessionController', () => {
 	test('barge-in drops delayed audio from the interrupted turn before playing the follow-up', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
-		const controller = createController(voiceClientService, ttsPlaybackService);
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
 		await controller.connect(mainWindow);
 
 		voiceClientService.fireAudioResponse({
@@ -223,6 +248,12 @@ suite('VoiceSessionController', () => {
 			turnId: 'follow-up-turn',
 			revision: 1,
 		});
+		voiceClientService.fireToolCall({
+			callId: 'send-follow-up',
+			name: 'send_to_chat',
+			args: { text: 'actually scratch that and check the code in the repository' },
+		});
+		await voiceClientService.toolResultReceived;
 
 		voiceClientService.fireAudioResponse({
 			audio: 'stale-story-continuation',
@@ -243,6 +274,8 @@ suite('VoiceSessionController', () => {
 			playedAudio: ttsPlaybackService.playedAudio,
 			stopCount: ttsPlaybackService.stopCount,
 			transcript: controller.transcriptTurns.get().at(-1),
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
 		}, {
 			playedAudio: ['story-start', 'follow-up-acknowledgement'],
 			stopCount: 1,
@@ -252,6 +285,8 @@ suite('VoiceSessionController', () => {
 				committed: '',
 				isPartial: false,
 			},
+			acceptedInputs: ['actually scratch that and check the code in the repository'],
+			toolResults: [{ callId: 'send-follow-up', result: 'ok' }],
 		});
 	});
 
