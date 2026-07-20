@@ -48,7 +48,8 @@ suite('PolicyTelemetryContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	function createContribution(policyService: TestPolicyService): { events: { name: string; data: unknown }[] } {
+	function createContribution(policyService: TestPolicyService): { events: { name: string; data: unknown }[]; clock: sinon.SinonFakeTimers } {
+		const clock = sinon.useFakeTimers();
 		const events: { name: string; data: unknown }[] = [];
 		const telemetryService = {
 			publicLog2: (name: string, data: unknown) => { events.push({ name, data }); },
@@ -58,11 +59,12 @@ suite('PolicyTelemetryContribution', () => {
 			policyService,
 			telemetryService as never,
 		));
-		return { events };
+		return { events, clock };
 	}
 
 	test('emits an empty applied event at startup when no policies are set', () => {
-		const { events } = createContribution(new TestPolicyService());
+		const { events, clock } = createContribution(new TestPolicyService());
+		clock.tick(500);
 
 		assert.deepStrictEqual(events, [{ name: 'policy.applied', data: EMPTY_EVENT }]);
 	});
@@ -79,7 +81,8 @@ suite('PolicyTelemetryContribution', () => {
 		policyService.setPolicy('TelemetryLevel', 'all');
 		policyService.setPolicy('EnableFeedback', false);
 
-		const { events } = createContribution(policyService);
+		const { events, clock } = createContribution(policyService);
+		clock.tick(500);
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
@@ -106,7 +109,8 @@ suite('PolicyTelemetryContribution', () => {
 		policyService.setPolicy('ChatStrictMarketplaces', 'not-json');
 		policyService.setPolicy('TelemetryLevel', 'private-value');
 
-		const { events } = createContribution(policyService);
+		const { events, clock } = createContribution(policyService);
+		clock.tick(500);
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
@@ -121,7 +125,8 @@ suite('PolicyTelemetryContribution', () => {
 		const policyService = new TestPolicyService();
 		policyService.setPolicy('OtherPolicy', true);
 
-		const { events } = createContribution(policyService);
+		const { events, clock } = createContribution(policyService);
+		clock.tick(500);
 
 		assert.deepStrictEqual(events[0].data, {
 			...EMPTY_EVENT,
@@ -129,19 +134,21 @@ suite('PolicyTelemetryContribution', () => {
 		});
 	});
 
-	test('re-emits only when the resolved policy state changes', () => {
-		const clock = sinon.useFakeTimers();
+	test('coalesces startup changes and re-emits only when the resolved policy state changes', () => {
 		const policyService = new TestPolicyService();
-		const { events } = createContribution(policyService);
+		const { events, clock } = createContribution(policyService);
 
 		policyService.setPolicy('TelemetryLevel', 'off');
 		policyService.fireChange();
-		clock.tick(1000);
+		clock.tick(500);
+
+		policyService.setPolicy('TelemetryLevel', 'all');
 		policyService.fireChange();
-		clock.tick(1000);
+		clock.tick(500);
+		policyService.fireChange();
+		clock.tick(500);
 
 		assert.deepStrictEqual(events, [
-			{ name: 'policy.applied', data: EMPTY_EVENT },
 			{
 				name: 'policy.applied',
 				data: {
@@ -149,6 +156,15 @@ suite('PolicyTelemetryContribution', () => {
 					policyCount: 1,
 					telemetryLevelSet: true,
 					telemetryLevel: 'off',
+				},
+			},
+			{
+				name: 'policy.applied',
+				data: {
+					...EMPTY_EVENT,
+					policyCount: 1,
+					telemetryLevelSet: true,
+					telemetryLevel: 'all',
 				},
 			},
 		]);

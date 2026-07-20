@@ -72,7 +72,7 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this.report();
+		this.scheduler.schedule();
 		this._register(this.policyService.onDidChange(() => this.scheduler.schedule()));
 	}
 
