@@ -870,7 +870,12 @@ function computeSettings(): Settings {
 		if (!Array.isArray(fileMatch) || !workspaceFolder) {
 			return fileMatch;
 		}
-		const folderString = workspaceFolder.toString(true).replace(/\/$/, '');
+		// Drop the query and fragment like the server does for document uris, and turn glob
+		// metacharacters in the folder string into regex hex escapes, which the glob passes
+		// through, so folder names can not alter the meaning of the pattern.
+		const folderString = workspaceFolder.with({ query: '', fragment: '' }).toString(true)
+			.replace(/\/$/, '')
+			.replace(/[*?{}[\],\\]/g, c => `\\x${c.charCodeAt(0).toString(16)}`);
 		return fileMatch.map(fm => typeof fm === 'string' ? fm.replace(/^(!?)\$\{workspaceFolder\}/, (_match, exclusion) => exclusion + folderString) : fm);
 	};
 
