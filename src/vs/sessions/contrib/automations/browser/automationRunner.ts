@@ -14,7 +14,7 @@ import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib
 import { IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Sessions-layer runner. Never throws; failures are recorded on the run row. */
@@ -94,23 +94,32 @@ export class AutomationRunner implements IAutomationRunner {
 				background: true,
 				title: automation.name?.substring(0, 100),
 			};
-			const branch = automation.isolationMode === 'worktree' ? automation.branch : undefined;
+			const target = automation.target;
+			const isolationMode = target.kind === 'workspace'
+				? target.isolation.kind === 'folder' ? 'workspace' : target.isolation.kind === 'worktree' ? 'worktree' : undefined
+				: undefined;
+			const branch = target.kind === 'workspace' && target.isolation.kind === 'worktree' ? target.isolation.branch : undefined;
 
-			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId !== undefined || automation.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || automation.isolationMode !== undefined || branch !== undefined
+			const createOptions: ICreateNewSessionOptions | undefined = target.providerId !== undefined || target.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || isolationMode !== undefined || branch !== undefined
 				? {
-					providerId: automation.providerId,
-					sessionTypeId: automation.sessionTypeId,
+					providerId: target.providerId,
+					sessionTypeId: target.sessionTypeId,
 					modelId: automation.modelId,
 					modeId: automation.mode,
 					permissionLevel: automation.permissionLevel,
-					isolationMode: automation.isolationMode,
+					isolationMode,
 					branch,
 				}
 				: undefined;
 
-			this.logService.trace(`[AutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
+			this.logService.trace(`[AutomationRunner] running ${automation.id}: target=${target.kind}, provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
 
-			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions, token);
+			let session: ISession | undefined;
+			if (target.kind === 'quickChat') {
+				session = await this.sessionsManagementService.createAndSendQuickChatRequest(options, createOptions, token);
+			} else {
+				session = await this.sessionsManagementService.createAndSendNewChatRequest(target.folderUri, options, createOptions, token);
+			}
 
 			if (session) {
 				await this.automationService.updateRun(runId, {

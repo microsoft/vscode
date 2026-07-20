@@ -122,6 +122,8 @@ export interface IChatWidgetService {
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 
+	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
+
 	/**
 	 * Fires when a chat session is no longer open in any chat widget.
 	 */
@@ -359,6 +361,7 @@ export interface IChatWidgetViewModelChangeEvent {
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
+	readonly visible: boolean;
 	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;

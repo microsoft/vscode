@@ -853,7 +853,6 @@ export interface MainThreadStorageShape extends IDisposable {
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
-	$setExperimentProperty(name: string, value: string): void;
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {

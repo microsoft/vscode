@@ -22,7 +22,8 @@ export interface BaseJsonSchema {
 	$schema?: string;
 	title?: string;
 	description?: string;
-	deprecated?: boolean;
+	deprecationMessage?: string;
+	markdownDeprecationMessage?: string;
 
 	definitions?: {
 		[name: string]: JsonSchema;

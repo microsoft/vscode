@@ -2147,6 +2147,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 	lastFocusedWidget: IChatWidget | undefined;
 
 	onDidAddWidget = Event.None;
+	onDidChangeWidgetVisibility = Event.None;
 	onDidBackgroundSession = Event.None;
 	onDidChangeFocusedWidget = Event.None;
 	onDidChangeFocusedSession = Event.None;
