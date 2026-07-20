@@ -1,0 +1,128 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Delete delete-me.txt.
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Delete delete-me.txt.
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - channel: ${session_0}
+        action:
+          type: session/serverToolsChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${session_0}
+        action:
+          type: session/changesetsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: I’ll remove `delete-me.txt` from the workspace now and confirm the result.I’ll remove `delete-me.txt` from the workspace now and confirm the result.
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: shell
+          displayName: Run shell command
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallDelta
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+          toolInput: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+          confirmed: not-needed
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallReady
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          invocationMessage: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+          toolInput: rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededSet
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallConfirmed
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          approved: true
+          confirmed: user-action
+      - channel: ${session_0}
+        action:
+          type: session/inputNeededRemoved
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+            pastTenseMessage: Ran `rm -f delete-me.txt && test ! -e delete-me.txt && echo "deleted"`
+            content:
+              - type: text
+                text: |
+                  deleted
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: Deleted `delete-me.txt`.Deleted `delete-me.txt`.
+      - channel: ${chat_0}
+        action:
+          type: chat/usage
+          turnId: ${turn_0}
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
