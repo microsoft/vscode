@@ -38,7 +38,6 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -103,6 +102,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
 import { ChatSpeechToTextService, IChatSpeechToTextService } from './speechToText/chatSpeechToTextService.js';
+import { RedundantDictationExtensionNotifier } from './speechToText/redundantDictationExtensionNotifier.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
@@ -262,20 +262,14 @@ configurationRegistry.registerConfiguration({
 		'chat.speechToText.model': {
 			type: 'string',
 			enum: [
-				'onnx-community/whisper-tiny',
-				'onnx-community/whisper-base',
-				'onnx-community/whisper-small',
-				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+				'nemotron-speech-streaming-en-0.6b',
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
+			enumItemLabels: ['Nemotron Streaming (English)'],
 			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
-				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
-				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
-				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
+				nls.localize('chat.speechToText.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run through Microsoft Foundry Local. Low-latency, high accuracy, matches the GitHub Copilot app."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Transcription runs locally through Microsoft Foundry Local."),
+			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
 		'chat.speechToText.mode': {
@@ -2283,6 +2277,25 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			return pairs;
 		}
 	},
+	{
+		// The on-device dictation runtime moved to Foundry Local; the old
+		// transformers.js/onnxruntime model IDs no longer resolve and would fail
+		// with an unknown-model error. Map any explicitly-stored legacy value to
+		// the new default so existing users keep working.
+		key: 'chat.speechToText.model',
+		migrateFn: (value: unknown) => {
+			const legacyModelIds = [
+				'onnx-community/whisper-tiny',
+				'onnx-community/whisper-base',
+				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			];
+			if (typeof value === 'string' && legacyModelIds.includes(value)) {
+				return { value: 'nemotron-speech-streaming-en-0.6b' };
+			}
+			return [];
+		}
+	},
 ]);
 
 class ChatResolverContribution extends Disposable {
@@ -2484,7 +2497,6 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.foregroundSessionCountContextKey = ChatContextKeys.foregroundSessionCount.bindTo(this.contextKeyService);
@@ -2493,7 +2505,7 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 			this.updateForegroundSessionCount();
 		}));
 
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+		this._register(this.chatWidgetService.onDidChangeWidgetVisibility(() => {
 			this.updateForegroundSessionCount();
 		}));
 
@@ -2508,7 +2520,7 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 		let count = this.viewsService.isViewVisible(ChatViewId) ? 1 : 0;
 
 		for (const widget of this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)) {
-			if (widget.domNode.offsetParent === null) {
+			if (!widget.visible) {
 				continue;
 			}
 
@@ -2732,6 +2744,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RedundantDictationExtensionNotifier.ID, RedundantDictationExtensionNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);

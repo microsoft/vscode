@@ -1281,22 +1281,31 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(claudeItem.item?.description, undefined);
 	});
 
-	test('pinned models appear in dedicated pinned section', () => {
+	test('pinned models are grouped by provider and sorted alphabetically', () => {
 		const auto = createAutoModel();
-		const modelA = createModel('gpt-4o', 'GPT-4o');
-		const modelB = createModel('claude', 'Claude');
-		const modelC = createModel('gemini', 'Gemini');
-		const items = callBuild([auto, modelA, modelB, modelC], {
-			pinnedModelIds: [modelB.identifier, modelA.identifier],
+		const copilotAlpha = createAgentHostModel('copilot-alpha', 'Alpha', { id: 'copilotcli' });
+		const copilotZeta = createAgentHostModel('copilot-zeta', 'Zeta', { id: 'copilotcli' });
+		const openRouterAlpha = createAgentHostModel('openrouter-alpha', 'Alpha', { id: 'openrouter' });
+		const openRouterZeta = createAgentHostModel('openrouter-zeta', 'Zeta', { id: 'openrouter' });
+		const languageModelsService = createLanguageModelsServiceStub([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', groups: [] },
+			{ vendor: 'openrouter', displayName: 'Open Router', groups: [] },
+		]);
+		const items = callBuild([auto, copilotZeta, openRouterZeta, copilotAlpha, openRouterAlpha], {
+			pinnedModelIds: [openRouterZeta.identifier, copilotZeta.identifier, openRouterAlpha.identifier, copilotAlpha.identifier],
+			languageModelsService,
 		});
-		// Pinned section header exists
 		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
 		assert.ok(pinnedSep, 'Pinned separator header should exist');
-		// Pinned models appear in pin order (Claude first, then GPT-4o)
 		const pinnedSepIndex = items.indexOf(pinnedSep!);
-		const afterPinned = items.slice(pinnedSepIndex + 1);
-		const firstPinned = afterPinned.find(i => i.kind === ActionListItemKind.Action);
-		assert.strictEqual(firstPinned?.label, 'Claude');
+		const nextSeparatorIndex = items.findIndex((item, index) => index > pinnedSepIndex && item.kind === ActionListItemKind.Separator);
+		const pinnedItems = items.slice(pinnedSepIndex + 1, nextSeparatorIndex);
+		assert.deepStrictEqual(pinnedItems.map(item => ({ provider: item.badge, name: item.label })), [
+			{ provider: 'Copilot', name: 'Alpha' },
+			{ provider: 'Copilot', name: 'Zeta' },
+			{ provider: 'Open Router', name: 'Alpha' },
+			{ provider: 'Open Router', name: 'Zeta' },
+		]);
 	});
 
 	test('pinned models do not appear in MRU/promoted section', () => {
