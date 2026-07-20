@@ -2289,7 +2289,7 @@ export class Repository {
 
 		const limiter = new Limiter<IExecutionResult<string>>(5);
 		const promises: Promise<IExecutionResult<string>>[] = [];
-		const args = ['clean', '-f', '-q'];
+		const args = ['--literal-pathspecs', 'clean', '-f', '-q'];
 
 		for (const paths of groups) {
 			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {

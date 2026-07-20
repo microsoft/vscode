@@ -12,6 +12,7 @@ import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
+import { Git } from '../git';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -145,6 +146,31 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('cleans paths literally #133566', async function () {
+		const repositoryRoot = file('repository with spaces');
+		const literalPath = path.join(repositoryRoot, '[target]');
+		const globMatchPath = path.join(repositoryRoot, 't');
+		const logger = window.createOutputChannel('Git Clean Test', { log: true });
+
+		try {
+			fs.mkdirSync(repositoryRoot);
+			const git = new Git({ gitPath: 'git', version: '2.0.0', userAgent: 'test' });
+			await git.init(repositoryRoot);
+			const testRepository = git.open(repositoryRoot, undefined, await git.getRepositoryDotGit(repositoryRoot), logger);
+
+			fs.writeFileSync(literalPath, '');
+			fs.writeFileSync(globMatchPath, '');
+
+			await testRepository.clean([literalPath]);
+
+			assert.strictEqual(fs.existsSync(literalPath), false);
+			assert.strictEqual(fs.existsSync(globMatchPath), true);
+		} finally {
+			logger.dispose();
+			fs.rmSync(repositoryRoot, { recursive: true, force: true });
+		}
 	});
 
 	test('rename/delete conflict', async function () {
