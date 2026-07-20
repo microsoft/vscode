@@ -91,6 +91,8 @@ suite('ChatDictationController', () => {
 		await withAsyncTestCodeEditor('draft', {}, async editor => {
 			const service = store.add(new TestSpeechToTextService());
 			const controller = store.add(new ChatDictationController(service, new NullLogService()));
+			const activity: boolean[] = [];
+			store.add(controller.onDidChangeActive(active => activity.push(active)));
 			editor.setPosition({ lineNumber: 1, column: 6 });
 
 			await controller.start(editor, mainWindow);
@@ -102,9 +104,11 @@ suite('ChatDictationController', () => {
 			assert.deepStrictEqual({
 				text: editor.getModel()!.getValue(),
 				readOnly: editor.getOption(EditorOption.readOnly),
+				activity,
 			}, {
 				text: 'draft final transcript',
 				readOnly: false,
+				activity: [true, false],
 			});
 
 			editor.getModel()!.undo();

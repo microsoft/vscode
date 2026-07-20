@@ -22,8 +22,9 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../speechToText/chatSpeechToTextService.js';
 import { IChatDictationController } from '../speechToText/dictationSession.js';
+import { getDictationMode, startDictationWithHoldMode } from '../speechToText/dictationMode.js';
 
 // Gate on `ChatContextKeys.enabled` so the dictation UI and its commands are
 // hidden (not just disabled) when the user has turned AI features off; without
@@ -34,25 +35,6 @@ export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.spee
 const ChatSpeechToTextStarting = ContextKeyExpr.has(ChatContextKeys.speechToTextStarting.key);
 const ChatSpeechToTextFinalizing = ContextKeyExpr.has(ChatContextKeys.speechToTextFinalizing.key);
 
-
-/** Releases shorter than this are treated as an accidental tap and discarded. */
-const HOLD_TO_TALK_THRESHOLD_MS = 500;
-
-/** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
-const DICTATION_MODE_SETTING = 'chat.speechToText.mode';
-
-/**
- * How the dictation shortcut behaves:
- * - `toggle`: tap to start, tap again to stop.
- * - `pushToTalk`: dictate only while the shortcut is held (release stops).
- * - `auto` (default): a quick tap toggles, holding is push-to-talk.
- */
-type DictationMode = 'auto' | 'toggle' | 'pushToTalk';
-
-function getDictationMode(configurationService: IConfigurationService): DictationMode {
-	const value = configurationService.getValue<DictationMode>(DICTATION_MODE_SETTING);
-	return value === 'toggle' || value === 'pushToTalk' ? value : 'auto';
-}
 
 class ToggleChatSpeechToTextAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleSpeechToText';
@@ -123,32 +105,15 @@ class ToggleChatSpeechToTextAction extends Action2 {
 		// Pure toggle mode (or when the action is not invoked via a held
 		// keybinding, e.g. the toolbar mic or the command palette): just start
 		// dictating and rely on the next invocation to stop.
-		const holdMode = mode === 'toggle' ? undefined : keybindingService.enableKeybindingHoldMode(ToggleChatSpeechToTextAction.ID);
-		const heldFrom = Date.now();
-		const start = dictationController.start(widget.inputEditor, window);
-		if (!holdMode) {
-			await start;
-			return;
-		}
-
-		await holdMode;
-		const heldMs = Date.now() - heldFrom;
-
-		if (heldMs < HOLD_TO_TALK_THRESHOLD_MS) {
-			if (mode === 'pushToTalk') {
-				dictationController.cancel();
-				await start;
-			}
-			return;
-		}
-
-		if (getSpeechToTextState(speechService) === ChatSpeechToTextState.Starting) {
-			dictationController.cancel();
-			await start;
-			return;
-		}
-		await start;
-		await dictationController.stop();
+		const keyRelease = keybindingService.enableKeybindingHoldMode(ToggleChatSpeechToTextAction.ID);
+		const holdMode = mode === 'toggle' ? undefined : keyRelease;
+		await startDictationWithHoldMode({
+			mode,
+			holdMode,
+			speechToTextService: speechService,
+			dictationController,
+			start: () => dictationController.start(widget.inputEditor, window),
+		});
 	}
 }
 
@@ -260,23 +225,14 @@ class HoldToSpeechToTextAction extends Action2 {
 		}
 
 		const window = getWindow(widget.domNode) ?? getActiveWindow();
-		const heldFrom = Date.now();
-		const start = dictationController.start(widget.inputEditor, window);
-		await holdMode;
-
-		if (getSpeechToTextState(speechService) === ChatSpeechToTextState.Starting || Date.now() - heldFrom < HOLD_TO_TALK_THRESHOLD_MS) {
-			dictationController.cancel();
-			await start;
-			return;
-		}
-
-		await start;
-		await dictationController.stop();
+		await startDictationWithHoldMode({
+			mode: 'pushToTalk',
+			holdMode,
+			speechToTextService: speechService,
+			dictationController,
+			start: () => dictationController.start(widget.inputEditor, window),
+		});
 	}
-}
-
-function getSpeechToTextState(service: IChatSpeechToTextService): ChatSpeechToTextState {
-	return service.state;
 }
 
 class SelectSpeechToTextMicrophoneAction extends Action2 {
@@ -391,7 +347,9 @@ class EnableChatDictationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IConfigurationService).updateValue(REMOTE_ENABLED_SETTING, true, ConfigurationTarget.APPLICATION);
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(SPEECH_TO_TEXT_ENABLED_SETTING, true, ConfigurationTarget.APPLICATION);
+		await configurationService.updateValue(SPEECH_TO_TEXT_PROVIDER_SETTING, ChatSpeechToTextProvider.MaiVoice, ConfigurationTarget.APPLICATION);
 	}
 }
 

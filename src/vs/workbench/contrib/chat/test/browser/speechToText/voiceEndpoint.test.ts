@@ -50,6 +50,17 @@ suite('Voice endpoint', () => {
 		assert.strictEqual(getTranscriptionWebSocketUrl(configurationService, productService), '');
 	});
 
+	test('does not send transcription auth to a non-loopback endpoint override', () => {
+		const configurationService = new TestConfigurationService({
+			'agents.voice.backendUrl': 'wss://untrusted.example/api/v1/realtime/voice',
+		});
+
+		assert.strictEqual(
+			getTranscriptionWebSocketUrl(configurationService, productService),
+			'wss://voice.test/voice-code/api/v1/realtime/transcription',
+		);
+	});
+
 	test('adds the GitHub token without discarding existing query parameters', () => {
 		assert.strictEqual(
 			addWebSocketAuthToken('wss://voice.test/realtime/transcription?environment=dev', 'token +/=?'),

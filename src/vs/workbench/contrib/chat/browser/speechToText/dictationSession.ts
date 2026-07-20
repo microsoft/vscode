@@ -6,6 +6,7 @@
 import './media/dictationSession.css';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
@@ -26,6 +27,7 @@ export const IChatDictationController = createDecorator<IChatDictationController
 
 export interface IChatDictationController {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeActive: Event<boolean>;
 	readonly isActive: boolean;
 	readonly activeEditor: ICodeEditor | undefined;
 	start(editor: ICodeEditor, window: Window & typeof globalThis): Promise<void>;
@@ -259,6 +261,8 @@ export class ChatDictationController extends Disposable implements IChatDictatio
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _onDidChangeActive = this._register(new Emitter<boolean>());
+	readonly onDidChangeActive = this._onDidChangeActive.event;
 	private _session: IActiveDictation | undefined;
 
 	get isActive(): boolean {
@@ -322,6 +326,7 @@ export class ChatDictationController extends Disposable implements IChatDictatio
 		disposables.add(editor.onDidDispose(() => this._endSession({ revert: true, cancelService: true })));
 		this._session = { editor, inserter, disposables, stopping: false };
 		this._active.value = disposables;
+		this._onDidChangeActive.fire(true);
 		try {
 			await this._speechToTextService.start(window);
 			if (this._speechToTextService.state === ChatSpeechToTextState.Idle && this._session?.editor === editor) {
@@ -387,7 +392,11 @@ export class ChatDictationController extends Disposable implements IChatDictatio
 	}
 
 	private _clearSession(): void {
+		if (!this._session) {
+			return;
+		}
 		this._session = undefined;
 		this._active.clear();
+		this._onDidChangeActive.fire(false);
 	}
 }

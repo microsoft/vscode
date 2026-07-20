@@ -242,7 +242,7 @@
 	"github.copilot.walkthrough.dictation.title": "Dictate requests to Copilot Chat",
 	"github.copilot.walkthrough.dictation.description": "Use your microphone to compose a request, then review and edit the transcript before sending it.",
 	"github.copilot.walkthrough.dictation.step.title": "Enable Chat dictation",
-	"github.copilot.walkthrough.dictation.step.description": "Select the microphone in the Chat input to start dictating. Select stop to finish, review the editable transcript, and send it when ready. Dictation never sends automatically.\n\n[Enable Dictation](command:workbench.action.chat.enableDictation)\n\n[Open Settings](command:workbench.action.openSettings?%5B%22chat.experimental.dictation.enabled%22%5D)",
+	"github.copilot.walkthrough.dictation.step.description": "Select the microphone in the Chat input to start dictating with MAI Voice. Select stop to finish, review the editable transcript, and send it when ready. Dictation never sends automatically.\n\n[Use MAI Voice](command:workbench.action.chat.enableDictation)\n\n[Open Settings](command:workbench.action.openSettings?%5B%22chat.speechToText.provider%22%5D)",
 	"github.copilot.walkthrough.dictation.media.altText": "GitHub Copilot logo representing dictation in Copilot Chat",
 	"github.copilot.walkthrough.inlineChatNotMac.title": "Use natural language in your files",
 	"github.copilot.walkthrough.inlineChatNotMac.description": "Sometimes, it's easier to describe the code you want to write directly within a file.\nPlace your cursor or make a selection and use **``Ctrl+I``** to open **Inline Chat**.",

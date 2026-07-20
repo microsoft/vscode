@@ -6672,7 +6672,7 @@
         "id": "copilotDictation",
         "title": "%github.copilot.walkthrough.dictation.title%",
         "description": "%github.copilot.walkthrough.dictation.description%",
-        "when": "!isWeb && chatIsEnabled && !config.chat.experimental.dictation.enabled",
+        "when": "!isWeb && chatIsEnabled && (!config.chat.speechToText.enabled || config.chat.speechToText.provider != maiVoice)",
         "steps": [
           {
             "id": "copilot.dictation.enable",

@@ -64,6 +64,7 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 
 	private _window: (Window & typeof globalThis) | undefined;
 	private _socket: WebSocket | undefined;
+	private _connectDeferred: DeferredPromise<void> | undefined;
 	private _sessionInit: DeferredPromise<void> | undefined;
 	private _intentionalClose = false;
 	private _pingTimer: ReturnType<Window['setInterval']> | undefined;
@@ -94,7 +95,7 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 		const socket = new window.WebSocket(addWebSocketAuthToken(baseUrl, authToken));
 		this._socket = socket;
 
-		const opened = new DeferredPromise<void>();
+		const opened = this._connectDeferred = new DeferredPromise<void>();
 		socket.onopen = () => {
 			if (this._socket !== socket) {
 				return;
@@ -102,7 +103,11 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 			this._startPing();
 			opened.complete();
 		};
-		socket.onmessage = event => this._handleMessage(event);
+		socket.onmessage = event => {
+			if (this._socket === socket) {
+				this._handleMessage(event);
+			}
+		};
 		socket.onerror = () => {
 			if (!opened.isSettled) {
 				opened.error(new Error('Transcription WebSocket connection failed'));
@@ -124,7 +129,13 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 			}
 		};
 
-		await opened.p;
+		try {
+			await opened.p;
+		} finally {
+			if (this._connectDeferred === opened) {
+				this._connectDeferred = undefined;
+			}
+		}
 	}
 
 	async startSession(): Promise<void> {
@@ -274,6 +285,8 @@ export class VoiceCodeTranscriptionClient extends Disposable implements IVoiceCo
 	disconnect(): void {
 		this._intentionalClose = true;
 		this._stopPing();
+		this._connectDeferred?.cancel();
+		this._connectDeferred = undefined;
 		this._sessionInit?.cancel();
 		this._sessionInit = undefined;
 		const socket = this._socket;

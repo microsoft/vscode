@@ -163,4 +163,35 @@ suite('VoiceCodeTranscriptionClient', () => {
 			resetAt: '2026-07-17T00:00:00Z',
 		}]);
 	});
+
+	test('disconnect settles a pending connection immediately', async () => {
+		const client = createClient();
+		const connecting = client.connect(createTestWindow(), 'github-token');
+
+		client.disconnect();
+
+		await assert.rejects(connecting);
+	});
+
+	test('ignores session initialization from a stale socket', async () => {
+		const client = createClient();
+		const firstConnecting = client.connect(createTestWindow(), 'github-token');
+		const firstSocket = TestWebSocket.instance;
+		assert.ok(firstSocket);
+		const secondConnecting = client.connect(createTestWindow(), 'github-token');
+		await assert.rejects(firstConnecting);
+		const secondSocket = TestWebSocket.instance;
+		assert.ok(secondSocket);
+		secondSocket.open();
+		await secondConnecting;
+
+		let initialized = false;
+		const initialization = client.startSession().then(() => { initialized = true; });
+		firstSocket.receive({ type: 'session_init', session_id: 'stale-session' });
+		await Promise.resolve();
+		assert.strictEqual(initialized, false);
+		secondSocket.receive({ type: 'session_init', session_id: 'current-session' });
+		await initialization;
+		assert.strictEqual(initialized, true);
+	});
 });

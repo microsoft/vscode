@@ -31,8 +31,12 @@ export const IChatSpeechToTextService = createDecorator<IChatSpeechToTextService
 const SAMPLE_RATE = 16000;
 
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
-const ENABLED_SETTING = 'chat.speechToText.enabled';
-export const REMOTE_ENABLED_SETTING = 'chat.experimental.dictation.enabled';
+export const SPEECH_TO_TEXT_ENABLED_SETTING = 'chat.speechToText.enabled';
+export const SPEECH_TO_TEXT_PROVIDER_SETTING = 'chat.speechToText.provider';
+export const enum ChatSpeechToTextProvider {
+	Local = 'local',
+	MaiVoice = 'maiVoice',
+}
 /** On-device model (Whisper or Nemotron) to use for dictation. */
 const MODEL_SETTING = 'chat.speechToText.model';
 /** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
@@ -147,7 +151,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _isPreparingModel = false;
 	get isPreparingModel(): boolean {
-		if (this._isRemoteEnabled()) {
+		if (this._isMaiVoiceProviderSelected()) {
 			return false;
 		}
 		return this._isPreparingModel;
@@ -163,7 +167,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
-		if (this._isRemoteEnabled()) {
+		if (this._isMaiVoiceProviderSelected()) {
 			return toChatSpeechToTextState(this._remoteSpeechToText.state);
 		}
 		return this._state;
@@ -183,13 +187,15 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	private readonly _localSessionDisposables = this._register(new DisposableStore());
 	private readonly _localAudioLease = this._register(new MutableDisposable<IDisposable>());
 	private _localOperationId = 0;
+	private _localStartPromise: Promise<void> | undefined;
+	private _localStopPromise: Promise<string | undefined> | undefined;
 
 	get isConfigured(): boolean {
-		if (this._isRemoteEnabled()) {
-			return this._remoteSpeechToText.isConfigured;
-		}
-		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
+		if (this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) === false) {
 			return false;
+		}
+		if (this._isMaiVoiceProviderSelected()) {
+			return this._remoteSpeechToText.isConfigured;
 		}
 		// On-device transcription needs no configuration — the model downloads
 		// on first use. It is only unavailable where the platform lacks native
@@ -234,11 +240,10 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ENABLED_SETTING) || e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
-				if (e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
-					if (!this._isRemoteEnabled() && this._remoteSpeechToText.state !== RemoteChatSpeechToTextState.Idle) {
-						this._remoteSpeechToText.cancel();
-					} else if (this._isRemoteEnabled() && this._state !== ChatSpeechToTextState.Idle) {
+			if (e.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+				if ((e.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) && !this.isConfigured)
+					|| e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+					if (this._remoteSpeechToText.state !== RemoteChatSpeechToTextState.Idle || this._state !== ChatSpeechToTextState.Idle) {
 						this.cancel();
 					}
 					this._updateStateContextKeys(ChatSpeechToTextState.Idle);
@@ -250,7 +255,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._register(this._remoteSpeechToText.onDidUpdateTranscript(text => this._onDidUpdateTranscript.fire(text)));
 		this._register(this._remoteSpeechToText.onDidFail(() => this._onDidFail.fire()));
 		this._register(this._remoteSpeechToText.onDidChangeState(state => {
-			if (this._isRemoteEnabled()) {
+			if (this._isMaiVoiceProviderSelected()) {
 				const chatState = toChatSpeechToTextState(state);
 				this._updateStateContextKeys(chatState);
 				this._onDidChangeState.fire(chatState);
@@ -336,14 +341,28 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async start(window: Window & typeof globalThis): Promise<void> {
-		if (this._isRemoteEnabled()) {
-			return this._remoteSpeechToText.start(window);
-		}
-		if (this._state !== ChatSpeechToTextState.Idle) {
+		if (this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) === false) {
 			return;
 		}
+		if (this._isMaiVoiceProviderSelected()) {
+			return this._remoteSpeechToText.start(window);
+		}
+		if (this._localStartPromise || this._localStopPromise) {
+			return;
+		}
+		const start = this._startLocal(window);
+		this._localStartPromise = start;
+		try {
+			await start;
+		} finally {
+			if (this._localStartPromise === start) {
+				this._localStartPromise = undefined;
+			}
+		}
+	}
 
-		if (this._configurationService.getValue<boolean>(ENABLED_SETTING) === false) {
+	private async _startLocal(window: Window & typeof globalThis): Promise<void> {
+		if (this._state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
 
@@ -374,7 +393,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			if (!this._isCurrentLocalStart(operationId)) {
 				return;
 			}
-			this._localAudioLease.clear();
+			this._teardown();
+			this._setState(ChatSpeechToTextState.Idle);
 			this._sessionErrorCode = this._sessionErrorCode || 'microphone';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] microphone acquisition failed', err);
@@ -399,6 +419,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 				return;
 			}
 			this._teardown();
+			this._setState(ChatSpeechToTextState.Idle);
 			this._sessionErrorCode = this._sessionErrorCode || 'connect';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start transcription', err);
@@ -419,6 +440,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			// down instead of leaking an active recording in the Idle state.
 			this._localTranscription.cancel();
 			this._teardown();
+			this._setState(ChatSpeechToTextState.Idle);
 			this._sessionErrorCode = this._sessionErrorCode || 'capture';
 			this._logSessionTelemetry('error');
 			this._logService.error('[chat-stt] failed to start audio capture', err);
@@ -453,7 +475,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		// surface progress until it is ready; recording proceeds meanwhile and
 		// interim transcripts begin once the model finishes loading.
 		const status = await local.getModelStatus();
-		if (status.state !== LocalTranscriptionModelState.Ready && status.state !== LocalTranscriptionModelState.Error) {
+		if (status.state === LocalTranscriptionModelState.Error) {
+			this._handleModelStatus(status);
+		} else if (status.state !== LocalTranscriptionModelState.Ready) {
 			this._trackModelPreparation();
 		}
 	}
@@ -604,12 +628,28 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async stopAndTranscribe(): Promise<string | undefined> {
-		if (this._isRemoteEnabled()) {
+		if (this._isMaiVoiceProviderSelected()) {
 			return this._remoteSpeechToText.stopAndTranscribe();
 		}
+		if (this._localStopPromise) {
+			return this._localStopPromise;
+		}
+		const stop = this._stopLocalAndTranscribe();
+		this._localStopPromise = stop;
+		try {
+			return await stop;
+		} finally {
+			if (this._localStopPromise === stop) {
+				this._localStopPromise = undefined;
+			}
+		}
+	}
+
+	private async _stopLocalAndTranscribe(): Promise<string | undefined> {
 		if (this._state !== ChatSpeechToTextState.Recording) {
 			return undefined;
 		}
+		const operationId = this._localOperationId;
 
 		this._setState(ChatSpeechToTextState.Transcribing);
 		this._stopCapture();
@@ -624,6 +664,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		} catch (err) {
 			this._sessionErrorCode = this._sessionErrorCode || 'transcribe';
 			this._logService.error('[chat-stt] on-device final transcription failed', err);
+		}
+		if (operationId !== this._localOperationId) {
+			return undefined;
 		}
 		this._logSessionTelemetry(this._sessionErrorCode ? 'error' : 'completed');
 		this._teardown();
@@ -728,8 +771,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private _isRemoteEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(REMOTE_ENABLED_SETTING) === true;
+	private _isMaiVoiceProviderSelected(): boolean {
+		return this._configurationService.getValue<string>(SPEECH_TO_TEXT_PROVIDER_SETTING) === ChatSpeechToTextProvider.MaiVoice;
 	}
 }
 

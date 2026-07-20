@@ -84,6 +84,7 @@ export class RemoteChatSpeechToTextService extends Disposable implements IRemote
 	private _turnId: string | undefined;
 	private _operationId = 0;
 	private _startInProgress = false;
+	private _stopPromise: Promise<string | undefined> | undefined;
 	private _recordingStartedAt = 0;
 	private _stopRequestedAt = 0;
 	private _connectLatencyMs = 0;
@@ -138,7 +139,7 @@ export class RemoteChatSpeechToTextService extends Disposable implements IRemote
 	}
 
 	async start(window: Window & typeof globalThis): Promise<void> {
-		if (this._state !== RemoteChatSpeechToTextState.Idle || this._startInProgress) {
+		if (this._state !== RemoteChatSpeechToTextState.Idle || this._startInProgress || this._stopPromise) {
 			return;
 		}
 		if (!this.isConfigured) {
@@ -189,6 +190,21 @@ export class RemoteChatSpeechToTextService extends Disposable implements IRemote
 	}
 
 	async stopAndTranscribe(): Promise<string | undefined> {
+		if (this._stopPromise) {
+			return this._stopPromise;
+		}
+		const stop = this._stopAndTranscribe();
+		this._stopPromise = stop;
+		try {
+			return await stop;
+		} finally {
+			if (this._stopPromise === stop) {
+				this._stopPromise = undefined;
+			}
+		}
+	}
+
+	private async _stopAndTranscribe(): Promise<string | undefined> {
 		if (this._state !== RemoteChatSpeechToTextState.Recording || !this._turnId) {
 			return undefined;
 		}
@@ -208,7 +224,7 @@ export class RemoteChatSpeechToTextService extends Disposable implements IRemote
 				throw new Error('Timed out waiting for final transcription');
 			}
 			this._logTelemetry('success', '', Date.now() - this._stopRequestedAt);
-			return text;
+			return text.trim() ? text : undefined;
 		} catch (error) {
 			this._fail('final', localize('chatDictation.finalError', "Dictation did not receive a final transcription."));
 			throw error;

@@ -205,6 +205,25 @@ suite('RemoteChatSpeechToTextService', () => {
 		});
 	});
 
+	test('does not commit whitespace-only final transcription', async () => {
+		const { service, client } = createService();
+		await service.start(mainWindow);
+		const turnId = client.sent.find(event => event.type === 'ptt_start')?.turnId;
+		assert.ok(turnId);
+
+		const final = service.stopAndTranscribe();
+		await Promise.resolve();
+		client.emitFinal(turnId, '   ');
+
+		assert.deepStrictEqual({
+			text: await final,
+			state: service.state,
+		}, {
+			text: undefined,
+			state: RemoteChatSpeechToTextState.Idle,
+		});
+	});
+
 	test('does not let a cancelled start clean up a newer session', async () => {
 		const authenticationService = new DelayedAuthenticationService();
 		const { service, client } = createService(authenticationService);

@@ -16,13 +16,17 @@ export function getVoiceWebSocketUrl(configurationService: IConfigurationService
 }
 
 export function getTranscriptionWebSocketUrl(configurationService: IConfigurationService, productService: IProductService): string {
-	const voiceUrl = getVoiceWebSocketUrl(configurationService, productService);
+	const configured = configurationService.getValue<string>('agents.voice.backendUrl')?.trim();
+	const voiceUrl = configured && isLoopbackWebSocketUrl(configured) ? configured : productService.voiceWsUrl;
 	if (!voiceUrl) {
 		return '';
 	}
 
 	try {
 		const url = new URL(voiceUrl);
+		if (url.protocol !== 'wss:' && !isLoopbackUrl(url)) {
+			return '';
+		}
 		const path = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
 		if (!path.endsWith(VOICE_PATH)) {
 			return '';
@@ -32,6 +36,19 @@ export function getTranscriptionWebSocketUrl(configurationService: IConfiguratio
 	} catch {
 		return '';
 	}
+}
+
+function isLoopbackWebSocketUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return (url.protocol === 'ws:' || url.protocol === 'wss:') && isLoopbackUrl(url);
+	} catch {
+		return false;
+	}
+}
+
+function isLoopbackUrl(url: URL): boolean {
+	return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
 }
 
 export function addWebSocketAuthToken(url: string, token: string): string {

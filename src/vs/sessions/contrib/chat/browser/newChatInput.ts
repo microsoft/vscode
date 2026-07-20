@@ -9,6 +9,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -81,8 +82,9 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IChatDictationController } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
+import { getDictationMode, startDictationWithHoldMode } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMode.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -293,6 +295,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _history: ChatHistoryNavigator;
 	private _historyNavigationBackwardsEnablement!: IHistoryNavigationContext['historyNavigationBackwardsEnablement'];
 	private _historyNavigationForwardsEnablement!: IHistoryNavigationContext['historyNavigationForwardsEnablement'];
+	private _dictationShortcutRelease: DeferredPromise<void> | undefined;
 
 	constructor(
 		private readonly options: {
@@ -366,6 +369,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
 		}));
+		this._register(this.chatDictationController.onDidChangeActive(() => this._updateSendButtonState()));
 	}
 
 	private _setHistoryKey(historyKey: string | undefined): void {
@@ -572,7 +576,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		this._register(this._editor.onDidFocusEditorWidget(() => this._onDidFocus.fire()));
-		this._register(this._editor.onDidBlurEditorWidget(() => this._onDidBlur.fire()));
+		this._register(this._editor.onDidBlurEditorWidget(() => {
+			this._releaseDictationShortcut();
+			this._onDidBlur.fire();
+		}));
+		this._register(toDisposable(() => this._releaseDictationShortcut()));
 
 		this._register(this._editor.onKeyDown(e => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey) {
@@ -596,12 +604,31 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				e.stopPropagation();
 				this._contextAttachments.showPicker(this.options.getContextFolderUri());
 			}
-			// Cmd+I / Ctrl+I — dictate into the input using on-device speech-to-text.
+			// Cmd+I / Ctrl+I — dictate into the input using the configured mode.
 			// The global Dictate action can't reach this composer, so route here.
 			if (this.chatSpeechToTextService.isConfigured && e.equals(KeyMod.CtrlCmd | KeyCode.KeyI)) {
 				e.preventDefault();
 				e.stopPropagation();
-				void this._toggleDictation();
+				if (e.browserEvent.repeat) {
+					return;
+				}
+				void this._startDictationShortcutPress();
+			}
+			if (e.keyCode === KeyCode.Escape
+				&& this.chatDictationController.isActive
+				&& (this.chatSpeechToTextService.state === ChatSpeechToTextState.Starting
+					|| this.chatSpeechToTextService.state === ChatSpeechToTextState.Recording)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._releaseDictationShortcut();
+				this.chatDictationController.cancel();
+			}
+		}));
+		this._register(this._editor.onKeyUp(e => {
+			if (e.keyCode === KeyCode.KeyI && this._dictationShortcutRelease) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._releaseDictationShortcut();
 			}
 		}));
 
@@ -776,6 +803,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					: finalizing ? finalizingLabel
 						: recording ? stopLabel : micLabel;
 			button.ariaDisabled = finalizing ? 'true' : 'false';
+			this._updateSendButtonState();
 		};
 		renderState();
 		this._register(sttService.onDidChangeState(renderState));
@@ -786,7 +814,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		};
 		updateVisibility();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
+			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
 				updateVisibility();
 			}
 		}));
@@ -818,10 +846,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private async _toggleDictation(): Promise<void> {
 		const sttService = this.chatSpeechToTextService;
 		if (this.chatDictationController.isActive) {
-			if (sttService.state === ChatSpeechToTextState.Recording) {
-				await this.chatDictationController.stop();
-			} else if (sttService.state === ChatSpeechToTextState.Starting) {
+			if (sttService.state === ChatSpeechToTextState.Starting || sttService.isPreparingModel) {
 				this.chatDictationController.cancel();
+			} else if (sttService.state === ChatSpeechToTextState.Recording) {
+				await this.chatDictationController.stop();
 			}
 			return;
 		}
@@ -833,6 +861,48 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 		await this.chatDictationController.start(this._editor, dom.getWindow(domNode));
+	}
+
+	private async _startDictationShortcutPress(): Promise<void> {
+		const speechToTextService = this.chatSpeechToTextService;
+		if (this._dictationShortcutRelease) {
+			return;
+		}
+		if (this.chatDictationController.isActive) {
+			await this._toggleDictation();
+			return;
+		}
+		if (!speechToTextService.isConfigured || speechToTextService.state !== ChatSpeechToTextState.Idle || !this._editor) {
+			return;
+		}
+		const domNode = this._editor.getDomNode();
+		if (!domNode) {
+			return;
+		}
+
+		const mode = getDictationMode(this.configurationService);
+		if (mode === 'toggle') {
+			await this.chatDictationController.start(this._editor, dom.getWindow(domNode));
+			return;
+		}
+		const release = this._dictationShortcutRelease = new DeferredPromise<void>();
+		try {
+			await startDictationWithHoldMode({
+				mode,
+				holdMode: release.p,
+				speechToTextService,
+				dictationController: this.chatDictationController,
+				start: () => this.chatDictationController.start(this._editor!, dom.getWindow(domNode)),
+			});
+		} finally {
+			if (this._dictationShortcutRelease === release) {
+				this._dictationShortcutRelease = undefined;
+			}
+		}
+	}
+
+	private _releaseDictationShortcut(): void {
+		this._dictationShortcutRelease?.complete();
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
@@ -897,6 +967,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(background = false): Promise<void> {
+		if (this.chatDictationController.isActive) {
+			return;
+		}
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
 		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
@@ -954,7 +1027,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
-		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment) && this._canSendRequest.get();
+		this._sendButton.enabled = !this._sending
+			&& !this.chatDictationController.isActive
+			&& (hasText || hasSendableAttachment)
+			&& this._canSendRequest.get();
 	}
 
 	private _restoreState(): void {

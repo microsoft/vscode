@@ -281,9 +281,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._logService.error('[voice] No voice WebSocket URL configured (set voiceWsUrl in product.json or agents.voice.backendUrl in settings)');
 			return;
 		}
-		const url = this._authToken ? addWebSocketAuthToken(baseUrl, this._authToken) : baseUrl;
 		let ws: WebSocket;
 		try {
+			const url = this._authToken ? addWebSocketAuthToken(baseUrl, this._authToken) : baseUrl;
 			ws = new win.WebSocket(url);
 		} catch (error) {
 			this._logService.error('[voice] failed to create WebSocket', error);

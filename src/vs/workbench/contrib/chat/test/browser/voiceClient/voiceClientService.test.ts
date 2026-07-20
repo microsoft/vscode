@@ -441,4 +441,14 @@ suite('VoiceClientService', () => {
 		await service.connect(createTestWindow());
 		assert.deepStrictEqual(terminalEvents, [{ code: 0, reason: 'WebSocket connection failed' }]);
 	});
+
+	test('reports malformed authenticated endpoint as terminal', async () => {
+		const { service } = createService({ 'agents.voice.backendUrl': 'not a websocket url' });
+		const terminalEvents: { code: number; reason: string }[] = [];
+		store.add(service.onFatalDisconnect(event => terminalEvents.push(event)));
+
+		await service.connect(createTestWindow(), 'github-token');
+
+		assert.deepStrictEqual(terminalEvents, [{ code: 0, reason: 'WebSocket connection failed' }]);
+	});
 });

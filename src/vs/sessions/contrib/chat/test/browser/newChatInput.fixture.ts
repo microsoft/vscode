@@ -104,6 +104,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 				override readonly isPreparingModel = false;
 			}());
 			reg.defineInstance(IChatDictationController, new class extends mock<IChatDictationController>() {
+				override readonly onDidChangeActive = Event.None;
 				override readonly isActive = false;
 				override readonly activeEditor = undefined;
 				override async start() { }

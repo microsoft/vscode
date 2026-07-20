@@ -11,7 +11,7 @@ import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../p
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatDictationNotificationContribution } from '../../browser/chatDictationNotification.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 class TestSpeechToTextService extends Disposable implements IChatSpeechToTextService {
@@ -80,14 +80,32 @@ suite('ChatDictationNotificationContribution', () => {
 		));
 
 		assert.strictEqual(notificationService.notification, undefined);
-		await configurationService.setUserConfiguration(REMOTE_ENABLED_SETTING, true);
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING, ChatSpeechToTextProvider.MaiVoice);
 		const configurationEvent: IConfigurationChangeEvent = {
 			source: ConfigurationTarget.APPLICATION,
-			affectedKeys: new Set([REMOTE_ENABLED_SETTING]),
-			change: { keys: [REMOTE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: key => key === REMOTE_ENABLED_SETTING,
+			affectedKeys: new Set([SPEECH_TO_TEXT_PROVIDER_SETTING]),
+			change: { keys: [SPEECH_TO_TEXT_PROVIDER_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SPEECH_TO_TEXT_PROVIDER_SETTING,
 		};
 		configurationService.onDidChangeConfigurationEmitter.fire(configurationEvent);
+		assert.strictEqual(notificationService.getActiveNotification()?.id, 'chat.dictation.firstUse');
+
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			...configurationEvent,
+			affectedKeys: new Set([SPEECH_TO_TEXT_ENABLED_SETTING]),
+			change: { keys: [SPEECH_TO_TEXT_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SPEECH_TO_TEXT_ENABLED_SETTING,
+		});
+		assert.strictEqual(notificationService.getActiveNotification(), undefined);
+
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			...configurationEvent,
+			affectedKeys: new Set([SPEECH_TO_TEXT_ENABLED_SETTING]),
+			change: { keys: [SPEECH_TO_TEXT_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SPEECH_TO_TEXT_ENABLED_SETTING,
+		});
 		assert.strictEqual(notificationService.getActiveNotification()?.id, 'chat.dictation.firstUse');
 
 		speechToTextService.setState(ChatSpeechToTextState.Recording);

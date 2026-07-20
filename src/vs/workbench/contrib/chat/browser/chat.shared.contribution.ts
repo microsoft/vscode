@@ -102,7 +102,7 @@ import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chat
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
-import { ChatSpeechToTextService, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextProvider, ChatSpeechToTextService, IChatSpeechToTextService, SPEECH_TO_TEXT_PROVIDER_SETTING } from './speechToText/chatSpeechToTextService.js';
 import { IRemoteChatSpeechToTextService, RemoteChatSpeechToTextService } from './speechToText/remoteChatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
 import { AudioCaptureLeaseService, IAudioCaptureLeaseService } from './voiceClient/audioCaptureLeaseService.js';
@@ -261,16 +261,25 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.speechToText.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input. When enabled, a microphone button appears in the chat input and the configured speech-to-text provider transcribes the recording."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
-		[REMOTE_ENABLED_SETTING]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.experimental.dictation.enabled', "Enables dictating into the Copilot Chat input using the hosted transcription service. Dictated text remains editable and is never sent automatically. When enabled, this setting takes precedence over on-device speech-to-text."),
-			default: false,
+		[SPEECH_TO_TEXT_PROVIDER_SETTING]: {
+			type: 'string',
+			enum: [ChatSpeechToTextProvider.Local, ChatSpeechToTextProvider.MaiVoice],
+			enumItemLabels: [
+				nls.localize('chat.speechToText.provider.local.label', "Local (On Device)"),
+				nls.localize('chat.speechToText.provider.maiVoice.label', "MAI Voice (Remote)"),
+			],
+			markdownEnumDescriptions: [
+				nls.localize('chat.speechToText.provider.local', "Transcribes audio on this device using the selected local model. Audio is not sent to a remote transcription service."),
+				nls.localize('chat.speechToText.provider.maiVoice', "Sends microphone audio to the Microsoft MAI Voice service for transcription. The final transcript remains editable and is never submitted automatically."),
+			],
+			markdownDescription: nls.localize('chat.speechToText.provider', "Controls which speech-to-text provider is used for chat dictation."),
+			default: ChatSpeechToTextProvider.Local,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental']
+			tags: ['experimental', 'usesOnlineServices']
 		},
 		'chat.speechToText.model': {
 			type: 'string',

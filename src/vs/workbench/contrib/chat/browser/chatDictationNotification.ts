@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, REMOTE_ENABLED_SETTING } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from './speechToText/chatSpeechToTextService.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const NOTIFICATION_ID = 'chat.dictation.firstUse';
@@ -25,7 +25,7 @@ export class ChatDictationNotificationContribution extends Disposable implements
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(REMOTE_ENABLED_SETTING)) {
+			if (event.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || event.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
 				this._update();
 			}
 		}));
@@ -65,6 +65,7 @@ export class ChatDictationNotificationContribution extends Disposable implements
 	}
 
 	private _isRemoteEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(REMOTE_ENABLED_SETTING) === true;
+		return this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) !== false
+			&& this._configurationService.getValue<string>(SPEECH_TO_TEXT_PROVIDER_SETTING) === ChatSpeechToTextProvider.MaiVoice;
 	}
 }
