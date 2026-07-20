@@ -41,10 +41,34 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 
 	override disconnect(): void { }
 
+	override sendSessionContext(): void { }
+
+	override flushSessionContext(): void { }
+
 	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
 		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
 		return id;
+	}
+}
+
+class RecordingMicCaptureService extends mock<IMicCaptureService>() {
+	readonly pttDownCalls: { turnId: string; passive: boolean | undefined }[] = [];
+	abortCalls = 0;
+	override readonly onPttStart = Event.None;
+	override readonly onPttAudioChunk = Event.None;
+	override readonly onPttEnd = Event.None;
+	override readonly onPttDiagnostic = Event.None;
+	override readonly analyserNode = undefined;
+	override isMuted = false;
+	override prepare(): void { }
+	override async startCapture(): Promise<void> { }
+	override stopCapture(): void { }
+	override abortPtt(): void { this.abortCalls++; }
+	override pttUp(): void { }
+	override suppressUntil(): void { }
+	override async pttDown(turnId: string, passive?: boolean): Promise<void> {
+		this.pttDownCalls.push({ turnId, passive });
 	}
 }
 
@@ -55,6 +79,7 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	override readonly analyserNode = undefined;
 	override getLastPlayedSamples(): Float32Array | null { return null; }
 	override closeContext(): void { }
+	override stopPlayback(): void { }
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -96,10 +121,10 @@ suite('VoiceSessionController', () => {
 		sinon.restore();
 	});
 
-	function createController(voiceClientService: TestVoiceClientService): IVoiceSessionController {
+	function createController(voiceClientService: TestVoiceClientService, micCaptureService?: IMicCaptureService): IVoiceSessionController {
 		return store.add(new VoiceSessionController(
 			voiceClientService,
-			new class extends mock<IMicCaptureService>() {
+			micCaptureService ?? new class extends mock<IMicCaptureService>() {
 				override readonly onPttStart = Event.None;
 				override readonly onPttAudioChunk = Event.None;
 				override readonly onPttEnd = Event.None;
@@ -113,7 +138,9 @@ suite('VoiceSessionController', () => {
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
 			}(),
-			new class extends mock<IVoicePlaybackService>() { }(),
+			new class extends mock<IVoicePlaybackService>() {
+				override notifyPlaybackStart(): void { }
+			}(),
 			new TestAgentSessionsService(),
 			new TestChatService(),
 			new class extends mock<ICommandService>() {
@@ -129,8 +156,10 @@ suite('VoiceSessionController', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() { }(),
 			NullTelemetryService,
 			new TestConfigurationService({ 'agents.voice.handsFree': false }),
-			new class extends mock<IAccessibilitySignalService>() { }(),
-			new class extends mock<IAccessibilityService>() { }(),
+			new class extends mock<IAccessibilitySignalService>() {
+				override async playSignal(): Promise<void> { }
+			}(),
+			new TestAccessibilityService(),
 			new TestChatWidgetService(),
 			new class extends mock<INotificationService>() { }(),
 		));
@@ -225,6 +254,190 @@ suite('VoiceSessionController', () => {
 		// expected, so it must not clobber that reply's state.
 		assert.strictEqual(pendingSolicitedNarrations.size, 0);
 		assert.strictEqual(controller.statusText.get(), 'Tap to start');
+	});
+	test('auto-listen opens a passive mic turn so the backend does not latch user_is_speaking', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
+		enterAutoListen.call(controller);
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, true);
+	});
+
+	test('a deliberate user press opens a non-passive mic turn', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+
+		assert.strictEqual(mic.pttDownCalls.length, 1);
+		assert.strictEqual(mic.pttDownCalls[0].passive, false);
+	});
+
+	test('a deliberate press awaiting narration is preserved so its ptt_end clears the backend latch', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		controller.pttDown();
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+
+		(Reflect.get(controller, '_prepareForPlayback') as () => void).call(controller);
+
+		// The non-passive press latched `user_is_speaking` on the backend; aborting
+		// it here would send no ptt_end and strand the latch, so it stays open.
+		assert.strictEqual(mic.abortCalls, 0);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+	});
+
+	test('a passive open-mic turn is torn down for playback since it never latched', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		Reflect.set(controller, '_pttCurrentTurnId', 'passive-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+		Reflect.set(controller, '_pttHeld', true);
+
+		(Reflect.get(controller, '_prepareForPlayback') as () => void).call(controller);
+
+		assert.strictEqual(mic.abortCalls, 1);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), false);
+	});
+
+	test('a held deliberate press keeps buffered narration deferred instead of playing over the press', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		// A deliberate (non-passive) press is being held; it latched the backend.
+		Reflect.set(controller, '_pttCurrentTurnId', 'deliberate-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_pttHeld', true);
+
+		// Buffer a finished response for a session that is now focused.
+		const deferred = Reflect.get(controller, '_deferredResponses') as Map<string, { responseId?: string; finalized: boolean; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[]>;
+		deferred.set('session-1', [{
+			responseId: 'r1',
+			finalized: true,
+			chunks: [{ audio: 'AAAA', isFirstChunk: true, isFinal: true, transcript: 'hello there' }],
+		}]);
+
+		const flush = Reflect.get(controller, '_flushDeferredResponse') as (sessionId: string) => { flushed: boolean; retained?: boolean; finalTranscripts: readonly string[] };
+		const result = flush.call(controller, 'session-1');
+
+		// The press is preserved, so nothing plays and the response stays buffered
+		// for a later flush (the periodic safety-net re-flush once the press
+		// releases, or a later focus). `retained` tells the focus path to skip
+		// issuing a fresh narration for this same reply.
+		assert.strictEqual(result.flushed, false);
+		assert.strictEqual(result.retained, true);
+		assert.strictEqual(Reflect.get(controller, '_currentPlaybackSessionId'), null);
+		assert.strictEqual((Reflect.get(controller, '_audioQueue') as unknown[]).length, 0);
+		const remaining = deferred.get('session-1');
+		assert.ok(remaining && remaining.length === 1, 'buffered response should remain deferred');
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
+	});
+
+	test('a buffered reply retained under a held press is not re-narrated (no duplicate on release)', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		const key = URI.parse('agent-host-copilot:/session-1').toString();
+
+		// A deliberate (non-passive) press is held; it latched the backend.
+		Reflect.set(controller, '_pttCurrentTurnId', 'deliberate-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_pttHeld', true);
+
+		// The session has a completed reply present BOTH as buffered audio and as
+		// a pending summary - the same reply the focus path would otherwise speak.
+		const deferred = Reflect.get(controller, '_deferredResponses') as Map<string, { responseId?: string; finalized: boolean; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[]>;
+		deferred.set(key, [{
+			responseId: 'r1',
+			finalized: true,
+			chunks: [{ audio: 'AAAA', isFirstChunk: true, isFinal: true, transcript: 'all done' }],
+		}]);
+		(Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).set(key, 'all done');
+
+		// Focus the session while the press is still held.
+		(Reflect.get(controller, '_activateShownSession') as (resource: URI) => void).call(controller, URI.parse(key));
+
+		// No fresh narration is requested: the buffered audio plays on release, so
+		// issuing one now (NACK'd busy, deferred, retried on release) would double
+		// up with that buffer. The reply stays buffered until the press releases.
+		assert.strictEqual(voiceClientService.requests.length, 0, 'no narration should be requested while the press retains the buffer');
+		const remaining = deferred.get(key);
+		assert.ok(remaining && remaining.length === 1, 'buffered reply stays deferred for release');
+	});
+
+	test('a different pending reply is still narrated when an unrelated buffer is retained under a held press', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		const key = URI.parse('agent-host-copilot:/session-1').toString();
+
+		// A deliberate (non-passive) press is held; it latched the backend.
+		Reflect.set(controller, '_pttCurrentTurnId', 'deliberate-turn');
+		Reflect.set(controller, '_pttCurrentTurnPassive', false);
+		Reflect.set(controller, '_pttHeld', true);
+
+		// The buffer holds an OLDER reply, but the session's current pending
+		// summary is a DIFFERENT, newer reply (the buffer survived a new turn -
+		// a `thinking` transition clears _deferredNarrations, not _deferredResponses).
+		const deferred = Reflect.get(controller, '_deferredResponses') as Map<string, { responseId?: string; finalized: boolean; chunks: { audio: string; isFirstChunk: boolean; isFinal: boolean; transcript: string | undefined }[] }[]>;
+		deferred.set(key, [{
+			responseId: 'r1',
+			finalized: true,
+			chunks: [{ audio: 'AAAA', isFirstChunk: true, isFinal: true, transcript: 'old reply' }],
+		}]);
+		(Reflect.get(controller, '_pendingResponseSummaries') as Map<string, string>).set(key, 'a different newer reply');
+
+		(Reflect.get(controller, '_activateShownSession') as (resource: URI) => void).call(controller, URI.parse(key));
+
+		// Retention must suppress ONLY a duplicate of the buffered reply, so the
+		// different pending reply still narrates (deferred/retried while held).
+		assert.strictEqual(voiceClientService.requests.length, 1, 'the different reply must still be narrated');
+		assert.strictEqual(voiceClientService.requests[0].text, 'a different newer reply');
+		const remaining = deferred.get(key);
+		assert.ok(remaining && remaining.length === 1, 'the unrelated buffered reply stays deferred');
+	});
+
+	test('promoting a passive barge-in listen clears the passive flag so playback preserves the press', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const mic = new RecordingMicCaptureService();
+		const controller = createController(voiceClientService, mic);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		// A passive barge-in listen is streaming during assistant playback.
+		Reflect.set(controller, '_bargeInListenActive', true);
+		Reflect.set(controller, '_pttHeld', true);
+		Reflect.set(controller, '_pttCurrentTurnPassive', true);
+
+		// A deliberate press promotes it into a user-driven interrupt.
+		controller.pttDown();
+
+		assert.strictEqual(Reflect.get(controller, '_pttCurrentTurnPassive'), false);
+
+		// A promoted deliberate press must be preserved (not torn down) by
+		// playback prep, since it latched the backend just like a fresh press.
+		const prepared = (Reflect.get(controller, '_prepareForPlayback') as () => boolean).call(controller);
+		assert.strictEqual(prepared, false);
+		assert.strictEqual(mic.abortCalls, 0);
+		assert.strictEqual(Reflect.get(controller, '_pttHeld'), true);
 	});
 });
 

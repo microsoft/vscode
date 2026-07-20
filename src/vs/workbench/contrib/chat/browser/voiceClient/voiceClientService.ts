@@ -336,13 +336,15 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._clearPongTimeout();
 					break;
 				case 'session_init':
-					if (!this._isResuming) {
-						this._lastSessionId = msg.session_id;
-					}
+					// Adopt the server's session id even when a resume failed and it
+					// started a fresh session; keeping the old id stalled reconnect (`_isResuming`).
+					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'session_resumed':
 					this._lastSessionId = msg.session_id;
+					this._isResuming = false;
 					this._onSessionInit.fire({ sessionId: msg.session_id ?? '' });
 					break;
 				case 'speech_started':
@@ -499,6 +501,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._sessionStartedOnSocket = false;
 		this._window = undefined;
 		this._lastSessionId = undefined;
+		this._isResuming = false;
 		this._lastSentById.clear();
 		this._lastSentActive = '';
 		this._setConnected(false);
@@ -540,9 +543,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendPttStart(turnId: string): void {
+	sendPttStart(turnId: string, passive: boolean = false): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId }));
+			this._ws.send(JSON.stringify({ type: 'ptt_start', turn_id: turnId, ...(passive ? { passive: true } : {}) }));
 		}
 	}
 
@@ -698,10 +701,6 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify({ type: 'tool_result', call_id: callId, result }));
 		}
-	}
-
-	get canRequestNarration(): boolean {
-		return this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket;
 	}
 
 	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
