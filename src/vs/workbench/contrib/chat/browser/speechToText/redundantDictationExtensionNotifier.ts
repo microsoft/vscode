@@ -10,9 +10,20 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ILocalTranscriptionService } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EnablementState } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+
+type RedundantDictationExtensionPromptEvent = {
+	action: string;
+};
+
+type RedundantDictationExtensionPromptClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user response to the prompt: shown, disable, keep, or dismissed.' };
+	owner: 'meganrogge';
+	comment: 'Tracks how users respond to the prompt suggesting they disable the redundant VS Code Speech extension once built-in dictation is available.';
+};
 
 /**
  * When on-device chat dictation is supported on the current platform, the
@@ -40,6 +51,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this.check();
 	}
@@ -85,6 +97,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 
 		// Guard now so the prompt is shown at most once regardless of the outcome.
 		this.markShown();
+		this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'shown' });
 
 		const displayName = extension.displayName || extension.identifier.id;
 		this.notificationService.prompt(
@@ -94,6 +107,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 				{
 					label: localize('disableExtension', "Disable Extension"),
 					run: async () => {
+						this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'disable' });
 						try {
 							await this.extensionsWorkbenchService.setEnablement(extension!, EnablementState.DisabledGlobally);
 						} catch (error) {
@@ -103,9 +117,16 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 				},
 				{
 					label: localize('keepExtension', "Keep"),
-					run: () => { }
+					run: () => {
+						this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'keep' });
+					}
 				}
-			]
+			],
+			{
+				onCancel: () => {
+					this.telemetryService.publicLog2<RedundantDictationExtensionPromptEvent, RedundantDictationExtensionPromptClassification>('chat.dictation.redundantExtensionPrompt', { action: 'dismissed' });
+				}
+			}
 		);
 	}
 
