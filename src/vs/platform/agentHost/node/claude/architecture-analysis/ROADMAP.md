@@ -47,7 +47,8 @@ The target end-state is **focused, legible, testable modules** where:
      (`claudeAgentSession.ts:568-569`);
    - every post-materialize `session.abortController` reader is
      `!isPipelineReady`-guarded (the controller forks after the first rebind);
-   - WarmQuery teardown is idempotent only via SDK `close()` memoization;
+   - WarmQuery teardown is idempotent via the pipeline's `_torndown` flag (C8),
+     not by luck of SDK `close()` memoization;
    - `materialize` throws if `_pipeline` is already set (once-per-session).
 4. **Traceability.** Each step cites its source report and the synthesis
    candidate ID.
@@ -56,7 +57,7 @@ The target end-state is **focused, legible, testable modules** where:
 
 ```
   Tier 0 ✅ → C1 ✅ → C9 ✅ → C5 → { C6, C7 }
-                  └→ C3 · C4 ✅ · C8   (independent; any time after C1)
+                  └→ C3 · C4 ✅ · C8 ✅   (independent; any time after C1)
 
   C2 = one owner for live config (desired-on-session vs applied-on-pipeline)
        — folded into C9 (shipped): the immutable pipeline holds only the
@@ -246,7 +247,7 @@ Legend — **Serves:** `dup` duplication/rematerializer · `cyc` overlap/circula
   smaller. Could be scoped down to just hiding the controller behind
   `abortProvisional()` if the full type split is too invasive.
 
-### C8 — Unify subprocess teardown into one awaitable verb  ·  Serves: life  ·  ⬜ proposed
+### C8 — Unify subprocess teardown into one awaitable verb  ·  Serves: life  ·  ✅ shipped
 - **Source:** report 02 (three teardown spellings, H1/H2).
 - **Goal:** one teardown path whose safety doesn't rest on SDK `close()`
   memoization being an implementation detail.

@@ -304,6 +304,19 @@ suite('ClaudeSdkPipeline', () => {
 			assert.strictEqual(warm.asyncDisposeCount, 1);
 			store.dispose();
 		});
+
+		test('shutdownAndWait then dispose tears down exactly once (idempotent, not reliant on SDK close() memoization)', async () => {
+			const store = new DisposableStore();
+			const { pipeline, warm } = createPipeline(store);
+
+			await pipeline.shutdownAndWait();
+			assert.strictEqual(warm.asyncDisposeCount, 1, 'shutdownAndWait async-disposes once');
+
+			pipeline.dispose();
+			await Promise.resolve();
+			assert.strictEqual(warm.asyncDisposeCount, 1, 'dispose after shutdownAndWait is a guarded no-op');
+			store.dispose();
+		});
 	});
 
 	suite('CancellationError plumbing', () => {

@@ -151,6 +151,13 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	private _dead = false;
 
+	/**
+	 * Guards {@link _teardown} so the WarmQuery is async-disposed exactly once,
+	 * whether {@link shutdownAndWait} or {@link dispose} runs first. Idempotency
+	 * rests on this flag, not on the SDK `close()` cleanup happening to be memoized.
+	 */
+	private _torndown = false;
+
 	/** Tracks whether the (single) consumer loop has been started. */
 	private _consumerLoopRunning = false;
 
@@ -207,12 +214,10 @@ export class ClaudeSdkPipeline extends Disposable {
 		// to an unbound query. The iterable parks until the first prompt is pushed,
 		// so no turn runs until `send`.
 		this._query = this._warm.query(this._queue.iterable);
-		// Dispose chain → abort → SDK cleanup.
-		this._register(toDisposable(() => this._abortController.abort()));
-		this._register(toDisposable(() => {
-			void Promise.resolve(this._warm[Symbol.asyncDispose]()).catch((err: unknown) =>
-				this._logService.warn(`[ClaudeSdkPipeline] WarmQuery dispose failed: ${err}`));
-		}));
+		// Dispose = the same teardown as `shutdownAndWait`, fired and forgotten
+		// (the abort + WarmQuery async-dispose run synchronously before the first
+		// await, so the subprocess is signalled to stop before `dispose()` returns).
+		this._register(toDisposable(() => { void this._teardown(); }));
 	}
 
 	get isResumed(): boolean { return this._isResumed; }
@@ -230,25 +235,40 @@ export class ClaudeSdkPipeline extends Disposable {
 	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
 
 	/**
-	 * Abort the live SDK subprocess and **await its actual exit**.
-	 *
-	 * `WarmQuery[Symbol.asyncDispose]()` calls the query's `close()`, which
-	 * *fires* the SDK cleanup but does not await it — so it returns while the
-	 * subprocess is still shutting down (and still re-flushing its transcript).
-	 * `Query.return()` awaits the same (memoized) cleanup, which in turn awaits
-	 * `transport.waitForExit()` — the OS process actually exiting after its
-	 * final transcript flush. Awaiting that is what lets a caller safely reuse
-	 * the `--session-id` (the CLI rejects a fresh spawn while `<id>.jsonl`
-	 * still exists, and the dying process would otherwise recreate it).
+	 * Abort the live SDK subprocess and **await its actual exit** — the awaited
+	 * face of the single {@link _teardown} path. Callers use this (rather than
+	 * {@link dispose}) when they must not spawn a fresh subprocess reusing the same
+	 * `--session-id` until the old one has released `<id>.jsonl` (yield-restart /
+	 * rebuild resume).
 	 */
 	async shutdownAndWait(): Promise<void> {
-		this._abortController.abort();
+		await this._teardown();
+	}
+
+	/**
+	 * The one teardown path for the SDK subprocess, idempotent via {@link _torndown}.
+	 *
+	 * Aborts the controller (signalling the subprocess to stop), then
+	 * `WarmQuery[Symbol.asyncDispose]()` — which calls the query's `close()` and
+	 * *fires* the SDK cleanup but returns while the process is still shutting down
+	 * (and re-flushing its transcript) — then awaits `Query.return()`, which awaits
+	 * the same cleanup down to `transport.waitForExit()`, i.e. the OS process
+	 * actually exiting. {@link shutdownAndWait} awaits this (so `--session-id` reuse
+	 * is safe); {@link dispose} fires it and forgets. Runs at most once regardless
+	 * of which caller wins.
+	 */
+	private async _teardown(): Promise<void> {
+		if (this._torndown) {
+			return;
+		}
+		this._torndown = true;
 		this._dead = true;
+		this._abortController.abort();
 		try {
 			await this._warm[Symbol.asyncDispose]();
 			await this._query.return(undefined);
 		} catch (err) {
-			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] shutdownAndWait: teardown failed`, err);
+			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] teardown failed`, err);
 		}
 	}
 
