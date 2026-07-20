@@ -1,0 +1,39 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create result.txt containing exactly CREATED_VALUE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create
+          input:
+            path: ${workdir}/ahp-coverage-create-${temp}/result.txt
+            file_text: CREATED_VALUE
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create result.txt containing exactly CREATED_VALUE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create
+              input:
+                path: ${workdir}/ahp-coverage-create-${temp}/result.txt
+                file_text: CREATED_VALUE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Created file ${workdir}/ahp-coverage-create-${temp}/result.txt with 13 characters
+    response:
+      content: Created result.txt with the exact content `CREATED_VALUE`.
+      stopReason: end_turn

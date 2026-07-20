@@ -23,9 +23,8 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const DEFAULT_EDITOR_CONFIG = {};
-const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
+const DEFAULT_USER_CONFIG = { useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = {};
-const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -1211,11 +1210,6 @@ function makeExcludePatternFromPatterns(...patterns: string[]): {
 }
 
 function assertEqualTextQueries(actual: ITextQuery, expected: ITextQuery): void {
-	expected = {
-		...DEFAULT_TEXT_QUERY_PROPS,
-		...expected
-	};
-
 	return assertEqualQueries(actual, expected);
 }
 

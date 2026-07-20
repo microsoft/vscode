@@ -394,18 +394,25 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
-	test('agent host default wins over a virtual workspace local override', () => {
+	test('virtual workspace defaults to local when the agent host default is enabled', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
 			[ChatConfiguration.EditorLocalAgentEnabled]: false,
 		});
 		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot);
+		const storageService = disposables.add(new TestStorageService());
 		const workspace = createWorkspace(URI.parse('vscode-vfs://github/microsoft/vscode'));
 
 		assert.deepStrictEqual({
 			computed: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, true),
+			rememberedAware: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, true),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, workspace),
+			localRememberedUsable: isRememberedSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, workspace),
 		}, {
-			computed: SessionType.AgentHostCopilot,
+			computed: localChatSessionType,
+			rememberedAware: localChatSessionType,
+			localVisible: true,
+			localRememberedUsable: true,
 		});
 	});
 

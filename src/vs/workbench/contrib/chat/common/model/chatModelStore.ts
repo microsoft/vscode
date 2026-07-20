@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
-import { ObservableMap } from '../../../../../base/common/observable.js';
+import { IObservable, ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatAgentLocation } from '../constants.js';
@@ -20,6 +20,7 @@ export interface IStartSessionProps {
 	readonly transferEditingSession?: IChatEditingSession;
 	readonly disableBackgroundKeepAlive?: boolean;
 	readonly inputState?: ISerializableChatModelInputState;
+	readonly isReadOnly?: IObservable<boolean>;
 }
 
 export interface ChatModelStoreDelegate {

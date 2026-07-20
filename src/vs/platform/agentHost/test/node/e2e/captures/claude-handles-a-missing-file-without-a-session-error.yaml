@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+    response:
+      content:
+        - type: text
+          text: I'll try to read the file.
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/ahp-coverage-missing-${temp}/missing.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Try to read missing.txt. If it does not exist, reply exactly "missing".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll try to read the file.
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-missing-${temp}/missing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'File does not exist. Note: your current working directory is ${workdir}/ahp-coverage-missing-${temp}.'
+    response:
+      content: missing
+      stopReason: end_turn

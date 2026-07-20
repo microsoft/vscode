@@ -126,6 +126,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _selectedFolderUri: URI | undefined;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
+	private _selectionGeneration = 0;
 
 	/**
 	 * Set to `true` once the user has explicitly picked or cleared a workspace.
@@ -515,24 +516,37 @@ export class WorkspacePicker extends Disposable {
 	 * subclass that opts to render a different UI but reuse the
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
-	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<void> {
+	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
+		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
 		if (item.run) {
 			item.run();
+			return true;
 		} else if (item.commandId) {
-			this.commandService.executeCommand(item.commandId);
+			void this.commandService.executeCommand(item.commandId);
+			return true;
 		} else if (item.folderUri && item.providerId && this._isProviderUnavailable(item.providerId)) {
 			// Workspace belongs to an unavailable remote — ignore selection
-			return;
+			return false;
 		}
 		if (item.browseActionIndex !== undefined) {
-			this._executeBrowseAction(item.browseActionIndex);
+			const folderUri = await this._executeBrowseAction(item.browseActionIndex);
+			if (!folderUri || generation !== this._selectionGeneration) {
+				return false;
+			}
+			this._selectFolder(folderUri);
+			return true;
 		} else if (item.folderUri) {
 			if (item.providerId && !await this._connectProviderOnDemand(item.providerId)) {
-				return;
+				return false;
+			}
+			if (generation !== this._selectionGeneration) {
+				return false;
 			}
 			this._selectFolder(item.folderUri);
+			return true;
 		}
+		return false;
 	}
 
 	/**
@@ -588,6 +602,7 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selected project.
 	 */
 	clearSelection(): void {
+		this._selectionGeneration++;
 		this._hidePicker();
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
@@ -611,6 +626,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _selectFolder(folderUri: URI, fireEvent = true, providerIdHint?: string): void {
+		this._selectionGeneration++;
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
 		// Prefer the caller-supplied providerId hint, then the historical
@@ -665,11 +681,11 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a browse action from a provider, identified by index.
 	 */
-	protected async _executeBrowseAction(actionIndex: number): Promise<void> {
+	protected async _executeBrowseAction(actionIndex: number): Promise<URI | undefined> {
 		const allActions = this._getAllBrowseActions();
 		const action = allActions[actionIndex];
 		if (!action) {
-			return;
+			return undefined;
 		}
 
 		try {
@@ -677,12 +693,13 @@ export class WorkspacePicker extends Disposable {
 			if (workspace) {
 				const folderUri = workspace.folders[0]?.root;
 				if (folderUri) {
-					this._selectFolder(folderUri);
+					return folderUri;
 				}
 			}
 		} catch {
 			// browse action was cancelled or failed
 		}
+		return undefined;
 	}
 
 	/**
@@ -900,13 +917,13 @@ export class WorkspacePicker extends Disposable {
 		this._renderDisposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
-	private _updateTriggerLabel(): void {
+	protected _updateTriggerLabel(): void {
 		for (const trigger of this._triggerElements) {
 			this._renderTriggerLabel(trigger);
 		}
 	}
 
-	private _renderTriggerLabel(trigger: HTMLElement): void {
+	protected _renderTriggerLabel(trigger: HTMLElement): void {
 		dom.clearNode(trigger);
 		const workspace = this._selectedResolved?.workspace;
 		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");

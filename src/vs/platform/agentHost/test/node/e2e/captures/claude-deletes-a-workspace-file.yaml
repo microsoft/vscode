@@ -1,0 +1,88 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Delete delete-me.txt.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: ls -la ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt && cat ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+            description: Inspect delete-me.txt before deleting
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Delete delete-me.txt.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: ls -la ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt && cat ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+                description: Inspect delete-me.txt before deleting
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                -rw-r--r--@ 1 ${user}  staff  12 ${timestamp} ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+                DELETE_VALUE
+    response:
+      content:
+        - type: text
+          text: The file contains a placeholder value (`DELETE_VALUE`), consistent with its name. Deleting it.
+        - type: tool_use
+          id: toolcall_1
+          name: Bash
+          input:
+            command: rm ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+            description: Delete delete-me.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Delete delete-me.txt.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: ls -la ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt && cat ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+                description: Inspect delete-me.txt before deleting
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                -rw-r--r--@ 1 ${user}  staff  12 ${timestamp} ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+                DELETE_VALUE
+        - role: assistant
+          content:
+            - type: text
+              text: The file contains a placeholder value (`DELETE_VALUE`), consistent with its name. Deleting it.
+            - type: tool_use
+              name: Bash
+              input:
+                command: rm ${workdir}/ahp-coverage-delete-${temp}/delete-me.txt
+                description: Delete delete-me.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: (Bash completed with no output)
+    response:
+      content: Done — `delete-me.txt` is deleted.
+      stopReason: end_turn

@@ -1,0 +1,38 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read "file with spaces.txt" and reply with its exact contents only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/ahp-coverage-spaces-${temp}/file with spaces.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Read "file with spaces.txt" and reply with its exact contents only.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-spaces-${temp}/file with spaces.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tSPACED_VALUE"
+    response:
+      content: SPACED_VALUE
+      stopReason: end_turn

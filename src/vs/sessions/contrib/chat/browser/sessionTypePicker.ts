@@ -133,6 +133,8 @@ export class SessionTypePicker extends Disposable {
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
 	private readonly _folderSourceWatch = this._register(new MutableDisposable());
+	private _quickChatSource: IObservable<boolean> | undefined;
+	private readonly _quickChatSourceWatch = this._register(new MutableDisposable());
 	private _pendingInitialPick: IPreferredSessionType | undefined;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
@@ -185,6 +187,13 @@ export class SessionTypePicker extends Disposable {
 		this._folderSessionTypes = this._resolveFolderSessionTypes();
 		const previous = this._picked;
 		this._picked = this._computeCurrentPick();
+		const pick = this._picked;
+		if (this._quickChatSource?.get() && pick && !pick.providerId) {
+			const concrete = this._folderSessionTypes.find(type => type.sessionType.id === pick.sessionTypeId);
+			if (concrete) {
+				this._picked = { providerId: concrete.providerId, sessionTypeId: concrete.sessionType.id };
+			}
+		}
 		this._updateModelTargetChatSessionType();
 		this._updateTriggerLabel();
 		if (!pickEquals(previous, this._picked)) {
@@ -198,6 +207,9 @@ export class SessionTypePicker extends Disposable {
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
 		if (this._folderSource) {
+			if (this._quickChatSource?.get()) {
+				return this.sessionsManagementService.getQuickChatSessionTypes();
+			}
 			const folderUri = this._folderSource.get();
 			return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 		}
@@ -251,6 +263,19 @@ export class SessionTypePicker extends Disposable {
 		this._folderSourceWatch.value = autorun(reader => {
 			const folder = source.read(reader);
 			if (!isEqual(folder, initialFolder)) {
+				this._pendingInitialPick = undefined;
+			}
+			this._recompute();
+		});
+	}
+
+	/** Switch a folder-driven picker to the quick-chat type catalog while the source is true. */
+	setQuickChatSource(source: IObservable<boolean>): void {
+		this._quickChatSource = source;
+		const initialQuickChat = source.get();
+		this._quickChatSourceWatch.value = autorun(reader => {
+			const isQuickChat = source.read(reader);
+			if (isQuickChat !== initialQuickChat) {
 				this._pendingInitialPick = undefined;
 			}
 			this._recompute();

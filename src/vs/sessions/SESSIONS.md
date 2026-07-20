@@ -604,10 +604,27 @@ the scheduler records the timeout failure before cancelling the observation, so
 neither path leaves a live observable subscription even though the session may
 remain active.
 
+An automation stores an explicit discriminated `target` rather than inferring
+workspace-less execution from an absent folder. A `quickChat` target requires its
+quick-chat-capable provider and session type and cannot carry repository state. A
+`workspace` target requires its folder and an isolation discriminant; only
+`worktree` isolation carries its required base branch. Workspace-less runs use
+`createAndSendQuickChatRequest`, whose headless path calls the provider's existing
+`createQuickChat` contract and shares configuration, cancellation, draft cleanup,
+commit detection, and non-navigation lifecycle with workspace-backed headless
+sends.
+
+The persisted ledger uses schema v3 for the target union and migrates schema-v1/v2
+flat records without rewriting them until the next normal save. Older builds
+therefore treat the new shape as a newer read-only schema instead of dropping
+workspace-less rows.
+
 The automation dialog keeps a Worktree branch selection as explicit intent,
 separate from the repository's live `HEAD`. Folder isolation displays live
 `HEAD` but persists no branch. Worktree isolation persists the selected local
 branch, falling back to the current named `HEAD` until the user makes a choice.
+Provider-default isolation displays as Folder but remains provider-default until
+the user explicitly selects an isolation mode, so unrelated edits do not change it.
 Repository refresh failures and deleted local refs do not silently replace an
 edited branch. The automation and new-session surfaces share the provider-agnostic
 `contrib/chat/browser/branchPicker` trigger, ActionWidget, filtering, focus, and
@@ -625,7 +642,16 @@ verifies each resolved value. Automation values are one-shot and do not replace
 the user's remembered interactive session defaults. The headless management
 operation accepts the automation run's cancellation token so repository
 configuration and commit detection are cancelled together; cancellation rejects
-the run and disposes the provisional draft.
+the run, cancels an in-flight chat request, suppresses post-cancellation lifecycle
+events, and disposes the provisional draft. The dialog's workspace dropdown has a
+**No workspace** entry that switches the existing session-type picker to
+`getQuickChatSessionTypes()`, preserves an unavailable saved provider/type until
+late discovery completes, and hides repository-only controls. Its target model
+owns the workspace/quick-chat observables atomically, ignores hidden workspace
+picker updates in quick-chat mode, and reloads repository state when the user
+returns to workspace mode. Workspace-backed legacy records may retain a
+provider-less session type and resolve the provider lazily; workspace-less records
+require the explicit provider/type pair.
 
 ---
 

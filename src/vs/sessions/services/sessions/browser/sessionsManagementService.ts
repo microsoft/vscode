@@ -578,7 +578,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, createOptions);
 		const session = provider.createNewSession(folderUri, sessionTypeId);
+		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
+			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
+		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token);
+	}
 
+	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
+		const session = provider.createQuickChat(sessionTypeId);
+		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
+	}
+
+	private async _configureAndSendNewSession(
+		provider: ISessionsProvider,
+		session: ISession,
+		options: ISendRequestOptions,
+		createOptions: ICreateNewSessionOptions | undefined,
+		supportsWorktreeConfiguration: boolean,
+		token: CancellationToken,
+	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -592,8 +610,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (createOptions?.permissionLevel) {
 				provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 			}
-			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
-				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
 			if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch)) {
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
@@ -606,7 +622,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, options), token);
+			return await raceCancellationError(this._sendNewChatRequestInBackground(provider, session, options, token), token);
 		} catch (e) {
 			// The send never committed, so the draft is stranded. Dispose it
 			// through its provider to release the eager backend session before
@@ -632,11 +648,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Providers are multi-new-session aware, so the graduating session and a
 	 * concurrently reseeded composer draft coexist without conflict.
 	 */
-	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<ISession | undefined> {
+	private async _sendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		// Notify listeners (e.g., telemetry) that a send is starting so they can
 		// prewarm caches whose result is consumed when `onDidSendRequest` fires.
 		this._onWillSendRequest.fire(session);
-		const chat = await provider.createNewChat(session.sessionId, options.query);
+		const chatPromise = provider.createNewChat(session.sessionId, options.query);
+		const chat = token === CancellationToken.None ? await chatPromise : await raceCancellationError(chatPromise, token);
 
 		// Suppress the `chatService.onDidSubmitRequest` mirror for this send so
 		// `_onDidSendRequest` is not fired twice for providers that dispatch
@@ -644,11 +664,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sendOptions = this._augmentOptionsForTroubleshoot(session, options);
 		const chatResourceKey = chat.resource.toString();
 		this._pendingSendChatResources.add(chatResourceKey);
+		const cancellationListener = token.onCancellationRequested(() => {
+			void this.chatService.cancelCurrentRequestForSession(chat.resource, 'sessionsManagement').catch(error => {
+				this.logService.warn('[SessionsManagement] Failed to cancel headless request:', error);
+			});
+		});
 		let updatedSession: ISession;
 		try {
 			updatedSession = await provider.sendRequest(session.sessionId, chat.resource, sendOptions);
 		} finally {
+			cancellationListener.dispose();
 			this._pendingSendChatResources.delete(chatResourceKey);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
 		if (this._store.isDisposed) {
 			return undefined;

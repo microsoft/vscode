@@ -27,11 +27,12 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -77,6 +78,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
@@ -149,6 +151,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// may hold a SessionState (for session channels) or a ChatState (for the
 	// per-session default chat channel).
 	private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState>; onWillApply: Emitter<ActionEnvelope>; onDidApply: Emitter<ActionEnvelope> }>();
+	private readonly _chatInteractivities = new Map<string, ChatInteractivity>();
 
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -471,6 +474,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 	}
 
+	setChatInteractivity(session: URI, interactivity: ChatInteractivity): void {
+		const entry = this._liveSubscriptions.get(buildDefaultChatUri(session.toString()));
+		if (!entry) {
+			throw new Error(`No live chat subscription for ${session.toString()}`);
+		}
+		entry.state = { ...entry.state, interactivity };
+		entry.emitter.fire(entry.state);
+	}
+
+	seedChatInteractivity(session: URI, interactivity: ChatInteractivity): void {
+		this._chatInteractivities.set(buildDefaultChatUri(session.toString()), interactivity);
+	}
+
 	/**
 	 * Builds the default-chat {@link ChatState} for a session, seeded with any
 	 * conversation fields a test attached to the session's {@link SeededSessionState}.
@@ -490,6 +506,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const chatSummary = createDefaultChatSummary(sessionSummary, chatUriStr);
 		return {
 			...createChatState(chatSummary),
+			interactivity: this._chatInteractivities.get(chatUriStr),
 			turns: seeded?.turns ?? [],
 			activeTurn: seeded?.activeTurn,
 			steeringMessage: seeded?.steeringMessage,
@@ -548,6 +565,16 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 	override registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation) {
 		this.registeredAgents.set(data.id, { data, impl: agentImpl });
 		return toDisposable(() => this.registeredAgents.delete(data.id));
+	}
+}
+
+class MockCommandService extends mock<ICommandService>() {
+	readonly calls: { commandId: string; args: unknown[] }[] = [];
+	result: unknown;
+
+	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
+		this.calls.push({ commandId, args });
+		return this.result as R | undefined;
 	}
 }
 
@@ -687,6 +714,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		...chatDebugServiceOverride,
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	const commandService = new MockCommandService();
+	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
@@ -852,7 +881,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -4344,13 +4373,15 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(10);
 
-			// The tool call should have produced a ChatToolInvocation in WaitingForConfirmation state
-			// After toolCallStart (Streaming) and toolCallReady without confirmed (PendingConfirmation),
-			// the handler emits two progress events — we want the last one (with confirmation).
+			// After toolCallStart (Streaming) and toolCallReady without
+			// `confirmed` (PendingConfirmation), the streaming invocation is
+			// driven into WaitingForConfirmation in place — exactly ONE card,
+			// not a settled placeholder plus a replacement (#314858).
 			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			assert.ok(toolInvocations.length >= 1, 'Should have received tool confirmation progress');
-			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
+			assert.strictEqual(toolInvocations.length, 1, 'Should have exactly one tool invocation card');
+			const permInvocation = toolInvocations[0] as IChatToolInvocation;
 			assert.strictEqual(permInvocation.kind, 'toolInvocation');
+			assert.strictEqual(permInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
 
 			// Confirm the tool
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
@@ -4419,7 +4450,8 @@ suite('AgentHostChatContribution', () => {
 
 			await timeout(10);
 			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
+			assert.strictEqual(toolInvocations.length, 1, 'Should have exactly one tool invocation card');
+			const permInvocation = toolInvocations[0] as IChatToolInvocation;
 			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'input');
 			const inputData = permInvocation.toolSpecificData as IChatToolInputInvocationData;
 			assert.deepStrictEqual(inputData.rawInput, { input: 'echo hello' });
@@ -4428,6 +4460,67 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
+		}));
+
+		test('terminal command needing confirmation renders exactly one card (#314858)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			// Reproduce the REAL Copilot SDK sequence: `onToolStart` optimistically
+			// emits a `confirmed: not-needed` ready (moving the tool to Running)
+			// and only ~1s later does the permission callback fire a second ready
+			// with a confirmationTitle (Running → PendingConfirmation). This is
+			// the path that used to settle the running card and emit a second
+			// confirmation card (#314858).
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-term-confirm', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			await timeout(1);
+			fire({
+				type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-term-confirm',
+				invocationMessage: 'Running `rm -rf build`', toolInput: 'rm -rf build', confirmed: 'not-needed',
+			} as ChatAction);
+			await timeout(1);
+
+			// One running terminal card so far.
+			const afterRunning = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(afterRunning.length, 1, 'one running terminal card before confirmation');
+			assert.strictEqual(afterRunning[0].state.get().type, IChatToolInvocation.StateKind.Executing);
+
+			// Permission callback bounces the same tool back to confirmation.
+			fire({
+				type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-term-confirm',
+				invocationMessage: 'Running `rm -rf build`', toolInput: 'rm -rf build', confirmationTitle: 'Run command?',
+			} as ChatAction);
+			await timeout(10);
+
+			// Still exactly one card — now a terminal confirmation, not two.
+			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(toolInvocations.length, 1, 'exactly one terminal confirmation card');
+			const inv = toolInvocations[0];
+			assert.strictEqual(inv.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			assert.strictEqual(inv.toolSpecificData?.kind, 'terminal');
+
+			// Confirm → exactly one dispatch, then echo Running and complete.
+			IChatToolInvocation.confirmWith(inv, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+			const confirmed = agentHostService.dispatchedActions.filter(a =>
+				a.action.type === 'chat/toolCallConfirmed' && (a.action as IToolCallConfirmedAction).toolCallId === 'tc-term-confirm');
+			assert.strictEqual(confirmed.length, 1, 'exactly one toolCallConfirmed dispatch');
+
+			agentHostService.fireAction({
+				channel: confirmed[0].channel.toString(), action: confirmed[0].action,
+				serverSeq: 100, origin: { clientId: agentHostService.clientId, clientSeq: confirmed[0].clientSeq },
+			});
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId: 'tc-term-confirm',
+				result: { success: true, pastTenseMessage: 'Ran command', content: [{ type: 'text', text: 'done\n' }] },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			// Still exactly one card across the whole turn.
+			const finalInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
+			assert.strictEqual(finalInvocations.length, 1, 'still exactly one card across the whole turn');
 		}));
 
 		test('read permission shows input-style confirmation data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4450,6 +4543,65 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('pending confirmation refreshes risk assessment and options', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-risk', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-risk',
+				invocationMessage: 'Read file?',
+				confirmationTitle: 'Read file',
+				toolInput: '/foo.ts',
+				riskAssessment: { kind: ToolCallRiskAssessmentKind.Judge, status: ToolCallRiskAssessmentStatus.Loading },
+				options: [{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve }],
+			} as ChatAction);
+			await timeout(10);
+
+			const invocation = collected.flat().find(p => p.kind === 'toolInvocation') as ChatToolInvocation;
+			assert.deepStrictEqual(invocation.confirmationMessages, {
+				title: 'Read file',
+				message: 'Read file?',
+				approvalReason: { status: 'loading' },
+				customOptions: [{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve }],
+			});
+
+			fire({
+				type: 'chat/toolCallReady',
+				session,
+				turnId,
+				toolCallId: 'tc-risk',
+				invocationMessage: 'Read file?',
+				riskAssessment: {
+					kind: ToolCallRiskAssessmentKind.Judge,
+					status: ToolCallRiskAssessmentStatus.Complete,
+					reason: 'This reads a sensitive file.',
+					safety: 0.2,
+				},
+				options: [{ id: 'allow-session', label: 'Allow in Session', kind: ConfirmationOptionKind.Approve }],
+			} as ChatAction);
+			await timeout(10);
+
+			assert.deepStrictEqual(invocation.confirmationMessages, {
+				title: 'Read file',
+				message: 'Read file?',
+				approvalReason: { status: 'complete', explanation: 'This reads a sensitive file.', safety: 0.2 },
+				customOptions: [{ id: 'allow-session', label: 'Allow in Session', kind: ConfirmationOptionKind.Approve }],
+			});
+
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: 'allow-session' });
+			await timeout(10);
+			const confirmation = agentHostService.dispatchedActions.find(a =>
+				a.action.type === 'chat/toolCallConfirmed' && (a.action as IToolCallConfirmedAction).toolCallId === 'tc-risk');
+			assert.strictEqual((confirmation?.action as IToolCallConfirmedAction).selectedOptionId, 'allow-session');
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('local confirmation does not race with pending tc.status: no spurious re-confirm before server echo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Regression for a bug where the per-tool-call autorun read both
 			// `part$` AND `invocation.state` and used a state-comparison check
@@ -4462,13 +4614,15 @@ suite('AgentHostChatContribution', () => {
 			// from a `tc.status` *transition*, not from invocation-state
 			// comparison.
 			//
-			// Baseline (bug-free) flow for a tool needing initial confirmation:
-			//   toolCallStart      → emit placeholder invocation (count=1)
-			//   toolCallReady      → status: Streaming → PendingConfirmation,
-			//                        settle placeholder, emit confirm invocation (count=2)
+			// Baseline (bug-free) flow for a tool needing initial confirmation
+			// (Option A single-card streaming, #314858):
+			//   toolCallStart      → emit streaming invocation (count=1)
+			//   toolCallReady      → Streaming → PendingConfirmation: drive the
+			//                        SAME invocation into WaitingForConfirmation
+			//                        via transitionFromStreaming (count stays 1)
 			//   user confirms      → invocation.state: WaitingForConfirmation → Executing
-			//                        (count must NOT change — this is the regression)
-			//   server echoes      → tc.status: PendingConfirmation → Running (count=2)
+			//                        (count must NOT change)
+			//   server echoes      → tc.status: PendingConfirmation → Running (count=1)
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -4481,6 +4635,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			const beforeConfirm = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(beforeConfirm.length, 1, 'a single confirmation card is emitted for the streaming tool');
 			const permInvocation = beforeConfirm[beforeConfirm.length - 1];
 			assert.strictEqual(permInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
 
@@ -4528,12 +4683,13 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(finalInvocations.length, beforeConfirm.length, 'no extra invocations across the full turn');
 		}));
 
-		test('genuine re-confirmation (Running → PendingConfirmation) emits a fresh confirmation invocation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			// Companion to the regression test above: the *legitimate* case
-			// where the server bounces a tool call back to PendingConfirmation
-			// (e.g. result confirmation after an edit). Here we DO want a
-			// fresh invocation and a second `session/toolCallConfirmed`
-			// dispatch.
+		test('re-confirmation (Running → PendingConfirmation) reuses the same card and dispatches again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// When a tool that already ran is bounced back to PendingConfirmation
+			// (Running → PendingConfirmation — the shape every Copilot permission
+			// prompt takes, since `onToolStart` optimistically readies the tool
+			// before the permission callback fires), the SAME card is reused: no
+			// second invocation, but a second `session/toolCallConfirmed` is
+			// still dispatched for the new confirmation.
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -4573,16 +4729,16 @@ suite('AgentHostChatContribution', () => {
 			// transitions Running → PendingConfirmation.
 			fire({
 				type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-recon',
-				invocationMessage: 'Confirm execution', toolInput: 'echo hi',
+				invocationMessage: 'Confirm execution', toolInput: 'echo hi', confirmationTitle: 'Confirm?',
 			} as ChatAction);
 			await timeout(10);
 
-			// We now expect a *fresh* invocation in WaitingForConfirmation.
+			// The SAME invocation is re-armed for confirmation — no new card.
 			const invocationsAfterReconfirm = collected.flat().filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
-			assert.strictEqual(invocationsAfterReconfirm.length, invocationCountAfterRunning + 1, 'a fresh invocation should be emitted on Running → PendingConfirmation transition');
+			assert.strictEqual(invocationsAfterReconfirm.length, invocationCountAfterRunning, 'no fresh invocation is emitted on Running → PendingConfirmation; the card is reused');
 			const reconfirmInvocation = invocationsAfterReconfirm[invocationsAfterReconfirm.length - 1];
+			assert.strictEqual(reconfirmInvocation, firstInvocation, 'the same invocation instance is reused');
 			assert.strictEqual(reconfirmInvocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
-			assert.notStrictEqual(reconfirmInvocation, firstInvocation);
 
 			// User confirms the re-confirmation; expect a second toolCallConfirmed dispatch.
 			IChatToolInvocation.confirmWith(reconfirmInvocation, { type: ToolConfirmKind.UserAction });
@@ -4608,6 +4764,155 @@ suite('AgentHostChatContribution', () => {
 	// ---- History loading ---------------------------------------------------
 
 	suite('history loading', () => {
+
+		test('archived session read-only state follows session status', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'archived-session');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(),
+					provider: 'copilot',
+					title: 'Archived',
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/archived-session' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.ok(session.isReadOnly);
+
+			const states = [session.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 1,
+				origin: undefined,
+			});
+			states.push(session.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 2,
+				origin: undefined,
+			});
+			states.push(session.isReadOnly.get());
+
+			assert.deepStrictEqual(states, [true, false, true]);
+		});
+
+		test('non-archived session read-only state follows chat interactivity', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'read-only-chat');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(),
+					provider: 'copilot',
+					title: 'Read-only chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.seedChatInteractivity(sessionUri, ChatInteractivity.ReadOnly);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/read-only-chat' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.ok(session.isReadOnly);
+
+			const states = [session.isReadOnly.get()];
+			agentHostService.setChatInteractivity(sessionUri, ChatInteractivity.Full);
+			states.push(session.isReadOnly.get());
+
+			assert.deepStrictEqual(states, [true, false]);
+		});
+
+		test('new session read-only state follows status after materialization', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-read-only-session' });
+			const { chatSession, turnPromise, fire, session, turnId } = await startTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				disposables,
+				{ sessionResource },
+			);
+			assert.ok(chatSession.isReadOnly);
+
+			const backendSession = AgentSession.uri('copilot', 'new-read-only-session');
+			const states = [chatSession.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 100,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 101,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+
+			fire({ type: 'chat/turnComplete', endedAt: new Date().toISOString(), session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(states, [false, true, false]);
+		});
+
+		test('eager-created session read-only state follows status after materialization', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'new-eager-read-only-session');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Eager',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-eager-read-only-session' });
+			const { chatSession, turnPromise, fire, session, turnId } = await startTurn(
+				sessionHandler,
+				agentHostService,
+				chatAgentService,
+				disposables,
+				{ sessionResource },
+			);
+			assert.ok(chatSession.isReadOnly);
+
+			const states = [chatSession.isReadOnly.get()];
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+				serverSeq: 100,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+				serverSeq: 101,
+				origin: undefined,
+			});
+			states.push(chatSession.isReadOnly.get());
+
+			fire({ type: 'chat/turnComplete', endedAt: new Date().toISOString(), session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(states, [false, true, false]);
+		});
 
 		test('loads user and assistant messages into history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -7002,6 +7307,70 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
 		}));
 
+		test('handler resolves authentication before sending to an eager-created session', async () => {
+			const authenticationRequests: ProtectedResourceMetadata[][] = [];
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot',
+				agentId: 'eager-auth-agent',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				resolveAuthentication: async protectedResources => {
+					authenticationRequests.push(protectedResources);
+					return true;
+				},
+			}));
+			const protectedResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com',
+				resource_name: 'GitHub',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['read:user'],
+				required: true,
+			};
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+					protectedResources: [protectedResource],
+				}],
+				activeSessions: 0,
+			});
+
+			const sessionUri = AgentSession.uri('copilot', 'eager-auth');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-auth' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('eager-auth-agent')!;
+			const turnPromise = registered.impl.invoke(makeRequest({ agentId: 'eager-auth-agent', message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			assert.ok(turnDispatch);
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ channel: turnDispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: turnAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				authenticationRequests,
+				turnActionCount: agentHostService.turnActions.length,
+			}, {
+				authenticationRequests: [[protectedResource]],
+				turnActionCount: 1,
+			});
+		});
+
 		test('handler does not clobber picker-set session config on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			// Repro for the VS Code chat-input picker bug: the user picks
 			// "Worktree" via the chip, the picker dispatches
@@ -7488,6 +7857,62 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({
 				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', turnId: 'turn-active' } as ChatAction,
 				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
+		}));
+
+		test('reconnect during streaming then confirmation renders exactly one card (#314858)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Reload/reconnect while a terminal tool is still streaming its
+			// arguments, then the tool requests confirmation. The reconnect
+			// snapshot must adopt a native streaming invocation so the live
+			// observer drives it in place through `transitionFromStreaming` —
+			// not an Executing placeholder that would trigger the duplicate
+			// confirmation card on `Streaming → PendingConfirmation`.
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-stream-confirm');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.push({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-stream-confirm',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Running command',
+					status: ToolCallStatus.Streaming,
+					_meta: { toolKind: 'terminal' },
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-stream-confirm' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			// Snapshot has exactly one streaming tool card.
+			const initialToolInvocations = (session.progressObs?.get() ?? []).filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(initialToolInvocations.length, 1, 'exactly one streaming tool card on reconnect');
+			assert.strictEqual(initialToolInvocations[0].state.get().type, IChatToolInvocation.StateKind.Streaming);
+
+			// Server now moves the tool into confirmation.
+			agentHostService.fireAction({
+				channel: sessionUri.toString(),
+				action: { type: 'chat/toolCallReady', turnId: 'turn-active', toolCallId: 'tc-stream-confirm', invocationMessage: 'Running `rm -rf build`', toolInput: 'rm -rf build', confirmationTitle: 'Run command?' } as ChatAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
+
+			// Still exactly one card, now waiting for confirmation — no duplicate.
+			const afterConfirm = (session.progressObs?.get() ?? []).filter(p => p.kind === 'toolInvocation') as IChatToolInvocation[];
+			assert.strictEqual(afterConfirm.length, 1, 'still exactly one card after Streaming → PendingConfirmation on reconnect');
+			assert.strictEqual(afterConfirm[0].state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+
+			// Clean up the awaitConfirmation promise before teardown.
+			agentHostService.fireAction({
+				channel: sessionUri.toString(), action: { type: 'chat/turnComplete', turnId: 'turn-active' } as ChatAction,
+				serverSeq: 2,
 				origin: undefined,
 			});
 			await timeout(10);
@@ -8608,6 +9033,51 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+		});
+
+		test('propagates interactive authentication errors for eager-created sessions', async () => {
+			const authService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: (async () => []) as IAuthenticationService['getSessions'],
+			};
+			const { instantiationService, agentHostService, chatAgentService, commandService } = createTestServices(disposables, undefined, authService);
+			commandService.result = { success: false, dialogSkipped: false, error: new Error('Bad credentials') };
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			const sessionUri = AgentSession.uri('copilot', 'eager-auth-error');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+			disposables.add(agentHostService.getSubscription(StateComponents.Session, sessionUri));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-auth-error' });
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			await assert.rejects(
+				registered.impl.invoke(makeRequest({ message: 'Send after sign out', sessionResource }), () => { }, [], CancellationToken.None),
+				/Bad credentials/,
+			);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls,
+				turnActions: agentHostService.turnActions,
+			}, {
+				commandCalls: [{
+					commandId: CHAT_SETUP_ACTION_ID,
+					args: [undefined, {
+						forceSignInDialog: true,
+						additionalScopes: ['read:user'],
+						dialogTitle: 'Sign in to use GitHub Copilot',
+						disableChatViewReveal: true,
+						returnResult: true,
+					}],
+				}],
+				turnActions: [],
+			});
 		});
 	});
 

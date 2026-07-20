@@ -131,7 +131,6 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 
 	previewOptions?: ITextSearchPreviewOptions;
 	maxFileSize?: number;
-	usePCRE2?: boolean;
 	surroundingContext?: number;
 
 	userDisabledExcludesAndIgnoreFiles?: boolean;
@@ -191,10 +190,6 @@ export interface INotebookPatternInfo {
 	isInNotebookMarkdownPreview?: boolean;
 	isInNotebookCellInput?: boolean;
 	isInNotebookCellOutput?: boolean;
-}
-
-export interface IExtendedExtensionSearchOptions {
-	usePCRE2?: boolean;
 }
 
 export interface IFileMatch<U extends UriComponents = URI> {
@@ -430,7 +425,6 @@ export const enum SemanticSearchBehavior {
 
 export interface ISearchConfigurationProperties {
 	exclude: glob.IExpression;
-	useRipgrep: boolean;
 	/**
 	 * Use ignore file for file search.
 	 */
@@ -442,7 +436,6 @@ export interface ISearchConfigurationProperties {
 	globalFindClipboard: boolean;
 	useReplacePreview: boolean;
 	showLineNumbers: boolean;
-	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
 	maxResults: number | null;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';

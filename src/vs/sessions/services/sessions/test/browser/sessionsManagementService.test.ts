@@ -104,6 +104,15 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	}
 }
 
+class TestChatService extends mock<IChatService>() {
+	override readonly onDidSubmitRequest = Event.None;
+	readonly cancelledResources: URI[] = [];
+
+	override async cancelCurrentRequestForSession(sessionResource: URI): Promise<void> {
+		this.cancelledResources.push(sessionResource);
+	}
+}
+
 class TestProgressService extends mock<IProgressService>() {
 	override async withProgress<R>(_options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
 		return task({ report() { } });
@@ -164,9 +173,10 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async forkChat(_sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 }
 
-function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService } {
+function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
+	const chatService = new TestChatService();
 
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(ILogService, new NullLogService());
@@ -175,16 +185,14 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IProgressService, new TestProgressService());
-	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-		override readonly onDidSubmitRequest = Event.None;
-	});
+	instantiationService.stub(IChatService, chatService);
 	instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 		override moveHistory(): void { }
 	});
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
 	const view = createView(instantiationService, service, disposables);
-	return { service, view, chatWidgetService };
+	return { service, view, chatWidgetService, chatService };
 }
 
 /**
@@ -864,6 +872,111 @@ suite('SessionsManagementService', () => {
 		// The request was sent, but the user's view was not navigated into the session.
 		assert.strictEqual(sendRequestStarted, true);
 		assert.strictEqual(view.activeSession.get(), undefined);
+	});
+
+	test('createAndSendQuickChatRequest uses the quick-chat contract without navigation or repository configuration', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///quick-chat') };
+		const activeSession = stubSession({ sessionId: 'active', providerId: 'test' });
+		const quickChat = stubSession({
+			sessionId: 'quick-1',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const calls: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override getSessions(): ISession[] { return [activeSession]; }
+			override createQuickChat(sessionTypeId: string): ISession {
+				calls.push(`createQuickChat:${sessionTypeId}`);
+				return quickChat;
+			}
+			override setModel(_sessionId: string, modelId: string): void { calls.push(`setModel:${modelId}`); }
+			override setIsolationMode(): never { throw new Error('isolation should not be configured'); }
+			override setBranch(): never { throw new Error('branch should not be configured'); }
+			override async sendRequest(): Promise<ISession> {
+				calls.push('send');
+				return quickChat;
+			}
+		}(quickChat);
+		const { service, view } = createSessionsManagementService(activeSession, disposables, provider);
+		await view.openSession(activeSession.resource);
+
+		const result = await service.createAndSendQuickChatRequest({ query: 'hi' }, {
+			providerId: 'test',
+			sessionTypeId: 'test',
+			modelId: 'gpt-4o',
+			isolationMode: 'worktree',
+			branch: 'stale',
+		});
+
+		assert.deepStrictEqual({
+			sessionId: result?.sessionId,
+			activeSession: view.activeSession.get()?.sessionId,
+			newSession: service.newSession.get(),
+			calls,
+		}, {
+			sessionId: 'quick-1',
+			activeSession: 'active',
+			newSession: undefined,
+			calls: ['createQuickChat:test', 'setModel:gpt-4o', 'send'],
+		});
+	});
+
+	test('createAndSendQuickChatRequest cancels commit detection and disposes the provisional draft', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///quick-chat') };
+		const session = stubSession({
+			sessionId: 'quick-1',
+			providerId: 'test',
+			isQuickChat: constObservable(true),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const sendStarted = new DeferredPromise<void>();
+		const sendDone = new DeferredPromise<void>();
+		const sendReturned = new DeferredPromise<void>();
+		let deleted = false;
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return session; }
+			override deleteNewSession(): void { deleted = true; }
+			override async sendRequest(): Promise<ISession> {
+				await sendStarted.complete();
+				await sendDone.p;
+				await sendReturned.complete();
+				return session;
+			}
+		}(session);
+		const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+		const cts = disposables.add(new CancellationTokenSource());
+		let started = 0;
+		let sent = 0;
+		disposables.add(service.onDidStartSession(() => started++));
+		disposables.add(service.onDidSendRequest(() => sent++));
+
+		const request = service.createAndSendQuickChatRequest({ query: 'hi' }, {
+			providerId: 'test',
+			sessionTypeId: 'test',
+		}, cts.token);
+		await sendStarted.p;
+		cts.cancel();
+
+		await assert.rejects(request, /Canceled/);
+		assert.strictEqual(deleted, true);
+		await sendDone.complete();
+		await sendReturned.p;
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			cancelledResources: chatService.cancelledResources.map(resource => resource.toString()),
+			started,
+			sent,
+		}, {
+			cancelledResources: [chat.resource.toString()],
+			started: 0,
+			sent: 0,
+		});
 	});
 
 	test('createAndSendNewChatRequest invokes configuration setters from createOptions', async () => {

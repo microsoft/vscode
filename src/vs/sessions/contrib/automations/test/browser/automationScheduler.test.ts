@@ -16,9 +16,10 @@ import { IAutomationLeaderElection } from '../../browser/automationLeaderElectio
 import { IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
-import { AutomationRunTrigger, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 
 const FOLDER = URI.parse('file:///workspace');
+const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 
 class FakeLeaderElection implements IAutomationLeaderElection {
 	private readonly _isLeader: ISettableObservable<boolean>;
@@ -128,7 +129,7 @@ suite('AutomationSchedulerCore', () => {
 	test('on becoming leader, runs catch-up for due automations exactly once', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		// nextRunAt is T0+1h; advance the clock past it so the row is due.
 		setNow(T_PAST_DUE);
 		leader.set(true);
@@ -142,7 +143,7 @@ suite('AutomationSchedulerCore', () => {
 	test('delayed scheduled ticks use trigger=schedule', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -158,7 +159,7 @@ suite('AutomationSchedulerCore', () => {
 	test('disabled automations are not dispatched', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		await service.updateAutomation(a.id, { enabled: false });
 		setNow(T_PAST_DUE);
 		leader.set(true);
@@ -170,7 +171,7 @@ suite('AutomationSchedulerCore', () => {
 	test('advances nextRunAt so the same automation is not picked up again on the next tick', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -192,7 +193,7 @@ suite('AutomationSchedulerCore', () => {
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const leader = new FakeLeaderElection(false);
 		const runner = new SkippingRunner();
 		const core = teardown.add(new AutomationSchedulerCore(service, runner, storage, log, {
@@ -220,7 +221,7 @@ suite('AutomationSchedulerCore', () => {
 	test('does nothing while not leader', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		await core.waitForPendingRuns();
 		await core.tickForTesting();
@@ -237,7 +238,7 @@ suite('AutomationSchedulerCore', () => {
 		const log = new NullLogService();
 		const firstService = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		firstService.setClockForTesting(() => T0);
-		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const run = await firstService.recordRunStart(a.id, 'manual', 1);
 		firstService.dispose();
 
@@ -260,7 +261,7 @@ suite('AutomationSchedulerCore', () => {
 	test('losing then regaining leadership re-runs catch-up', async () => {
 		const { core, runner, service, leader, setNow } = setup();
 		setNow(T0);
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		setNow(T_PAST_DUE);
 		leader.set(true);
 		await core.waitForPendingRuns();
@@ -289,7 +290,7 @@ suite('AutomationSchedulerCore', () => {
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
 		const inFlight = await service.recordRunStart(a.id, 'schedule', 1);
 
 		const runner = new RecordingRunner(service);
@@ -330,8 +331,8 @@ suite('AutomationSchedulerCore', () => {
 
 		let now = T0;
 		service.setClockForTesting(() => now);
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
-		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), folderUri: FOLDER });
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), target: TARGET });
+		const b = await service.createAutomation({ name: 'B', prompt: 'q', schedule: hourly(), target: TARGET });
 
 		// The first run hangs until cancellation and tries to record `Cancelled`,
 		// matching the real runner's timeout behavior.

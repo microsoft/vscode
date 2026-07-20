@@ -175,13 +175,8 @@
 	font-size: 14px;
 }
 
-.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
-.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
-.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
-.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
-	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
-	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
-	and the tab key doesn't do anything. */
+.interactive-item-container:not(:hover):not(:focus-within) .header .monaco-toolbar,
+.interactive-item-container:not(:hover):not(:focus-within) .header .monaco-toolbar .action-label {
 	display: none;
 }
 
@@ -278,25 +273,19 @@
 	/* Complete response only */
 	display: block;
 	opacity: 0;
-	visibility: hidden;
 	padding-top: 6px;
 	height: 22px;
-	transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+	transition: opacity 0.1s ease-in-out;
 }
 
-/* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar,
+/* Show toolbar on hover and last response. Keep it visible when keyboard focus moves inside the response. */
 .interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
-.interactive-item-container.interactive-response:not(.chat-response-loading):hover .chat-footer-toolbar .chat-footer-details,
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
-.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
-.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details,
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
-	visibility: visible;
-	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+	transition: opacity 0.1s ease-in-out;
 }
 
 /* Style the internal toolbar element to use flexbox */
@@ -3810,20 +3799,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		font-size: var(--vscode-fontSize-label3);
 		line-height: var(--vscode-fontSize-label3);
 		opacity: 0.7;
-		visibility: visible;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp {
 		opacity: 0;
-		visibility: hidden;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
-	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus-visible {
+	.interactive-item-container.interactive-request:not(.group-hovered) .chat-request-timestamp:focus {
 		opacity: 0.7;
-		visibility: visible;
-		transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.interactive-item-container.interactive-request .chat-attached-context {
@@ -4289,20 +4275,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.interactive-item-container .value .rendered-markdown {
 			outline: 1px solid var(--vscode-focusBorder);
-		}
-
-		.request-hover:not(.has-no-actions) {
-			display: block;
-		}
-
-		.checkpoint-container {
-			opacity: 1;
-		}
-
-		.chat-request-timestamp {
-			opacity: 0.7;
-			visibility: visible;
-			transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
 		}
 	}
 

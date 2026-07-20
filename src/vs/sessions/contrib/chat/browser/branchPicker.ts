@@ -5,12 +5,14 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import './media/branchPicker.css';
 
 const FILTER_THRESHOLD = 10;
@@ -30,6 +32,27 @@ export interface IBranchPickerState {
 	readonly disabledReason?: string;
 	readonly missing?: boolean;
 	readonly showChevron?: boolean;
+	readonly isolation?: IBranchPickerIsolationState;
+}
+
+/**
+ * Static configuration for the optional isolation checkbox rendered before the branch trigger.
+ */
+export interface IBranchPickerIsolationOptions {
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly onToggle: (checked: boolean) => void;
+	readonly slotClassName?: string;
+	readonly markTarget?: (element: HTMLElement) => IDisposable;
+}
+
+/**
+ * Per-update state for the optional isolation checkbox.
+ */
+export interface IBranchPickerIsolationState {
+	readonly checked: boolean;
+	readonly state: 'enabled' | 'disabled' | 'hidden';
+	readonly disabledReason?: string;
 }
 
 export interface IBranchPickerOptions {
@@ -43,6 +66,7 @@ export interface IBranchPickerOptions {
 	readonly keepDisabledFocusable?: boolean;
 	readonly renderDisabledAsStatic?: boolean;
 	readonly ariaLive?: 'off' | 'polite' | 'assertive';
+	readonly isolation?: IBranchPickerIsolationOptions;
 }
 
 interface IBranchPickerItem {
@@ -67,6 +91,10 @@ export class BranchPicker extends Disposable {
 	private _triggerElement: HTMLElement | undefined;
 	private _descriptionElement: HTMLElement | undefined;
 	private _isOpen = false;
+	private _isolationSlot: HTMLElement | undefined;
+	private _isolationRow: HTMLElement | undefined;
+	private _isolationCheckbox: Checkbox | undefined;
+	private _isolationState: IBranchPickerIsolationState | undefined;
 
 	constructor(
 		private readonly _options: IBranchPickerOptions,
@@ -80,13 +108,92 @@ export class BranchPicker extends Disposable {
 		}));
 	}
 
+	private _renderIsolation(container: HTMLElement): void {
+		const isolation = this._options.isolation;
+		if (!isolation) {
+			return;
+		}
+
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-isolation-checkbox'));
+		if (isolation.slotClassName) {
+			slot.classList.add(isolation.slotClassName);
+		}
+		this._isolationSlot = slot;
+		this._renderDisposables.add(toDisposable(() => slot.remove()));
+		if (isolation.markTarget) {
+			this._renderDisposables.add(isolation.markTarget(slot));
+		}
+
+		const row = dom.append(slot, dom.$('.action-label'));
+		row.setAttribute('aria-label', isolation.ariaLabel);
+		this._isolationRow = row;
+
+		const checkbox = this._renderDisposables.add(new Checkbox(isolation.label, this._isolationState?.checked ?? false, { ...defaultCheckboxStyles, size: 14 }));
+		this._isolationCheckbox = checkbox;
+		dom.append(row, checkbox.domNode);
+		const labelSpan = dom.append(row, dom.$('span.sessions-chat-dropdown-label'));
+		labelSpan.textContent = isolation.label;
+
+		this._renderDisposables.add(checkbox.onChange(() => isolation.onToggle(checkbox.checked)));
+		this._renderDisposables.add(Gesture.addTarget(row));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(row, eventType, e => {
+				if (!checkbox.enabled) {
+					return;
+				}
+				dom.EventHelper.stop(e, true);
+				checkbox.checked = !checkbox.checked;
+				isolation.onToggle(checkbox.checked);
+			}));
+		}
+
+		this._updateIsolation();
+	}
+
+	private _updateIsolation(): void {
+		if (!this._options.isolation || !this._isolationCheckbox || !this._isolationSlot) {
+			return;
+		}
+
+		const state = this._isolationState;
+		const mode = state?.state ?? 'disabled';
+		this._isolationCheckbox.checked = state?.checked ?? false;
+		if (mode === 'enabled') {
+			this._isolationCheckbox.enable();
+		} else {
+			this._isolationCheckbox.disable();
+			// Keep focusable so keyboard users can discover the disabled reason via tooltip
+			this._isolationCheckbox.domNode.tabIndex = 0;
+		}
+		this._isolationSlot.classList.toggle('disabled', mode === 'disabled');
+		this._isolationSlot.classList.toggle('hidden', mode === 'hidden');
+
+		const reason = state?.disabledReason;
+		if (this._isolationRow) {
+			if (mode === 'disabled' && reason) {
+				this._isolationRow.title = reason;
+			} else {
+				this._isolationRow.removeAttribute('title');
+			}
+		}
+	}
+
 	render(container: HTMLElement): void {
 		if (this._isOpen) {
 			this._actionWidgetService.hide(true);
 		}
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const renderTarget = this._options.isolation
+			? dom.append(container, dom.$('span.sessions-chat-branch-picker-group'))
+			: container;
+		if (renderTarget !== container) {
+			this._renderDisposables.add({ dispose: () => renderTarget.remove() });
+		}
+
+		this._renderIsolation(renderTarget);
+
+		const slot = dom.append(renderTarget, dom.$('.sessions-chat-picker-slot'));
 		if (this._options.slotClassName) {
 			slot.classList.add(this._options.slotClassName);
 		}
@@ -132,7 +239,9 @@ export class BranchPicker extends Disposable {
 
 	update(state: IBranchPickerState): void {
 		this._state = state;
+		this._isolationState = state.isolation;
 		this._updateTrigger();
+		this._updateIsolation();
 		if (this._isOpen) {
 			if (!state.canOpen) {
 				this._actionWidgetService.hide(true);

@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create output/report.txt containing exactly NESTED_CREATED.
+    response:
+      content:
+        - type: text
+          text: I'll create that file for you.
+        - type: tool_use
+          id: toolcall_0
+          name: Write
+          input:
+            file_path: ${workdir}/ahp-coverage-nested-create-${temp}/output/report.txt
+            content: NESTED_CREATED
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Create output/report.txt containing exactly NESTED_CREATED.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll create that file for you.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/ahp-coverage-nested-create-${temp}/output/report.txt
+                content: NESTED_CREATED
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'File created successfully at: ${workdir}/ahp-coverage-nested-create-${temp}/output/report.txt (file state is current in your context — no need to Read it back)'
+    response:
+      content: Created `output/report.txt` containing exactly `NESTED_CREATED`.
+      stopReason: end_turn

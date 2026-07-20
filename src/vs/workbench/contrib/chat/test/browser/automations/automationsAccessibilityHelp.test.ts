@@ -54,6 +54,9 @@ suite('AutomationsAccessibilityHelp', () => {
 		assert.match(content, /Show history/);
 		assert.match(content, /Create\/Edit Dialog/);
 		assert.match(content, /Workspace folder/);
+		assert.match(content, /No workspace/);
+		assert.match(content, /Workspace target selector/);
+		assert.match(content, /workspace-less-capable session types/);
 		assert.match(content, /Run History/);
 		assert.match(content, /accessibility\.verbosity\.automations/);
 	});

@@ -21,7 +21,6 @@ import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
-import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -37,28 +36,6 @@ const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionC
 const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.defaultCopilot.isolationPicker',
-			title: localize2('isolationPicker', "Isolation Mode"),
-			f1: false,
-			menu: [{
-				id: Menus.NewSessionRepositoryConfig,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					IsNewChatSessionContext,
-					IsActiveSessionCopilotChatCLI,
-					SessionHasGitRepositoryContext,
-					ContextKeyExpr.equals('config.github.copilot.chat.cli.isolationOption.enabled', true),
-				),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -183,14 +160,6 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 			modePickerModel.setSession(undefined, undefined);
 		}));
 
-		this._register(actionViewItemService.register(
-			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(IsolationPicker, session);
-				return new PickerActionViewItem(picker);
-			},
-		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
 			(_action, _options, scopedInstantiationService) => {

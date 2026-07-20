@@ -1667,6 +1667,8 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultSent {

@@ -377,6 +377,12 @@ export interface ISessionsManagementService {
 	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
 
 	/**
+	 * Create a workspace-less quick chat and send a request without navigating
+	 * into it. The quick chat appears in the sessions list after commit.
+	 */
+	createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined>;
+
+	/**
 	 * Send a request for an existing chat within a session.
 	 *
 	 * When {@link ISendRequestOptions.background} is set, the send runs

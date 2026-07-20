@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -58,6 +59,35 @@ export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled
 export interface IChatSetupResult {
 	readonly success: ChatSetupResultValue;
 	readonly dialogSkipped: boolean;
+	readonly error?: Error;
+	readonly errorAlreadyHandled?: boolean;
+}
+
+export class ChatSetupError extends Error {
+	constructor(
+		readonly originalError: Error,
+		readonly userNotified: boolean,
+	) {
+		super(originalError.message, { cause: originalError });
+		this.name = originalError.name;
+	}
+}
+
+export interface IChatSetupRunOptions {
+	readonly disableChatViewReveal?: boolean;
+	readonly forceSignInDialog?: boolean;
+	readonly additionalScopes?: readonly string[];
+	readonly forceAnonymous?: ChatSetupAnonymous;
+	readonly dialogIcon?: ThemeIcon;
+	readonly dialogTitle?: string;
+	readonly setupStrategy?: ChatSetupStrategy;
+	readonly disableCloseButton?: boolean;
+	readonly onSignInStarted?: () => void;
+}
+
+export interface IChatSetupCommandOptions extends IChatSetupRunOptions {
+	readonly inputValue?: string;
+	readonly returnResult?: boolean;
 }
 
 export function refreshTokens(commandService: ICommandService): void {

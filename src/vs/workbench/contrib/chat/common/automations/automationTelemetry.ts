@@ -35,7 +35,7 @@ export function publishAutomationCreated(telemetryService: ITelemetryService, au
 	telemetryService.publicLog2<AutomationCreateEvent, AutomationCreateClassification>('automation.create', {
 		intervalKind: automation.schedule.interval,
 		permissionLevel: automation.permissionLevel ?? '',
-		isolationMode: automation.isolationMode ?? '',
+		isolationMode: getAutomationIsolationMode(automation),
 		enabled: automation.enabled,
 	});
 }
@@ -116,8 +116,17 @@ export function publishAutomationRun(telemetryService: ITelemetryService, args: 
 		success: args.success,
 		durationMs: Math.max(0, Math.round(args.durationMs)),
 		permissionLevel: args.automation.permissionLevel ?? '',
-		isolationMode: args.automation.isolationMode ?? '',
+		isolationMode: getAutomationIsolationMode(args.automation),
 	});
+}
+
+function getAutomationIsolationMode(automation: IAutomation): string {
+	if (automation.target.kind !== 'workspace') {
+		return '';
+	}
+	return automation.target.isolation.kind === 'folder'
+		? 'workspace'
+		: automation.target.isolation.kind === 'worktree' ? 'worktree' : '';
 }
 
 type AutomationRunErrorEvent = {

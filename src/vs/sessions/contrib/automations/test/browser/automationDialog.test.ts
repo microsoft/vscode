@@ -95,6 +95,7 @@ function createFormState(overrides?: Partial<IFormState>): IFormState {
 		hour: 9,
 		minute: 0,
 		day: 1,
+		isQuickChat: false,
 		folderUri: FOLDER,
 		providerId: 'default-copilot',
 		sessionTypeId: 'copilotcli',
@@ -114,6 +115,7 @@ suite('Automation branch picker', () => {
 		readonly failOpenRepositoryOnce?: boolean;
 		readonly providerInitiallyUnavailable?: boolean;
 		readonly revalidate?: () => void;
+		readonly visible?: boolean;
 	}): {
 		readonly container: HTMLElement;
 		readonly state: IFormState;
@@ -143,6 +145,7 @@ suite('Automation branch picker', () => {
 			]),
 		});
 		const actionWidgetService = new RecordingActionWidgetService();
+		const visible = observableValue('repositoryControlsVisible', options?.visible ?? true);
 		let openRepositoryAttempts = 0;
 		let providerAvailable = !options?.providerInitiallyUnavailable;
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
@@ -177,10 +180,11 @@ suite('Automation branch picker', () => {
 			action,
 			state,
 			model,
-			Event.None,
+			model.folderUriObs,
 			Event.None,
 			options?.revalidate ?? (() => { }),
 			undefined,
+			visible,
 		));
 		const container = document.createElement('div');
 		item.render(container);
@@ -336,24 +340,22 @@ suite('Automation branch picker', () => {
 
 	test('explains that Worktree is unavailable while branches load', async () => {
 		const refs = new DeferredPromise<Awaited<ReturnType<IGitRepository['getRefs']>>>();
-		const { container, actionWidgetService } = createItem({
+		const { container } = createItem({
 			state: createFormState({ isolationMode: 'workspace' }),
 			getRefs: async () => refs.p,
 		});
 		await timeout(0);
-		const isolationTrigger = container.querySelector<HTMLElement>('.automation-form-isolation-chip');
-		assert.ok(isolationTrigger);
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 
-		isolationTrigger.click();
 		assert.deepStrictEqual({
-			labels: actionWidgetService.labels,
-			details: actionWidgetService.details,
+			checked: checkbox.getAttribute('aria-checked'),
+			disabled: checkbox.getAttribute('aria-disabled'),
 		}, {
-			labels: ['Worktree', 'Folder'],
-			details: ['Local branches are loading.', undefined],
+			checked: 'false',
+			disabled: 'true',
 		});
 
-		actionWidgetService.hide(true);
 		await refs.complete([{ type: GitRefType.Head, name: 'main' }]);
 	});
 
@@ -403,14 +405,16 @@ suite('Automation branch picker', () => {
 		});
 		await timeout(0);
 
+		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
+		assert.ok(checkbox);
 		assert.deepStrictEqual({
 			mode: model.isolationMode,
 			branch: model.persistedBranch,
-			label: container.querySelector('.automation-form-isolation-label')?.textContent,
+			checked: checkbox.getAttribute('aria-checked'),
 		}, {
 			mode: 'workspace',
 			branch: undefined,
-			label: 'Folder',
+			checked: 'false',
 		});
 	});
 
@@ -470,6 +474,7 @@ suite('Automation branch picker', () => {
 			nameError: undefined,
 			promptError: undefined,
 			folderError: undefined,
+			sessionTypeError: undefined,
 			branchError: undefined,
 		};
 		const form = document.createElement('form');
@@ -479,6 +484,117 @@ suite('Automation branch picker', () => {
 
 		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => 'main');
 		assert.strictEqual(validation.branchError, undefined);
+	});
+
+	test('allows a workspace-less target without a folder and still requires a session type', () => {
+		const state = createFormState({ isQuickChat: true, folderUri: undefined, isolationMode: undefined, branch: undefined });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+		const form = document.createElement('form');
+
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+		const validTarget = { ...validation };
+		state.providerId = undefined;
+		state.sessionTypeId = undefined;
+		updateSaveButtonState(undefined, state, validation, form, () => 'prompt', () => undefined);
+
+		assert.deepStrictEqual({
+			validTarget,
+			missingTarget: validation,
+		}, {
+			validTarget: {
+				nameError: undefined,
+				promptError: undefined,
+				folderError: undefined,
+				sessionTypeError: undefined,
+				branchError: undefined,
+			},
+			missingTarget: {
+				nameError: undefined,
+				promptError: undefined,
+				folderError: undefined,
+				sessionTypeError: 'Session type is required.',
+				branchError: undefined,
+			},
+		});
+	});
+
+	test('allows workspace-backed legacy targets without a provider id', () => {
+		const state = createFormState({ providerId: undefined, isolationMode: 'workspace' });
+		const validation: IValidationState = {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		};
+
+		updateSaveButtonState(undefined, state, validation, document.createElement('form'), () => 'prompt', () => undefined);
+
+		assert.deepStrictEqual(validation, {
+			nameError: undefined,
+			promptError: undefined,
+			folderError: undefined,
+			sessionTypeError: undefined,
+			branchError: undefined,
+		});
+	});
+
+	test('hides repository controls for workspace-less targets', async () => {
+		const state = createFormState({
+			isQuickChat: true,
+			folderUri: undefined,
+			isolationMode: 'worktree',
+			branch: 'feature/stale',
+		});
+		const { container, model } = createItem({ state, visible: false });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			display: container.style.display,
+			ariaHidden: container.getAttribute('aria-hidden'),
+			folderUri: model.folderUri,
+			isolationMode: state.isolationMode,
+			branch: model.persistedBranch,
+		}, {
+			display: 'none',
+			ariaHidden: 'true',
+			folderUri: undefined,
+			isolationMode: undefined,
+			branch: undefined,
+		});
+	});
+
+	test('reloads repository state when returning to workspace mode', async () => {
+		const state = createFormState({
+			isQuickChat: true,
+			folderUri: undefined,
+			isolationMode: undefined,
+			branch: undefined,
+		});
+		const { container, model, getOpenRepositoryAttempts } = createItem({ state, visible: true });
+		await timeout(0);
+
+		assert.strictEqual(getOpenRepositoryAttempts(), 0);
+		model.setQuickChat(false, FOLDER);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			attempts: getOpenRepositoryAttempts(),
+			folderUri: model.folderUri?.toString(),
+			branch: container.querySelector('.automation-form-branch-name')?.textContent,
+			supportsWorktreeConfiguration: model.supportsWorktreeConfiguration,
+		}, {
+			attempts: 1,
+			folderUri: FOLDER.toString(),
+			branch: 'main',
+			supportsWorktreeConfiguration: true,
+		});
 	});
 
 	test('allows focus in mobile picker sheets', () => {

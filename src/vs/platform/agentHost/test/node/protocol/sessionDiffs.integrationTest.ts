@@ -14,13 +14,14 @@ import type { ChangesetContentChangedAction, SessionAddedParams } from '../../..
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	dispatchTurnStarted,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	nextSessionUri,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 const hasGit = (() => {
 	try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
@@ -33,7 +34,7 @@ const hasGit = (() => {
 	let tmpRoot: string;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 

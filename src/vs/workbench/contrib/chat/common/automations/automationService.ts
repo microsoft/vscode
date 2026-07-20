@@ -4,48 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule } from './automation.js';
+import { IAutomation, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 
 /**
  * Input for `createAutomation`. The service fills in `id`, timestamps, and
- * `nextRunAt`. `folderUri` is required.
+ * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
-	readonly folderUri: URI;
-	readonly providerId?: string;
-	readonly sessionTypeId?: string;
+	readonly target: AutomationTarget;
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
-	readonly isolationMode?: string;
-	readonly branch?: string;
 	readonly enabled?: boolean;
 }
 
 /**
- * Patch for `updateAutomation`. Absent fields are unchanged. Pass `null` for
- * `providerId`/`sessionTypeId`/`modelId`/`mode`/`permissionLevel` to clear them;
- * `folderUri` cannot be cleared.
+ * Patch for `updateAutomation`. Absent fields are unchanged; a target change
+ * replaces the complete discriminated target atomically.
  */
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
-	readonly folderUri?: URI;
-	readonly providerId?: string | null;
-	readonly sessionTypeId?: string | null;
+	readonly target?: AutomationTarget;
 	readonly modelId?: string | null;
 	readonly mode?: string | null;
 	readonly permissionLevel?: string | null;
-	readonly isolationMode?: string | null;
-	readonly branch?: string | null;
 	readonly enabled?: boolean;
 }
 
