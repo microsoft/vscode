@@ -74,16 +74,20 @@ suite('AgentSessionRegistry', () => {
 		assert.deepStrictEqual((await second.list()).map(s => s.session.toString()), [a.toString()]);
 	});
 
-	test('backfillIfEmpty seeds only when empty', async () => {
+	test('backfill marker gates the one-time provider seed', async () => {
 		const registry = createRegistry();
-		await registry.backfillIfEmpty([
-			{ session: a, provider: 'copilot', startTime: 100 },
-			{ session: b, provider: 'claude', startTime: 200 },
-		]);
+		assert.strictEqual(await registry.isBackfilled(), false);
+
+		// Simulate a one-time backfill: merge sessions, then set the marker.
+		await registry.register(a, 'copilot', 100);
+		await registry.register(b, 'claude', 200);
+		await registry.markBackfilled();
+
+		assert.strictEqual(await registry.isBackfilled(), true);
 		assert.deepStrictEqual((await registry.list()).map(s => s.session.toString()).sort(), [a.toString(), b.toString()].sort());
 
-		// A second backfill on a non-empty registry is a no-op.
-		await registry.backfillIfEmpty([{ session: AgentSession.uri('codex', 'c'), provider: 'codex', startTime: 300 }]);
-		assert.strictEqual((await registry.list()).length, 2);
+		// The marker persists across instances so the seed never runs twice.
+		const second = createRegistry();
+		assert.strictEqual(await second.isBackfilled(), true);
 	});
 });

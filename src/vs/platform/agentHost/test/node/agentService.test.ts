@@ -1020,6 +1020,53 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
+		test('listSessions backfills the registry from provider sessions on a pre-registry host', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+
+			// Simulate a session that exists in the provider's store but was never
+			// registered (created before the registry shipped): seed the agent
+			// directly, bypassing createSession.
+			const legacy = AgentSession.uri('copilot', 'legacy-session');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			const listed = new Set((await svc.listSessions()).map(s => s.session.toString()));
+			assert.deepStrictEqual(listed, new Set([legacy.toString()]));
+
+			// The one-time backfill has now imported it into the registry.
+			const registered = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
+			assert.deepStrictEqual(registered, new Set([legacy.toString()]));
+		});
+
+		test('listSessions keeps a registered session the provider transiently drops', async () => {
+			class FlakyListAgent extends MockAgent {
+				dropFromList = false;
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					return this.dropFromList ? [] : super.listSessions();
+				}
+				override async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+					return this.dropFromList ? undefined : super.getSessionMetadata(session);
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new FlakyListAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot' });
+			assert.ok((await svc.listSessions()).some(s => s.session.toString() === session.toString()));
+
+			// The provider transiently drops the session from both its snapshot
+			// and its per-session lookup (e.g. right after turnComplete). The
+			// registry keeps it, and the state-manager overlay re-supplies the
+			// metadata, so the session must not be evicted from the list.
+			agent.dropFromList = true;
+			assert.ok((await svc.listSessions()).some(s => s.session.toString() === session.toString()));
+		});
+
 		test('session registry stays in parity with listSessions across create/delete', async () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');

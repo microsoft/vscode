@@ -22,6 +22,14 @@ interface IPersistedRegistryEntry {
 	readonly startTime: number;
 }
 
+/** The persisted registry blob. */
+interface IPersistedRegistry {
+	readonly version: 1;
+	/** Whether the one-time provider backfill has run for this host. */
+	readonly backfilled: boolean;
+	readonly sessions: Record<string, IPersistedRegistryEntry>;
+}
+
 /**
  * The reserved URI whose per-session database backs the registry index. Its
  * scheme (`agent-host-registry`) cannot collide with a real session URI, which
@@ -50,6 +58,8 @@ export class AgentSessionRegistry extends Disposable {
 	private _dbRef: IReference<ISessionDatabase> | undefined;
 	/** In-memory mirror of the persisted index; the source of truth once loaded. */
 	private _cache: Map<string, IPersistedRegistryEntry> | undefined;
+	/** Whether the one-time provider backfill has run; part of the persisted blob. */
+	private _backfilled = false;
 	/** Serializes read-modify-write of the persisted blob. */
 	private _writeChain: Promise<void> = Promise.resolve();
 	private _loadPromise: Promise<Map<string, IPersistedRegistryEntry>> | undefined;
@@ -96,21 +106,20 @@ export class AgentSessionRegistry extends Disposable {
 	}
 
 	/**
-	 * One-time backfill: when the registry is empty (a host that predates it, or
-	 * a fresh index), seed it from the supplied sessions. Safe to call on every
-	 * startup — it only writes when the registry is currently empty.
+	 * Whether the one-time provider backfill has completed for this host. Gated
+	 * by a persisted marker rather than emptiness so a registry that a
+	 * `createSession` has already populated is still backfilled from the legacy
+	 * provider enumeration exactly once.
 	 */
-	async backfillIfEmpty(sessions: readonly IRegisteredSession[]): Promise<void> {
-		if (sessions.length === 0 || !(await this.isEmpty())) {
-			return;
-		}
-		await this._enqueueWrite(cache => {
-			if (cache.size > 0) {
-				return; // a concurrent register won the race; don't overwrite
-			}
-			for (const s of sessions) {
-				cache.set(s.session.toString(), { provider: s.provider, startTime: s.startTime });
-			}
+	async isBackfilled(): Promise<boolean> {
+		await this._load();
+		return this._backfilled;
+	}
+
+	/** Records that the one-time provider backfill has completed. */
+	async markBackfilled(): Promise<void> {
+		await this._enqueueWrite(() => {
+			this._backfilled = true;
 		});
 	}
 
@@ -139,12 +148,16 @@ export class AgentSessionRegistry extends Disposable {
 		try {
 			const raw = await this._db().getMetadata(REGISTRY_METADATA_KEY);
 			if (raw !== undefined) {
-				const parsed = JSON.parse(raw);
+				const parsed = JSON.parse(raw) as Partial<IPersistedRegistry>;
 				if (parsed && typeof parsed === 'object') {
-					for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-						const entry = value as Partial<IPersistedRegistryEntry>;
-						if (entry && typeof entry.provider === 'string' && typeof entry.startTime === 'number') {
-							cache.set(key, { provider: entry.provider, startTime: entry.startTime });
+					this._backfilled = parsed.backfilled === true;
+					const sessions = parsed.sessions;
+					if (sessions && typeof sessions === 'object') {
+						for (const [key, value] of Object.entries(sessions)) {
+							const entry = value as Partial<IPersistedRegistryEntry>;
+							if (entry && typeof entry.provider === 'string' && typeof entry.startTime === 'number') {
+								cache.set(key, { provider: entry.provider, startTime: entry.startTime });
+							}
 						}
 					}
 				}
@@ -157,12 +170,13 @@ export class AgentSessionRegistry extends Disposable {
 	}
 
 	private async _persist(cache: Map<string, IPersistedRegistryEntry>): Promise<void> {
-		const obj: Record<string, IPersistedRegistryEntry> = {};
+		const sessions: Record<string, IPersistedRegistryEntry> = {};
 		for (const [key, entry] of cache) {
-			obj[key] = entry;
+			sessions[key] = entry;
 		}
+		const blob: IPersistedRegistry = { version: 1, backfilled: this._backfilled, sessions };
 		try {
-			await this._db().setMetadata(REGISTRY_METADATA_KEY, JSON.stringify(obj));
+			await this._db().setMetadata(REGISTRY_METADATA_KEY, JSON.stringify(blob));
 		} catch (err) {
 			this._logService.warn(`[AgentSessionRegistry] Failed to persist registry: ${err instanceof Error ? err.message : String(err)}`);
 		}

@@ -38,7 +38,7 @@ import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHost
 import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { AgentSessionRegistry } from './agentSessionRegistry.js';
+import { AgentSessionRegistry, IRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -196,6 +196,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * driving enumeration.
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
+
+	/** Guards the one-time {@link _backfillRegistryFromProviders} sweep. */
+	private _registryBackfill: Promise<void> | undefined;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
 	get stateManager(): AgentHostStateManager { return this._stateManager; }
@@ -746,12 +749,117 @@ export class AgentService extends Disposable implements IAgentService {
 		return [...await provider.listSessions()];
 	}
 
+	/**
+	 * Base per-session metadata for a session held by the orchestrator-owned
+	 * registry. Metadata still comes from the agent's direct
+	 * {@link IAgent.getSessionMetadata} lookup (I3 keeps the default chat's SDK
+	 * session id equal to the session id, so the lookup resolves). Returns
+	 * `undefined` for a session the agent can't yet describe (e.g. a provisional
+	 * session with no SDK session); the state-manager overlay in
+	 * {@link listSessions} re-surfaces those when they have turn activity.
+	 */
+	private async _registeredSessionMetadata(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
+		if (!agent.getSessionMetadata) {
+			// Older providers without a direct lookup fall back to catalog
+			// enumeration, matching the restore path.
+			return this._getSessionMetadataFromCatalog(agent, session);
+		}
+		return agent.getSessionMetadata(session);
+	}
+
+	/** Runs {@link _backfillRegistryFromProviders} at most once per host. */
+	private _ensureRegistryBackfilled(): Promise<void> {
+		this._registryBackfill ??= this._backfillRegistryFromProviders();
+		return this._registryBackfill;
+	}
+
+	/**
+	 * One-time migration: when the backfill marker is unset, seed the registry
+	 * from the legacy provider enumeration exactly once per host — merging the
+	 * discovered sessions (via idempotent {@link AgentSessionRegistry.register},
+	 * which preserves any startTime a concurrent `createSession` already
+	 * recorded) rather than gating on emptiness. Peer-chat backings and subagent
+	 * sessions are filtered out here — mirroring the top-level filters in
+	 * {@link listSessions} — so they never become registered sessions.
+	 * Best-effort per provider: a provider whose enumeration fails is skipped.
+	 */
+	private async _backfillRegistryFromProviders(): Promise<void> {
+		if (await this._sessionRegistry.isBackfilled()) {
+			return;
+		}
+		const perProvider = await Promise.all([...this._providers.values()].map(async (provider): Promise<IRegisteredSession[]> => {
+			let sessions: IAgentSessionMetadata[];
+			try {
+				sessions = await this._enumerateProviderSessions(provider);
+			} catch (err) {
+				this._logService.warn(`[AgentService] registry backfill: listSessions failed for provider ${provider.id}`, err);
+				return [];
+			}
+			const identities = await Promise.all(sessions.map(async (s): Promise<IRegisteredSession | undefined> => {
+				if (isSubagentSession(s.session.toString()) || await this._isPeerChatBacking(s.session)) {
+					return undefined;
+				}
+				return { session: s.session, provider: provider.id, startTime: s.startTime };
+			}));
+			return identities.filter((s): s is IRegisteredSession => s !== undefined);
+		}));
+		for (const { session, provider, startTime } of perProvider.flat()) {
+			await this._sessionRegistry.register(session, provider, startTime);
+		}
+		await this._sessionRegistry.markBackfilled();
+	}
+
+	/** Whether a session is an internal peer-chat backing (per the persisted marker). */
+	private async _isPeerChatBacking(session: URI): Promise<boolean> {
+		try {
+			const ref = await this._sessionDataService.tryOpenDatabase(session);
+			if (!ref) {
+				return false;
+			}
+			try {
+				return !!(await ref.object.getMetadata(PEER_CHAT_BACKING_METADATA_KEY));
+			} finally {
+				ref.dispose();
+			}
+		} catch {
+			return false;
+		}
+	}
+
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
-		const results = await Promise.all(
-			[...this._providers.values()].map(p => this._enumerateProviderSessions(p))
-		);
-		const flat = results.flat();
+		// A host created before the registry existed has sessions on disk that
+		// were never registered. Seed the registry once from the legacy provider
+		// enumeration before reading it, so those sessions are not lost.
+		await this._ensureRegistryBackfilled();
+		// Stage 2 (I3 removal): the orchestrator-owned registry is the source of
+		// truth for which sessions exist, replacing the union of each provider's
+		// `listSessions()`. This decouples AH enumeration from the agents' SDK
+		// stores: peer-chat backings and subagent sessions never enter the
+		// registry, so they can't leak as top-level entries, and a provider that
+		// transiently drops a session from its own snapshot no longer evicts it.
+		const registered = await this._sessionRegistry.list();
+		const results = await Promise.all(registered.map(async ({ session, provider }): Promise<IAgentSessionMetadata | undefined> => {
+			// Idle provisional sessions (created but not yet materialized, no turn
+			// activity — e.g. the new-session composer's eager session) exist in
+			// the registry but must not leak into the list until they materialize
+			// or gain activity (#321269). The state-manager overlay below still
+			// re-surfaces them once they do.
+			if (this._stateManager.isIdleProvisionalSession(session.toString())) {
+				return undefined;
+			}
+			const agent = this._providers.get(provider);
+			if (!agent) {
+				return undefined;
+			}
+			try {
+				return await this._registeredSessionMetadata(agent, session);
+			} catch (err) {
+				this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
+				return undefined;
+			}
+		}));
+		const flat = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
 
 		// Overlay persisted custom titles from per-session databases.
 		const overlaid = await Promise.all(flat.map(async (s): Promise<IAgentSessionMetadata | undefined> => {
