@@ -842,6 +842,15 @@ export namespace ConfigKey {
 		export const InlineEditsAbsorbSubsequenceTyping = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.absorbSubsequenceTyping', ConfigType.ExperimentBased, false);
 		export const InlineEditsReverseAgreement = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.reverseAgreement', ConfigType.ExperimentBased, true);
 		export const InlineEditsMaxImperfectAgreementLength = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.maxImperfectAgreementLength', ConfigType.ExperimentBased, 1, vNumber());
+		/**
+		 * When enabled, a cached NES suggestion whose strict rebase fails *only*
+		 * because the user re-typed a line's leading indentation differently than
+		 * the model predicted (e.g. pressing Tab to insert a tab character, or a
+		 * different number of spaces, on an otherwise-empty body line) is salvaged
+		 * instead of dropped: the model's still-valid content is re-anchored as a
+		 * clean at-cursor insertion that respects the indentation the user typed.
+		 */
+		export const InlineEditsReanchorContentOnIndentationMismatch = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.reanchorContentOnIndentationMismatch', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsBackoffDebounceEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.backoffDebounceEnabled', ConfigType.ExperimentBased, true);
 		export const InlineEditsExtraDebounceEndOfLine = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.extraDebounceEndOfLine', ConfigType.ExperimentBased, 2000);
 		export const InlineEditsSpeculativeRequests = defineTeamInternalSetting<SpeculativeRequestsEnablement>('chat.advanced.inlineEdits.speculativeRequests', ConfigType.ExperimentBased, SpeculativeRequestsEnablement.Off, SpeculativeRequestsEnablement.VALIDATOR);
