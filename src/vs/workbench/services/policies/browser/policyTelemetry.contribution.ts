@@ -136,10 +136,10 @@ function isEmptyMarketplaceAllowlist(rawValue: PolicyValue | undefined): boolean
 const KNOWN_TELEMETRY_LEVELS: ReadonlySet<string> = new Set(['off', 'crash', 'error', 'all']);
 
 function telemetryLevelBucket(rawValue: PolicyValue | undefined): string | undefined {
-	if (typeof rawValue !== 'string') {
+	if (rawValue === undefined) {
 		return undefined;
 	}
-	return KNOWN_TELEMETRY_LEVELS.has(rawValue) ? rawValue : 'unknown';
+	return typeof rawValue === 'string' && KNOWN_TELEMETRY_LEVELS.has(rawValue) ? rawValue : 'unknown';
 }
 
 registerWorkbenchContribution2(PolicyTelemetryContribution.ID, PolicyTelemetryContribution, WorkbenchPhase.AfterRestored);

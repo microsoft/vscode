@@ -107,7 +107,7 @@ suite('PolicyTelemetryContribution', () => {
 	test('buckets unexpected values without reporting them', () => {
 		const policyService = new TestPolicyService();
 		policyService.setPolicy('ChatStrictMarketplaces', 'not-json');
-		policyService.setPolicy('TelemetryLevel', 'private-value');
+		policyService.setPolicy('TelemetryLevel', 1);
 
 		const { events, clock } = createContribution(policyService);
 		clock.tick(500);
