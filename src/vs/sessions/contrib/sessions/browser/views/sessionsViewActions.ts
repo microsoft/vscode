@@ -174,7 +174,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
-				secondary: [KeyMod.Alt | KeyCode.UpArrow],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
 					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft, KeyMod.Alt | KeyCode.UpArrow],
@@ -208,7 +208,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
-				secondary: [KeyMod.Alt | KeyCode.DownArrow],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
 					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight, KeyMod.Alt | KeyCode.DownArrow],
