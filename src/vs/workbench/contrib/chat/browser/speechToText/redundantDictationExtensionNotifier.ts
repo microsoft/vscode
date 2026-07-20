@@ -89,7 +89,7 @@ export class RedundantDictationExtensionNotifier implements IWorkbenchContributi
 		const displayName = extension.displayName || extension.identifier.id;
 		this.notificationService.prompt(
 			Severity.Info,
-			localize('redundantDictationExtension', "VS Code now has built-in dictation, so the '{0}' extension is no longer needed. Disable it?", displayName),
+			localize('redundantDictationExtension', "VS Code now has built-in dictation. Disable the '{0}' extension to avoid conflicts?", displayName),
 			[
 				{
 					label: localize('disableExtension', "Disable Extension"),
