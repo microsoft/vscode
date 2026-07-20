@@ -102,7 +102,7 @@ import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chat
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatSpeechToTextActions } from './actions/chatSpeechToTextActions.js';
-import { ChatSpeechToTextProvider, ChatSpeechToTextService, IChatSpeechToTextService, SPEECH_TO_TEXT_PROVIDER_SETTING } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, IChatSpeechToTextService, MAI_VOICE_SPEECH_TO_TEXT_MODEL } from './speechToText/chatSpeechToTextService.js';
 import { IRemoteChatSpeechToTextService, RemoteChatSpeechToTextService } from './speechToText/remoteChatSpeechToTextService.js';
 import { IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient } from './speechToText/voiceCodeTranscriptionClient.js';
 import { AudioCaptureLeaseService, IAudioCaptureLeaseService } from './voiceClient/audioCaptureLeaseService.js';
@@ -261,25 +261,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.speechToText.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input. When enabled, a microphone button appears in the chat input and the configured speech-to-text provider transcribes the recording."),
+			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input. When enabled, a microphone button appears in the chat input and the selected speech-to-text model transcribes the recording."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
-		},
-		[SPEECH_TO_TEXT_PROVIDER_SETTING]: {
-			type: 'string',
-			enum: [ChatSpeechToTextProvider.Local, ChatSpeechToTextProvider.MaiVoice],
-			enumItemLabels: [
-				nls.localize('chat.speechToText.provider.local.label', "Local (On Device)"),
-				nls.localize('chat.speechToText.provider.maiVoice.label', "MAI Voice (Remote)"),
-			],
-			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.provider.local', "Transcribes audio on this device using the selected local model. Audio is not sent to a remote transcription service."),
-				nls.localize('chat.speechToText.provider.maiVoice', "Sends microphone audio to the Microsoft MAI Voice service for transcription. The final transcript remains editable and is never submitted automatically."),
-			],
-			markdownDescription: nls.localize('chat.speechToText.provider', "Controls which speech-to-text provider is used for chat dictation."),
-			default: ChatSpeechToTextProvider.Local,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'usesOnlineServices']
 		},
 		'chat.speechToText.model': {
 			type: 'string',
@@ -288,17 +272,20 @@ configurationRegistry.registerConfiguration({
 				'onnx-community/whisper-base',
 				'onnx-community/whisper-small',
 				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+				MAI_VOICE_SPEECH_TO_TEXT_MODEL,
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
+			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)', nls.localize('chat.speechToText.model.maiVoice.label', "MAI Voice (Remote)")],
 			markdownEnumDescriptions: [
 				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
 				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
 				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
 				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
+				nls.localize('chat.speechToText.model.maiVoice', "Sends microphone audio to Microsoft for remote transcription with MAI Voice. The transcript remains editable and is not submitted automatically."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
+			markdownDescription: nls.localize('chat.speechToText.model', "Selects the model used for chat dictation. On-device models keep microphone audio on this device and are downloaded on first use. MAI Voice sends microphone audio to Microsoft for remote transcription. Transcripts remain editable and are not submitted automatically."),
 			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
-			tags: ['experimental']
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'usesOnlineServices']
 		},
 		'chat.speechToText.mode': {
 			type: 'string',

@@ -14,8 +14,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ILocalTranscriptionModelStatus, ILocalTranscriptionService, LocalTranscriptionModelState } from '../../../../../../platform/localTranscription/common/localTranscription.js';
 import { IAudioCaptureLeaseService, AudioCaptureLeaseService } from '../../../browser/voiceClient/audioCaptureLeaseService.js';
 import { IRemoteChatSpeechToTextService, RemoteChatSpeechToTextState } from '../../../browser/speechToText/remoteChatSpeechToTextService.js';
-import { ChatSpeechToTextProvider, ChatSpeechToTextService, ChatSpeechToTextState, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, ChatSpeechToTextState, MAI_VOICE_SPEECH_TO_TEXT_MODEL, SPEECH_TO_TEXT_MODEL_SETTING } from '../../../browser/speechToText/chatSpeechToTextService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+
+const DEFAULT_LOCAL_MODEL = 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4';
 
 class TestLocalTranscriptionService extends Disposable implements ILocalTranscriptionService {
 	declare readonly _serviceBrand: undefined;
@@ -28,14 +30,16 @@ class TestLocalTranscriptionService extends Disposable implements ILocalTranscri
 	startCount = 0;
 	stopCount = 0;
 	cancelCount = 0;
+	startedModels: (string | undefined)[] = [];
 	modelStatus: ILocalTranscriptionModelStatus = { state: LocalTranscriptionModelState.Ready };
 
 	async getModelStatus(): Promise<ILocalTranscriptionModelStatus> {
 		return this.modelStatus;
 	}
 
-	async start(): Promise<void> {
+	async start(options: Parameters<ILocalTranscriptionService['start']>[0]): Promise<void> {
 		this.startCount++;
+		this.startedModels.push(options.model);
 		this.startCalled.complete();
 		await this.startGate.p;
 	}
@@ -53,12 +57,16 @@ class TestRemoteSpeechToTextService implements IRemoteChatSpeechToTextService {
 	readonly onDidChangeState = Event.None;
 	readonly onDidUpdateTranscript = Event.None;
 	readonly onDidFail = Event.None;
-	readonly state = RemoteChatSpeechToTextState.Idle;
+	state = RemoteChatSpeechToTextState.Idle;
 	readonly isConfigured = true;
 	startCount = 0;
+	cancelCount = 0;
 	async start(): Promise<void> { this.startCount++; }
 	async stopAndTranscribe(): Promise<string | undefined> { return undefined; }
-	cancel(): void { }
+	cancel(): void {
+		this.cancelCount++;
+		this.state = RemoteChatSpeechToTextState.Idle;
+	}
 }
 
 suite('ChatSpeechToTextService', () => {
@@ -85,11 +93,11 @@ suite('ChatSpeechToTextService', () => {
 
 	function createService(
 		localTranscription: TestLocalTranscriptionService,
-		provider = ChatSpeechToTextProvider.Local,
+		model = DEFAULT_LOCAL_MODEL,
 		remoteSpeechToText = new TestRemoteSpeechToTextService(),
 		configurationService = new TestConfigurationService({
 			'chat.speechToText.enabled': true,
-			[SPEECH_TO_TEXT_PROVIDER_SETTING]: provider,
+			[SPEECH_TO_TEXT_MODEL_SETTING]: model,
 		}),
 	): ChatSpeechToTextService {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
@@ -109,18 +117,26 @@ suite('ChatSpeechToTextService', () => {
 		});
 	}
 
-	test('uses local provider by default', () => {
+	test('uses the existing local model by default', async () => {
 		const localTranscription = store.add(new TestLocalTranscriptionService());
 		const remoteSpeechToText = new TestRemoteSpeechToTextService();
-		const service = createService(localTranscription, ChatSpeechToTextProvider.Local, remoteSpeechToText);
+		const service = createService(localTranscription, DEFAULT_LOCAL_MODEL, remoteSpeechToText);
+		const starting = service.start(createWindow(async () => createStream(() => { })));
+		await localTranscription.startCalled.p;
 
 		assert.deepStrictEqual({
 			configured: service.isConfigured,
+			localModels: localTranscription.startedModels,
 			remoteStarts: remoteSpeechToText.startCount,
 		}, {
 			configured: true,
+			localModels: [DEFAULT_LOCAL_MODEL],
 			remoteStarts: 0,
 		});
+
+		service.cancel();
+		localTranscription.startGate.complete();
+		await starting;
 	});
 
 	test('restores idle state after local startup failure', async () => {
@@ -155,17 +171,17 @@ suite('ChatSpeechToTextService', () => {
 		});
 	});
 
-	test('switches to MAI Voice provider between sessions', async () => {
+	test('switches to MAI Voice between sessions without starting the local loader', async () => {
 		const localTranscription = store.add(new TestLocalTranscriptionService());
 		const remoteSpeechToText = new TestRemoteSpeechToTextService();
 		const configurationService = new TestConfigurationService({
 			'chat.speechToText.enabled': true,
-			[SPEECH_TO_TEXT_PROVIDER_SETTING]: ChatSpeechToTextProvider.Local,
+			[SPEECH_TO_TEXT_MODEL_SETTING]: DEFAULT_LOCAL_MODEL,
 		});
-		const service = createService(localTranscription, ChatSpeechToTextProvider.Local, remoteSpeechToText, configurationService);
+		const service = createService(localTranscription, DEFAULT_LOCAL_MODEL, remoteSpeechToText, configurationService);
 
-		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING, ChatSpeechToTextProvider.MaiVoice);
-		fireConfigurationChange(configurationService, SPEECH_TO_TEXT_PROVIDER_SETTING);
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_MODEL_SETTING, MAI_VOICE_SPEECH_TO_TEXT_MODEL);
+		fireConfigurationChange(configurationService, SPEECH_TO_TEXT_MODEL_SETTING);
 		await service.start(mainWindow);
 
 		assert.deepStrictEqual({
@@ -174,6 +190,30 @@ suite('ChatSpeechToTextService', () => {
 		}, {
 			localStarts: 0,
 			remoteStarts: 1,
+		});
+	});
+
+	test('cancels an active MAI Voice session when the model changes', async () => {
+		const localTranscription = store.add(new TestLocalTranscriptionService());
+		const remoteSpeechToText = new TestRemoteSpeechToTextService();
+		remoteSpeechToText.state = RemoteChatSpeechToTextState.Recording;
+		const configurationService = new TestConfigurationService({
+			'chat.speechToText.enabled': true,
+			[SPEECH_TO_TEXT_MODEL_SETTING]: MAI_VOICE_SPEECH_TO_TEXT_MODEL,
+		});
+		const service = createService(localTranscription, MAI_VOICE_SPEECH_TO_TEXT_MODEL, remoteSpeechToText, configurationService);
+
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_MODEL_SETTING, DEFAULT_LOCAL_MODEL);
+		fireConfigurationChange(configurationService, SPEECH_TO_TEXT_MODEL_SETTING);
+
+		assert.deepStrictEqual({
+			state: service.state,
+			remoteCancels: remoteSpeechToText.cancelCount,
+			localStarts: localTranscription.startCount,
+		}, {
+			state: ChatSpeechToTextState.Idle,
+			remoteCancels: 1,
+			localStarts: 0,
 		});
 	});
 

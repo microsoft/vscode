@@ -32,13 +32,8 @@ const SAMPLE_RATE = 16000;
 
 /** Setting that enables the dictation feature; a kill-switch for rollout. */
 export const SPEECH_TO_TEXT_ENABLED_SETTING = 'chat.speechToText.enabled';
-export const SPEECH_TO_TEXT_PROVIDER_SETTING = 'chat.speechToText.provider';
-export const enum ChatSpeechToTextProvider {
-	Local = 'local',
-	MaiVoice = 'maiVoice',
-}
-/** On-device model (Whisper or Nemotron) to use for dictation. */
-const MODEL_SETTING = 'chat.speechToText.model';
+export const SPEECH_TO_TEXT_MODEL_SETTING = 'chat.speechToText.model';
+export const MAI_VOICE_SPEECH_TO_TEXT_MODEL = 'maiVoice';
 /** Setting that controls the tap-vs-hold behavior of the dictation shortcut. */
 const MODE_SETTING = 'chat.speechToText.mode';
 
@@ -151,7 +146,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _isPreparingModel = false;
 	get isPreparingModel(): boolean {
-		if (this._isMaiVoiceProviderSelected()) {
+		if (this._isMaiVoiceModelSelected()) {
 			return false;
 		}
 		return this._isPreparingModel;
@@ -167,7 +162,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 	private _state = ChatSpeechToTextState.Idle;
 	get state(): ChatSpeechToTextState {
-		if (this._isMaiVoiceProviderSelected()) {
+		if (this._isMaiVoiceModelSelected()) {
 			return toChatSpeechToTextState(this._remoteSpeechToText.state);
 		}
 		return this._state;
@@ -194,7 +189,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) === false) {
 			return false;
 		}
-		if (this._isMaiVoiceProviderSelected()) {
+		if (this._isMaiVoiceModelSelected()) {
 			return this._remoteSpeechToText.isConfigured;
 		}
 		// On-device transcription needs no configuration — the model downloads
@@ -240,9 +235,9 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._preparingContextKey = ChatContextKeys.speechToTextPreparing.bindTo(contextKeyService);
 		this._updateConfiguredContextKey();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+			if (e.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || e.affectsConfiguration(SPEECH_TO_TEXT_MODEL_SETTING)) {
 				if ((e.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) && !this.isConfigured)
-					|| e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+					|| e.affectsConfiguration(SPEECH_TO_TEXT_MODEL_SETTING)) {
 					if (this._remoteSpeechToText.state !== RemoteChatSpeechToTextState.Idle || this._state !== ChatSpeechToTextState.Idle) {
 						this.cancel();
 					}
@@ -255,7 +250,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._register(this._remoteSpeechToText.onDidUpdateTranscript(text => this._onDidUpdateTranscript.fire(text)));
 		this._register(this._remoteSpeechToText.onDidFail(() => this._onDidFail.fire()));
 		this._register(this._remoteSpeechToText.onDidChangeState(state => {
-			if (this._isMaiVoiceProviderSelected()) {
+			if (this._isMaiVoiceModelSelected()) {
 				const chatState = toChatSpeechToTextState(state);
 				this._updateStateContextKeys(chatState);
 				this._onDidChangeState.fire(chatState);
@@ -344,7 +339,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		if (this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) === false) {
 			return;
 		}
-		if (this._isMaiVoiceProviderSelected()) {
+		if (this._isMaiVoiceModelSelected()) {
 			return this._remoteSpeechToText.start(window);
 		}
 		if (this._localStartPromise || this._localStopPromise) {
@@ -483,7 +478,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	private _getModelId(): string | undefined {
-		const value = this._configurationService.getValue<string>(MODEL_SETTING);
+		const value = this._configurationService.getValue<string>(SPEECH_TO_TEXT_MODEL_SETTING);
 		return value ? value.trim() || undefined : undefined;
 	}
 
@@ -628,7 +623,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 	}
 
 	async stopAndTranscribe(): Promise<string | undefined> {
-		if (this._isMaiVoiceProviderSelected()) {
+		if (this._isMaiVoiceModelSelected()) {
 			return this._remoteSpeechToText.stopAndTranscribe();
 		}
 		if (this._localStopPromise) {
@@ -771,8 +766,8 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		}
 	}
 
-	private _isMaiVoiceProviderSelected(): boolean {
-		return this._configurationService.getValue<string>(SPEECH_TO_TEXT_PROVIDER_SETTING) === ChatSpeechToTextProvider.MaiVoice;
+	private _isMaiVoiceModelSelected(): boolean {
+		return this._configurationService.getValue<string>(SPEECH_TO_TEXT_MODEL_SETTING) === MAI_VOICE_SPEECH_TO_TEXT_MODEL;
 	}
 }
 

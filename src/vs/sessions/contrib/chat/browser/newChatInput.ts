@@ -82,7 +82,7 @@ import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHisto
 import { IChatStatusItemService } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput } from '../../../../workbench/contrib/chat/browser/chatTerminalCommandPaste.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_MODEL_SETTING } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IChatDictationController } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { getDictationMode, startDictationWithHoldMode } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMode.js';
 
@@ -814,7 +814,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		};
 		updateVisibility();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+			if (e.affectsConfiguration('chat.speechToText.enabled') || e.affectsConfiguration(SPEECH_TO_TEXT_MODEL_SETTING)) {
 				updateVisibility();
 			}
 		}));

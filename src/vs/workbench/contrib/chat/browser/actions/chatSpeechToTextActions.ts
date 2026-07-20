@@ -22,7 +22,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, MAI_VOICE_SPEECH_TO_TEXT_MODEL, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_MODEL_SETTING } from '../speechToText/chatSpeechToTextService.js';
 import { IChatDictationController } from '../speechToText/dictationSession.js';
 import { getDictationMode, startDictationWithHoldMode } from '../speechToText/dictationMode.js';
 
@@ -349,7 +349,7 @@ class EnableChatDictationAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		await configurationService.updateValue(SPEECH_TO_TEXT_ENABLED_SETTING, true, ConfigurationTarget.APPLICATION);
-		await configurationService.updateValue(SPEECH_TO_TEXT_PROVIDER_SETTING, ChatSpeechToTextProvider.MaiVoice, ConfigurationTarget.APPLICATION);
+		await configurationService.updateValue(SPEECH_TO_TEXT_MODEL_SETTING, MAI_VOICE_SPEECH_TO_TEXT_MODEL, ConfigurationTarget.APPLICATION);
 	}
 }
 

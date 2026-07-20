@@ -11,7 +11,7 @@ import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../p
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatDictationNotificationContribution } from '../../browser/chatDictationNotification.js';
-import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, MAI_VOICE_SPEECH_TO_TEXT_MODEL, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_MODEL_SETTING } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 class TestSpeechToTextService extends Disposable implements IChatSpeechToTextService {
@@ -80,15 +80,21 @@ suite('ChatDictationNotificationContribution', () => {
 		));
 
 		assert.strictEqual(notificationService.notification, undefined);
-		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING, ChatSpeechToTextProvider.MaiVoice);
+		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_MODEL_SETTING, MAI_VOICE_SPEECH_TO_TEXT_MODEL);
 		const configurationEvent: IConfigurationChangeEvent = {
 			source: ConfigurationTarget.APPLICATION,
-			affectedKeys: new Set([SPEECH_TO_TEXT_PROVIDER_SETTING]),
-			change: { keys: [SPEECH_TO_TEXT_PROVIDER_SETTING], overrides: [] },
-			affectsConfiguration: key => key === SPEECH_TO_TEXT_PROVIDER_SETTING,
+			affectedKeys: new Set([SPEECH_TO_TEXT_MODEL_SETTING]),
+			change: { keys: [SPEECH_TO_TEXT_MODEL_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SPEECH_TO_TEXT_MODEL_SETTING,
 		};
 		configurationService.onDidChangeConfigurationEmitter.fire(configurationEvent);
-		assert.strictEqual(notificationService.getActiveNotification()?.id, 'chat.dictation.firstUse');
+		assert.deepStrictEqual({
+			id: notificationService.getActiveNotification()?.id,
+			description: notificationService.getActiveNotification()?.description,
+		}, {
+			id: 'chat.dictation.firstUse',
+			description: 'MAI Voice sends microphone audio to Microsoft for remote transcription. Select the microphone to start, then stop and review the editable transcript. It is not submitted automatically.',
+		});
 
 		await configurationService.setUserConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING, false);
 		configurationService.onDidChangeConfigurationEmitter.fire({

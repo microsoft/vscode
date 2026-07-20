@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ChatSpeechToTextProvider, ChatSpeechToTextState, IChatSpeechToTextService, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_PROVIDER_SETTING } from './speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, MAI_VOICE_SPEECH_TO_TEXT_MODEL, SPEECH_TO_TEXT_ENABLED_SETTING, SPEECH_TO_TEXT_MODEL_SETTING } from './speechToText/chatSpeechToTextService.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from './widget/input/chatInputNotificationService.js';
 
 const NOTIFICATION_ID = 'chat.dictation.firstUse';
@@ -25,7 +25,7 @@ export class ChatDictationNotificationContribution extends Disposable implements
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || event.affectsConfiguration(SPEECH_TO_TEXT_PROVIDER_SETTING)) {
+			if (event.affectsConfiguration(SPEECH_TO_TEXT_ENABLED_SETTING) || event.affectsConfiguration(SPEECH_TO_TEXT_MODEL_SETTING)) {
 				this._update();
 			}
 		}));
@@ -51,8 +51,8 @@ export class ChatDictationNotificationContribution extends Disposable implements
 			id: NOTIFICATION_ID,
 			telemetryId: 'chatDictationFirstUse',
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('chatDictation.tip.title', "Dictate Your Chat Request"),
-			description: localize('chatDictation.tip.description', "Select the microphone to start, then select stop. Review or edit the transcript and send it when ready."),
+			message: localize('chatDictation.tip.title', "Dictate with MAI Voice"),
+			description: localize('chatDictation.tip.description', "MAI Voice sends microphone audio to Microsoft for remote transcription. Select the microphone to start, then stop and review the editable transcript. It is not submitted automatically."),
 			actions: [],
 			dismissible: true,
 			autoDismissOnMessage: false,
@@ -66,6 +66,6 @@ export class ChatDictationNotificationContribution extends Disposable implements
 
 	private _isRemoteEnabled(): boolean {
 		return this._configurationService.getValue<boolean>(SPEECH_TO_TEXT_ENABLED_SETTING) !== false
-			&& this._configurationService.getValue<string>(SPEECH_TO_TEXT_PROVIDER_SETTING) === ChatSpeechToTextProvider.MaiVoice;
+			&& this._configurationService.getValue<string>(SPEECH_TO_TEXT_MODEL_SETTING) === MAI_VOICE_SPEECH_TO_TEXT_MODEL;
 	}
 }
