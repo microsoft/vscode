@@ -342,13 +342,31 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Codex remains a single-chat harness, but its sole SDK thread is explicitly bound to the concrete chat URI AH supplies:
+Codex supports multiple chats per session. Each conversation — the session's
+default chat and every additional chat — is a distinct top-level Codex thread,
+explicitly bound to the concrete chat URI AH supplies:
 - `_sessions: Map<string, ICodexSession>` owns thread/session state by Codex session id.
 - `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.
 - `_sessionIdByThreadId` continues to route app-server callbacks by thread id.
-- `bindSessionChat` attaches restored/forked direct-create threads before history or operations; provision binds at creation.
+- `bindSessionChat` binds the default chat to its freshly-created session (and attaches restored/forked direct-create threads before history or operations); `materializeChat` re-attaches an additional chat's backing thread on restore.
 
-Codex never recognizes or derives a default-chat URI. `chats.createChat` and `chats.fork` still throw because `multipleChats` is unsupported; exact disposal affects only the bound thread. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and app-server protocol are unchanged.
+An additional chat is backed by a **fresh top-level thread minted eagerly** in
+`chats.createChat` (via `thread/start`) or `chats.fork` (via `thread/fork` at the
+requested turn, reusing `_forkSession`). Because the Codex app-server assigns the
+thread id, the backing entry is keyed by that id (session id == thread id, per
+Decision 7): this keeps the peer-chat-backing suppression key stable across a
+restart (the marker lands on the same `codex:/<threadId>` DB that `thread/list`
+enumerates). `_createChat`/`fork` therefore return
+`backingSession: AgentSession.uri(this.id, threadId)` so the orchestrator
+suppresses that backing from the top-level session list (invariant I7), plus an
+opaque `providerData` blob (the backing thread id + model) that `materializeChat`
+decodes on restore. The additional chat inherits the parent session's working
+directory, model, and permissions. Exact disposal/release affects only the
+addressed chat's own thread — there is no cascade between chats of the same
+session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and
+app-server protocol are unchanged, and Codex still never recognizes or derives a
+default-chat URI. Capabilities are `multipleChats: { fork: true }`.
+
 
 ---
 

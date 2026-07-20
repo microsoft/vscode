@@ -628,6 +628,37 @@ function mcpServersSignature(servers: Record<string, ICodexMcpServerConfigJson>)
 }
 
 /**
+ * Opaque per-additional-chat backing blob the orchestrator persists in its
+ * peer-chat catalog and hands back to {@link CodexAgent.materializeChat} on
+ * restore. It records the backing thread id (which, by Codex's session-id ==
+ * thread-id convention, is also the backing session id) and the chat's model so
+ * a cold restore re-attaches the exact thread without re-enumerating.
+ */
+interface ICodexPersistedChat {
+	readonly sessionId: string;
+	readonly model?: ModelSelection;
+}
+
+function encodeCodexChat(chat: ICodexPersistedChat): string {
+	return JSON.stringify(chat);
+}
+
+function decodeCodexChat(data: string | undefined): ICodexPersistedChat | undefined {
+	if (data === undefined) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(data);
+		if (parsed && typeof parsed.sessionId === 'string') {
+			return parsed as ICodexPersistedChat;
+		}
+	} catch {
+		// fall through
+	}
+	return undefined;
+}
+
+/**
  * Codex active-client handle. Writes flow into the owning session's
  * {@link ActiveClientToolSet} (tools) and its {@link CodexClientCustomizationStore}
  * (customizations); the session is resolved lazily so writes that arrive before
@@ -2327,6 +2358,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			provider: this.id,
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent backed by the OpenAI Codex app-server"),
+			capabilities: { multipleChats: { fork: true } },
 		};
 	}
 
@@ -2360,23 +2392,27 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	// ---- Chat surface ------------------------------------------------------
 	//
-	// Codex is a single-conversation harness. AH binds its concrete
-	// conversation channel URI, and addressed operations resolve only through
-	// that explicit binding or transient host context.
+	// Codex supports multiple chats per session. AH binds the session's default
+	// conversation channel URI; each additional chat is backed by its own
+	// top-level Codex thread (session id == thread id) minted eagerly on
+	// `createChat`/`fork`, bound to the concrete chat URI AH supplies, and
+	// reported back as a `backingSession` so the orchestrator suppresses it from
+	// the top-level session list. Addressed operations resolve only through an
+	// explicit binding or transient host context.
 
 	/**
 	 * The chat-addressed operation surface for the conversations within a
-	 * session. Codex exposes only the session's single bound conversation:
-	 * creating a fresh conversation or forking one is unsupported. The
-	 * remaining methods operate on the concrete conversation channel URI AH has
-	 * already bound to that session.
+	 * session. Creating a chat mints a fresh backing Codex
+	 * thread bound to the new chat URI; forking `thread/fork`s the source chat's
+	 * thread. The remaining methods operate on the concrete conversation channel
+	 * URI AH has already bound to that session.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (_chat: URI, _context: URI | IAgentChatContext, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error('Codex agent does not support creating additional conversations');
+		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
-		fork: (_chat: URI, _context: URI | IAgentChatContext, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error('Codex agent does not support conversation forking');
+		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			return this._forkChat(chat, resolveAgentChatContext(context, chat), source, options);
 		},
 		bindSessionChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			this._bindSessionChat(chat, resolveAgentChatContext(context, chat).session);
@@ -2496,6 +2532,179 @@ export class CodexAgent extends Disposable implements IAgent {
 			workingDirectory: config.workingDirectory,
 			provisional: true,
 		};
+	}
+
+	/**
+	 * Create a chat within an existing session. Codex is a
+	 * single-thread-per-conversation harness, so each chat is backed by
+	 * its own fresh top-level thread (session id == thread id) started eagerly
+	 * here and bound to the concrete chat URI AH supplies. It inherits the
+	 * owning session's working directory and permissions from the
+	 * orchestrator-supplied {@link IAgentCreateChatOptions.inheritedContext}. The
+	 * backing thread is returned as {@link IAgentCreateChatResult.backingSession}
+	 * so the orchestrator suppresses it from the top-level session list, and its
+	 * id is persisted as opaque `providerData` for a cold restore via
+	 * {@link materializeChat}.
+	 */
+	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		this._ensureAuthenticated();
+		const parentSession = context.session;
+		const parentSessionId = AgentSession.id(parentSession);
+
+		// Idempotent re-create: hand back the existing binding.
+		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
+		if (existingSessionId && existingSessionId !== parentSessionId) {
+			const existing = this._sessions.get(existingSessionId);
+			return { backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId), providerData: encodeCodexChat({ sessionId: existingSessionId, ...(existing?.model ? { model: existing.model } : {}) }) };
+		}
+
+		const inherited = options?.inheritedContext;
+		const workingDirectory = inherited?.workingDirectory;
+		if (!workingDirectory) {
+			throw new Error(`[Codex] createChat: missing inherited working directory for session ${parentSession.toString()}`);
+		}
+		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
+			await this._modelsRefreshPromise;
+		}
+		// Model/agent arrive via the draft path after creation; use the client-
+		// supplied model when present, else Codex's default (never the parent's).
+		const model = this._supportedModelOrUndefined(options?.model);
+		if (!model) {
+			throw new Error('Codex has no available models.');
+		}
+
+		// Inherit the owning session's permissions and settings from the
+		// orchestrator-supplied config, never read back from the parent session.
+		const inheritedConfig = inherited?.config ?? {};
+		const forkDefaults = {
+			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+		};
+		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
+			migrateCodexPermissionValues(inheritedConfig, forkDefaults),
+			forkDefaults,
+		);
+
+		// A scratch entry (never registered) lets the MCP/dynamic-tool helpers
+		// compute the thread/start params while the new chat's own client state
+		// is empty; they read root config + server tools, not session config.
+		const scratch = this._createResumedSessionEntry(parentSessionId, '', parentSession, workingDirectory, model, chat);
+		const mcpServers = this._buildSessionMcpServers(scratch);
+		const dynamicTools = this._buildDynamicTools(scratch);
+		const validatedConfig = codexSessionConfigSchema.validateOrDefault(inheritedConfig, codexSessionConfigDefaults);
+		const threadConfig: Record<string, JsonValue> = {
+			web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
+		};
+		if (Object.keys(mcpServers).length > 0) {
+			threadConfig.mcp_servers = mcpServers as JsonValue;
+		}
+
+		const conn = await this._ensureConnection();
+		const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
+			cwd: workingDirectory.fsPath,
+			model: model.id,
+			approvalPolicy,
+			sandbox: sandboxMode,
+			approvalsReviewer,
+			config: threadConfig,
+			dynamicTools,
+		});
+		const newThreadId = startResult.thread.id;
+		const newSessionUri = AgentSession.uri(this.id, newThreadId);
+
+		// The freshly started thread is live and subscribed, so build a
+		// materialized (not resumed) entry keyed by the thread id.
+		const session = this._createResumedSessionEntry(newThreadId, newThreadId, newSessionUri, workingDirectory, model, chat);
+		session.needsResume = false;
+		session.firstTurnSent = false;
+		session.materializedEventFired = false;
+		session.materializedMcpSig = mcpServersSignature(mcpServers);
+		session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
+		this._sessions.set(newThreadId, session);
+		this._sessionIdByThreadId.set(newThreadId, newThreadId);
+		this._sessionIdByChatUri.set(chat.toString(), newThreadId);
+		if (!session.serverToolsAdvertised && this._serverToolHost) {
+			session.serverToolsAdvertised = true;
+			this._serverToolHost.advertise(newSessionUri.toString());
+		}
+		this._persistMaterializedSession(session);
+		this._logService.info(`[Codex] created additional chat ${chat.toString()} backed by thread ${newThreadId} (parent ${parentSession.toString()})`);
+		return { backingSession: newSessionUri, providerData: encodeCodexChat({ sessionId: newThreadId, model }) };
+	}
+
+	/**
+	 * Fork an existing chat into a new chat. Reuses
+	 * {@link _forkSession} to `thread/fork` the source chat's backing thread at
+	 * the requested turn, then binds the resulting thread to the new chat URI
+	 * and reports it as a backing session (see {@link _createChat}).
+	 */
+	private async _forkChat(chat: URI, context: IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		this._ensureAuthenticated();
+		const parentSessionId = AgentSession.id(context.session);
+
+		// Idempotent re-fork: hand back the existing binding instead of minting
+		// a second orphan thread.
+		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
+		if (existingSessionId && existingSessionId !== parentSessionId) {
+			const existing = this._sessions.get(existingSessionId);
+			return { backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId), providerData: encodeCodexChat({ sessionId: existingSessionId, ...(existing?.model ? { model: existing.model } : {}) }) };
+		}
+
+		const sourceSession = this._resolveConversationSession(source.source);
+		if (!sourceSession) {
+			throw new Error(`[Codex] fork: cannot resolve source chat ${source.source.toString()}`);
+		}
+		const result = await this._forkSession(
+			{ ...(options?.model ? { model: options.model } : {}) },
+			{
+				session: sourceSession,
+				turnId: source.turnId,
+				// The chat-fork source carries no positional index; the turn id
+				// resolves the boundary, and an unresolvable id is rejected.
+				turnIndex: -1,
+				...(source.turnIdMapping ? { turnIdMapping: source.turnIdMapping } : {}),
+			},
+		);
+		this._bindSessionChat(chat, result.session);
+		const newThreadId = AgentSession.id(result.session);
+		const forked = this._sessions.get(newThreadId);
+		this._logService.info(`[Codex] forked chat ${chat.toString()} from ${source.source.toString()} into thread ${newThreadId} (parent ${context.session.toString()})`);
+		return { backingSession: result.session, providerData: encodeCodexChat({ sessionId: newThreadId, ...(forked?.model ? { model: forked.model } : {}) }) };
+	}
+
+	/**
+	 * Re-attach a chat's backing thread on restore. The orchestrator
+	 * hands back the opaque `providerData` produced by
+	 * {@link _createChat}; we rebuild a resumable session entry keyed
+	 * by the backing thread id and bind it to the chat URI before its history is
+	 * read. Its first send issues a `thread/resume`.
+	 */
+	async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+		const decoded = decodeCodexChat(providerData);
+		if (!decoded) {
+			this._logService.warn(`[Codex] materializeChat: missing or corrupt providerData for ${chat.toString()}`);
+			return;
+		}
+		const sessionId = decoded.sessionId;
+		const existing = this._sessions.get(sessionId);
+		if (existing) {
+			this._bindSessionChat(chat, existing.sessionUri);
+			return;
+		}
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		const overlay = await this._metadataStore.read(sessionUri);
+		const workingDirectory = overlay.cwd;
+		const model = this._supportedModelOrUndefined(decoded.model);
+		// Codex's session id == thread id convention: the backing thread already
+		// exists on the app-server, so the entry resumes on first send.
+		const session = this._createResumedSessionEntry(sessionId, sessionId, sessionUri, workingDirectory, model, chat);
+		this._sessions.set(sessionId, session);
+		this._sessionIdByThreadId.set(sessionId, sessionId);
+		this._sessionIdByChatUri.set(chat.toString(), sessionId);
+		if (!session.serverToolsAdvertised && this._serverToolHost) {
+			session.serverToolsAdvertised = true;
+			this._serverToolHost.advertise(sessionUri.toString());
+		}
 	}
 
 	/**
