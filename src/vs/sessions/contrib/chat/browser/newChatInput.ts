@@ -9,7 +9,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -85,6 +84,8 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { DictationDownloadRing } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
+import { isDictating, startDictation, stopDictation } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -792,13 +793,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		}));
 
+		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const preparing = sttService.isPreparingModel;
 			const recording = sttService.state !== ChatSpeechToTextState.Idle;
 			dom.clearNode(button);
-			const icon = preparing ? spinningLoading : (recording ? Codicon.stopCircle : Codicon.mic);
-			dom.append(button, renderIcon(icon));
+			downloadRing.clear();
+			if (preparing) {
+				// First-use only: render a download icon wrapped by a determinate
+				// progress ring instead of a plain spinner, matching the chat
+				// toolbar, so the model download reads as progress rather than a hang.
+				dom.append(button, renderIcon(Codicon.cloudDownload));
+				downloadRing.value = new DictationDownloadRing(button, sttService);
+			} else {
+				dom.append(button, renderIcon(recording ? Codicon.stopCircle : Codicon.mic));
+			}
 			button.classList.toggle('recording', recording && !preparing);
+			button.classList.toggle('preparing', preparing);
 			button.ariaLabel = preparing
 				? localize('sessionsStt.preparing', "Preparing Speech to Text Model…")
 				: (recording ? stopLabel : micLabel);

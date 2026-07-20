@@ -43,6 +43,8 @@ export interface IVoiceAudioResponse {
 	readonly isFinal: boolean;
 	readonly codingSessionId?: string;
 	readonly transcript?: string;
+	/** Backend turn identifier from the wire's `turn_id`. */
+	readonly turnId?: string;
 	/**
 	 * Stable id correlating all chunks of ONE narration/response stream, echoed
 	 * by the backend from the `narration_id` the client sent on
@@ -208,7 +210,7 @@ export interface IVoiceClientService {
 	disconnect(): void;
 
 	// --- Outbound messages ---
-	sendPttStart(turnId: string): void;
+	sendPttStart(turnId: string, passive?: boolean): void;
 	sendPttAudioChunk(audio: string): void;
 	sendPttEnd(): void;
 	/**
@@ -238,8 +240,6 @@ export interface IVoiceClientService {
 	sendToolResult(callId: string, result: string): void;
 	/** Ask the backend to speak `text` for a session now; returns the narration id echoed on the resulting `audio_response`, or `undefined` if nothing was sent. Pass `narrationId` to reuse a prior id (a `busy` retry) so the backend can dedup a lost ack; omit it to mint a fresh one. */
 	requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined;
-	/** True when a `requestNarration` call would actually send (socket open and the session has started on it). Lets the caller stop the mic before requesting only when the request will really go out. */
-	readonly canRequestNarration: boolean;
 	/**
 	 * Notify the backend of a session state transition.
 	 *

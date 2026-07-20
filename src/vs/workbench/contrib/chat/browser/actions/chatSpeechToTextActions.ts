@@ -18,7 +18,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -177,9 +176,9 @@ class ToggleChatSpeechToTextAction extends Action2 {
 
 /**
  * Shown in place of the mic button while the on-device model is downloading/loading.
- * Renders a spinner; clicking it cancels an in-flight dictation (if any).
+ * Renders a cloud-download affordance; clicking it cancels an in-flight dictation (if any).
  */
-class ChatSpeechToTextPreparingAction extends Action2 {
+export class ChatSpeechToTextPreparingAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.speechToTextPreparing';
 
 	constructor() {
@@ -188,7 +187,7 @@ class ChatSpeechToTextPreparingAction extends Action2 {
 			title: localize2('chat.speechToText.preparing', "Preparing Speech to Text Model…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: spinningLoading,
+			icon: Codicon.cloudDownload,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,

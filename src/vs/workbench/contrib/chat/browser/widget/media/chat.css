@@ -4604,3 +4604,62 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	-webkit-text-fill-color: currentColor;
 	color: var(--vscode-foreground);
 }
+
+/* Dictation model download: while the on-device speech-to-text model downloads
+	on first use, the toolbar shows a download icon wrapped by a circular
+	progress ring (see DictationDownloadActionViewItem) instead of a spinning
+	mic, so the wait reads as a determinate download rather than a hang. */
+.monaco-action-bar .action-item.dictation-download-item {
+	position: relative;
+}
+
+.monaco-action-bar .action-item.dictation-download-item > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.monaco-action-bar .action-item.dictation-download-item > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+/* In high-contrast themes progressBar.background is the solid contrastBorder;
+	keep the track fully opaque so it stays visible against the arc. */
+.hc-black .action-item.dictation-download-item > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .action-item.dictation-download-item > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.monaco-action-bar .action-item.dictation-download-item > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .action-item.dictation-download-item > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+/* Indeterminate: spin a fixed arc while the download fraction is unknown or the
+	model is loading into memory. Gated on enable-motion to respect reduced
+	motion. */
+.monaco-workbench.monaco-enable-motion .action-item.dictation-download-item > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .action-item.dictation-download-item > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
+}

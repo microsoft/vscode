@@ -255,27 +255,21 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.speechToText.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictating into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
+			markdownDescription: nls.localize('chat.speechToText.enabled', "Enables dictation into the chat input using on-device speech-to-text. When enabled on a supported platform, a microphone button appears in the chat input; the transcription model is downloaded on first use and runs locally."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
 		'chat.speechToText.model': {
 			type: 'string',
 			enum: [
-				'onnx-community/whisper-tiny',
-				'onnx-community/whisper-base',
-				'onnx-community/whisper-small',
-				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+				'nemotron-speech-streaming-en-0.6b',
 			],
-			enumItemLabels: ['Tiny', 'Base', 'Small', 'Nemotron (Multilingual)'],
+			enumItemLabels: ['Nemotron Streaming (English)'],
 			markdownEnumDescriptions: [
-				nls.localize('chat.speechToText.model.tiny', "Smallest and fastest; lowest accuracy (~75MB download)."),
-				nls.localize('chat.speechToText.model.base', "Balanced speed and accuracy (~145MB download)."),
-				nls.localize('chat.speechToText.model.small', "Most accurate; slower and larger (~465MB download)."),
-				nls.localize('chat.speechToText.model.nemotron', "NVIDIA Nemotron RNN-T: multilingual (35+ languages, auto-detected), high accuracy, matches the GitHub Copilot app (~800MB download)."),
+				nls.localize('chat.speechToText.model.nemotronStreaming', "NVIDIA Nemotron streaming RNN-T (English), run through Microsoft Foundry Local. Low-latency, high accuracy, matches the GitHub Copilot app."),
 			],
-			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Larger models are more accurate but slower and take longer to download."),
-			default: 'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			markdownDescription: nls.localize('chat.speechToText.model', "The on-device model used for chat dictation. The model is downloaded on first use and cached on disk. Transcription runs locally through Microsoft Foundry Local."),
+			default: 'nemotron-speech-streaming-en-0.6b',
 			tags: ['experimental']
 		},
 		'chat.speechToText.mode': {
@@ -2281,6 +2275,25 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 				pairs.push([AgentNetworkDomainSettingId.DeniedNetworkDomains, { value }]);
 			}
 			return pairs;
+		}
+	},
+	{
+		// The on-device dictation runtime moved to Foundry Local; the old
+		// transformers.js/onnxruntime model IDs no longer resolve and would fail
+		// with an unknown-model error. Map any explicitly-stored legacy value to
+		// the new default so existing users keep working.
+		key: 'chat.speechToText.model',
+		migrateFn: (value: unknown) => {
+			const legacyModelIds = [
+				'onnx-community/whisper-tiny',
+				'onnx-community/whisper-base',
+				'onnx-community/whisper-small',
+				'onnx-community/nemotron-3.5-asr-streaming-0.6b-onnx-int4',
+			];
+			if (typeof value === 'string' && legacyModelIds.includes(value)) {
+				return { value: 'nemotron-speech-streaming-en-0.6b' };
+			}
+			return [];
 		}
 	},
 ]);
