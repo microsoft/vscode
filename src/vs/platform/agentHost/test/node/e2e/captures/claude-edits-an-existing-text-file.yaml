@@ -1,0 +1,152 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: cat AFTER_VALUE 2>/dev/null; echo "---SEP---"; cat edit.txt 2>/dev/null; echo "---LS---"; ls -la
+            description: Show AFTER_VALUE and edit.txt contents
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: cat AFTER_VALUE 2>/dev/null; echo "---SEP---"; cat edit.txt 2>/dev/null; echo "---LS---"; ls -la
+                description: Show AFTER_VALUE and edit.txt contents
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ---SEP---
+                BEFORE_VALUE---LS---
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3639 ${user}  staff  116448 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Read
+          input:
+            file_path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: cat AFTER_VALUE 2>/dev/null; echo "---SEP---"; cat edit.txt 2>/dev/null; echo "---LS---"; ls -la
+                description: Show AFTER_VALUE and edit.txt contents
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ---SEP---
+                BEFORE_VALUE---LS---
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3639 ${user}  staff  116448 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: "1\tBEFORE_VALUE"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: Edit
+          input:
+            file_path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+            old_string: BEFORE_VALUE
+            new_string: AFTER_VALUE
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Bash
+              input:
+                command: cat AFTER_VALUE 2>/dev/null; echo "---SEP---"; cat edit.txt 2>/dev/null; echo "---LS---"; ls -la
+                description: Show AFTER_VALUE and edit.txt contents
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                ---SEP---
+                BEFORE_VALUE---LS---
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3639 ${user}  staff  116448 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: "1\tBEFORE_VALUE"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+                old_string: BEFORE_VALUE
+                new_string: AFTER_VALUE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: The file ${workdir}/ahp-coverage-edit-${temp}/edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: Done. `edit.txt` now contains `AFTER_VALUE` (replacing `BEFORE_VALUE`).
+      stopReason: end_turn

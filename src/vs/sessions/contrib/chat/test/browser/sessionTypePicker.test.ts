@@ -346,6 +346,57 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
 
+	test('folder-driven quick-chat mode preserves an unavailable saved target through late discovery', () => {
+		const saved = { providerId: 'agent-host', sessionTypeId: 'copilotcli' };
+		management.setQuickChatSessionTypes([
+			sessionType('fallback', 'fallback', 'Fallback'),
+		]);
+		const picker = createPicker(disposables, session, management, storage, { persistSelection: false });
+		picker.setFolderSource(observableValue<URI | undefined>('folder', undefined), {
+			initialPick: saved,
+			preserveUnavailableInitialPick: true,
+		});
+		picker.setQuickChatSource(observableValue('quickChat', true));
+
+		const beforeDiscovery = picker.selectedPick;
+		management.setQuickChatSessionTypes([
+			sessionType('fallback', 'fallback', 'Fallback'),
+			sessionType('agent-host', 'copilotcli', 'Copilot CLI'),
+		]);
+
+		assert.deepStrictEqual({
+			beforeDiscovery,
+			afterDiscovery: picker.selectedPick,
+		}, {
+			beforeDiscovery: saved,
+			afterDiscovery: saved,
+		});
+	});
+
+	test('quick-chat mode concretizes a provider-less legacy workspace pick', () => {
+		const type = sessionType('agent-host', 'copilotcli', 'Copilot CLI');
+		management.setSessionTypesForFolder(folder, [type]);
+		management.setQuickChatSessionTypes([type]);
+		const picker = createPicker(disposables, session, management, storage, { persistSelection: false });
+		picker.setFolderSource(observableValue<URI | undefined>('folder', folder), {
+			initialPick: { sessionTypeId: 'copilotcli' },
+			preserveUnavailableInitialPick: true,
+		});
+		const quickChat = observableValue('quickChat', false);
+		picker.setQuickChatSource(quickChat);
+		const workspacePick = picker.selectedPick;
+
+		quickChat.set(true, undefined);
+
+		assert.deepStrictEqual({
+			workspacePick,
+			quickChatPick: picker.selectedPick,
+		}, {
+			workspacePick: { sessionTypeId: 'copilotcli' },
+			quickChatPick: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
 	test('folder-driven mode ignores the active session and defaults to the folder preferred type', () => {
 		const folderA = URI.file('/a');
 		management.setSessionTypesForFolder(folderA, [

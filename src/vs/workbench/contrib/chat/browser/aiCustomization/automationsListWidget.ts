@@ -157,9 +157,12 @@ class AutomationItemRenderer implements IListRenderer<IAutomationItemEntry, IAut
 		templateData.sep1.textContent = '·';
 		templateData.nextEl.textContent = formatNextRun(automation);
 		templateData.sepFolder.textContent = '·';
-		const folderLabel = this.widget.formatFolderLabel(automation.folderUri);
-		templateData.folderEl.textContent = localize('automationFolderLabel', "in {0}", folderLabel);
-		templateData.folderEl.title = automation.folderUri.toString();
+		templateData.folderEl.textContent = this.widget.formatTargetLabel(automation);
+		if (automation.target.kind === 'quickChat') {
+			templateData.folderEl.title = localize('automationQuickChatTitle', "Runs as a workspace-less chat");
+		} else {
+			templateData.folderEl.title = automation.target.folderUri.toString();
+		}
 
 		if (automation.lastRunAt) {
 			templateData.sep2.textContent = '·';
@@ -438,10 +441,7 @@ export class AutomationsListWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IAutomationListEntry) => {
-						const a = element.automation;
-						return a.enabled
-							? localize('automationAriaLabel', "{0}, {1}", a.name, formatSchedule(a))
-							: localize('automationAriaLabelDisabled', "{0}, disabled", a.name);
+						return this.formatAriaLabel(element.automation);
 					},
 					getWidgetAriaLabel() {
 						return localize('automationsListAriaLabel', "Automations");
@@ -618,6 +618,21 @@ export class AutomationsListWidget extends Disposable {
 		}
 		const segments = folderUri.path.split('/').filter(s => s.length > 0);
 		return segments[segments.length - 1] ?? folderUri.toString();
+	}
+
+	formatTargetLabel(automation: IAutomation): string {
+		if (automation.target.kind === 'quickChat') {
+			return localize('automationQuickChatLabel', "without a workspace");
+		}
+		return localize('automationFolderLabel', "in {0}", this.formatFolderLabel(automation.target.folderUri));
+	}
+
+	formatAriaLabel(automation: IAutomation): string {
+		const schedule = formatSchedule(automation);
+		const target = this.formatTargetLabel(automation);
+		return automation.enabled
+			? localize('automationAriaLabel', "{0}, {1}, {2}", automation.name, schedule, target)
+			: localize('automationAriaLabelDisabled', "{0}, disabled, {1}, {2}", automation.name, schedule, target);
 	}
 
 	private _isEnabled(): boolean {
