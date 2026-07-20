@@ -403,6 +403,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						isFinal: msg.is_final ?? false,
 						codingSessionId: msg.coding_session_id,
 						transcript: msg.transcript,
+						turnId: asOptionalString(msg.turn_id),
 						responseId: msg.narration_id ?? asOptionalString(msg.turn_id),
 					});
 					break;

@@ -4416,7 +4416,7 @@
           },
           "github.copilot.chat.tools.grepSearch.defaultMaxResults": {
             "type": "number",
-            "default": 20,
+            "default": 100,
             "markdownDescription": "%github.copilot.chat.tools.grepSearch.defaultMaxResults%",
             "tags": [
               "experimental",

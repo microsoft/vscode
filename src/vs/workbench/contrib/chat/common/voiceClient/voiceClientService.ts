@@ -43,6 +43,8 @@ export interface IVoiceAudioResponse {
 	readonly isFinal: boolean;
 	readonly codingSessionId?: string;
 	readonly transcript?: string;
+	/** Backend turn identifier from the wire's `turn_id`. */
+	readonly turnId?: string;
 	/**
 	 * Stable id correlating all chunks of ONE narration/response stream, echoed
 	 * by the backend from the `narration_id` the client sent on

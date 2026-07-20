@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -122,6 +122,38 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual(events, [{
 			turnId: 'interrupting-turn',
 			interruptedTurnId: 'cancelled-turn',
+		}]);
+	});
+
+	test('preserves the backend turn ID when audio has a narration ID', async () => {
+		const { service } = createService();
+		const events: IVoiceAudioResponse[] = [];
+		store.add(service.onAudioResponse(event => events.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		if (!webSocket.onmessage) {
+			throw new Error('Voice WebSocket was not created');
+		}
+		webSocket.onmessage(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({
+				type: 'audio_response',
+				audio: 'audio',
+				is_first_chunk: true,
+				is_final: false,
+				turn_id: 'backend-turn',
+				narration_id: 'client-narration',
+			}),
+		}));
+
+		assert.deepStrictEqual(events, [{
+			audio: 'audio',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: undefined,
+			transcript: undefined,
+			turnId: 'backend-turn',
+			responseId: 'client-narration',
 		}]);
 	});
 

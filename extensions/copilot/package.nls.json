@@ -279,7 +279,7 @@
 	"github.copilot.config.rateLimitAutoSwitchToAuto": "Automatically switch to the Auto model and retry when you hit a per-model rate limit.",
 	"github.copilot.tools.createNewWorkspace.userDescription": "Scaffold a new workspace in VS Code",
 	"github.copilot.chat.tools.grepSearch.outputFormat": "The output format for the grep search tool. Can be either 'grep' or 'tag'. The default is 'grep'.",
-	"github.copilot.chat.tools.grepSearch.defaultMaxResults": "The default maximum number of results to return from the grep search tool. The default is 20.",
+	"github.copilot.chat.tools.grepSearch.defaultMaxResults": "The default maximum number of results to return from the grep search tool. The default is 100.",
 	"github.copilot.chat.tools.grepSearch.maxResultsCap": "The maximum number of results that can be returned from the grep search tool. The default is 200.",
 	"copilot.tools.errors.description": "Check errors for a particular file",
 	"copilot.tools.applyPatch.description": "Edit text files in the workspace",
