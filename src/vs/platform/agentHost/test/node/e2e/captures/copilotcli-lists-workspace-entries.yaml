@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the current working directory. Reply with the filenames only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: ls -a
+            description: List files in current directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: List the files in the current working directory. Reply with the filenames only.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: ls -a
+                description: List files in current directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                .
+                ..
+                first.txt
+                second.md
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        first.txt
+        second.md
+      stopReason: end_turn

@@ -141,12 +141,6 @@ export class QueryBuilder {
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
-
-		const fallbackToPCRE = folderResources && folderResources.some(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search?.useRipgrep;
-		});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
 		return {
@@ -155,7 +149,6 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options.previewOptions,
 			maxFileSize: options.maxFileSize,
-			usePCRE2: searchConfig.search?.usePCRE2 || fallbackToPCRE || false,
 			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
 

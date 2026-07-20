@@ -30,7 +30,7 @@ export class ForkConversationAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.repoForked,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.readOnly.negate()),
 			menu: [
 				{
 					id: MenuId.ChatMessageCheckpoint,
@@ -42,7 +42,8 @@ export class ForkConversationAction extends Action2 {
 						ContextKeyExpr.or(
 							ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 							ChatContextKeys.chatSessionSupportsFork
-						)
+						),
+						ChatContextKeys.readOnly.negate()
 					)
 				}
 			]

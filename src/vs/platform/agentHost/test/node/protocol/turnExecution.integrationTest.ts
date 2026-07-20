@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import type { FetchTurnsResult, ListSessionsResult } from '../../../common/state/sessionProtocol.js';
 import { ResponsePartKind, ROOT_STATE_URI, buildSubagentChatUri, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
@@ -13,12 +14,13 @@ import {
 	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Turn Execution', function () {
 
@@ -26,7 +28,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer();
 	});
 
@@ -144,6 +146,19 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const action = getActionEnvelope(loaded).action as { type: string; turns: unknown[]; turnsNextCursor?: string };
 		assert.deepStrictEqual(action.turns, []);
 		assert.strictEqual(action.turnsNextCursor, undefined);
+	});
+
+	test('fetchTurns rejects an unknown chat', async function () {
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fetchTurns-missing' });
+		await assert.rejects(() => client.call('fetchTurns', { channel: 'ahp-chat:/missing-session/missing-chat' }), /session not found/i);
+	});
+
+	test('fetchTurns rejects an unrecognized cursor', async function () {
+		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns-cursor');
+		await assert.rejects(() => client.call('fetchTurns', {
+			channel: defaultChatChannel(sessionUri),
+			cursor: 'unknown-cursor',
+		}), /unrecognized fetchTurns cursor/i);
 	});
 
 	test('usage info is captured on completed turn', async function () {

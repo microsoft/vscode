@@ -1,0 +1,605 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+            description: Locate edit.txt file
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: bash
+          input:
+            command: find / -iname "edit.txt" 2>/dev/null
+            description: Locate edit.txt file anywhere
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: read_bash
+          input:
+            shellId: '1'
+            delay: 30
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: read_bash
+          input:
+            delay: 60
+            shellId: '1'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                delay: 60
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_4
+          name: stop_bash
+          input:
+            shellId: '1'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                delay: 60
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: '<command with id: 1 stopped>'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_5
+          name: bash
+          input:
+            command: cd ${workdir}/ahp-coverage-edit-${temp} && ls -la
+            description: List files in working directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                delay: 60
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: '<command with id: 1 stopped>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cd ${workdir}/ahp-coverage-edit-${temp} && ls -la
+                description: List files in working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_5
+              content: |-
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3658 ${user}  staff  117056 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+                <shellId: 2 completed with exit code 0>
+    response:
+      content:
+        - type: text
+          text: Found it in the working directory.
+        - type: tool_use
+          id: toolcall_6
+          name: bash
+          input:
+            command: cat ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+            description: Show current contents of edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                delay: 60
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: '<command with id: 1 stopped>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cd ${workdir}/ahp-coverage-edit-${temp} && ls -la
+                description: List files in working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_5
+              content: |-
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3658 ${user}  staff  117056 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+                <shellId: 2 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: text
+              text: Found it in the working directory.
+            - type: tool_use
+              name: bash
+              input:
+                command: cat ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+                description: Show current contents of edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_6
+              content: |-
+                BEFORE_VALUE
+                <shellId: 3 completed with exit code 0>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_7
+          name: edit
+          input:
+            path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+            old_str: BEFORE_VALUE
+            new_str: AFTER_VALUE
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Replace the complete contents of edit.txt with AFTER_VALUE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -maxdepth 6 -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '<shellId: 0 completed with exit code 1>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: bash
+              input:
+                command: find / -iname "edit.txt" 2>/dev/null
+                description: Locate edit.txt file anywhere
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                shellId: '1'
+                delay: 30
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with shellId: 1 is still running after 30 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: read_bash
+              input:
+                delay: 60
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: '<command with shellId: 1 is still running after 60 seconds. The command is still running but hasn''t produced output yet. You will be automatically notified when it completes; if you need the command to complete end your response with no tool calls to wait for the notification, or use stop_bash to stop it.>'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: stop_bash
+              input:
+                shellId: '1'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_4
+              content: '<command with id: 1 stopped>'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: cd ${workdir}/ahp-coverage-edit-${temp} && ls -la
+                description: List files in working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_5
+              content: |-
+                total 8
+                drwx------@    3 ${user}  staff      96 ${timestamp} .
+                drwx------@ 3658 ${user}  staff  117056 ${timestamp} ..
+                -rw-r--r--@    1 ${user}  staff      12 ${timestamp} edit.txt
+                <shellId: 2 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: text
+              text: Found it in the working directory.
+            - type: tool_use
+              name: bash
+              input:
+                command: cat ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+                description: Show current contents of edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_6
+              content: |-
+                BEFORE_VALUE
+                <shellId: 3 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/ahp-coverage-edit-${temp}/edit.txt
+                old_str: BEFORE_VALUE
+                new_str: AFTER_VALUE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_7
+              content: File ${workdir}/ahp-coverage-edit-${temp}/edit.txt updated with changes.
+    response:
+      content: Replaced the contents of [edit.txt](${workdir}/ahp-coverage-edit-${temp}/edit.txt) with `AFTER_VALUE`.
+      stopReason: end_turn

@@ -13,15 +13,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { defaultDialogStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
-import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationTarget, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
@@ -66,7 +66,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
@@ -77,6 +77,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		const initial = options.existing;
 		const isEdit = !!initial;
+		const initialTarget = initial?.target;
+		const initialWorkspaceTarget = initialTarget?.kind === 'workspace' ? initialTarget : undefined;
 
 		const state: IFormState = {
 			name: initial?.name ?? '',
@@ -84,15 +86,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 			hour: initial?.schedule.scheduleHour ?? 9,
 			minute: initial?.schedule.scheduleMinute ?? 0,
 			day: initial?.schedule.scheduleDay ?? 1,
-			folderUri: initial?.folderUri,
-			providerId: initial?.providerId,
-			sessionTypeId: initial?.sessionTypeId,
-			isolationMode: initial?.isolationMode ?? 'workspace',
-			branch: initial?.branch,
+			isQuickChat: initialTarget?.kind === 'quickChat',
+			folderUri: initialWorkspaceTarget?.folderUri,
+			providerId: initialTarget?.providerId,
+			sessionTypeId: initialTarget?.sessionTypeId,
+			isolationMode: initialWorkspaceTarget?.isolation.kind === 'default'
+				? undefined
+				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
+			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
 		};
 
-		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, branchError: undefined };
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
 
 		let saveButton: IButton | undefined;
 		let cancelButton: IButton | undefined;
@@ -101,7 +106,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getMode: () => string | undefined = () => initial?.mode;
 		let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 		let getModelId: () => string | undefined = () => initial?.modelId;
-		let getBranch: () => string | undefined = () => initial?.isolationMode === 'worktree' ? initial.branch : undefined;
+		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
 
@@ -149,7 +154,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const description = DOM.append(container, $('.automation-description'));
 					description.textContent = isEdit
 						? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
-						: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected folder.");
+						: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected target.");
 
 					const formPane = DOM.append(container, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
@@ -188,10 +193,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 			}
 			// Guard against submit-with-Enter bypassing live validation.
 			revalidate();
-			if (validation.nameError || validation.promptError || validation.folderError || validation.branchError) {
+			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError) {
 				return undefined;
 			}
-			if (!state.folderUri) {
+			if ((!state.isQuickChat && !state.folderUri) || !state.sessionTypeId || (state.isQuickChat && !state.providerId)) {
 				return undefined;
 			}
 
@@ -207,20 +212,20 @@ export class AutomationDialogService implements IAutomationDialogService {
 			const permissionLevel = getPermissionLevel();
 			const modelId = getModelId();
 			const branch = getBranch();
+			const target = createAutomationTarget(state, branch);
+			if (!target) {
+				return undefined;
+			}
 
 			if (isEdit && initial) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
 					schedule,
-					folderUri: state.folderUri,
-					providerId: state.providerId ?? null,
-					sessionTypeId: state.sessionTypeId ?? null,
+					target,
 					modelId: modelId ?? null,
 					mode: mode ?? null,
 					permissionLevel: permissionLevel ?? null,
-					isolationMode: state.isolationMode ?? null,
-					branch: branch ?? null,
 					enabled: state.enabled,
 				};
 				return { kind: 'update', id: initial.id, value: patch };
@@ -230,14 +235,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 				name: state.name,
 				prompt,
 				schedule,
-				folderUri: state.folderUri,
-				providerId: state.providerId,
-				sessionTypeId: state.sessionTypeId,
+				target,
 				modelId,
 				mode,
 				permissionLevel,
-				isolationMode: state.isolationMode,
-				branch,
 				enabled: state.enabled,
 			};
 			return { kind: 'create', value: create };
@@ -245,4 +246,29 @@ export class AutomationDialogService implements IAutomationDialogService {
 			disposables.dispose();
 		}
 	}
+}
+
+function createAutomationTarget(state: IFormState, branch: string | undefined): AutomationTarget | undefined {
+	if (state.isQuickChat) {
+		return state.providerId && state.sessionTypeId
+			? { kind: 'quickChat', providerId: state.providerId, sessionTypeId: state.sessionTypeId }
+			: undefined;
+	}
+	if (!state.folderUri) {
+		return undefined;
+	}
+	const isolation = state.isolationMode === 'worktree'
+		? (branch ? { kind: 'worktree' as const, branch } : undefined)
+		: state.isolationMode === 'workspace'
+			? { kind: 'folder' as const }
+			: { kind: 'default' as const };
+	return isolation
+		? {
+			kind: 'workspace',
+			folderUri: state.folderUri,
+			providerId: state.providerId,
+			sessionTypeId: state.sessionTypeId,
+			isolation,
+		}
+		: undefined;
 }
