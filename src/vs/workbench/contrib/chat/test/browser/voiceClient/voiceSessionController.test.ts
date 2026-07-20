@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { Event } from '../../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -31,28 +32,80 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceClientService, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
 	readonly requests: { sessionId: string; kind: 'response' | 'confirmation'; text: string; narrationId: string }[] = [];
+	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
+	override readonly onAudioResponse = this.audioResponseEmitter.event;
+	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
+	override readonly onBargeIn = this.bargeInEmitter.event;
+	private readonly transcriptionEmitter = new Emitter<IVoiceTranscription>();
+	override readonly onTranscription = this.transcriptionEmitter.event;
+	override readonly onToolCall = Event.None;
+	override readonly onNarrationAck = Event.None;
+	override readonly onNarrationUnblocked = Event.None;
+	override readonly onNarrationInterrupted = Event.None;
+	override readonly onSpeechStarted = Event.None;
+	override readonly onSessionInit = Event.None;
+	override readonly onError = Event.None;
+	override readonly onDidChangeConnectionState = Event.None;
+	override readonly onFatalDisconnect = Event.None;
+	override readonly onTurnAutoEnded = Event.None;
 
 	override disconnect(): void { }
+	override async connect(): Promise<void> { }
+	override sendSessionContext(): void { }
+	override flushSessionContext(): void { }
+	override sendToolResult(): void { }
 
 	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
 		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
 		return id;
 	}
+
+	fireAudioResponse(event: IVoiceAudioResponse): void {
+		this.audioResponseEmitter.fire(event);
+	}
+
+	fireBargeIn(event: IVoiceBargeIn): void {
+		this.bargeInEmitter.fire(event);
+	}
+
+	fireTranscription(event: IVoiceTranscription): void {
+		this.transcriptionEmitter.fire(event);
+	}
+
+	dispose(): void {
+		this.audioResponseEmitter.dispose();
+		this.bargeInEmitter.dispose();
+		this.transcriptionEmitter.dispose();
+	}
 }
 
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
-	override readonly isPlaying = false;
+	readonly playedAudio: string[] = [];
+	stopCount = 0;
+	private playing = false;
+
+	override get isPlaying(): boolean { return this.playing; }
 	override readonly onPlaybackStarted = Event.None;
 	override readonly onPlaybackStopped = Event.None;
 	override readonly analyserNode = undefined;
+	override playAudioChunk(audio: string): void {
+		if (audio) {
+			this.playedAudio.push(audio);
+			this.playing = true;
+		}
+	}
+	override stopPlayback(): void {
+		this.stopCount++;
+		this.playing = false;
+	}
 	override getLastPlayedSamples(): Float32Array | null { return null; }
 	override closeContext(): void { }
 }
@@ -96,7 +149,8 @@ suite('VoiceSessionController', () => {
 		sinon.restore();
 	});
 
-	function createController(voiceClientService: TestVoiceClientService): IVoiceSessionController {
+	function createController(voiceClientService: TestVoiceClientService, ttsPlaybackService = new TestTtsPlaybackService()): IVoiceSessionController {
+		store.add({ dispose: () => voiceClientService.dispose() });
 		return store.add(new VoiceSessionController(
 			voiceClientService,
 			new class extends mock<IMicCaptureService>() {
@@ -108,12 +162,15 @@ suite('VoiceSessionController', () => {
 				override prepare(): void { }
 				override async startCapture(): Promise<void> { }
 				override stopCapture(): void { }
+				override suppressUntil(): void { }
 			}(),
-			new TestTtsPlaybackService(),
+			ttsPlaybackService,
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
 			}(),
-			new class extends mock<IVoicePlaybackService>() { }(),
+			new class extends mock<IVoicePlaybackService>() {
+				override notifyPlaybackEnd(): void { }
+			}(),
 			new TestAgentSessionsService(),
 			new TestChatService(),
 			new class extends mock<ICommandService>() {
@@ -135,6 +192,68 @@ suite('VoiceSessionController', () => {
 			new class extends mock<INotificationService>() { }(),
 		));
 	}
+
+	test('barge-in drops delayed audio from the interrupted turn before playing the follow-up', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'story-start',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-1',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'queued-story-segment',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-2',
+		});
+		voiceClientService.fireBargeIn({
+			turnId: 'follow-up-turn',
+			interruptedTurnId: 'story-turn',
+		});
+		voiceClientService.fireTranscription({
+			text: 'actually scratch that and check the code in the repository',
+			status: 'final',
+			turnId: 'follow-up-turn',
+			revision: 1,
+		});
+
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story-continuation',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-2',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'follow-up-acknowledgement',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'follow-up-turn',
+			responseId: 'follow-up-response',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+			transcript: controller.transcriptTurns.get().at(-1),
+		}, {
+			playedAudio: ['story-start', 'follow-up-acknowledgement'],
+			stopCount: 1,
+			transcript: {
+				speaker: 'user',
+				text: 'actually scratch that and check the code in the repository',
+				committed: '',
+				isPartial: false,
+			},
+		});
+	});
 
 	test('restores idle state when solicited narration never starts returning audio', () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -404,7 +523,7 @@ suite('VoiceSessionController live transcription', () => {
 		const { controller, persisted } = createController();
 		const bargeInTurnId = beginTurn(controller);
 		finishTurn(controller);
-		controller['_handleBargeIn']();
+		controller['_handleBargeIn']({ turnId: 'new-turn', interruptedTurnId: bargeInTurnId });
 		transcribe(controller, { text: 'after barge-in', status: 'final', turnId: bargeInTurnId, revision: 1 });
 
 		controller['_isConnected'].set(true, undefined);

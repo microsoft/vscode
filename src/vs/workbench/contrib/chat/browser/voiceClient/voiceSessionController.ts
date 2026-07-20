@@ -19,7 +19,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IVoiceTranscriptEntryMetadata, IVoiceTranscriptStore, IVoiceTranscriptTurn, VoiceTranscriptKind } from '../../../agentsVoice/common/voiceTranscriptStore.js';
-import { IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoicePriorTimelineEntry, IVoiceSessionContext, IVoiceFeedbackPayload, IVoiceFeedbackTranscriptTurn, IVoiceTranscription, IVoiceTurnAutoEnded, IVoiceNarrationAck, IVoiceNarrationSignal } from '../../common/voiceClient/voiceClientService.js';
 import { IMicCaptureService, IPttDiagnostic } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
@@ -71,6 +71,7 @@ interface IDeferredFlushResult {
  *  not shown. `finalized` is set once the response's final chunk has arrived. */
 interface IDeferredResponse {
 	readonly responseId?: string;
+	readonly turnId?: string;
 	finalized: boolean;
 	readonly chunks: IDeferredChunk[];
 }
@@ -344,6 +345,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// transcript on every chunk, so a late chunk from the old turn would have
 	// incorrectly cleared the flag.
 	private _suppressIncomingAudio = false;
+	/** Turn/response ids whose playback was cancelled by barge-in. */
+	private readonly _interruptedAudioIds = new Set<string>();
 
 	// --- Deferred responses for non-focused sessions ---
 	/**
@@ -1490,7 +1493,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}));
 
-		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(() => this._handleBargeIn()));
+		this._voiceEventDisposables.add(this.voiceClientService.onBargeIn(e => this._handleBargeIn(e)));
 
 		// NACK + client-revalidation protocol for client-driven narration.
 		this._voiceEventDisposables.add(this.voiceClientService.onNarrationAck(e => {
@@ -1552,6 +1555,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// (otherwise it is stranded and never read). Untagged / non-agent-host
 			// ids pass through unchanged.
 			const codingSessionId = this._canonicalSessionId(e.codingSessionId);
+			if (this._isInterruptedAudio(e)) {
+				return;
+			}
 			// A confirmation was resolved (e.g. the user pressed Allow) while its
 			// narration was still being requested/streamed: drop the now-stale
 			// approval narration so it isn't read aloud after the fact. Matched
@@ -1586,7 +1592,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// (matched by content). Drop it so the user never hears it twice.
 				this.logService.trace(`[voice] dropping re-narration for session=${codingSessionId} responseId=${e.responseId?.slice(0, 8) ?? '<none>'} isFirstChunk=${e.isFirstChunk} isFinal=${e.isFinal}`);
 			} else if (defer) {
-				this._deferResponse(codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId);
+				this._deferResponse(codingSessionId!, e.audio, e.isFirstChunk, e.isFinal, e.transcript, e.responseId, e.turnId);
 			} else {
 				// A fresh reply is about to play live for this session. Anything
 				// still buffered for it (earlier background updates the user never
@@ -1832,6 +1838,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._currentPlaybackResponseId = undefined;
 		this._isProcessingQueue = false;
 		this._suppressIncomingAudio = false;
+		this._interruptedAudioIds.clear();
 		this._clearDeferredResponses();
 		this._uiResourceByBackendId.clear();
 		this._liveReplyKeys.clear();
@@ -2027,9 +2034,65 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._finishPtt('auto');
 	}
 
-	private _handleBargeIn(): void {
-		this._resetTranscriptionTurn();
+	private _handleBargeIn(event: IVoiceBargeIn): void {
+		if (event.turnId) {
+			if (this._transcriptionTurnState?.turnId !== event.turnId) {
+				this._beginTranscriptionTurn(event.turnId);
+			}
+		} else {
+			this._resetTranscriptionTurn();
+		}
+		this._userSpeechActive = true;
+		this._startUserTurn();
+		this._rememberInterruptedAudioId(this._currentPlaybackResponseId);
+		for (const queued of this._audioQueue) {
+			this._rememberInterruptedAudioId(queued.responseId);
+		}
+		this._rememberInterruptedAudioId(event.interruptedTurnId);
+		this._dropInterruptedDeferredAudio();
 		this._interruptAssistantPlayback();
+	}
+
+	private _rememberInterruptedAudioId(id: string | undefined): void {
+		if (!id) {
+			return;
+		}
+		this._interruptedAudioIds.delete(id);
+		if (this._interruptedAudioIds.size >= 64) {
+			const oldest = this._interruptedAudioIds.values().next().value;
+			if (oldest !== undefined) {
+				this._interruptedAudioIds.delete(oldest);
+			}
+		}
+		this._interruptedAudioIds.add(id);
+		this._responseRoutes.delete(id);
+	}
+
+	private _isInterruptedAudio(event: IVoiceAudioResponse): boolean {
+		return (event.turnId !== undefined && this._interruptedAudioIds.has(event.turnId))
+			|| (event.responseId !== undefined && this._interruptedAudioIds.has(event.responseId));
+	}
+
+	private _dropInterruptedDeferredAudio(): void {
+		for (const [key, responses] of this._deferredResponses) {
+			const kept = responses.filter(response => {
+				const interrupted = (response.turnId !== undefined && this._interruptedAudioIds.has(response.turnId))
+					|| (response.responseId !== undefined && this._interruptedAudioIds.has(response.responseId));
+				if (interrupted && response.responseId) {
+					this._responseRoutes.delete(response.responseId);
+				}
+				return !interrupted;
+			});
+			if (kept.length === responses.length) {
+				continue;
+			}
+			if (kept.length === 0) {
+				this._deferredResponses.delete(key);
+			} else {
+				this._deferredResponses.set(key, kept);
+			}
+			this._maybeHideIndicator(key);
+		}
 	}
 
 	private _handleTranscription(event: IVoiceTranscription): void {
@@ -3805,7 +3868,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._shouldDeferForSession(sessionId);
 	}
 
-	private _deferResponse(sessionId: string, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string): void {
+	private _deferResponse(sessionId: string, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined, responseId?: string, turnId?: string): void {
 		const key = this._sessionKey(sessionId);
 		let responses = this._deferredResponses.get(key);
 		if (!responses) {
@@ -3825,7 +3888,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				: [...responses].reverse().find(r => !r.finalized);
 		}
 		if (!response) {
-			response = { responseId, finalized: false, chunks: [] };
+			response = { responseId, turnId, finalized: false, chunks: [] };
 			responses.push(response);
 			this._markPendingResponse(key, true);
 			this.logService.trace(`[voice] deferring response for unfocused session=${key} (buffered=${responses.length}); showing pending indicator`);
