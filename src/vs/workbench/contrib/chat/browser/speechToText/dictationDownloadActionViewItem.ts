@@ -40,10 +40,10 @@ export class DictationDownloadActionViewItem extends MenuEntryActionViewItem {
 		super.render(container);
 
 		container.classList.add('dictation-download-item');
-		this._register(new DictationDownloadRing(container, this._speechToTextService, () => this.updateTooltip()));
+		this._register(new DictationDownloadRing(container, this._speechToTextService));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		return getDictationDownloadHoverContent(this._speechToTextService.modelDownloadProgress);
+		return getDictationDownloadHoverContent();
 	}
 }

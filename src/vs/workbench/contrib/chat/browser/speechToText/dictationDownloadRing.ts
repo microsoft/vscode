@@ -27,7 +27,6 @@ export class DictationDownloadRing extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly _speechToTextService: IChatSpeechToTextService,
-		private readonly _onDidUpdate?: () => void,
 	) {
 		super();
 
@@ -72,21 +71,18 @@ export class DictationDownloadRing extends Disposable {
 			this._ringElement.classList.remove('indeterminate');
 			this._progressCircle.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - progress));
 		}
-		this._onDidUpdate?.();
 	}
 }
 
 /**
- * Rich hover reporting the current dictation-model download progress.
+ * Static hover explaining that the on-device dictation model is downloading.
+ * The ring itself conveys the live progress, so the hover stays fixed to avoid
+ * churning the tooltip on every progress tick.
  */
-export function getDictationDownloadHoverContent(progress: number | undefined): IManagedHoverContent {
+export function getDictationDownloadHoverContent(): IManagedHoverContent {
 	const markdown = new MarkdownString('', { supportThemeIcons: true });
 	markdown.appendMarkdown(localize('chatStt.hover.title', "**Downloading speech-to-text model**"));
 	markdown.appendMarkdown('\n\n');
-	if (progress === undefined) {
-		markdown.appendMarkdown(localize('chatStt.hover.preparing', "Preparing the on-device model. This happens only the first time you dictate."));
-	} else {
-		markdown.appendMarkdown(localize('chatStt.hover.percent', "{0}% downloaded. This happens only the first time you dictate.", Math.round(progress * 100)));
-	}
+	markdown.appendMarkdown(localize('chatStt.hover.preparing', "Preparing the on-device model. This happens only the first time you dictate."));
 	return { markdown, markdownNotSupportedFallback: markdown.value };
 }
