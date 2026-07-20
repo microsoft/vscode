@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Agent Host Server', function () {
 

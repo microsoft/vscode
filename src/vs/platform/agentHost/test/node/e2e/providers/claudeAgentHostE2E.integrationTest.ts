@@ -15,7 +15,7 @@
  * the dev dependency in `node_modules/@anthropic-ai/claude-agent-sdk`.
  *
  *   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/protocol/claudeAgentHostE2E.integrationTest.ts
+ *     src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts
  *
  * **Recording authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
  * token`. Either works — the agent host's `CopilotApiService` discovers the
@@ -25,8 +25,9 @@
  */
 
 import { existsSync } from 'fs';
-import { join } from '../../../../../base/common/path.js';
-import { defineAgentHostE2ETests, type IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
+import { join } from '../../../../../../base/common/path.js';
+import { type IAgentHostE2EProviderConfig } from '../harness/agentHostE2ETestHarness.js';
+import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 
 /**
  * Resolve the path of the locally installed `@anthropic-ai/claude-agent-sdk`

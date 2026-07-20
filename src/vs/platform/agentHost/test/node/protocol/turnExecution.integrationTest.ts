@@ -20,7 +20,7 @@ import {
 	isActionNotification,
 	startServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Turn Execution', function () {
 

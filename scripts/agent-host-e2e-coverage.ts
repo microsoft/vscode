@@ -15,7 +15,7 @@ const coverageRoot = join(repoRoot, '.build', 'agent-host-e2e-coverage');
 const rawCoveragePath = join(coverageRoot, 'raw');
 const reportPath = join(coverageRoot, 'report');
 const summaryPath = join(reportPath, 'coverage-summary.json');
-const statsPath = join(repoRoot, 'src', 'vs', 'platform', 'agentHost', 'test', 'node', 'protocol', 'coverage', 'agentHostE2E.json');
+const statsPath = join(repoRoot, 'src', 'vs', 'platform', 'agentHost', 'test', 'node', 'e2e', 'coverage', 'summary.json');
 const metricNames = ['statements', 'branches', 'functions', 'lines'] as const;
 
 type MetricName = typeof metricNames[number];
@@ -43,9 +43,7 @@ const incompatibleFlags = [
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
 
-const resourceIntegrationGlob = '**/agentHost/test/node/protocol/resourceOperations.integrationTest.js';
-const protocolIntegrationGlob = '**/agentHost/test/node/protocol/{agentHostServer,clientTools,copilotAgentHostE2EMocked,handshake,multiClient,networkDiagnostics,otlpLogs,sessionConfig,sessionDiffs,sessionFeatures,sessionLifecycle,toolApproval,turnExecution}.integrationTest.js';
-const providerE2EGlob = '**/*AgentHostE2E.integrationTest.js';
+const providerE2EGlob = '**/agentHost/test/node/e2e/providers/*AgentHostE2E.integrationTest.js';
 
 function main(): void {
 	validateEnvironment();
@@ -64,8 +62,6 @@ function main(): void {
 		AGENT_HOST_E2E_COVERAGE: '1',
 	};
 	const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
-	run(testScript, ['--runGlob', resourceIntegrationGlob], testEnvironment, process.platform === 'win32');
-	run(testScript, ['--runGlob', protocolIntegrationGlob], testEnvironment, process.platform === 'win32');
 	run(testScript, ['--runGlob', providerE2EGlob], testEnvironment, process.platform === 'win32');
 
 	const rawFiles = readdirSync(rawCoveragePath).filter(file => file.endsWith('.json'));
@@ -161,7 +157,7 @@ function writeStats(): void {
 				'src/vs/platform/agentHost/common/**/*.ts',
 				'src/vs/platform/agentHost/node/**/*.ts',
 			],
-			suites: ['protocol', 'claude', 'codex', 'copilotcli'],
+			suites: ['claude', 'codex', 'copilotcli'],
 		},
 		total,
 		files,

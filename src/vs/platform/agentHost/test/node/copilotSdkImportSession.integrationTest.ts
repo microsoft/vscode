@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Agent host end-to-end test (Copilot) for IMPORTING a translated conversation.
+ * Copilot SDK integration test for importing a translated conversation.
  *
  * Validates the core premise of local→Copilot-CLI migration: a synthesized
  * `events.jsonl` (built by {@link buildSessionEventLogFromTurns}) seeded through
@@ -14,7 +14,7 @@
  * Disabled by default. To run it, set `AGENT_HOST_REAL_SDK=1` (a Copilot CLI
  * package must be installed under `node_modules/@github/copilot*`):
  *
- *   AGENT_HOST_REAL_SDK=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotImportSession.integrationTest.ts
+ *   AGENT_HOST_REAL_SDK=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkImportSession.integrationTest.ts
  *
  * Authentication: token from `gh auth token`, overridable via `GITHUB_TOKEN`.
  */
@@ -23,15 +23,15 @@ import assert from 'assert';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type SessionEvent, type SessionFsFileInfo, type SessionFsProvider } from '@github/copilot-sdk';
-import { FileAccess } from '../../../../../base/common/network.js';
-import { delimiter, dirname, join } from '../../../../../base/common/path.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { rgDiskPath } from '../../../../../base/node/ripgrep.js';
-import { MessageKind, ResponsePartKind, TurnState, type ResponsePart, type Turn } from '../../../common/state/sessionState.js';
-import { buildSessionEventLogFromTurns } from '../../../node/copilot/buildSessionEvents.js';
-import { DiskSessionFsProvider } from '../../../node/copilot/diskSessionFsProvider.js';
-import { resolveGitHubToken } from './agentHostE2ETestHelpers.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { delimiter, dirname, join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
+import { MessageKind, ResponsePartKind, TurnState, type ResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { buildSessionEventLogFromTurns } from '../../node/copilot/buildSessionEvents.js';
+import { DiskSessionFsProvider } from '../../node/copilot/diskSessionFsProvider.js';
+import { resolveGitHubToken } from './e2e/harness/agentHostE2ETestHarness.js';
 
 /**
  * Directory entry shape returned by {@link SessionFsProvider.readdirWithTypes}.
@@ -157,7 +157,7 @@ function userTurn(id: string, text: string, response: string): Turn {
 	};
 }
 
-(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host E2E — Copilot import via seeded events.jsonl', function () {
+(REAL_SDK_ENABLED ? suite : suite.skip)('Copilot SDK — import via seeded events.jsonl', function () {
 
 	this.timeout(120_000);
 
@@ -247,7 +247,7 @@ function userTurn(id: string, text: string, response: string): Turn {
  * storage untouched. The test first creates a throwaway session to *discover*
  * the exact native layout, then seeds a fresh session at that layout.
  */
-(REAL_SDK_ENABLED ? suite : suite.skip)('Agent Host E2E — Copilot import via configDirectory (native storage)', function () {
+(REAL_SDK_ENABLED ? suite : suite.skip)('Copilot SDK — import via configDirectory (native storage)', function () {
 
 	this.timeout(120_000);
 

@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContentEncoding, ResourceType, ResourceWriteMode, type ResourceListResult, type ResourceReadResult, type ResourceResolveResult } from '../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, type IServerHandle, startServer, TestProtocolClient } from './testHelpers.js';
+import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, type IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket - Resource Operations', function () {
 

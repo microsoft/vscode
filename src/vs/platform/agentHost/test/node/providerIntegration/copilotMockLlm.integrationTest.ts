@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Agent host end-to-end tests (Copilot, mocked LLM).
+ * Agent Host integration tests using the real Copilot provider and a synthetic local LLM.
  */
 
 import assert from 'assert';
@@ -14,25 +14,16 @@ import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { buildDefaultChatUri, ResponsePartKind, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { AgentHostSessionReleaseGraceMsEnvVar } from '../../../common/agentService.js';
-import { createRealSession, dispatchTurn, IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
-import { fetchSessionWithChat, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
+import { fetchSessionWithChat, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
-export const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
-	suiteTitle: 'Agent Host E2E — Copilot (Mocked LLM)',
+const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
-	shellToolName: 'bash',
-	subagentToolNames: ['task'],
-	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: true,
-	supportsWorktreeIsolation: true,
-	supportsHostTerminalTool: true,
-	supportsSubagents: true,
-	supportsPlanMode: true,
-	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
+	githubToken: 'not-a-real-token',
 };
 
-suite('Agent Host E2E — Copilot, Mocked LLM (Copilot-specific)', function () {
+suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -77,7 +68,7 @@ suite('Agent Host E2E — Copilot, Mocked LLM (Copilot-specific)', function () {
 		const probeToken = 'MOCK_REQUEST_PROBE_12345';
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-hello`);
 		tempDirs.push(workspaceDir);
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, URI.file(workspaceDir));
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, URI.file(workspaceDir));
 		dispatchTurn(client, sessionUri, 'turn-mock-hello', `Reply with exactly: ${probeToken}`, 1);
 		try {
 			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
@@ -98,17 +89,17 @@ suite('Agent Host E2E — Copilot, Mocked LLM (Copilot-specific)', function () {
 });
 
 /**
- * Idle-session release exercised end to end against the real Copilot SDK
- * (mock LLM). Uses a dedicated server with a short
+ * Idle-session release exercised against the real Copilot SDK and a mock LLM.
+ * Uses a dedicated server with a short
  * {@link AgentHostSessionReleaseGraceMsEnvVar} grace so the release fires
  * promptly after the last subscriber drops (production defaults to 30s). Kept
  * in its own suite/server so the short grace can't perturb the timing of the
  * other agent host e2e suites.
  */
-suite('Agent Host E2E — Copilot, Mocked LLM (idle release)', function () {
+suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 
 	// Short enough that a post-unsubscribe wait reliably outlasts it, long
-	// enough that the intra-test subscribe calls in createRealSession don't race it.
+	// enough that the intra-test subscribe calls in createProviderSession don't race it.
 	const RELEASE_GRACE_MS = 500;
 
 	let server: IServerHandle;
@@ -164,7 +155,7 @@ suite('Agent Host E2E — Copilot, Mocked LLM (idle release)', function () {
 
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-release-resume`);
 		tempDirs.push(workspaceDir);
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-mock-release', createdSessions, URI.file(workspaceDir));
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-release', createdSessions, URI.file(workspaceDir));
 
 		// Drive one turn so the session has durable SDK state (a persisted event
 		// log) backed by a live SDK session that owns real per-session resources.

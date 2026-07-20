@@ -4,67 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Agent host end-to-end tests (Codex).
- *
- * Disabled by default. To run, set `AGENT_HOST_REAL_CODEX=1`. The Codex CLI
- * is resolved automatically from the dev dependency in
- * `node_modules/@openai/codex`.
- *
- *   AGENT_HOST_REAL_CODEX=1 ./scripts/test-integration.sh --run \
- *     src/vs/platform/agentHost/test/node/protocol/codexAgentHostE2E.integrationTest.ts
- *
- * **Authentication:** token from `GITHUB_TOKEN` (preferred) or `gh auth
- * token`. The agent host's Codex proxy forwards the app-server's Responses API
- * traffic to Copilot CAPI using that token.
+ * Live, non-deterministic Codex scenarios that depend on real-time app-server behavior.
  */
 
-import { existsSync, mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
 import assert from 'assert';
-import { join } from '../../../../../base/common/path.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MessageKind, PendingMessageKind, ChatInputResponseKind, type ChatInputRequest } from '../../../common/state/sessionState.js';
-import { createRealSession, defineAgentHostE2ETests, dispatchTurn, getAcceptedAnswers, type IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
-import { getActionEnvelope, isActionNotification, startRealServer, TestProtocolClient, type IServerHandle } from './testHelpers.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ChatInputResponseKind, MessageKind, PendingMessageKind, type ChatInputRequest } from '../../../../common/state/sessionState.js';
+import { createRealSession, dispatchTurn, getAcceptedAnswers } from '../harness/agentHostE2ETestHarness.js';
+import { getActionEnvelope, isActionNotification, startRealServer, TestProtocolClient, type IServerHandle } from '../../serverIntegrationTestHelpers.js';
+import { CODEX_CONFIG, CODEX_SDK_ROOT } from './codexTestConfiguration.js';
 
-// The cross-provider shared suite runs by default in deterministic replay; the
-// Codex-specific steering coverage below exercises real-time, multi-thread
-// behaviors (mid-turn steering, thread restarts, archive/truncate) that are not
-// deterministically reproducible, so it stays gated behind a real-run flag.
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
-
-function resolveCodexSdkRoot(): string | undefined {
-	const sdkPackageDir = join(process.cwd(), 'node_modules', '@openai', 'codex');
-	return existsSync(sdkPackageDir) ? process.cwd() : undefined;
-}
-
-// The shared suite runs by default in deterministic replay mode; recording is
-// opt-in via `AGENT_HOST_REPLAY_RECORD=1`. Both need the Codex CLI on disk (it
-// drives the /responses traffic the proxy answers), so resolve it always.
-const CODEX_SDK_ROOT = resolveCodexSdkRoot();
-
-const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
-	suiteTitle: 'Agent Host E2E — Codex',
-	provider: 'codex',
-	scheme: 'codex',
-	shellToolName: 'shell',
-	subagentToolNames: [],
-	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: !!CODEX_SDK_ROOT,
-	codexSdkRoot: CODEX_SDK_ROOT,
-	supportsWorktreeIsolation: true,
-	// Codex runs shell commands inside its own app-server subprocess, not the
-	// host-managed custom terminal tool, so the worktree suite verifies
-	// isolation via the resolved working directory alone.
-	supportsHostTerminalTool: false,
-	supportsSubagents: false,
-	supportsPlanMode: false,
-	// Packaged Linux replay completes recorded exec_command turns without tool events.
-	shellToolReplayUnstableOnLinux: true,
-};
-
-defineAgentHostE2ETests(CODEX_CONFIG);
 
 // Codex-specific steering coverage. Steering is wired via `turn/steer`; the
 // agent buffers the message and promotes the codex `userMessage` echo into a

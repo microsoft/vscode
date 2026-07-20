@@ -5,15 +5,15 @@
 
 import { createRequire } from 'module';
 import { readFileSync, realpathSync, writeFileSync } from 'fs';
-import { FileAccess } from '../../../../../base/common/network.js';
-import { dirname, win32 } from '../../../../../base/common/path.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
-import { ActionType, type ActionEnvelope, type StateAction } from '../../../common/state/sessionActions.js';
-import type { DispatchActionParams } from '../../../common/state/protocol/commands.js';
-import type { AhpNotification } from '../../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../common/state/sessionState.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
+import { dirname, win32 } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
+import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
+import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
+import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };

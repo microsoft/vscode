@@ -10,7 +10,7 @@ import type { InitializeResult } from '../../../common/state/sessionProtocol.js'
 import type { TelemetryCapabilities } from '../../../common/state/protocol/channels-otlp/state.js';
 import type { OtlpExportLogsParams } from '../../../common/state/protocol/channels-otlp/notifications.js';
 import { OTLP_LOGS_CHANNEL_TEMPLATE, iterateOtlpLogRecords } from '../../../common/otlp/otlpLogEmitter.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 /**
  * End-to-end checks that the agent host server actually advertises and

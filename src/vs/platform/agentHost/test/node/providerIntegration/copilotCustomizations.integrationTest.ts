@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Agent host end-to-end tests (Copilot customizations, mocked LLM).
- *
- * agent host log file: ~/.vscode-insiders/tmp/tmp_vscode_1/ahp-customizations-home-mock-ZBucPX/Library/Application Support/Code - OSS Dev/logs/20260701T192836/agenthost-server.log
+ * Agent Host customization integration tests using the real Copilot provider and a synthetic local LLM.
  */
 
 import assert from 'assert';
@@ -17,8 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { CustomizationType, type DirectoryCustomization } from '../../../common/state/sessionState.js';
 import { type AhpNotification } from '../../../common/state/sessionProtocol.js';
-import { createRealSession, dispatchTurn, IAgentHostE2EProviderConfig } from './agentHostE2ETestHelpers.js';
-import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from './testHelpers.js';
+import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 /**
  * Whether `notification` is a *settled* `session/customizationsChanged` for
@@ -42,26 +40,17 @@ function isSettledCustomizationsNotification(notification: AhpNotification, sess
 	return (getActionEnvelope(notification).action as SessionCustomizationsChangedAction).customizations.length > 0;
 }
 
-const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
-	suiteTitle: 'Agent Host E2E — Copilot (Mocked LLM)',
+const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	provider: 'copilotcli',
 	scheme: 'copilotcli',
-	shellToolName: 'bash',
-	subagentToolNames: ['task'],
-	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: true,
-	supportsWorktreeIsolation: true,
-	supportsHostTerminalTool: true,
-	supportsSubagents: true,
-	supportsPlanMode: true,
-	githubToken: 'not-a-real-token', // The tests will use a mocked LLM, so the token doesn't need to be valid.
+	githubToken: 'not-a-real-token',
 };
 
 const SETUP_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 90_000;
 const NOTIFICATION_TIMEOUT_MS = 10_000;
 
-suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
+suite('Agent Host Provider Integration — Copilot Customizations', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
@@ -117,7 +106,7 @@ suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
 		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-customizations-empty-mock-`);
 		tempDirs.push(workspaceDir);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-empty-mock', createdSessions, URI.file(workspaceDir));
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-customizations-empty-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
@@ -250,7 +239,7 @@ suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
 			writeFile(userHookFile, JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir));
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-customizations-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,
@@ -393,7 +382,7 @@ suite('Agent Host E2E — Copilot, Mocked LLM (customizations)', function () {
 			writeFile(homeHookFile, JSON.stringify({ PreToolUse: [] }, undefined, 2)),
 		]);
 
-		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-customizations-watch-mock', createdSessions, URI.file(workspaceDir));
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-customizations-watch-mock', createdSessions, URI.file(workspaceDir));
 		client.dispatch({
 			channel: sessionUri,
 			clientSeq: 1,

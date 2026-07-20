@@ -14,7 +14,7 @@
  * fixtures (no token, no network). To re-record the fixtures against real CAPI,
  * set `AGENT_HOST_REPLAY_RECORD=1`:
  *
- *   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/protocol/copilotAgentHostE2E.integrationTest.ts
+ *   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
  *
  * Recording auth: the token is obtained from `gh auth token`, or override with
  * `GITHUB_TOKEN=ghp_xxx`. Replay needs no credential.
@@ -27,15 +27,16 @@
 import assert from 'assert';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { homedir, tmpdir } from 'os';
-import { join } from '../../../../../base/common/path.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../common/state/sessionState.js';
-import { ActionType, type ChatUsageAction } from '../../../common/state/sessionActions.js';
+import { join } from '../../../../../../base/common/path.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { MessageAttachmentKind, ToolCallConfirmationReason, buildDefaultChatUri, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import {
-	AgentHostE2EServerLease, createRealSession, defineAgentHostE2ETests, dispatchTurn, driveTurnWithAttachmentsToCompletion,
+	AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnWithAttachmentsToCompletion,
 	runAhpSnapshotTest, type IAgentHostE2EProviderConfig,
-} from './agentHostE2ETestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from './testHelpers.js';
+} from '../harness/agentHostE2ETestHarness.js';
+import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 
 const COPILOT_CONFIG: IAgentHostE2EProviderConfig = {
 	suiteTitle: 'Agent Host E2E — Copilot',

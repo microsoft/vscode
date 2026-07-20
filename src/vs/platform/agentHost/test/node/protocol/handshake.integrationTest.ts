@@ -11,7 +11,7 @@ import {
 	type JsonRpcErrorResponse,
 } from '../../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { getAgentHostE2ETestTimeout, IServerHandle, nextSessionUri, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, nextSessionUri, startServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Handshake & Errors', function () {
 

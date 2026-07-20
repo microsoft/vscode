@@ -9,15 +9,15 @@ import { mkdirSync } from 'fs';
 import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
-import { CapiReplayProxy, type CapiReplayMode } from './capiReplayProxy.js';
-import { resolve as resolvePath } from '../../../../../base/common/path.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { SubscribeResult, type DispatchActionParams } from '../../../common/state/protocol/commands.js';
-import { ActionType, type ActionEnvelope } from '../../../common/state/sessionActions.js';
-import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
-import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../../common/state/sessionState.js';
-import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../../common/agentService.js';
+import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
+import { resolve as resolvePath } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { SubscribeResult, type DispatchActionParams } from '../../common/state/protocol/commands.js';
+import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
+import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
+import { MessageKind, buildDefaultChatUri, mergeSessionWithDefaultChat, parseDefaultChatUri, type ChatState, type ISessionWithDefaultChat, type SessionState } from '../../common/state/sessionState.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentEnabledEnvVar } from '../../common/agentService.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -27,8 +27,8 @@ import {
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
 	type ProtocolMessage,
-} from '../../../common/state/sessionProtocol.js';
-import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+} from '../../common/state/sessionProtocol.js';
+import { AhpSnapshotRecorder, type IAhpSnapshotNormalization, type IAhpSnapshotOptions } from './e2e/harness/ahpSnapshot.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -314,7 +314,7 @@ function buildCopilotChatToken(mockUrl: string, copilotPlan: 'free' | 'pro' = 'f
 }
 
 async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise<IMockLlmServerHandleWithLog> {
-	const mockServerPath = fileURLToPath(new URL('../../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
+	const mockServerPath = fileURLToPath(new URL('../../../../../../scripts/chat-simulation/common/mock-llm-server.ts', import.meta.url));
 	const nodeRequire = createRequire(import.meta.url);
 	const mockModule = nodeRequire(mockServerPath) as IMockLlmServerModule;
 	mockModule.registerScenario('text-only', {
@@ -331,7 +331,7 @@ async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise
 
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly startupTimeoutMs?: number }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
-		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
+		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
 		if (options?.quiet ?? true) {
 			args.push('--quiet');
@@ -408,7 +408,7 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 	// The agent host talks to the proxy (when replaying) or directly to the mock.
 	const capiUrl = capiReplayProxy?.url ?? mockLlmServer?.url;
 	return new Promise((resolve, reject) => {
-		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
+		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
 		if (options?.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
