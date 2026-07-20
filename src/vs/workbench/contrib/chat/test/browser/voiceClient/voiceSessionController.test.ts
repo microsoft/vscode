@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { Event } from '../../../../../../base/common/event.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -18,7 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -31,24 +32,88 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { IVoiceSessionController, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IVoiceClientService, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceClientService, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription } from '../../../common/voiceClient/voiceClientService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private narrationCounter = 0;
 	readonly requests: { sessionId: string; kind: 'response' | 'confirmation'; text: string; narrationId: string }[] = [];
+	private readonly audioResponseEmitter = new Emitter<IVoiceAudioResponse>();
+	override readonly onAudioResponse = this.audioResponseEmitter.event;
+	private readonly bargeInEmitter = new Emitter<IVoiceBargeIn>();
+	override readonly onBargeIn = this.bargeInEmitter.event;
+	private readonly transcriptionEmitter = new Emitter<IVoiceTranscription>();
+	override readonly onTranscription = this.transcriptionEmitter.event;
+	private readonly toolCallEmitter = new Emitter<IVoiceToolCall>();
+	override readonly onToolCall = this.toolCallEmitter.event;
+	private readonly speechStartedEmitter = new Emitter<IVoiceSpeechStarted>();
+	override readonly onSpeechStarted = this.speechStartedEmitter.event;
+	override readonly onNarrationAck = Event.None;
+	private readonly narrationUnblockedEmitter = new Emitter<IVoiceNarrationSignal>();
+	override readonly onNarrationUnblocked = this.narrationUnblockedEmitter.event;
+	private readonly narrationInterruptedEmitter = new Emitter<IVoiceNarrationSignal>();
+	override readonly onNarrationInterrupted = this.narrationInterruptedEmitter.event;
+	override readonly onSessionInit = Event.None;
+	override readonly onError = Event.None;
+	override readonly onDidChangeConnectionState = Event.None;
+	override readonly onFatalDisconnect = Event.None;
+	override readonly onTurnAutoEnded = Event.None;
 
 	override disconnect(): void { }
-
+	override async connect(): Promise<void> { }
 	override sendSessionContext(): void { }
-
 	override flushSessionContext(): void { }
+	readonly toolResults: { callId: string; result: string }[] = [];
+	private toolResultResolver: (() => void) | undefined;
+	readonly toolResultReceived = new Promise<void>(resolve => this.toolResultResolver = resolve);
+	override sendToolResult(callId: string, result: string): void {
+		this.toolResults.push({ callId, result });
+		this.toolResultResolver?.();
+	}
 
 	override requestNarration(codingSessionId: string, kind: 'response' | 'confirmation', text: string, narrationId?: string): string | undefined {
 		const id = narrationId ?? `narration-${++this.narrationCounter}`;
 		this.requests.push({ sessionId: codingSessionId, kind, text, narrationId: id });
 		return id;
+	}
+
+	fireAudioResponse(event: IVoiceAudioResponse): void {
+		this.audioResponseEmitter.fire(event);
+	}
+
+	fireBargeIn(event: IVoiceBargeIn): void {
+		this.bargeInEmitter.fire(event);
+	}
+
+	fireTranscription(event: IVoiceTranscription): void {
+		this.transcriptionEmitter.fire(event);
+	}
+
+	fireToolCall(event: IVoiceToolCall): void {
+		this.toolCallEmitter.fire(event);
+	}
+
+	fireSpeechStarted(): void {
+		this.speechStartedEmitter.fire({});
+	}
+
+	fireNarrationInterrupted(event: IVoiceNarrationSignal): void {
+		this.narrationInterruptedEmitter.fire(event);
+	}
+
+	fireNarrationUnblocked(event: IVoiceNarrationSignal): void {
+		this.narrationUnblockedEmitter.fire(event);
+	}
+
+	dispose(): void {
+		this.audioResponseEmitter.dispose();
+		this.bargeInEmitter.dispose();
+		this.transcriptionEmitter.dispose();
+		this.toolCallEmitter.dispose();
+		this.speechStartedEmitter.dispose();
+		this.narrationUnblockedEmitter.dispose();
+		this.narrationInterruptedEmitter.dispose();
 	}
 }
 
@@ -73,13 +138,54 @@ class RecordingMicCaptureService extends mock<IMicCaptureService>() {
 }
 
 class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
-	override readonly isPlaying = false;
+	readonly playedAudio: string[] = [];
+	stopCount = 0;
+	private playing = false;
+	private readonly playbackStoppedEmitter = new Emitter<void>();
+
+	override get isPlaying(): boolean { return this.playing; }
 	override readonly onPlaybackStarted = Event.None;
-	override readonly onPlaybackStopped = Event.None;
+	override readonly onPlaybackStopped = this.playbackStoppedEmitter.event;
 	override readonly analyserNode = undefined;
+	override playAudioChunk(audio: string): void {
+		if (audio) {
+			this.playedAudio.push(audio);
+			this.playing = true;
+		}
+	}
+	override stopPlayback(): void {
+		this.stopCount++;
+		const wasPlaying = this.playing;
+		this.playing = false;
+		if (wasPlaying) {
+			this.playbackStoppedEmitter.fire();
+		}
+	}
 	override getLastPlayedSamples(): Float32Array | null { return null; }
 	override closeContext(): void { }
-	override stopPlayback(): void { }
+	dispose(): void {
+		this.playbackStoppedEmitter.dispose();
+	}
+}
+
+class TestMicCaptureService extends mock<IMicCaptureService>() {
+	override readonly onPttStart = Event.None;
+	override readonly onPttAudioChunk = Event.None;
+	override readonly onPttEnd = Event.None;
+	override readonly onPttDiagnostic = Event.None;
+	override readonly analyserNode = undefined;
+	override isMuted = false;
+	readonly pttTurns: string[] = [];
+
+	override prepare(): void { }
+	override async startCapture(): Promise<void> { }
+	override stopCapture(): void { }
+	override suppressUntil(): void { }
+	override async pttDown(turnId: string): Promise<void> {
+		this.pttTurns.push(turnId);
+	}
+	override pttUp(): void { }
+	override abortPtt(): void { }
 }
 
 class TestAgentSessionsService extends mock<IAgentSessionsService>() {
@@ -108,6 +214,30 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override getAllWidgets() { return []; }
 }
 
+class TestCommandService extends mock<ICommandService>() {
+	readonly acceptedInputs: string[] = [];
+
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		let result: string | undefined;
+		if (commandId === '_chat.voice.getCurrentSession') {
+			result = 'chat-session';
+		} else if (commandId === '_chat.voice.acceptInput' && typeof args[0] === 'string') {
+			this.acceptedInputs.push(args[0]);
+		}
+		return result as T;
+	}
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
+
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
@@ -121,31 +251,30 @@ suite('VoiceSessionController', () => {
 		sinon.restore();
 	});
 
-	function createController(voiceClientService: TestVoiceClientService, micCaptureService?: IMicCaptureService): IVoiceSessionController {
+	function createController(
+		voiceClientService: TestVoiceClientService,
+		ttsPlaybackService = new TestTtsPlaybackService(),
+		commandService: ICommandService = new TestCommandService(),
+		telemetryService: NullTelemetryServiceShape = NullTelemetryService,
+		micCaptureService: IMicCaptureService = new TestMicCaptureService(),
+		configurationService: IConfigurationService = new TestConfigurationService({ 'agents.voice.handsFree': false }),
+	): IVoiceSessionController {
+		store.add({ dispose: () => voiceClientService.dispose() });
+		store.add(ttsPlaybackService);
 		return store.add(new VoiceSessionController(
 			voiceClientService,
-			micCaptureService ?? new class extends mock<IMicCaptureService>() {
-				override readonly onPttStart = Event.None;
-				override readonly onPttAudioChunk = Event.None;
-				override readonly onPttEnd = Event.None;
-				override readonly onPttDiagnostic = Event.None;
-				override readonly analyserNode = undefined;
-				override prepare(): void { }
-				override async startCapture(): Promise<void> { }
-				override stopCapture(): void { }
-			}(),
-			new TestTtsPlaybackService(),
+			micCaptureService,
+			ttsPlaybackService,
 			new class extends mock<IVoiceToolDispatchService>() {
 				override setDelegate(): void { }
 			}(),
 			new class extends mock<IVoicePlaybackService>() {
 				override notifyPlaybackStart(): void { }
+				override notifyPlaybackEnd(): void { }
 			}(),
 			new TestAgentSessionsService(),
 			new TestChatService(),
-			new class extends mock<ICommandService>() {
-				override async executeCommand(): Promise<undefined> { return undefined; }
-			}(),
+			commandService,
 			new class extends mock<IAuthenticationService>() {
 				override async getSessions(): Promise<[]> { return []; }
 			}(),
@@ -154,8 +283,8 @@ suite('VoiceSessionController', () => {
 			}(),
 			new NullLogService(),
 			new class extends mock<IWorkbenchEnvironmentService>() { }(),
-			NullTelemetryService,
-			new TestConfigurationService({ 'agents.voice.handsFree': false }),
+			telemetryService,
+			configurationService,
 			new class extends mock<IAccessibilitySignalService>() {
 				override async playSignal(): Promise<void> { }
 			}(),
@@ -164,6 +293,304 @@ suite('VoiceSessionController', () => {
 			new class extends mock<INotificationService>() { }(),
 		));
 	}
+
+	test('barge-in drops delayed audio from the interrupted turn before playing the follow-up', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const commandService = new TestCommandService();
+		const controller = createController(voiceClientService, ttsPlaybackService, commandService);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'story-start',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-1',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'queued-story-segment',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-2',
+		});
+		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireBargeIn({
+			turnId: 'follow-up-turn',
+			interruptedTurnId: 'story-turn',
+		});
+		voiceClientService.fireTranscription({
+			text: 'actually scratch that and check the code in the repository',
+			status: 'final',
+			turnId: 'follow-up-turn',
+			revision: 1,
+		});
+		voiceClientService.fireToolCall({
+			callId: 'send-follow-up',
+			name: 'send_to_chat',
+			args: { text: 'actually scratch that and check the code in the repository' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story-continuation',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response-2',
+		});
+		voiceClientService.fireAudioResponse({
+			audio: 'follow-up-acknowledgement',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'follow-up-turn',
+			responseId: 'follow-up-response',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			stopCount: ttsPlaybackService.stopCount,
+			transcript: controller.transcriptTurns.get().at(-1),
+			acceptedInputs: commandService.acceptedInputs,
+			toolResults: voiceClientService.toolResults,
+		}, {
+			playedAudio: ['story-start', 'follow-up-acknowledgement'],
+			stopCount: 2,
+			transcript: {
+				speaker: 'user',
+				text: 'actually scratch that and check the code in the repository',
+				committed: '',
+				isPartial: false,
+			},
+			acceptedInputs: ['actually scratch that and check the code in the repository'],
+			toolResults: [{ callId: 'send-follow-up', result: 'ok' }],
+		});
+	});
+
+	test('stale interrupted audio does not consume follow-up latency telemetry', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const telemetryService = new TestTelemetryService();
+		const controller = createController(voiceClientService, new TestTtsPlaybackService(), new TestCommandService(), telemetryService);
+		await controller.connect(mainWindow);
+		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireBargeIn({
+			turnId: 'follow-up-turn',
+			interruptedTurnId: 'story-turn',
+		});
+		clock.setSystemTime(5_000);
+		Reflect.set(controller, '_telemetryPttDownMs', 500);
+		Reflect.set(controller, '_telemetryFirstTranscriptionMs', 750);
+		Reflect.set(controller, '_telemetryPttUpMs', 1_000);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		clock.tick(1_000);
+		voiceClientService.fireAudioResponse({
+			audio: 'follow-up',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'follow-up-turn',
+			responseId: 'follow-up-response',
+		});
+
+		assert.deepStrictEqual({
+			latencyEvents: telemetryService.events.filter(event => event.name === 'voiceLatency'),
+			pendingLatencyStart: Reflect.get(controller, '_telemetryPttUpMs'),
+		}, {
+			latencyEvents: [{
+				name: 'voiceLatency',
+				data: {
+					timeToFirstTranscriptionMs: 250,
+					endToEndTurnMs: 5_000,
+				},
+			}],
+			pendingLatencyStart: undefined,
+		});
+	});
+
+	test('barge-in purges deferred audio before the interrupted session is focused', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const backgroundSession = URI.parse('agent-host-copilot:/background-session');
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'buffered-story',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: backgroundSession.toString(),
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireBargeIn({
+			turnId: 'follow-up-turn',
+			interruptedTurnId: 'story-turn',
+		});
+		controller.setActiveSessionShown(backgroundSession);
+		voiceClientService.fireAudioResponse({
+			audio: 'follow-up',
+			isFirstChunk: true,
+			isFinal: false,
+			codingSessionId: backgroundSession.toString(),
+			turnId: 'follow-up-turn',
+			responseId: 'follow-up-response',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['follow-up']);
+	});
+
+	test('speech-started keeps an interrupted solicited narration retryable', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = 'agent-host-copilot:/session-1';
+		const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: 'response' | 'confirmation', text: string) => boolean;
+		await controller.connect(mainWindow);
+
+		assert.strictEqual(narrate.call(controller, sessionId, 'response', 'Done'), true);
+		voiceClientService.fireAudioResponse({
+			audio: 'narration',
+			isFirstChunk: true,
+			isFinal: false,
+			responseId: 'narration-1',
+		});
+		voiceClientService.fireSpeechStarted();
+		voiceClientService.fireNarrationInterrupted({
+			narrationId: 'narration-1',
+			codingSessionId: sessionId,
+		});
+		Reflect.set(controller, '_currentNarratable', () => ({ kind: 'response', text: 'Done' }));
+		controller.setActiveSessionShown(URI.parse(sessionId));
+		voiceClientService.fireNarrationUnblocked({
+			narrationId: 'narration-1',
+			codingSessionId: sessionId,
+		});
+		const retryRequest = voiceClientService.requests.at(-1);
+		if (!retryRequest) {
+			throw new Error('Retry narration was not requested');
+		}
+		voiceClientService.fireAudioResponse({
+			audio: 'retry',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'retry-turn',
+			responseId: retryRequest.narrationId,
+		});
+
+		const pendingSolicitedNarrations = Reflect.get(controller, '_pendingSolicitedNarrations') as Map<string, unknown>;
+		const deferredNarrations = Reflect.get(controller, '_deferredNarrations') as Map<string, unknown>;
+		assert.deepStrictEqual({
+			requests: voiceClientService.requests,
+			playedAudio: ttsPlaybackService.playedAudio,
+			pendingSolicitedNarrations: [...pendingSolicitedNarrations.keys()],
+			deferredNarrations: deferredNarrations.size,
+		}, {
+			requests: [{
+				sessionId,
+				kind: 'response',
+				text: 'Done',
+				narrationId: 'narration-1',
+			}, {
+				sessionId,
+				kind: 'response',
+				text: 'Done',
+				narrationId: 'narration-2',
+			}],
+			playedAudio: ['narration', 'retry'],
+			pendingSolicitedNarrations: ['narration-2'],
+			deferredNarrations: 0,
+		});
+	});
+
+	test('explicit PTT drops stale first chunks before the backend barge-in arrives', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const micCaptureService = new TestMicCaptureService();
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			new TestCommandService(),
+			NullTelemetryService,
+			micCaptureService,
+		);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'story-start',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		controller.pttDown();
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			pttTurns: micCaptureService.pttTurns.length,
+		}, {
+			playedAudio: ['story-start'],
+			pttTurns: 1,
+		});
+	});
+
+	test('manual PTT promotes passive hands-free capture without replaying stale audio', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const micCaptureService = new TestMicCaptureService();
+		const controller = createController(
+			voiceClientService,
+			ttsPlaybackService,
+			new TestCommandService(),
+			NullTelemetryService,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
+		await controller.connect(mainWindow);
+		Reflect.get(controller, '_isConnected').set(true, undefined);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'story-start',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+		const passiveTurnId = micCaptureService.pttTurns[0];
+		controller.pttDown();
+		voiceClientService.fireAudioResponse({
+			audio: 'stale-story',
+			isFirstChunk: true,
+			isFinal: false,
+			turnId: 'story-turn',
+			responseId: 'story-response',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			pttTurns: micCaptureService.pttTurns,
+			passiveTurnPromoted: Reflect.get(controller, '_pttHeld') && !Reflect.get(controller, '_bargeInListenActive'),
+		}, {
+			playedAudio: ['story-start'],
+			pttTurns: [passiveTurnId],
+			passiveTurnPromoted: true,
+		});
+	});
 
 	test('restores idle state when solicited narration never starts returning audio', () => {
 		const voiceClientService = new TestVoiceClientService();
@@ -258,7 +685,7 @@ suite('VoiceSessionController', () => {
 	test('auto-listen opens a passive mic turn so the backend does not latch user_is_speaking', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		const enterAutoListen = Reflect.get(controller, '_enterAutoListen') as () => void;
@@ -271,7 +698,7 @@ suite('VoiceSessionController', () => {
 	test('a deliberate user press opens a non-passive mic turn', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		controller.pttDown();
@@ -283,7 +710,7 @@ suite('VoiceSessionController', () => {
 	test('a deliberate press awaiting narration is preserved so its ptt_end clears the backend latch', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		controller.pttDown();
@@ -300,7 +727,7 @@ suite('VoiceSessionController', () => {
 	test('a passive open-mic turn is torn down for playback since it never latched', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		Reflect.set(controller, '_pttCurrentTurnId', 'passive-turn');
@@ -316,7 +743,7 @@ suite('VoiceSessionController', () => {
 	test('a held deliberate press keeps buffered narration deferred instead of playing over the press', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		// A deliberate (non-passive) press is being held; it latched the backend.
@@ -351,7 +778,7 @@ suite('VoiceSessionController', () => {
 	test('a buffered reply retained under a held press is not re-narrated (no duplicate on release)', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		const key = URI.parse('agent-host-copilot:/session-1').toString();
@@ -385,7 +812,7 @@ suite('VoiceSessionController', () => {
 	test('a different pending reply is still narrated when an unrelated buffer is retained under a held press', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		const key = URI.parse('agent-host-copilot:/session-1').toString();
@@ -419,7 +846,7 @@ suite('VoiceSessionController', () => {
 	test('promoting a passive barge-in listen clears the passive flag so playback preserves the press', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const mic = new RecordingMicCaptureService();
-		const controller = createController(voiceClientService, mic);
+		const controller = createController(voiceClientService, undefined, undefined, undefined, mic);
 		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
 
 		// A passive barge-in listen is streaming during assistant playback.
@@ -617,7 +1044,7 @@ suite('VoiceSessionController live transcription', () => {
 		const { controller, persisted } = createController();
 		const bargeInTurnId = beginTurn(controller);
 		finishTurn(controller);
-		controller['_handleBargeIn']();
+		controller['_handleBargeIn']({ turnId: 'new-turn', interruptedTurnId: bargeInTurnId });
 		transcribe(controller, { text: 'after barge-in', status: 'final', turnId: bargeInTurnId, revision: 1 });
 
 		controller['_isConnected'].set(true, undefined);
