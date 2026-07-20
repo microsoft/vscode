@@ -385,7 +385,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			throw err;
 		}
 		this._setState(ChatSpeechToTextState.Recording);
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		// Only cue "recording started" once we are actually listening. If the
+		// model is still downloading/loading, defer the cue until it becomes
+		// ready (see _handleModelStatus), so it lands with the "Listening…"
+		// placeholder rather than at the start of the download.
+		if (!this._isPreparingModel) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+		}
 	}
 
 	/**
@@ -472,7 +478,13 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 		this._updateDownloadNotification(status);
 		if (status.state === LocalTranscriptionModelState.Ready) {
 			this._logModelPrepareTelemetry(status);
+			const wasPreparing = this._isPreparingModel;
 			this._setPreparingModel(false);
+			// The recording-started cue was deferred while the model prepared;
+			// now that we are actually listening, play it (if still recording).
+			if (wasPreparing && this._state === ChatSpeechToTextState.Recording) {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted);
+			}
 		} else if (status.state === LocalTranscriptionModelState.Error) {
 			this._logModelPrepareTelemetry(status);
 			this._setPreparingModel(false);
