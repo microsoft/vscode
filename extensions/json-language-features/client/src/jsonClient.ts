@@ -862,16 +862,31 @@ function computeSettings(): Settings {
 	};
 
 	/*
+	 * Expand a leading `${workspaceFolder}` (also after a `!` exclusion prefix) to the folder uri,
+	 * anchoring the pattern to the workspace folder root. Patterns are matched against the full
+	 * document uri, so the expansion uses the uri string (also pinning scheme and authority).
+	 */
+	const expandWorkspaceFolder = (fileMatch: string[] | undefined, workspaceFolder: Uri | undefined): string[] | undefined => {
+		if (!Array.isArray(fileMatch) || !workspaceFolder) {
+			return fileMatch;
+		}
+		const folderString = workspaceFolder.toString(true).replace(/\/$/, '');
+		return fileMatch.map(fm => typeof fm === 'string' ? fm.replace(/^(!?)\$\{workspaceFolder\}/, (_match, exclusion) => exclusion + folderString) : fm);
+	};
+
+	/*
 	 * Add schemas from the settings
 	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
 	 * settingsLocation against which path relative schema URLs are resolved
+	 * workspaceFolder the folder `${workspaceFolder}` in fileMatch patterns expands to. `undefined`
+	 * where no single folder applies (user settings, multi-root workspace file settings)
 	 */
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined, workspaceFolder?: Uri) => {
 		if (schemaSettings) {
 			for (const setting of schemaSettings) {
 				const url = getSchemaId(setting, settingsLocation);
 				if (url) {
-					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: expandWorkspaceFolder(setting.fileMatch, workspaceFolder), folderUri, schema: setting.schema };
 					schemas.push(schemaSetting);
 				}
 			}
@@ -893,12 +908,12 @@ function computeSettings(): Settings {
 			for (const folder of folders) {
 				const folderUri = folder.uri;
 				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri, folderUri);
 			}
 		} else {
 			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
 				// single folder workspace: settings apply to all files (also external files)
-				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri, folders[0].uri);
 			}
 		}
 	}
