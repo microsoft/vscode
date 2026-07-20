@@ -134,7 +134,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const projectName = workspace.folders.length > 0 ? workspace.folders[0].name : '';
-		auxiliaryWindow.window.document.title = projectName ? `Chat Input — ${projectName}` : 'Chat Input';
+		auxiliaryWindow.window.document.title = projectName ? localize('chatInputWindow.titleWithProject', "Chat Input — {0}", projectName) : localize('chatInputWindow.title', "Chat Input");
 
 		auxiliaryWindow.container.style.overflow = 'hidden';
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
