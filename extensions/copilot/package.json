@@ -107,7 +107,6 @@
     "languageModelToolSupportsModel",
     "findFiles2",
     "textSearchProvider",
-    "telemetryExperimentProperty",
     "terminalDataWriteEvent",
     "terminalExecuteCommandEvent",
     "terminalSelection",
