@@ -5,6 +5,7 @@
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -31,19 +32,23 @@ export interface IPendingSdkMessage {
 /**
  * Owns the prompt queue + the async iterable handed to
  * `WarmQuery.query()`. Knows nothing about the SDK Query lifecycle,
- * config push, or message dispatch — those live on the pipeline.
+ * config push, or message dispatch — those live on the pipeline. It holds
+ * NO back-reference into the pipeline: the pipeline pushes abortedness in
+ * via {@link notifyAborted} and subscribes to {@link onDidYieldSteering}.
  *
  * Invariants:
  *   • Pushing wakes the iterable's parked `next()`.
- *   • The iterable returns `done` when the supplied `getAbortSignal()`
- *     is aborted; pipeline calls {@link notifyAborted} after flipping
- *     the controller so the parked `next()` returns immediately.
+ *   • The iterable returns `done` once {@link notifyAborted} has been
+ *     called (the pipeline calls it after aborting its controller); the
+ *     queue tracks this itself via an internal `_done` latch rather than
+ *     reading the pipeline's swap-prone signal. The latch is terminal — an
+ *     immutable pipeline never rebinds, so a rebuild mints a fresh queue.
  *   • {@link settleHead} pops the head of the yielded list (called by
  *     the consumer loop on every `result` message).
  *   • {@link failAll} rejects every pending deferred and clears both
  *     lists; used by abort and crash fan-out.
- *   • {@link resetForRebind} re-creates the parked deferred for a fresh
- *     Query binding (the queue itself survives across rebinds).
+ *   • {@link onDidYieldSteering} fires the moment a steering entry is
+ *     handed to the SDK, carrying its `PendingMessage.id`.
  */
 export class ClaudePromptQueue extends Disposable {
 
@@ -59,11 +64,22 @@ export class ClaudePromptQueue extends Disposable {
 	private _popped: IPendingSdkMessage[] = [];
 	private _pendingPromptDeferred = new DeferredPromise<void>();
 
+	/**
+	 * Terminal latch: once set (by {@link notifyAborted}) the iterable yields
+	 * `done` forever. Never cleared — the pipeline is immutable, so a rebuild
+	 * builds a fresh queue rather than reviving this one.
+	 */
+	private _done = false;
+
+	private readonly _onDidYieldSteering = this._register(new Emitter<string>());
+	/** Fires with a steering entry's `PendingMessage.id` the moment it is handed to the SDK. */
+	readonly onDidYieldSteering: Event<string> = this._onDidYieldSteering.event;
+
 	readonly iterable: AsyncIterable<SDKUserMessage> = {
 		[Symbol.asyncIterator]: () => ({
 			next: async () => {
 				while (true) {
-					if (this._getAbortSignal().aborted) {
+					if (this._done) {
 						return { done: true, value: undefined };
 					}
 					if (this._toYield.length > 0) {
@@ -71,7 +87,7 @@ export class ClaudePromptQueue extends Disposable {
 						this._yielded.push(entry);
 						this._logService.info(`[Claude:${this._sessionId}] queue yielded sdkUuid=${entry.sdkUuid} turnId=${entry.turnId}${entry.steeringPendingId ? ` steeringPendingId=${entry.steeringPendingId}` : ''}`);
 						if (entry.steeringPendingId) {
-							this._onSteeringYielded(entry.steeringPendingId);
+							this._onDidYieldSteering.fire(entry.steeringPendingId);
 						}
 						return { done: false, value: entry.sdkMessage };
 					}
@@ -84,8 +100,6 @@ export class ClaudePromptQueue extends Disposable {
 
 	constructor(
 		private readonly _sessionId: string,
-		private readonly _getAbortSignal: () => AbortSignal,
-		private readonly _onSteeringYielded: (pendingId: string) => void,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -159,13 +173,9 @@ export class ClaudePromptQueue extends Disposable {
 		this._popped = [];
 	}
 
-	/** Wake any parked `next()` — call after the controller is aborted so the iterable returns `done`. */
+	/** Latch the iterable to `done` and wake any parked `next()`. Call after aborting the controller. */
 	notifyAborted(): void {
+		this._done = true;
 		this._pendingPromptDeferred.complete();
-	}
-
-	/** Re-create the parked deferred for a fresh Query binding. */
-	resetForRebind(): void {
-		this._pendingPromptDeferred = new DeferredPromise<void>();
 	}
 }

@@ -17,22 +17,16 @@ import { ClaudePromptQueue, IPendingSdkMessage } from '../../node/claude/claudeP
 
 interface IQueueHarness {
 	readonly queue: ClaudePromptQueue;
-	readonly controller: AbortController;
 	readonly steeringYielded: string[];
 }
 
 function createQueue(disposables: Pick<DisposableStore, 'add'>): IQueueHarness {
-	const controller = new AbortController();
 	const steeringYielded: string[] = [];
 	const services = new ServiceCollection([ILogService, new NullLogService()]);
 	const instantiationService = disposables.add(new InstantiationService(services));
-	const queue = disposables.add(instantiationService.createInstance(
-		ClaudePromptQueue,
-		'sess-1',
-		() => controller.signal,
-		(id: string) => steeringYielded.push(id),
-	));
-	return { queue, controller, steeringYielded };
+	const queue = disposables.add(instantiationService.createInstance(ClaudePromptQueue, 'sess-1'));
+	disposables.add(queue.onDidYieldSteering(id => steeringYielded.push(id)));
+	return { queue, steeringYielded };
 }
 
 function makeEntry(id: string, opts?: { steeringPendingId?: string; turnId?: string }): IPendingSdkMessage {
@@ -132,22 +126,19 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
-	test('aborted signal makes the iterable return done on the next next()', async () => {
-		const { queue, controller } = createQueue(disposables);
+	test('notifyAborted latches the iterable to done on the next next()', async () => {
+		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
-		controller.abort();
 		queue.notifyAborted();
 		const r = await iter.next();
 		assert.strictEqual(r.done, true);
 	});
 
-	test('notifyAborted wakes a parked next() so it can re-check the abort signal', async () => {
-		const { queue, controller } = createQueue(disposables);
+	test('notifyAborted wakes a parked next() so it returns done', async () => {
+		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		// Park next() with no entries queued.
 		const parked = iter.next();
-		// Abort + wake.
-		controller.abort();
 		queue.notifyAborted();
 		const r = await parked;
 		assert.strictEqual(r.done, true);
@@ -176,7 +167,7 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(queue.peekParent(), undefined);
 	});
 
-	test('steering callback fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
+	test('onDidYieldSteering fires when an entry with steeringPendingId is YIELDED, not when it is pushed', async () => {
 		const { queue, steeringYielded } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		const e = makeEntry('s1', { steeringPendingId: 'pending-42' });
@@ -186,7 +177,7 @@ suite('ClaudePromptQueue', () => {
 		assert.deepStrictEqual(steeringYielded, ['pending-42'], 'fires on yield');
 	});
 
-	test('non-steering entries do not fire the steering callback', async () => {
+	test('non-steering entries do not fire onDidYieldSteering', async () => {
 		const { queue, steeringYielded } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		void queue.push(makeEntry('plain'));
@@ -198,41 +189,6 @@ suite('ClaudePromptQueue', () => {
 		const { queue } = createQueue(disposables);
 		assert.strictEqual(queue.settleHead(), undefined);
 		assert.strictEqual(queue.isEmpty, true);
-	});
-
-	test('resetForRebind replaces the parked deferred so a subsequent push wakes a new parked next()', async () => {
-		// Use a controller that we keep un-aborted to isolate the wake mechanic from the abort-done branch.
-		const liveController = new AbortController();
-		const services = new ServiceCollection([ILogService, new NullLogService()]);
-		const inst = disposables.add(new InstantiationService(services));
-		const q = disposables.add(inst.createInstance(
-			ClaudePromptQueue, 'sess-reset', () => liveController.signal, () => { /* no steering */ },
-		));
-
-		// Park next() on the original deferred.
-		const iter = q.iterable[Symbol.asyncIterator]();
-		const parkedA = iter.next();
-
-		// Resetting while parked replaces _pendingPromptDeferred with a fresh one.
-		// The original parked promise is still awaiting the OLD deferred — pushing should
-		// complete the OLD one (because push() calls .complete() on the current field,
-		// which after reset is the new one). So the original parked next() never wakes
-		// from a push alone; it requires a push BEFORE reset OR an entry to drain.
-		q.resetForRebind();
-		// Push an entry — the new deferred resolves AND _toYield has the entry, so a fresh next() wakes.
-		void q.push(makeEntry('after-reset'));
-		const iter2 = q.iterable[Symbol.asyncIterator]();
-		const value = await iter2.next();
-		assert.strictEqual(value.done, false);
-		assert.strictEqual(value.value?.uuid, makeUuid('after-reset'));
-
-		// Original parked promise from the first iterator is still pending; abort to release it.
-		liveController.abort();
-		q.notifyAborted();
-		// notifyAborted completes the (now current) deferred. The OLD deferred from before reset
-		// is leaked-but-settled — the parkedA promise will never resolve. To avoid hanging the test
-		// runner, swap to the fresh iter and abandon parkedA (it's a closure-local promise; GC'd).
-		void parkedA;
 	});
 
 	test('isEmpty is true after every pushed entry has been yielded and settled', async () => {

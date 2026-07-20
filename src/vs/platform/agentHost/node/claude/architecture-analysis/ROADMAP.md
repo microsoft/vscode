@@ -56,7 +56,7 @@ The target end-state is **focused, legible, testable modules** where:
 
 ```
   Tier 0 ✅ → C1 ✅ → C9 ✅ → C5 → { C6, C7 }
-                  └→ C3 · C4 · C8   (independent; any time after C1)
+                  └→ C3 · C4 ✅ · C8   (independent; any time after C1)
 
   C2 = one owner for live config (desired-on-session vs applied-on-pipeline)
        — folded into C9 (shipped): the immutable pipeline holds only the
@@ -176,7 +176,7 @@ Legend — **Serves:** `dup` duplication/rematerializer · `cyc` overlap/circula
   once; suite green.
 - **Risk:** low.
 
-### C4 — Queue owns abort/done; delete the two back-reference closures  ·  Serves: cyc, life  ·  ⬜ proposed
+### C4 — Queue owns abort/done; delete the two back-reference closures  ·  Serves: cyc, life  ·  ✅ shipped
 - **Source:** report 01 (closure inventory).
 - **Goal:** remove the two avoidable dotted edges from the coupling map.
 - **Files:** `claudeSdkPipeline.ts` (`_getAbortSignal` L245, `_onSteeringYielded`

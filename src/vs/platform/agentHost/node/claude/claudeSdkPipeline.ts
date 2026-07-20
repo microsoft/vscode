@@ -188,17 +188,15 @@ export class ClaudeSdkPipeline extends Disposable {
 		this._appliedModel = appliedConfig.model;
 		this._appliedEffort = appliedConfig.effort;
 		this._appliedPermissionMode = appliedConfig.permissionMode;
+		this._queue = this._register(instantiationService.createInstance(ClaudePromptQueue, sessionId));
+		// The queue owns its own terminal `done` latch; the pipeline pushes abortedness in via
+		// `notifyAborted` (below) and subscribes to steering yields — no back-reference either way.
+		this._register(this._queue.onDidYieldSteering(pendingId => this._onDidProduceSignal.fire({
+			kind: 'steering_consumed',
+			chat: this.chatChannelUri,
+			id: pendingId,
+		})));
 		this._wireAbortHandler(abortController);
-		this._queue = this._register(instantiationService.createInstance(
-			ClaudePromptQueue,
-			sessionId,
-			() => this._abortController.signal,
-			(pendingId: string) => this._onDidProduceSignal.fire({
-				kind: 'steering_consumed',
-				chat: this.chatChannelUri,
-				id: pendingId,
-			}),
-		));
 		this._router = this._register(instantiationService.createInstance(
 			ClaudeSdkMessageRouter, sessionUri, chatChannelUri, dbRef, subagents, clientToolOwner,
 		));
@@ -382,6 +380,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	}
 
 	private _wireAbortHandler(controller: AbortController): void {
+		// Push abortedness into the queue's terminal latch. Handle an already-aborted
+		// controller directly — `addEventListener('abort')` does not fire retroactively.
+		if (controller.signal.aborted) {
+			this._queue.notifyAborted();
+			return;
+		}
 		controller.signal.addEventListener('abort', () => {
 			this._queue.notifyAborted();
 		}, { once: true });
