@@ -244,7 +244,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 	const elapsed = completion && typeof elapsedMs === 'number' && elapsedMs >= 1000
 		? formatElapsedTime(elapsedMs)
 		: undefined;
-	const alternate = completion?.isRelative
+	const alternate = completion
 		? formatChatResponseDetails(elapsed, completion.fullText)
 		: elapsed;
 	const responseDetails = formatChatResponseDetails(details, completion?.text);
