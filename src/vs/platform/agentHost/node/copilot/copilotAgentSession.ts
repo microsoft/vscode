@@ -50,6 +50,8 @@ import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
+import { augmentTroubleshootRequest, TROUBLESHOOT_SKILL_NAME } from '../../common/agentHostTroubleshoot.js';
+import { isBuiltinSkill } from './copilotBuiltinSkills.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -295,6 +297,15 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Ch
 }
 
 function getCopilotCLISessionStateDir(userHome: string): string {
+	// The CLI stores per-session state under `<root>/session-state`, where `<root>`
+	// is `$COPILOT_HOME` when set (see CopilotAgent's config-root resolver), else
+	// `~/.copilot` - honoring `$XDG_STATE_HOME` (as `<xdg>/.copilot`) only when
+	// `COPILOT_HOME` is unset. Kept in lock-step so troubleshooting reads the same
+	// directory session creation/import writes to.
+	const copilotHome = process.env['COPILOT_HOME'];
+	if (copilotHome) {
+		return join(copilotHome, 'session-state');
+	}
 	const xdgHome = process.env['XDG_STATE_HOME'];
 	return xdgHome ? join(xdgHome, SESSION_STATE_DIRECTORY) : join(userHome, SESSION_STATE_DIRECTORY);
 }
@@ -1482,8 +1493,30 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 
-		const sdkAttachments = attachments?.length
-			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
+		// A bundled built-in skill request (`/<name>`) is dispatched by asking the
+		// runtime to invoke the loaded, user-invocable skill via `commands.invoke`:
+		// the runtime resolves the skill (loading it on demand) and returns an
+		// `agent-prompt` whose text is the canonical skill-invocation message it
+		// builds itself, keeping the phrasing in sync with the CLI. `/troubleshoot`
+		// additionally resolves the on-disk session log(s) to analyze - `#session`
+		// reference attachments target other sessions, else the current session -
+		// passed as the skill `input`; its `#session` markers are consumed here,
+		// not forwarded to the model.
+		let effectiveAttachments = attachments;
+		if (slashCommand && isBuiltinSkill(slashCommand.command)) {
+			let skillInput: string;
+			if (slashCommand.command === TROUBLESHOOT_SKILL_NAME) {
+				const augmented = augmentTroubleshootRequest(slashCommand.rest, attachments, id => this._sessionEventsLogPath(id));
+				skillInput = augmented.input;
+				effectiveAttachments = augmented.attachments;
+			} else {
+				skillInput = slashCommand.rest;
+			}
+			prompt = await this._invokeBuiltinSkillCommand(slashCommand.command, skillInput);
+		}
+
+		const sdkAttachments = effectiveAttachments?.length
+			? (await Promise.all(effectiveAttachments.map(a => this._toSdkAttachment(a)))).filter(isDefined)
 			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
@@ -1496,6 +1529,47 @@ export class CopilotAgentSession extends Disposable {
 		this._markEnabledMcpServersStarting();
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	/**
+	 * Invokes a bundled built-in skill via the runtime's native
+	 * `commands.invoke` RPC. The runtime resolves the loaded, user-invocable
+	 * skill by name (loading skills on demand) and returns an `agent-prompt`
+	 * result whose `prompt` is the canonical skill-invocation message it builds
+	 * itself - so the phrasing stays in sync with the CLI.
+	 *
+	 * @param name The built-in skill's `/<name>` command.
+	 * @param input Free-text context forwarded to the skill (the runtime appends
+	 *   it after the invocation message).
+	 * @throws when the invocation fails or the runtime does not return an
+	 *   `agent-prompt` (a built-in skill is expected to always produce one).
+	 */
+	private async _invokeBuiltinSkillCommand(name: string, input: string): Promise<string> {
+		let result: CopilotCommandInvocationResult;
+		try {
+			result = await this._wrapper.session.rpc.commands.invoke({
+				name,
+				...(input.length > 0 ? { input } : {}),
+			});
+		} catch (err) {
+			this._logService.error(err, `[Copilot:${this.sessionId}] rpc.commands.invoke(${name}) failed`);
+			throw err;
+		}
+		if (result.kind !== 'agent-prompt') {
+			throw new Error(`commands.invoke('${name}') returned kind '${result.kind}', expected 'agent-prompt'`);
+		}
+		return result.prompt;
+	}
+
+	/**
+	 * Resolves the on-disk `events.jsonl` path for a Copilot CLI session,
+	 * `<sessionStateDir>/<sessionId>/events.jsonl`. The path is host-local (the
+	 * agent runs where its logs live), so the built-in `/troubleshoot` skill can
+	 * read it directly whether the host is local or remote.
+	 */
+	private _sessionEventsLogPath(sessionId: string): string {
+		const sessionStateDir = getCopilotCLISessionStateDir(this._environmentService.userHome.fsPath);
+		return join(sessionStateDir, sessionId, 'events.jsonl');
 	}
 
 	async hasRuntimeSlashCommand(command: string): Promise<boolean> {

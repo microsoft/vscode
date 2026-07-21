@@ -82,6 +82,10 @@ const serverResourceIncludes = [
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 
+	// Agent host built-in skills (bundled, harness-owned) - the agent host runs
+	// on the server for remote sessions, so the SKILL.md files must ship here too.
+	'out-build/vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
+
 ];
 
 const serverResourceExcludes = [

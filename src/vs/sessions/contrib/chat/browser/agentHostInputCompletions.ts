@@ -222,13 +222,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		);
 	}
 
-	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
-		// For a `/troubleshoot` request, `#` references target sessions (served
-		// by the `#session` provider); suppress host-supplied completions (e.g.
-		// the host's `#file` list) so only sessions are offered.
-		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
-			return undefined;
-		}
+	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
 		const session = this._sessionsService.activeSession.get();
 		if (!session) {
 			return undefined;
@@ -292,7 +286,28 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					},
 				};
 			}
-			default: {
+			case 'sessionReference': {
+				const referenceText = item.insertText.trimEnd();
+				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.SessionReference, referenceText, attachment.sessionResource, attachment._meta);
+				return {
+					label: { label: attachment.displayName ?? referenceText, description: attachment.description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					command: {
+						id: ADD_REFERENCE_COMMAND,
+						title: '',
+						arguments: [{
+							handler: this,
+							entry,
+							insertText: referenceText,
+							range: this._toOffsetRange(replaceRange.replace, referenceText),
+						} satisfies IReferenceArg],
+					},
+				};
+			}
+			case 'resource': {
 				const label = attachment.displayName ?? item.insertText;
 				const description = attachment.uri.path;
 				const kind = attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File;

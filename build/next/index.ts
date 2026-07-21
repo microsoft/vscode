@@ -297,6 +297,9 @@ const desktopResourcePatterns = [
 	// Sessions - built-in prompts and skills
 	'vs/sessions/prompts/*.prompt.md',
 	'vs/sessions/skills/**/SKILL.md',
+
+	// Agent host built-in skills (bundled, harness-owned)
+	'vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
 ];
 
 // Resources for server target (minimal - no UI)
@@ -324,6 +327,10 @@ const serverResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/psreadline/*.ps1xml',
 	'vs/workbench/contrib/terminal/common/scripts/psreadline/net6plus/*.dll',
 	'vs/workbench/contrib/terminal/common/scripts/psreadline/netstd/*.dll',
+
+	// Agent host built-in skills (bundled, harness-owned) - the agent host runs
+	// on the server for remote sessions, so the SKILL.md files must ship here too.
+	'vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
 ];
 
 // Resources for server-web target (server + web UI)

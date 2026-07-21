@@ -64,8 +64,17 @@ export function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatC
  * when the user is actively editing a trigger-led token.
  */
 export function isAtTriggerCharacterToken(model: ITextModel, position: Position, triggerCharacters: readonly string[]): boolean {
+	return getTriggerCharacterAtToken(model, position, triggerCharacters) !== undefined;
+}
+
+/**
+ * Returns the trigger character leading the token at `position` (the run from
+ * the last whitespace, or start-of-line, up to the cursor) when that token
+ * starts with one of `triggerCharacters`; otherwise `undefined`.
+ */
+export function getTriggerCharacterAtToken(model: ITextModel, position: Position, triggerCharacters: readonly string[]): string | undefined {
 	if (triggerCharacters.length === 0) {
-		return false;
+		return undefined;
 	}
 	const line = model.getLineContent(position.lineNumber);
 	const beforeCursor = line.slice(0, position.column - 1);
@@ -74,7 +83,7 @@ export function isAtTriggerCharacterToken(model: ITextModel, position: Position,
 	const wsIdx = beforeCursor.search(/\s\S*$/);
 	const token = wsIdx >= 0 ? beforeCursor.slice(wsIdx + 1) : beforeCursor;
 	if (token.length === 0) {
-		return false;
+		return undefined;
 	}
-	return triggerCharacters.includes(token[0]);
+	return triggerCharacters.includes(token[0]) ? token[0] : undefined;
 }

@@ -106,6 +106,9 @@ const vscodeResourceIncludes = [
 	'out-build/vs/sessions/prompts/*.prompt.md',
 	'out-build/vs/sessions/skills/**/SKILL.md',
 
+	// Agent host built-in skills (bundled, harness-owned)
+	'out-build/vs/platform/agentHost/node/copilot/skills/**/SKILL.md',
+
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
 	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',

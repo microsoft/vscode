@@ -154,7 +154,21 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					},
 				};
 			}
-			default: {
+			case 'sessionReference': {
+				return {
+					label: { label: attachment.displayName ?? item.insertText.trimEnd(), description: attachment.description },
+					insertText: item.insertText,
+					filterText: item.insertText,
+					range: replaceRange,
+					kind: CompletionItemKind.Text,
+					command: {
+						id: AgentHostInputCompletions.addReferenceCommand,
+						title: '',
+						arguments: [AgentHostReferenceArgument.forSessionReference(widget, attachment.sessionResource, attachment.displayName, AgentHostInputCompletions._insertedTokenRange(replaceRange, item.insertText), attachment._meta)],
+					},
+				};
+			}
+			case 'resource': {
 				const label = attachment.displayName ?? item.insertText;
 				const description = attachment.uri.path;
 				return {
@@ -206,6 +220,11 @@ class AgentHostReferenceArgument {
 	static forCommand(widget: IChatWidget, command: string, description: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
 		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, description ?? command, command, _meta);
 		return new AgentHostReferenceArgument(widget, entry.id, entry.value, description, false, false, range, _meta);
+	}
+
+	static forSessionReference(widget: IChatWidget, sessionResource: URI, displayName: string | undefined, range: Range, _meta: Record<string, unknown> | undefined): AgentHostReferenceArgument {
+		const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.SessionReference, displayName ?? sessionResource.toString(), sessionResource, _meta);
+		return new AgentHostReferenceArgument(widget, entry.id, entry.value, displayName, false, false, range, _meta);
 	}
 }
 

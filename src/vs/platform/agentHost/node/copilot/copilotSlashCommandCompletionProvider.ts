@@ -11,6 +11,7 @@ import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentComple
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
+import type { IBuiltinSkill } from './copilotBuiltinSkills.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 
 const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'mcp', 'model', 'new', 'plugin', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'skills', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo', 'cd', 'cwd', 'after', 'before', 'add-dir', 'allow-all', 'list-dirs', 'reset-allowed-tools']);
@@ -30,6 +31,13 @@ export interface ICopilotSlashCommandSessionInfo {
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	/**
+	 * The harness's built-in skills (e.g. `/troubleshoot`), surfaced as slash
+	 * completions directly from the manifest so they appear immediately - even
+	 * for a brand-new session, before the SDK lists them as runtime commands.
+	 * Omitted in contexts (such as tests) that don't exercise built-ins.
+	 */
+	getBuiltinSkills?(): readonly IBuiltinSkill[];
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
@@ -109,6 +117,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 
 	private async _getKnownSkills(sessionId: string) {
 		const knownCommands = new Set<string>();
+		// The harness's built-in skills (e.g. `/troubleshoot`) are surfaced
+		// directly by this provider (see below), so treat them as known: this
+		// dedupes the runtime `skill` copy the SDK reports once a session has
+		// materialized, keeping a single entry across the session lifetime.
+		for (const skill of this._sessionInfo.getBuiltinSkills?.() ?? []) {
+			knownCommands.add(skill.name);
+		}
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
@@ -205,6 +220,41 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 							});
 						});
 				});
+		}
+
+		// Surface the harness's built-in skills (e.g. `/troubleshoot`) as slash
+		// completions directly from the manifest, so they appear immediately -
+		// even for a brand-new session, before the SDK lists them as runtime
+		// commands. These are plain completion items (not customizations), so
+		// they are not claimed by the workbench prompt-file machinery; dispatch
+		// remains text-side via `parseLeadingSlashCommand`, whose regex requires
+		// the `/` at offset 0 - so only advertise built-ins for a leading token,
+		// never a mid-message `use /...` token that could not be dispatched.
+		if (!returnJustSkills) {
+			for (const skill of this._sessionInfo.getBuiltinSkills?.() ?? []) {
+				if (addedAliases.has(skill.name)) {
+					continue;
+				}
+				if (typed.length > 0 && !skill.name.toLowerCase().startsWith(typedLower)) {
+					continue;
+				}
+				const insertText = `/${skill.name} `;
+				const description = skill.description();
+				addedAliases.add(skill.name);
+				completionItems.push({
+					insertText,
+					rangeStart,
+					rangeEnd,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: insertText,
+						_meta: toCommandCompletionAttachmentMeta({
+							command: skill.name,
+							description,
+						}),
+					},
+				});
+			}
 		}
 
 		return completionItems.sort((a, b) => a.insertText.localeCompare(b.insertText));

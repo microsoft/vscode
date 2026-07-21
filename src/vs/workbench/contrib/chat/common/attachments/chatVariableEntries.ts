@@ -14,6 +14,7 @@ import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRan
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/markers.js';
+import { readSessionReferenceAttachmentMeta } from '../../../../../platform/agentHost/common/meta/agentSessionReferenceMeta.js';
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -112,6 +113,7 @@ export interface IRestorablePasteAttachment {
 export const enum AgentHostCompletionReferenceKind {
 	Skill = 'skill',
 	Command = 'command',
+	SessionReference = 'sessionReference',
 }
 
 export interface IAgentHostCompletionVariableValue {
@@ -129,6 +131,8 @@ function agentHostCompletionVariableId(kind: AgentHostCompletionReferenceKind, r
 			return reference.toString();
 		case AgentHostCompletionReferenceKind.Command:
 			return 'agent-host-command:' + reference.toString();
+		case AgentHostCompletionReferenceKind.SessionReference:
+			return 'agent-host-session:' + reference.toString();
 	}
 }
 
@@ -148,6 +152,8 @@ export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCo
 			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
 		case AgentHostCompletionReferenceKind.Command:
 			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
+		case AgentHostCompletionReferenceKind.SessionReference:
+			return toAgentHostCompletionVariableEntry(kind, name, readSessionReferenceAttachmentMeta(_meta)?.sessionResource, _meta);
 	}
 }
 
@@ -171,6 +177,7 @@ export function getAgentHostCompletionReferenceKindFromValue(value: IChatRequest
 	switch (record.kind) {
 		case AgentHostCompletionReferenceKind.Skill:
 		case AgentHostCompletionReferenceKind.Command:
+		case AgentHostCompletionReferenceKind.SessionReference:
 			return record.kind;
 	}
 	return undefined;

@@ -13,7 +13,8 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { LanguageFilter } from '../../../../../../../editor/common/languageSelector.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { IChatInputCompletionItem, IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { isAtTriggerCharacterToken } from './chatInputCompletionUtils.js';
+import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
+import { getTriggerCharacterAtToken } from './chatInputCompletionUtils.js';
 
 /**
  * Shared plumbing for Monaco completion providers that delegate to an
@@ -82,7 +83,8 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		// this gate Monaco re-invokes the provider on every keystroke
 		// (for filtering / incomplete-result refresh), which would
 		// produce an RPC round-trip per character.
-		if (!isAtTriggerCharacterToken(model, position, triggerCharacters)) {
+		const triggerChar = getTriggerCharacterAtToken(model, position, triggerCharacters);
+		if (triggerChar === undefined) {
 			return null;
 		}
 
@@ -102,7 +104,16 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		for (const item of result.items) {
 			suggestions.push(this._buildItem(position, item, ctx.context));
 		}
-		return { suggestions };
+		// `#` references are token-dependent in a way client-side filtering can't
+		// reproduce — e.g. `#session:` yields no items until `session` is typed,
+		// and file matches change per keystroke — so mark the list incomplete to
+		// re-query the host as the user types. `/` slash commands and `@` mentions
+		// return a stable list Monaco can filter, and marking those incomplete
+		// keeps the suggest widget aggressively open (breaking Enter-to-submit),
+		// so only `#` is incomplete. The trigger-token gate above bounds any
+		// re-query to while the cursor is inside a trigger-led token.
+		const incomplete = triggerChar === chatVariableLeader;
+		return { suggestions, incomplete };
 	}
 
 	/**

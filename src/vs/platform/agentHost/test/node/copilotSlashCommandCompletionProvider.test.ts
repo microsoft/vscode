@@ -587,4 +587,62 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/other-skill ']);
 		});
 	});
+
+	suite('built-in skills', () => {
+		const session = 'copilotcli:/abc';
+		const builtins = [
+			{ name: 'troubleshoot', description: () => 'Investigate this session' },
+		];
+
+		function createProvider(runtimeCommands: readonly ICopilotRuntimeSlashCommandInfo[] = []): CopilotSlashCommandCompletionProvider {
+			return new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isRubberDuckEnabled: () => true,
+				getRuntimeSlashCommands: async () => runtimeCommands,
+				getSessionCustomizations: async () => [],
+				getBuiltinSkills: () => builtins,
+			});
+		}
+
+		async function run(provider: CopilotSlashCommandCompletionProvider, text: string, offset = text.length) {
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
+		}
+
+		test('surfaces built-in skills for a lone slash before the session materializes', async () => {
+			const items = await run(createProvider(), '/');
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
+				{
+					insertText: '/troubleshoot ',
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'troubleshoot',
+						description: 'Investigate this session',
+					},
+				},
+			]);
+		});
+
+		test('filters built-in skills by the typed prefix', async () => {
+			assert.deepStrictEqual((await run(createProvider(), '/t')).map(i => i.insertText), ['/troubleshoot ']);
+			assert.deepStrictEqual((await run(createProvider(), '/z')).map(i => i.insertText), []);
+		});
+
+		test('does not surface built-in skills for an in-message slash token', async () => {
+			// A mid-message `use /...` token cannot be dispatched via
+			// `parseLeadingSlashCommand` (needs `/` at offset 0), so built-ins are
+			// only advertised for a leading token.
+			const items = await run(createProvider(), 'use /');
+			assert.deepStrictEqual(items.map(i => i.insertText), []);
+		});
+
+		test('dedupes the runtime skill copy the SDK reports once materialized', async () => {
+			const provider = createProvider([
+				{ name: 'troubleshoot', description: 'Runtime troubleshoot', kind: 'skill', allowDuringAgentExecution: true },
+			]);
+			const items = await run(provider, '/');
+			// A single entry sourced from the built-in manifest, not the runtime copy.
+			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, meta: item.attachment?._meta })), [
+				{ insertText: '/troubleshoot ', meta: { command: 'troubleshoot', description: 'Investigate this session' } },
+			]);
+		});
+	});
 });

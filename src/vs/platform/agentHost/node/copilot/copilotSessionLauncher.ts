@@ -22,6 +22,7 @@ import type { ActiveClientToolSet } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { getBuiltinSkillDirectories } from './copilotBuiltinSkills.js';
 import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
@@ -552,7 +553,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const customAgents = await toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
-		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
+		// Include the harness's built-in skills (e.g. `/troubleshoot`) so the SDK
+		// loads them alongside the user's discovered skills. These are bundled
+		// with the agent host, so they resolve on whichever machine the host runs
+		// on — making the built-in skills available without VS Code and remotely.
+		const skillDirectories = [...toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)), ...getBuiltinSkillDirectories()];
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
 		// Client tools (browser tools, tasks, etc.) are addressed by the name the

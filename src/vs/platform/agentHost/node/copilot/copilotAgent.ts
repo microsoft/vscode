@@ -69,6 +69,8 @@ import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
+import { AgentHostSessionReferenceCompletionProvider } from '../agentHostSessionReferenceCompletionProvider.js';
+import { BUILTIN_SKILLS } from './copilotBuiltinSkills.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
@@ -417,8 +419,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
 				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => this.getSessionCustomizations(AgentSession.uri(this.id, sessionId)),
+				getBuiltinSkills: () => BUILTIN_SKILLS,
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
+		)));
+
+		// `#session` reference completions: one item per other Copilot CLI session
+		// on this host, used to point the built-in `/troubleshoot` skill at another
+		// session. Driven by the harness so it works identically across clients and
+		// standalone/remote.
+		this._register(completions.registerProvider(new AgentHostSessionReferenceCompletionProvider(this.id,
+			() => this.listSessions(),
 		)));
 
 		// Restart the CLI client when a setting baked into the client/subprocess at

@@ -487,7 +487,7 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionSessionReferenceAttachment;
 }
 
 /**
@@ -530,6 +530,26 @@ export interface IChatInputCompletionSkillAttachment {
 	readonly kind: 'skill';
 	readonly uri: URI;
 	readonly displayName?: string;
+	readonly description?: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Session-reference attachment associated with a completion item — a
+ * `#session` reference to another agent session. The workbench adds it to the
+ * input's variable model when the item is accepted; the harness later resolves
+ * it (e.g. to the session's event log for `/troubleshoot`).
+ */
+export interface IChatInputCompletionSessionReferenceAttachment {
+	readonly kind: 'sessionReference';
+	readonly sessionResource: URI;
+	readonly displayName?: string;
+	/** Human-readable description (e.g. the session's date) shown in the completion. */
 	readonly description?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SimpleMessageAttachment } from '../state/protocol/state.js';
+import { readSessionReferenceAttachmentMeta } from './agentSessionReferenceMeta.js';
 
 /**
  * Well-known typed views over a `SimpleMessageAttachment`'s `_meta` bag as
@@ -45,6 +46,27 @@ export interface ISkillCompletionAttachmentMeta {
 }
 
 /**
+ * Top-level `_meta` key carrying a display-only, human-readable date for a
+ * `#session` completion (e.g. last-modified time), shown as the completion's
+ * description. Kept separate from the session-reference contract so it does not
+ * affect send-time resolution.
+ */
+export const SESSION_REFERENCE_DISPLAY_DATE_META_KEY = 'sessionReferenceDisplayDate';
+
+/**
+ * The `_meta` shape attached to a `completions` result that resolves to a
+ * `#session` reference (another agent session to attach as context).
+ */
+export interface ISessionReferenceCompletionAttachmentMeta {
+	/** The referenced session's resource URI as a string. */
+	readonly sessionResource: string;
+	/** The referenced session's id. */
+	readonly sessionID: string;
+	/** Optional human-readable date shown as the completion's description. */
+	readonly date?: string;
+}
+
+/**
  * A typed, discriminated view over the well-known `completions` attachment
  * `_meta` variants. The `kind` discriminant is computed by
  * {@link readCompletionAttachmentMeta} from which key is present on the wire; it
@@ -52,7 +74,8 @@ export interface ISkillCompletionAttachmentMeta {
  */
 export type CompletionAttachmentMeta =
 	| ({ readonly kind: 'command' } & ICommandCompletionAttachmentMeta)
-	| ({ readonly kind: 'skill' } & ISkillCompletionAttachmentMeta);
+	| ({ readonly kind: 'skill' } & ISkillCompletionAttachmentMeta)
+	| ({ readonly kind: 'sessionReference' } & ISessionReferenceCompletionAttachmentMeta);
 
 /**
  * Reads the well-known `completions` attachment `_meta` keys, classifying the
@@ -64,6 +87,18 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 	const meta = attachment._meta;
 	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
 		return undefined;
+	}
+	// A `#session` reference carries its data under a dedicated nested key rather
+	// than a flat discriminator, so classify it first.
+	const sessionRef = readSessionReferenceAttachmentMeta(meta);
+	if (sessionRef) {
+		const date = meta[SESSION_REFERENCE_DISPLAY_DATE_META_KEY];
+		return {
+			kind: 'sessionReference',
+			sessionResource: sessionRef.sessionResource,
+			sessionID: sessionRef.sessionID,
+			...(typeof date === 'string' ? { date } : {}),
+		};
 	}
 	if (typeof meta['command'] === 'string') {
 		return {

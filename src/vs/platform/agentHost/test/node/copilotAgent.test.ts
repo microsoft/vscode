@@ -48,6 +48,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
+import { getBuiltinSkillDirectories } from '../../node/copilot/copilotBuiltinSkills.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -4520,10 +4521,14 @@ suite('CopilotAgent', () => {
 			}
 
 			assert.ok(capturedConfig, 'the SDK createSession must run during materialization');
+			// The host-bundled built-in skills (e.g. `/troubleshoot`) are always
+			// appended and legitimately resolve outside the worktree; exclude them
+			// so this asserts only the worktree-anchoring of workspace skills.
+			const builtinSkillDirs = new Set(getBuiltinSkillDirectories());
 			assert.deepStrictEqual(
 				{
 					workingDirectory: capturedConfig.workingDirectory,
-					skillDirectories: capturedConfig.skillDirectories,
+					skillDirectories: capturedConfig.skillDirectories?.filter(dir => !builtinSkillDirs.has(dir)),
 					instructionDirectories: capturedConfig.instructionDirectories,
 				},
 				{

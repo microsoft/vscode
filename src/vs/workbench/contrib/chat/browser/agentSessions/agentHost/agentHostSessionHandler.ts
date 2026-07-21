@@ -830,6 +830,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					});
 				}
+				if (completionMeta?.kind === 'sessionReference') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'sessionReference',
+						sessionResource: URI.parse(completionMeta.sessionResource),
+						...(attachment.label !== undefined ? { displayName: attachment.label } : {}),
+						...(completionMeta.date !== undefined ? { description: completionMeta.date } : {}),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
 				return undefined;
 			}
 			case MessageAttachmentKind.Resource: {
@@ -4342,6 +4351,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
+		}
+		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.SessionReference) {
+			// A harness-driven `#session` completion. The `_meta` carries the
+			// referenced session's resource; the harness resolves it (e.g. to
+			// its event log for `/troubleshoot`) at send time.
+			return this._toSimpleAttachment(v.name, undefined, v._meta, AgentHostSessionReferenceAttachmentDisplayKind, referenceRange);
 		}
 		return undefined;
 	}

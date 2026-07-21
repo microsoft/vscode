@@ -14,7 +14,8 @@ import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
-import { AgentHostFileCompletionProvider, extractAtToken } from '../../node/agentHostFileCompletionProvider.js';
+import { AgentHostFileCompletionProvider } from '../../node/agentHostFileCompletionProvider.js';
+import { extractAtToken } from '../../node/agentHostCompletionTokens.js';
 import { AgentHostWorkspaceFiles } from '../../node/agentHostWorkspaceFiles.js';
 
 class FakeWorkspaceFiles extends AgentHostWorkspaceFiles {
