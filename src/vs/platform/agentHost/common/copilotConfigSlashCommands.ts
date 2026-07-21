@@ -90,7 +90,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'yolo', sortText: 'z1_yolo',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
@@ -98,15 +97,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'allow-all', sortText: 'z1_allow-all',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
-			],
-		},
-		{
-			command: 'autoApprove', sortText: 'z1_autoApprove',
-			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
