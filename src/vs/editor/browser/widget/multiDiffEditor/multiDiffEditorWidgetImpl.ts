@@ -735,10 +735,7 @@ class VirtualizedViewItem extends Disposable {
 	public hide(): void {
 		this._isHidden.set(true, undefined);
 
-		// Hide the template DOM immediately. Returning the template to the object pool is
-		// still deferred (via the autorun below) so a focused editor is not torn down, but
-		// leaving the node visible/positioned until that autorun runs causes ghost rows —
-		// repeated headers at sliver heights — while scrolling large multi-diffs (#326702).
+		// Hide immediately to avoid stale DOM while focused-template recycling remains deferred.
 		const ref = this._templateRef.get();
 		if (ref) {
 			ref.object.hide();
