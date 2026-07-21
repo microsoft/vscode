@@ -3856,10 +3856,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.handleAttachmentNavigation(e);
 		}));
 
-		// Agent-host completion entries (skills/commands) are kept in the model so
-		// their `_meta` flows to the outgoing message, but they are surfaced as
-		// inline decorations rather than pills, so exclude them here. This mirrors
-		// the message renderer in `ChatAttachmentsContentPart.getRenderableAttachments`.
+		// Completion references render as inline decorations rather than attachment pills.
 		const attachments = [...this.attachmentModel.attachments.entries()]
 			.filter(([, attachment]) => !isAgentHostCompletionVariableEntry(attachment));
 		const hasAttachments = Boolean(attachments.length);
