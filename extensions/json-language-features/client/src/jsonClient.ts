@@ -876,7 +876,20 @@ function computeSettings(): Settings {
 		const folderString = workspaceFolder.with({ query: '', fragment: '' }).toString(true)
 			.replace(/\/$/, '')
 			.replace(/[*?{}[\],\\]/g, c => `\\x${c.charCodeAt(0).toString(16)}`);
-		return fileMatch.map(fm => typeof fm === 'string' ? fm.replace(/^(!?)\$\{workspaceFolder\}/, (_match, exclusion) => exclusion + folderString) : fm);
+		const prefix = '${workspaceFolder}/';
+		return fileMatch.map(fm => {
+			if (typeof fm !== 'string') {
+				return fm;
+			}
+			const exclusion = fm.startsWith('!') ? '!' : '';
+			const pattern = fm.substring(exclusion.length);
+			if (!pattern.startsWith(prefix)) {
+				return fm;
+			}
+			// Concatenated as a string instead of Uri.joinPath: the rest of the pattern is a
+			// glob, and uri encoding would alter `?` or `#` in it.
+			return exclusion + folderString + '/' + pattern.substring(prefix.length);
+		});
 	};
 
 	/*
