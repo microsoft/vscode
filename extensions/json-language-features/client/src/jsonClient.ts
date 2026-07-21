@@ -76,6 +76,7 @@ export interface ISchemaAssociations {
 export interface ISchemaAssociation {
 	fileMatch: string[];
 	uri: string;
+	source?: 'schemaStore';
 }
 
 namespace SchemaAssociationNotification {
@@ -88,7 +89,6 @@ type Settings = {
 		format?: { enable?: boolean };
 		keepLines?: { enable?: boolean };
 		validate?: { enable?: boolean };
-		schemaStore?: { enable?: boolean; exclude?: string[] };
 		resultLimit?: number;
 		jsonFoldingLimit?: number;
 		jsoncFoldingLimit?: number;
@@ -107,6 +107,22 @@ export type JSONSchemaSettings = {
 	schema?: any;
 	folderUri?: string;
 };
+
+const defaultSchemaStoreCatalogUrl = 'https://www.schemastore.org/api/json/catalog.json';
+
+interface SchemaStoreCatalogEntry {
+	name: string;
+	description: string;
+	fileMatch?: string[];
+	url: string;
+	versions?: { [version: string]: string };
+}
+
+interface SchemaStoreCatalog {
+	$schema?: string;
+	version: number;
+	schemas: SchemaStoreCatalogEntry[];
+}
 
 export namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
@@ -398,8 +414,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	const schemaDocuments: { [uri: string]: boolean } = {};
 
-	// handle content request
-	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
+	async function getSchemaContent(uriPath: string, allowKnownSchemaAssociations = true): Promise<string> {
 		const uri = Uri.parse(uriPath);
 		const uriString = uri.toString(true);
 		if (uri.scheme === 'untitled') {
@@ -426,7 +441,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			if (!workspace.isTrusted) {
 				throw new ResponseError(SchemaRequestServiceErrors.UntrustedWorkspaceError, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
 			}
-			if (!await isTrusted(uri)) {
+			if (!await isTrusted(uri, allowKnownSchemaAssociations)) {
 				throw new ResponseError(SchemaRequestServiceErrors.UntrustedSchemaError, l10n.t('Location {0} is untrusted', uriString));
 			}
 			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
@@ -447,7 +462,10 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		} else {
 			throw new ResponseError(SchemaRequestServiceErrors.HTTPDisabledError, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 		}
-	});
+	}
+
+	// handle content request
+	client.onRequest(VSCodeContentRequest.type, uriPath => getSchemaContent(uriPath));
 
 	await client.start();
 
@@ -565,22 +583,24 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	updateFormatterRegistration();
 	toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 
-	toDispose.push(workspace.onDidChangeConfiguration(e => {
+	toDispose.push(workspace.onDidChangeConfiguration(async e => {
 		if (e.affectsConfiguration(SettingIds.enableFormatter)) {
 			updateFormatterRegistration();
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			schemaDownloadEnabled = !!workspace.getConfiguration().get(SettingIds.enableSchemaDownload);
+			await refreshSchemaAssociations();
 			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaStore)) {
-			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
+			await refreshSchemaAssociations();
 			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.schemaStoreExclude)) {
-			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
+			await refreshSchemaAssociations();
 			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
 		} else if (e.affectsConfiguration(SettingIds.trustedDomains)) {
 			trustedDomains = workspace.getConfiguration().get<Record<string, boolean>>(SettingIds.trustedDomains, {});
+			await refreshSchemaAssociations();
 			triggerValidation();
 		}
 	}));
@@ -663,12 +683,50 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 
 	async function getSchemaAssociations(forceRefresh: boolean): Promise<ISchemaAssociation[]> {
 		if (!schemaAssociationsCache || forceRefresh) {
-			schemaAssociationsCache = computeSchemaAssociations();
+			schemaAssociationsCache = computeSchemaAssociations(getSchemaStoreAssociations);
 		}
 		return schemaAssociationsCache;
 	}
 
-	async function isTrusted(uri: Uri): Promise<boolean> {
+	async function refreshSchemaAssociations(): Promise<void> {
+		await client.sendNotification(SchemaAssociationNotification.type, await getSchemaAssociations(true));
+	}
+
+	async function getSchemaStoreAssociations(): Promise<ISchemaAssociation[]> {
+		const configuration = workspace.getConfiguration();
+		if (configuration.get(SettingIds.enableSchemaStore) === false) {
+			return [];
+		}
+
+		let catalog: SchemaStoreCatalog;
+		try {
+			const content = await getSchemaContent(defaultSchemaStoreCatalogUrl, false);
+			catalog = JSON.parse(content);
+		} catch (error) {
+			runtime.logOutputChannel.warn(l10n.t('Unable to load SchemaStore catalog from \'{0}\': {1}.', defaultSchemaStoreCatalogUrl, getErrorMessage(error)));
+			return [];
+		}
+
+		if (!catalog || typeof catalog !== 'object' || !Array.isArray(catalog.schemas)) {
+			runtime.logOutputChannel.warn(l10n.t('Unable to parse SchemaStore catalog from \'{0}\': Expected a catalog object with a schemas array.', defaultSchemaStoreCatalogUrl));
+			return [];
+		}
+
+		const exclusions = configuration.get<string[]>(SettingIds.schemaStoreExclude, []).map(sanitizeSchemaStoreExclusion).filter((exclusion): exclusion is string => !!exclusion).map(exclusion => `!${exclusion}`);
+		const associations: ISchemaAssociation[] = [];
+		for (const schema of catalog.schemas) {
+			if (!schema || typeof schema !== 'object' || typeof schema.url !== 'string' || !Array.isArray(schema.fileMatch)) {
+				continue;
+			}
+			const fileMatch = schema.fileMatch.filter((pattern): pattern is string => typeof pattern === 'string');
+			if (fileMatch.length) {
+				associations.push({ uri: schema.url, fileMatch: fileMatch.concat(exclusions), source: 'schemaStore' });
+			}
+		}
+		return associations;
+	}
+
+	async function isTrusted(uri: Uri, allowKnownSchemaAssociations = true): Promise<boolean> {
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			return true;
 		}
@@ -679,10 +737,12 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			return true;
 		}
 
-		const knownAssociations = await getSchemaAssociations(false);
-		for (const association of knownAssociations) {
-			if (association.uri === uriString) {
-				return true;
+		if (allowKnownSchemaAssociations) {
+			const knownAssociations = await getSchemaAssociations(false);
+			for (const association of knownAssociations) {
+				if (association.uri === uriString) {
+					return true;
+				}
 			}
 		}
 		const settingsCache = getSettings(false);
@@ -779,9 +839,31 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	};
 }
 
-async function computeSchemaAssociations(): Promise<ISchemaAssociation[]> {
+async function computeSchemaAssociations(getSchemaStoreAssociations: () => Promise<ISchemaAssociation[]>): Promise<ISchemaAssociation[]> {
 	const extensionAssociations = getSchemaExtensionAssociations();
-	return extensionAssociations.concat(await getDynamicSchemaAssociations());
+	return extensionAssociations.concat(await getDynamicSchemaAssociations(), await getSchemaStoreAssociations());
+}
+
+function sanitizeSchemaStoreExclusion(exclusion: string): string | undefined {
+	if (typeof exclusion !== 'string' || !exclusion || exclusion[0] === '!' || exclusion[0] === '/' || exclusion.indexOf('\\') !== -1 || exclusion.indexOf(':') !== -1 || exclusion.indexOf('..') !== -1) {
+		return undefined;
+	}
+	return exclusion;
+}
+
+function getErrorMessage(error: any): string {
+	if (error && typeof error.message === 'string') {
+		return error.message;
+	}
+	let errorMessage = error?.toString ? error.toString() as string : String(error);
+	const errorSplit = errorMessage.split('Error: ');
+	if (errorSplit.length > 1) {
+		errorMessage = errorSplit[1];
+	}
+	if (errorMessage.endsWith('.')) {
+		errorMessage = errorMessage.substring(0, errorMessage.length - 1);
+	}
+	return errorMessage;
 }
 
 function getSchemaExtensionAssociations(): ISchemaAssociation[] {
@@ -866,7 +948,6 @@ function computeSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
-			schemaStore: { enable: configuration.get(SettingIds.enableSchemaStore), exclude: configuration.get(SettingIds.schemaStoreExclude) },
 			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,
