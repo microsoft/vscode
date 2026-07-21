@@ -53,15 +53,34 @@ export function areDiscoveredDirectoriesEqual(a: readonly IDiscoveredDirectory[]
 		return false;
 	}
 
+	// Sort a and b by type and URI so we can compare them in order.
+	const sortedA = [...a].sort(compareDiscoveredDirectory);
+	const sortedB = [...b].sort(compareDiscoveredDirectory);
+
 	for (let i = 0; i < a.length; i++) {
-		const left = a[i];
-		const right = b[i];
+		const left = sortedA[i];
+		const right = sortedB[i];
 		if (left.type !== right.type || left.uri.toString() !== right.uri.toString() || !areDiscoveredFilesEqual(left.files, right.files)) {
 			return false;
 		}
 	}
 
 	return true;
+}
+
+export function deDuplicateDiscoveredDirectories(entries: readonly IDiscoveredDirectory[]): readonly IDiscoveredDirectory[] {
+	// Preserve the order.
+	const result: IDiscoveredDirectory[] = [];
+	const seen = new Set<string>();
+	for (const entry of entries) {
+		const key = `${entry.type}:${entry.uri.toString()}`;
+		if (!seen.has(key)) {
+			seen.add(key);
+			result.push(entry);
+		}
+	}
+
+	return result;
 }
 
 function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirectory): number {
@@ -223,6 +242,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	constructor(
 		private readonly _workingDirectory: URI,
 		private readonly _userHome: URI,
+		private readonly _options: { readonly skipWorkspaceHooks?: boolean } = {},
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -357,8 +377,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris, token)),
-			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, token)),
+			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris, { skipHooks: !!this._options.skipWorkspaceHooks }, token)),
+			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, undefined, token)),
 			this._scanFixedDiscoveryFiles(this._workingDirectory, fixedDiscoveryFiles.workspace, seen, result, nextWatchRootUris, token),
 			this._scanFixedDiscoveryFiles(this._userHome, fixedDiscoveryFiles.user, seen, result, nextWatchRootUris, token)
 		]);
@@ -490,7 +510,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
+	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, options: { skipHooks: boolean } | undefined, token: CancellationToken): Promise<void> {
 		throwIfCancelled(token);
 
 		const rootUri = joinPath(base, ...root.path);
@@ -576,7 +596,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				await findInstructions(stat, 0);
 			}
 			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile), name: root.name, writable: true });
-		} else if (root.type === DiscoveredType.Hook) {
+		} else if (root.type === DiscoveredType.Hook && !options?.skipHooks) {
 			const files: IDiscoveredFile[] = [];
 			// hooks are recursively discovered as `*.json` under the root.
 			const findHooks = async (directoryStat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {

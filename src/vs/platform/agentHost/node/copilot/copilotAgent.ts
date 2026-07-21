@@ -69,7 +69,7 @@ import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
-import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, deDuplicateDiscoveredDirectories, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
@@ -1748,7 +1748,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
 		// Re-anchor in case the provisional active client was already bound to the
 		// user-picked folder before the worktree existed.
-		activeClient.pluginController.reanchor(customizationDirectory);
+		activeClient.pluginController.reanchor([customizationDirectory]);
 		const snapshot = await activeClient.snapshot();
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
@@ -1868,9 +1868,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Anchor the customization directory (best-effort, idempotent) so
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
-		if (!activeClient.pluginController.directory) {
+		if (!activeClient.pluginController.directories.length) {
 			this._getSessionCustomizationDirectory(session).then(
-				directory => activeClient.pluginController.setDirectory(directory),
+				directory => activeClient.pluginController.setDirectories(directory ? [directory] : []),
 				() => { /* best-effort anchoring */ },
 			);
 		}
@@ -2748,13 +2748,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
+		const directories = directory ? [directory] : [];
 		let client = this._activeClients.get(session);
 		if (!client) {
-			const pluginController = this._plugins.createSessionController(session, directory);
+			const pluginController = this._plugins.createSessionController(session, directories);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
-			client.pluginController.setDirectory(directory);
+			client.pluginController.setDirectories(directories);
 		}
 		return client;
 	}
@@ -2923,7 +2924,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// session-discovered customizations, even when no client has
 		// registered an active-client handle yet.
 		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
-		activeClient.pluginController.reanchor(customizationDirectory);
+		activeClient.pluginController.reanchor([customizationDirectory]);
 		const snapshot = await activeClient.snapshot();
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
@@ -3193,7 +3194,7 @@ const REFRESH_DEBOUNCE_MS = 100;
 class SessionDiscoveredEntry extends Disposable {
 
 
-	private readonly _discovery: SessionCustomizationDiscovery;
+	private readonly _discoveries: SessionCustomizationDiscovery[];
 	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
 	private _refreshPromise: CancelablePromise<void> | null = null;
 	private _pendingRefreshNotify = false;
@@ -3202,21 +3203,26 @@ class SessionDiscoveredEntry extends Disposable {
 	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 	private readonly _fileService: IFileService;
-
 	constructor(
-		workingDirectory: URI,
+		workingDirectories: URI[],
 		userHome: URI,
 		private readonly _onDidRefresh: () => void,
 		private readonly _logService: ILogService,
 		instantiationService: IInstantiationService,
 	) {
 		super();
-		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
+		const primaryWorkingDirectory = workingDirectories.length > 0 ? workingDirectories[0] : undefined;
+		// In Copilot Agent, hooks are only supported in the primary working directory.
+		// Hence ignore hooks from other working directories.
+		const skipSearchingForHooks = (dir: URI) => !isEqual(dir, primaryWorkingDirectory);
+		this._discoveries = workingDirectories.map(dir => this._register(instantiationService.createInstance(SessionCustomizationDiscovery, dir, userHome, { skipWorkspaceHooks: skipSearchingForHooks(dir) })));
 		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		this._settled = this._queueRefresh(false, 0);
-		this._register(this._discovery.onDidChange(() => {
-			this._settled = this._queueRefresh(true);
-		}));
+		this._discoveries.forEach(discovery => {
+			this._register(discovery.onDidChange(() => {
+				this._settled = this._queueRefresh(true);
+			}));
+		});
 	}
 
 	override dispose(): void {
@@ -3266,7 +3272,8 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
-			const directories = await this._discovery.scan(token);
+			const directoryEntries = await Promise.all(this._discoveries.map(d => d.scan(token)));
+			const directories = deDuplicateDiscoveredDirectories(directoryEntries.flat());
 			if (token.isCancellationRequested) {
 				return false;
 			}
@@ -3521,12 +3528,12 @@ class PluginController extends Disposable {
 
 	/**
 	 * Construct a per-session controller bound to the given customization
-	 * directory. The returned controller is a {@link Disposable} owned by
+	 * directories. The returned controller is a {@link Disposable} owned by
 	 * the caller; disposing it releases the session's disk-discovery
 	 * watchers and detaches from this controller's change event.
 	 */
-	public createSessionController(session: URI, directory: URI | undefined): SessionPluginController {
-		return this.instantiationService.createInstance(SessionPluginController, this, session, directory);
+	public createSessionController(session: URI, directories: URI[]): SessionPluginController {
+		return this.instantiationService.createInstance(SessionPluginController, this, session, directories);
 	}
 
 	/**
@@ -3684,43 +3691,46 @@ class SessionPluginController extends Disposable {
 	constructor(
 		private readonly _parent: PluginController,
 		private readonly _session: URI,
-		private _directory: URI | undefined,
+		private _directories: URI[],
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
 
-	public get directory(): URI | undefined {
-		return this._directory;
+	public get directories(): URI[] {
+		return this._directories;
 	}
 
 	/**
-	 * Anchor (or re-anchor) the session's customization directory.
-	 * Only ever transitions from `undefined` → set; once a directory has
+	 * Anchor (or re-anchor) the session's customization directories.
+	 * Only ever transitions from `[]` → set; once a directory (or multiple directories) has
 	 * been bound the discovered entry is pinned to it for the remainder
 	 * of the session.
 	 */
-	public setDirectory(directory: URI | undefined): void {
-		if (this._directory || !directory) {
+	public setDirectories(directory: URI[]): void {
+		if (this._directories.length || !directory.length) {
 			return;
 		}
-		this._directory = directory;
+		this._directories = directory;
 	}
 
 	/**
-	 * Move the session's customization anchor to a new directory (e.g. from the
+	 * Move the session's customization anchor to a new directory(s) (e.g. from the
 	 * user-picked folder to the worktree at materialization). Recreates the
 	 * discovered entry so discovery/watchers re-scan the new directory.
 	 */
-	public reanchor(directory: URI): void {
-		if (this._directory && isEqual(this._directory, directory)) {
+	public reanchor(directories: URI[]): void {
+		if (this._directories && this._directories.length === directories.length && this._directories.every((dir, index) => isEqual(dir, directories[index]))) {
 			return;
 		}
-		const previous = this._directory;
-		this._directory = directory;
+		const previous = this._directories;
+		this._directories = directories;
 		this._sessionDiscovered.clear();
-		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
-			this._previousDirectories.push(previous);
+
+		for (const dir of previous) {
+			if (!this._previousDirectories.some(candidate => isEqual(candidate, dir))) {
+				this._previousDirectories.push(dir);
+			}
 		}
 	}
 
@@ -3952,12 +3962,12 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _discoveredEntry(): SessionDiscoveredEntry | undefined {
-		if (!this._directory) {
+		if (!this._directories.length) {
 			return undefined;
 		}
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = new SessionDiscoveredEntry(
-				this._directory,
+				this._directories,
 				this._parent.getUserHome(),
 				() => this._onDidPublish.fire({
 					type: ActionType.SessionCustomizationsChanged,
@@ -3996,18 +4006,21 @@ class SessionPluginController extends Disposable {
 		if (exact) {
 			return exact.enabled;
 		}
-		if (!this._directory) {
+		if (!this._directories.length) {
 			return undefined;
 		}
-		for (const previousDirectory of this._previousDirectories) {
-			const previousUri = rebaseUnder(URI.parse(customization.uri), this._directory, previousDirectory);
-			if (!previousUri) {
-				continue;
-			}
-			const previousId = customizationId(previousUri.toString(), customization.range);
-			const previous = this._getDesiredCustomization(previousId);
-			if (previous) {
-				return previous.enabled;
+		const customizationUri = URI.parse(customization.uri);
+		for (const currentDirectory of this._directories) {
+			for (const previousDirectory of this._previousDirectories) {
+				const previousUri = rebaseUnder(customizationUri, currentDirectory, previousDirectory);
+				if (!previousUri) {
+					continue;
+				}
+				const previousId = customizationId(previousUri.toString(), customization.range);
+				const previous = this._getDesiredCustomization(previousId);
+				if (previous) {
+					return previous.enabled;
+				}
 			}
 		}
 		return undefined;
