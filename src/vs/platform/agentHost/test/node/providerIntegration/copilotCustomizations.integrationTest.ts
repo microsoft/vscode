@@ -52,6 +52,29 @@ const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 const SETUP_TIMEOUT_MS = 45_000;
 const TEST_TIMEOUT_MS = 90_000;
 const NOTIFICATION_TIMEOUT_MS = 10_000;
+const WATCH_ASSERT_TIMEOUT_MS = 30_000;
+const WATCH_ASSERT_POLL_INTERVAL_MS = 100;
+
+async function waitForAssert(
+	assertion: () => Promise<void> | void,
+	timeoutMs = WATCH_ASSERT_TIMEOUT_MS,
+	pollIntervalMs = WATCH_ASSERT_POLL_INTERVAL_MS,
+): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	let lastError: unknown;
+	while (Date.now() < deadline) {
+		try {
+			await assertion();
+			return;
+		} catch (error) {
+			lastError = error;
+		}
+		await new Promise<void>(resolve => setTimeout(resolve, pollIntervalMs));
+	}
+	throw new Error(
+		`Timed out waiting for expected customizations state (${timeoutMs}ms). Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+	);
+}
 
 suite('Agent Host Provider Integration — Copilot Customizations', function () {
 
@@ -769,17 +792,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 		};
 
-		const waitForCustomizationsChanged = async (): Promise<void> => {
-			const hasSettledCustomizations = (notification: AhpNotification): boolean =>
-				isSettledCustomizationsNotification(notification, sessionUri);
-			if (client.receivedNotifications().some(hasSettledCustomizations)) {
-				return;
-			}
-			await client.waitForNotification(hasSettledCustomizations, NOTIFICATION_TIMEOUT_MS);
-		};
-
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Initial Policy' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Initial Policy' }]));
 
 		client.clearReceived();
 		await writeFile(instructionFile, [
@@ -790,8 +803,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'Updated instruction body.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' }]));
 
 		client.clearReceived();
 		await writeFile(addedInstructionFile, [
@@ -802,16 +814,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'Added instruction body.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([
+		await waitForAssert(() => assertAllCustomizations([
 			{ uri: URI.file(instructionFile).toString(), name: 'Updated Policy' },
 			{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' },
-		]);
+		]));
 
 		client.clearReceived();
 		await rm(instructionFile, { force: true });
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedInstructionFile).toString(), name: 'Added Policy' }]));
 	}
 
 	async function runSimpleAgentInstructionWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -878,63 +888,48 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 		};
 
-		const waitForCustomizationsChanged = async (): Promise<void> => {
-			const hasSettledCustomizations = (notification: AhpNotification): boolean =>
-				isSettledCustomizationsNotification(notification, sessionUri);
-			if (client.receivedNotifications().some(hasSettledCustomizations)) {
-				return;
-			}
-			await client.waitForNotification(hasSettledCustomizations, NOTIFICATION_TIMEOUT_MS);
-		};
-
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[URI.file(workspaceAgentInstructionsFile).toString()],
 			[URI.file(userCopilotInstructionsFile).toString()],
-		);
+		));
 
 		client.clearReceived();
 		await writeFile(workspaceAgentInstructionsFile, 'Use updated workspace AGENTS instructions.');
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[URI.file(workspaceAgentInstructionsFile).toString()],
 			[URI.file(userCopilotInstructionsFile).toString()],
-		);
+		));
 
 		client.clearReceived();
 		await writeFile(userCopilotInstructionsFile, 'Use updated user copilot instructions.');
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[URI.file(workspaceAgentInstructionsFile).toString()],
 			[URI.file(userCopilotInstructionsFile).toString()],
-		);
+		));
 
 		client.clearReceived();
 		await writeFile(workspaceClaudeInstructionsFile, 'Use workspace CLAUDE instructions.');
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[
 				URI.file(workspaceAgentInstructionsFile).toString(),
 				URI.file(workspaceClaudeInstructionsFile).toString(),
 			],
 			[URI.file(userCopilotInstructionsFile).toString()],
-		);
+		));
 
 		client.clearReceived();
 		await rm(workspaceAgentInstructionsFile, { force: true });
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[URI.file(workspaceClaudeInstructionsFile).toString()],
 			[URI.file(userCopilotInstructionsFile).toString()],
-		);
+		));
 
 		client.clearReceived();
 		await rm(userCopilotInstructionsFile, { force: true });
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations(
+		await waitForAssert(() => assertAllCustomizations(
 			[URI.file(workspaceClaudeInstructionsFile).toString()],
 			[],
-		);
+		));
 	}
 
 
@@ -999,17 +994,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 		};
 
-		const waitForCustomizationsChanged = async (): Promise<void> => {
-			const hasSettledCustomizations = (notification: AhpNotification): boolean =>
-				isSettledCustomizationsNotification(notification, sessionUri);
-			if (client.receivedNotifications().some(hasSettledCustomizations)) {
-				return;
-			}
-			await client.waitForNotification(hasSettledCustomizations, NOTIFICATION_TIMEOUT_MS);
-		};
-
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill' }]));
 
 		client.clearReceived();
 		await writeFile(skillFile, [
@@ -1019,8 +1004,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'Return a renamed greeting.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' }]));
 
 		client.clearReceived();
 		await mkdir(addedSkillDir, { recursive: true });
@@ -1031,16 +1015,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'Return another greeting.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([
+		await waitForAssert(() => assertAllCustomizations([
 			{ uri: URI.file(skillFile).toString(), name: 'watch-skill-renamed' },
 			{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' },
-		]);
+		]));
 
 		client.clearReceived();
 		await rm(skillFile, { force: true });
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedSkillFile).toString(), name: 'added-skill' }]));
 	}
 
 	async function runSimpleAgentWatchTest(discoveryMode: SessionCustomizationDiscoveryMode): Promise<void> {
@@ -1102,17 +1084,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
 		};
 
-		const waitForCustomizationsChanged = async (): Promise<void> => {
-			const hasSettledCustomizations = (notification: AhpNotification): boolean =>
-				isSettledCustomizationsNotification(notification, sessionUri);
-			if (client.receivedNotifications().some(hasSettledCustomizations)) {
-				return;
-			}
-			await client.waitForNotification(hasSettledCustomizations, NOTIFICATION_TIMEOUT_MS);
-		};
-
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent' }]));
 
 		client.clearReceived();
 		await writeFile(agentFile, [
@@ -1122,8 +1094,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'You are a renamed test agent.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' }]));
 
 		client.clearReceived();
 		await writeFile(addedAgentFile, [
@@ -1133,16 +1104,14 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			'---',
 			'You are an added test agent.',
 		].join('\n'));
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([
+		await waitForAssert(() => assertAllCustomizations([
 			{ uri: URI.file(agentFile).toString(), name: 'Watch Agent Renamed' },
 			{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' },
-		]);
+		]));
 
 		client.clearReceived();
 		await rm(agentFile, { force: true });
-		await waitForCustomizationsChanged();
-		await assertAllCustomizations([{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' }]);
+		await waitForAssert(() => assertAllCustomizations([{ uri: URI.file(addedAgentFile).toString(), name: 'Added Agent' }]));
 	}
 
 
