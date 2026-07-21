@@ -64,7 +64,7 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
 	if (!isChatPermissionLevel(value)) {
 		return undefined;
 	}
-	return value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Assisted ? value : undefined;
+	return value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Assisted || value === ChatPermissionLevel.Autopilot ? value : undefined;
 }
 
 /**
