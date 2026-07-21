@@ -1390,6 +1390,16 @@ export class AgentService extends Disposable implements IAgentService {
 		return { session, resource: resolveChatUri(session, chat) };
 	}
 
+	/**
+	 * Mint a fresh session URI for a provider. Used by the collapsed
+	 * `createSessionChat` provisioning path, where the orchestrator owns session
+	 * identity and must know the URI before deriving the default-chat URI (the
+	 * legacy `createSession` path let the agent mint it and returned it).
+	 */
+	private _mintSessionUri(provider: IAgent): URI {
+		return AgentSession.uri(provider.id, generateUuid());
+	}
+
 	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
 		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
 		if (requestedSessionId) {
@@ -1398,13 +1408,29 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let created: IAgentCreateSessionResult | undefined;
 		try {
-			// Provision the session through the agent's dedicated createSession
-			// method, then bind its default chat — the same path fork/import
-			// uses. The agent stands up the session's infrastructure; the chat
-			// surface is reserved for adding additional chats to it.
-			created = await provider.createSession(config ? this._toProviderConfig(config) : undefined);
-			const defaultChatUri = URI.parse(buildDefaultChatUri(created.session));
-			await provider.chats.bindSessionChat?.(defaultChatUri, this._chatContext(created.session, defaultChatUri));
+			// Provision the session and bind its default chat. Prefer the
+			// collapsed chat-surface entry (`createSessionChat`) when the agent
+			// implements it — one call that both stands up the session and binds
+			// its session-backed chat. Agents still on the legacy seam fall back
+			// to `createSession` + `bindSessionChat` (the same two-step path
+			// fork/import used).
+			const providerConfig = config ? this._toProviderConfig(config) : undefined;
+			// Fork and import mint a new session id inside the agent (the SDK
+			// assigns the forked id; import seeds an id-bearing event log), so the
+			// orchestrator can't know the default-chat URI up front — those stay
+			// on the create-then-bind pair. Fresh sessions collapse into the
+			// single `createSessionChat` call.
+			const canCollapse = provider.chats.createSessionChat && !config?.fork && !config?.importConversation;
+			if (canCollapse) {
+				const provisionalSession = config?.session ?? this._mintSessionUri(provider);
+				const defaultChatUri = URI.parse(buildDefaultChatUri(provisionalSession));
+				const boundConfig: IAgentCreateSessionConfig = { ...(providerConfig ?? {}), session: provisionalSession };
+				created = await provider.chats.createSessionChat!(defaultChatUri, this._chatContext(provisionalSession, defaultChatUri), boundConfig);
+			} else {
+				created = await provider.createSession(providerConfig);
+				const defaultChatUri = URI.parse(buildDefaultChatUri(created.session));
+				await provider.chats.bindSessionChat?.(defaultChatUri, this._chatContext(created.session, defaultChatUri));
+			}
 			if (deferWorktreeCreation && created.provisional) {
 				this._worktree?.notePending(AgentSession.id(created.session));
 			}

@@ -990,6 +990,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		createChat: (chat, context, options) => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
+		createSessionChat: (chat, context, config) => {
+			// The session-backed (default) chat is provisioned and bound in one
+			// step via the existing `{ kind: 'chat' }` path (also used by
+			// truncate): the session reuses its id as the SDK id, and the chat
+			// is registered immediately — equivalent to the former
+			// createSession + bindSessionChat pair. `context` carries the owning
+			// session; `config.session` (set by the orchestrator) is its URI.
+			resolveAgentChatContext(context, chat);
+			return this._createSession(config ?? {}, { kind: 'chat', chat });
+		},
 		fork: (chat, context, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions) =>
 			this._createChat(chat, resolveAgentChatContext(context, chat), { ...options, fork: source }),
 		bindSessionChat: (chat, context) => this._bindSessionChatOnRestore(chat, resolveAgentChatContext(context, chat).session),

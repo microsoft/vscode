@@ -1134,6 +1134,24 @@ export interface IAgentChats {
 	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
+	 * Provision a session and bind its session-backed (default) `chat` in one
+	 * call — the chat-surface replacement for the former
+	 * {@link IAgent.createSession} + {@link bindSessionChat} provisioning pair.
+	 * The orchestrator mints the session URI and the default-chat URI, supplies
+	 * the owning session (plus persistence scope) via `context`, and passes the
+	 * same {@link IAgentCreateSessionConfig} `createSession` used to receive
+	 * (including `fork`/`importConversation`, which produce a new session whose
+	 * default chat carries the copied/imported history). Unlike
+	 * {@link createChat} this is the session-backed chat: the agent reuses the
+	 * session id as its SDK id (no separate backing, so it is never I7-suppressed)
+	 * and returns the {@link IAgentCreateSessionResult} the orchestrator uses to
+	 * drive the session lifecycle. Optional during the migration: agents that
+	 * still expose {@link IAgent.createSession} omit it, and the orchestrator
+	 * falls back to the create-then-bind pair.
+	 */
+	createSessionChat?(chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
+
+	/**
 	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
@@ -1146,11 +1164,13 @@ export interface IAgentChats {
 	disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
-	 * Bind a session-owned chat to its SDK conversation on restore, before any
-	 * operation is addressed to it. The host supplies the owning `session` so
-	 * the agent records the SDK-session id and storage scope explicitly. Chats
-	 * with independent persisted backings are restored via
-	 * {@link IAgent.materializeChat}; this chat carries no `providerData`.
+	 * Re-attach a session-owned (default) chat to its SDK conversation on
+	 * **restore**, before any operation is addressed to it. The host supplies the
+	 * owning `session` so the agent records the SDK-session id and storage scope
+	 * explicitly. (Fresh provisioning uses {@link createSessionChat}; this method
+	 * is the restore-time counterpart.) Chats with independent persisted backings
+	 * are restored via {@link IAgent.materializeChat}; this chat carries no
+	 * `providerData`.
 	 */
 	bindSessionChat?(chat: URI, context: URI | IAgentChatContext): Promise<void>;
 
