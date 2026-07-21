@@ -1,0 +1,30 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: /rename
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: /rename
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/chatUpdated
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}

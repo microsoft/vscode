@@ -256,7 +256,7 @@ jobs:
 
       - name: Validate telemetry events
         working-directory: extensions/copilot
-        run: npx --package=@vscode/telemetry-extractor --yes vscode-telemetry-extractor -s . > /dev/null
+        run: npx --package=@vscode/telemetry-extractor@1.20.4 --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)

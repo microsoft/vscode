@@ -46,7 +46,7 @@ flowchart LR
     agent -- HTTP /v1/messages, /responses --> proxy[CapiReplayProxy]
     proxy -- replay: recorded SSE --> agent
     proxy -. record: forward .-> capi[(real CAPI)]
-    proxy <--> fixture[(per-test YAML fixture)]
+    proxy <--> fixture[(per-test or shared-empty YAML fixture)]
 ```
 
 Key properties:
@@ -55,7 +55,7 @@ Key properties:
 - **Wire-agnostic**: works for Anthropic Messages (`/v1/messages`) and OpenAI Responses (`/responses`) SSE dialects.
 - **Strict on replay**: a request with no recorded response is a hard cache miss that fails the test — CI can never silently reach real CAPI.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
-- **Isolated persistent state**: each shared test uses a temporary home and VS Code user-data directory, which teardown removes after the agent host exits.
+- **Isolated persistent state**: each provider suite uses a temporary home and VS Code user-data directory. Provider config roots resolve under that home, with ambient overrides such as `CLAUDE_CONFIG_DIR` and `CODEX_HOME` cleared, so local config, MCP servers, and session state cannot affect the run. Teardown removes the directory after the agent host exits.
 
 ---
 
@@ -66,7 +66,7 @@ Key properties:
 | `providers/` | Deterministic provider entry points and provider-specific scenarios. Live Codex scenarios are isolated in `codexAgentHostLive.integrationTest.ts`. |
 | `suites/` | Cross-provider scenarios grouped by behavior. Add new shared scenarios to the closest existing suite; add a suite module when a new behavior area emerges. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
-| `captures/*.yaml` | The committed fixtures, one per `(provider, test)`. |
+| `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `providers/__snapshots__/` | Semantic AHP snapshots for deterministic provider tests. |
 
 Use these deterministic E2E tests when the value comes from running the bundled provider process with realistic captured model behavior: SDK event ordering, tool schemas and execution, provider persistence, protocol-to-provider mapping, or cross-provider parity. Use `../providerIntegration/` for a real provider with a synthetic local LLM, `../protocol/` when `ScriptedMockAgent` can express the AHP contract precisely, and an ordinary unit test when no server process is required.
@@ -75,7 +75,9 @@ Use these deterministic E2E tests when the value comes from running the bundled 
 
 ## Fixture format
 
-Fixtures live in `captures/` and are named `${provider}-${slugified-test-title}.yaml`. They are intentionally minimal and human-reviewable:
+Model-backed fixtures live in `captures/` and are named `${provider}-${slugified-test-title}.yaml`. Tests registered with `hostOnlyTest(...)` instead use `captures/empty.yaml` in strict replay mode. Any unexpected model request is therefore a hard cache miss, including during fixture-recording runs, without creating one empty file per host-only test.
+
+Fixtures are intentionally minimal and human-reviewable:
 
 ```yaml
 version: 1
@@ -130,6 +132,8 @@ Provider availability:
 ## Server lifecycle
 
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
+
+The lease also owns a fresh suite data directory. Every server it starts uses that directory as its home and VS Code user-data directory and prevents provider-specific config overrides from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
 
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
@@ -227,16 +231,24 @@ Guidelines:
 
 1. **The fixture name is derived from the test title** (`${provider}-${slug}.yaml`). Renaming a test orphans its fixture — re-record after renaming.
 2. **Drive with `client.waitForNotification(...)`** and assert on protocol actions. Don't wait on wall-clock timing.
-3. **Add the test, then record**: write the test, run once with `AGENT_HOST_UPDATE_SNAPSHOTS=1` to capture AHP snapshots and LLM fixtures for every enabled provider, review, commit.
+3. **Choose the model boundary explicitly**: register tests that must make no model requests with `hostOnlyTest(context, ...)`; otherwise add the test normally and run once with `AGENT_HOST_UPDATE_SNAPSHOTS=1` to capture AHP snapshots and LLM fixtures for every enabled provider.
 4. **Keep prompts deterministic and minimal** — fewer model turns = smaller, more robust fixtures.
 5. Register a new shared suite from `suites/agentHostE2ESuites.ts`. **Provider-specific** assertions stay in that provider's entry point.
 6. If the behavior can't replay deterministically (real-time streaming, mid-turn aborts, concurrency), gate it — see below.
+
+`hostOnlyTest(...)` applies the shared timeout and records the title with the suite harness before Mocha runs. The harness routes that title to the shared empty fixture. Do not use it merely to avoid recording a prompt: it is an executable assertion that the full provider stack reaches the tested behavior without crossing the model boundary.
 
 ### AHP traffic snapshots
 
 An AHP snapshot is executable and contains one or more `rounds`. In each round, `clientToServer` is the test input and `serverToClient` is the expected output. `runAhpSnapshotTest(...)` creates the session, dispatches one round's client actions, waits for that round's final expected server message, and then advances to the next round. A complete snapshot-driven test can therefore be one helper call; focused assertions may still be added before or after it when a relationship is clearer in code than in the transcript.
 
 Each round stores separate `clientToServer` and `serverToClient` streams. Ordering is exact within each direction, without asserting accidental scheduling between a client dispatch and concurrently emitted server notifications. The final `serverToClient` entry must be a stable synchronization boundary such as `chat/toolCallReady` or `chat/turnComplete`. The snapshot is a semantic projection rather than raw JSON-RPC: request ids, sequence numbers, resource ids, and other volatile details are omitted or normalized, and high-frequency environment-dependent customization updates are excluded. Each action keeps only fields that define its tested behavior, so adding an unrelated optional protocol property does not rewrite every snapshot. Newly emitted action types remain exact.
+
+Choose the oracle based on what would make a regression understandable:
+
+- **Use an AHP snapshot** when the contract is the presence, absence, ordering, or routing of several protocol messages. Permission transitions, local-command tool lifecycles, subagent channel routing, reconnect/replay, and multi-round interactions are good fits because the semantic transcript makes the whole contract reviewable.
+- **Use direct assertions** when the primary oracle is outside AHP (filesystem contents, Git state, a live terminal, persisted database state), when one relationship is clearer as a focused comparison, or when the snapshot projection does not retain the relevant payload. Generic request/response commands currently project to the method name plus success/error only, so a snapshot of `completions` does not prove which completion items were returned.
+- **Use both** when the scenario has a meaningful protocol lifecycle and an external or relational outcome. Snapshot the stable AHP sequence, then directly assert the side effect or value that the projection intentionally omits. Avoid adding a snapshot that only duplicates a single focused assertion without preserving additional protocol behavior.
 
 Code-driven scenarios can request the `behavior` snapshot profile when the tested contract is the real tool execution and its observable result rather than provider-specific presentation. That profile retains user turns, tool identity, tool completion success, assistant responses, errors, and turn completion. It omits raw tool output, display strings, usage, repeated ready/delta notifications, confirmation UI traffic, and incidental session updates. The tools still execute normally; mutation scenarios assert their filesystem side effects directly in TypeScript, while read-only scenarios retain their final-response assertions. Permission and protocol-lifecycle tests continue to use the default detailed profile.
 

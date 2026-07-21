@@ -450,7 +450,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const gatherNeighborSnippets = () => promptOptions.neighborFiles.enabled
 			? raceCancellation(
 				raceTimeout(
-					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles),
 					delaySession.getDebounceTime()
 				),
 				cancellationToken,
@@ -545,7 +545,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Fire-and-forget: compute GhostText-style similar files context for telemetry
 		telemetry.setSimilarFilesContext(
-			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset)
+			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles)
 		);
 
 		request.fetchIssued = true;
@@ -1558,6 +1558,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			neighborFiles: {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+				includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
 			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),

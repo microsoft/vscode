@@ -55,7 +55,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
 				case 'ready': {
-					webview.postMessage({ type: 'init', content: document.getText(), readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, false) });
+					webview.postMessage({ type: 'init', content: document.getText(), readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true) });
 					break;
 				}
 				case 'setReadonly': {

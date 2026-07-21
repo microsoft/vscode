@@ -12,10 +12,10 @@ const advancedSettingPrefixRegex = new RegExp(`^${advancedSettingPrefixPattern}`
 
 type SettingsSchemaConfig = Pick<BaseConfig<unknown>, 'fullyQualifiedId' | 'validator'>;
 
-export function buildSettingsSchema(isInternal: false, configs: Iterable<SettingsSchemaConfig>): EmptyJsonSchema;
-export function buildSettingsSchema(isInternal: true, configs: Iterable<SettingsSchemaConfig>): ObjectJsonSchema;
-export function buildSettingsSchema(isInternal: boolean, configs: Iterable<SettingsSchemaConfig>): JsonSchema;
-export function buildSettingsSchema(isInternal: boolean, configs: Iterable<SettingsSchemaConfig>): JsonSchema {
+export function buildSettingsSchema(isInternal: false, configs: Iterable<SettingsSchemaConfig>, unknownAdvancedSettingDeprecationMessage: string): EmptyJsonSchema;
+export function buildSettingsSchema(isInternal: true, configs: Iterable<SettingsSchemaConfig>, unknownAdvancedSettingDeprecationMessage: string): ObjectJsonSchema;
+export function buildSettingsSchema(isInternal: boolean, configs: Iterable<SettingsSchemaConfig>, unknownAdvancedSettingDeprecationMessage: string): JsonSchema;
+export function buildSettingsSchema(isInternal: boolean, configs: Iterable<SettingsSchemaConfig>, unknownAdvancedSettingDeprecationMessage: string): JsonSchema {
 	if (!isInternal) {
 		return {};
 	}
@@ -47,8 +47,7 @@ export function buildSettingsSchema(isInternal: boolean, configs: Iterable<Setti
 		properties,
 		patternProperties: {
 			[unknownAdvancedSettingPattern]: {
-				deprecated: true,
-				description: 'Unknown advanced setting.\nIf you believe this is a supported setting, please file an issue so that it gets registered.',
+				deprecationMessage: unknownAdvancedSettingDeprecationMessage,
 			}
 		}
 	};

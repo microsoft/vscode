@@ -255,6 +255,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
+	get hasGitRepository() { return this._session.hasGitRepository; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }
@@ -296,6 +297,7 @@ class ResourceOverrideSession implements ISession {
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
+	get hasGitRepository() { return this._session.hasGitRepository; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get title() { return this._session.title; }
 	get updatedAt() { return this._session.updatedAt; }

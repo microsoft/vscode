@@ -14,18 +14,17 @@ export interface IPromptReviewFileEvent {
 }
 
 /**
- * A prompt timeline rail: a presentation-only vertical strip pinned to the right
- * edge of the chat transcript that renders one mark per prompt and lets the user
- * preview, jump to, and review each prompt. Rendered as a proportional overview
- * ruler with a viewport thumb, like the editor overview ruler.
+ * A prompt timeline rail: a presentation-only vertical strip pinned beside the
+ * chat transcript's native scrollbar that renders one mark per prompt and lets the
+ * user preview, jump to, and review each prompt. Rendered as a proportional
+ * overview ruler, like the editor overview ruler; scrolling stays with the
+ * transcript's own scrollbar.
  */
 export interface IPromptTimelineRail extends IDisposable {
 	readonly domNode: HTMLElement;
 
 	/** Fired when a mark is chosen (click / keyboard), with its request id. */
 	readonly onDidSelect: Event<string>;
-	/** Fired while dragging the rail lane to scrub, with the requested transcript scroll offset (px). */
-	readonly onDidScrub: Event<number>;
 	/** Fired to review all of a prompt's changes. */
 	readonly onDidReview: Event<PromptTick>;
 	/** Fired to review a single changed file of a prompt. */
@@ -40,6 +39,6 @@ export interface IPromptTimelineRail extends IDisposable {
 	focusTick(requestId: string): void;
 	setHostWidth(width: number): void;
 
-	/** Supplies proportional scroll positions for the marks and viewport thumb. */
+	/** Supplies proportional scroll positions for the marks. */
 	setScrollLayout(layout: IPromptScrollLayout | undefined): void;
 }

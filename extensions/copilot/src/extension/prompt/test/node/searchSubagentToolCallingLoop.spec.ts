@@ -440,3 +440,164 @@ describe('SearchSubagentToolCallingLoop.getEndpoint (agentic proxy)', () => {
 		expect(endpoint.model).toBe('search-model-a');
 	});
 });
+
+describe('SearchSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () => {
+	let disposables: DisposableStore;
+	let instantiationService: IInstantiationService;
+	let configurationService: IConfigurationService;
+
+	beforeEach(() => {
+		disposables = new DisposableStore();
+		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
+		serviceCollection.define(IChatHookService, new MockChatHookService());
+		const accessor = serviceCollection.createTestingAccessor();
+		instantiationService = accessor.get(IInstantiationService);
+		configurationService = accessor.get(IConfigurationService);
+	});
+
+	afterEach(() => {
+		disposables.dispose();
+	});
+
+	const mainEndpoint = { model: 'main-agent' } as IChatEndpoint;
+
+	function endpoint(model: string, family: string, supportsToolCalls: boolean): IChatEndpoint {
+		return { model, family, supportsToolCalls } as IChatEndpoint;
+	}
+
+	/** Records how the mock endpoint provider was called so tests can assert the resolution path. */
+	interface IEndpointProviderProbe {
+		getAllCalls: number;
+		familyCalls: string[];
+		mainCalls: number;
+	}
+
+	function createLoop(options: {
+		allEndpoints?: IChatEndpoint[];
+		familyEndpoint?: IChatEndpoint;
+		familyThrows?: boolean;
+	}): { loop: SearchSubagentToolCallingLoop; probe: IEndpointProviderProbe } {
+		const loopOptions: ISearchSubagentToolCallingLoopOptions = {
+			conversation: createTestConversation(),
+			toolCallLimit: 10,
+			request: createMockChatRequest(),
+			location: ChatLocation.Panel,
+			promptText: 'find things',
+		};
+		const loop = instantiationService.createInstance(SearchSubagentToolCallingLoop, loopOptions);
+		disposables.add(loop);
+		const probe: IEndpointProviderProbe = { getAllCalls: 0, familyCalls: [], mainCalls: 0 };
+		(loop as any).endpointProvider = {
+			getAllChatEndpoints: async () => {
+				probe.getAllCalls++;
+				return options.allEndpoints ?? [];
+			},
+			getChatEndpoint: async (arg: unknown) => {
+				if (typeof arg === 'string') {
+					probe.familyCalls.push(arg);
+					if (options.familyThrows) {
+						throw new Error(`Unable to resolve chat model with CAPI family selection: ${arg}`);
+					}
+					return options.familyEndpoint;
+				}
+				probe.mainCalls++;
+				return mainEndpoint;
+			},
+		};
+		return { loop, probe };
+	}
+
+	it('uses the exact model-id endpoint when it resolves and supports tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'mai-code-1-flash-picker');
+		const { loop, probe } = createLoop({
+			allEndpoints: [
+				endpoint('lark-debug-picker', 'oswe-vscode-modelD', true),
+				endpoint('mai-code-1-flash-picker', 'oswe-vscode-modelD', true),
+			],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('mai-code-1-flash-picker');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(0);
+	});
+
+	it('falls back to the main agent endpoint when the exact model-id endpoint does not support tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'mai-code-1-flash-picker');
+		const { loop, probe } = createLoop({
+			allEndpoints: [
+				endpoint('mai-code-1-flash-picker', 'oswe-vscode-modelD', false),
+			],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('falls back to family resolution when there is no exact model-id match', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'oswe-vscode-modelD');
+		const { loop, probe } = createLoop({
+			allEndpoints: [endpoint('lark-debug-picker', 'oswe-vscode-modelD', true)],
+			familyEndpoint: endpoint('lark-debug-picker', 'oswe-vscode-modelD', true),
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('lark-debug-picker');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual(['oswe-vscode-modelD']);
+		expect(probe.mainCalls).toBe(0);
+	});
+
+	it('falls back to the main agent endpoint when the family-resolved model does not support tool calls', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'oswe-vscode-modelD');
+		const { loop, probe } = createLoop({
+			allEndpoints: [],
+			familyEndpoint: endpoint('lark-debug-picker', 'oswe-vscode-modelD', false),
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.familyCalls).toEqual(['oswe-vscode-modelD']);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('falls back to the main agent endpoint when neither id nor family resolution succeeds', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, 'does-not-exist');
+		const { loop, probe } = createLoop({ allEndpoints: [], familyThrows: true });
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(1);
+		expect(probe.familyCalls).toEqual(['does-not-exist']);
+		expect(probe.mainCalls).toBe(1);
+	});
+
+	it('uses the main agent endpoint without any lookups when no model is configured', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, false);
+		await configurationService.setConfig(ConfigKey.Advanced.SearchSubagentModel, '');
+		const { loop, probe } = createLoop({
+			allEndpoints: [endpoint('should-not-be-used', 'oswe-vscode-modelD', true)],
+		});
+
+		const resolved = await (loop as any).getEndpoint();
+
+		expect(resolved.model).toBe('main-agent');
+		expect(probe.getAllCalls).toBe(0);
+		expect(probe.familyCalls).toEqual([]);
+		expect(probe.mainCalls).toBe(1);
+	});
+});

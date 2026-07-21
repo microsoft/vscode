@@ -19,7 +19,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, IDLE_VOICE_GLOW_COLOR } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle } from '../../chat/browser/voiceClient/voiceGlow.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -38,8 +38,6 @@ export interface VoiceWidgetCallbacks {
 	/** Create a new session and set it as transcription target. */
 	newSessionAsTarget(): void;
 	getAnalyserNode(): AnalyserNode | null;
-	/** Reduced-motion state (honors OS + `workbench.reduceMotion`). */
-	isMotionReduced(): boolean;
 	onResize(): void;
 	openPttKeySettings(): void;
 	/** Optional — when provided, header renders a "popout" button. */
@@ -572,8 +570,18 @@ export class AgentsVoiceWidget extends Disposable {
 			this._register(reshowDisposable);
 		}
 
-		// Start waveform animation
-		this._startWaveformAnimation();
+		// Run the 60Hz waveform/glow loop only while there is something to
+		// animate (onboarding, listening, or speaking). Idle/disconnected render
+		// no glow, so keeping a frame loop alive then would burn CPU for nothing.
+		this._register(autorun(reader => {
+			const onboarding = this._showOnboarding.read(reader);
+			const voiceState = this._voiceState.read(reader);
+			if (onboarding || voiceState === 'listening' || voiceState === 'speaking') {
+				this._startWaveformAnimation();
+			} else {
+				this._stopWaveformAnimation();
+			}
+		}));
 		this._register(toDisposable(() => this._stopWaveformAnimation()));
 	}
 
@@ -1044,20 +1052,11 @@ export class AgentsVoiceWidget extends Disposable {
 		const animate = () => {
 			this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 			const onboarding = this._showOnboarding.get();
-			const connected = this._isConnected.get();
 			const voiceState = this._voiceState.get();
-			const connectedIdle = connected && voiceState === 'idle';
-			const glowActive = onboarding || connectedIdle || voiceState === 'speaking' || voiceState === 'listening';
-
-			if (!glowActive) {
-				this._glowDiv.style.display = 'none';
-				if (this._inputBoxContainer) {
-					this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
-					this._inputBoxContainer.style.boxShadow = 'none';
-				}
-				if (this._inputBoxMicBtn) {
-					this._inputBoxMicBtn.style.boxShadow = 'none';
-				}
+			// The reactive autorun starts/stops this loop; guard against a frame
+			// that races a transition to a non-glowing state (styles are cleared
+			// by _stopWaveformAnimation()).
+			if (!(onboarding || voiceState === 'listening' || voiceState === 'speaking')) {
 				return;
 			}
 
@@ -1065,8 +1064,6 @@ export class AgentsVoiceWidget extends Disposable {
 			let intensity: number;
 			if (onboarding) {
 				intensity = 0.6;
-			} else if (connectedIdle) {
-				intensity = readIdleVoiceGlowIntensity(getWindow(this.container).performance.now(), this.callbacks.isMotionReduced());
 			} else if (!analyser) {
 				intensity = 0.3;
 			} else {
@@ -1080,24 +1077,18 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._inputBoxContainer) {
-				const inputGlowState = connectedIdle ? 'idle' : voiceState;
-				if (inputGlowState === 'idle' || inputGlowState === 'listening' || inputGlowState === 'speaking') {
-					const { borderColor, boxShadow } = computeVoiceGlowStyle(inputGlowState, intensity, false);
-					this._inputBoxContainer.style.borderColor = borderColor;
-					this._inputBoxContainer.style.boxShadow = boxShadow;
-				}
+			if (this._inputBoxContainer && (voiceState === 'listening' || voiceState === 'speaking')) {
+				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, false);
+				this._inputBoxContainer.style.borderColor = borderColor;
+				this._inputBoxContainer.style.boxShadow = boxShadow;
 			}
 
 			if (this._inputBoxMicBtn) {
-				const iconGlowActive = connectedIdle || voiceState === 'listening' || voiceState === 'speaking';
+				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
 				if (iconGlowActive) {
-					const shadowSpread = connectedIdle ? 2 + intensity * 8 : 3 + intensity * 8;
-					const shadowAlpha = connectedIdle ? 0.08 + intensity * 0.18 : 0.2 + intensity * 0.45;
-					// Themed idle color stays visible on light input backgrounds; saturated blue/purple for listening/speaking.
-					const glowColor = connectedIdle
-						? `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(shadowAlpha * 100).toFixed(2)}%, transparent)`
-						: `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
+					const shadowSpread = 3 + intensity * 8;
+					const shadowAlpha = 0.2 + intensity * 0.45;
+					const glowColor = `rgba(${voiceState === 'speaking' ? '163,113,247' : '88,166,255'},${shadowAlpha})`;
 					this._inputBoxMicBtn.style.boxShadow = `0 0 ${shadowSpread}px ${glowColor}`;
 				} else {
 					this._inputBoxMicBtn.style.boxShadow = 'none';
@@ -1106,15 +1097,9 @@ export class AgentsVoiceWidget extends Disposable {
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
-			const baseOpacity = connectedIdle ? 0.06 + intensity * 0.18 : 0.15 + intensity * 0.4;
-			if (connectedIdle) {
-				// Themed idle color so the gradient stays visible on light (white) input backgrounds.
-				const c = (a: number) => `color-mix(in srgb, ${IDLE_VOICE_GLOW_COLOR} ${+(a * 100).toFixed(2)}%, transparent)`;
-				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, ${c(baseOpacity)} 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, ${c(baseOpacity * 0.4)} 0%, transparent 100%)`;
-			} else {
-				const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
-				this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
-			}
+			const baseOpacity = 0.15 + intensity * 0.4;
+			const r = (onboarding || voiceState === 'speaking') ? '163,113,247' : '88,166,255';
+			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}
@@ -1123,6 +1108,16 @@ export class AgentsVoiceWidget extends Disposable {
 		if (this._animationFrameId !== undefined) {
 			getWindow(this.container).cancelAnimationFrame(this._animationFrameId);
 			this._animationFrameId = undefined;
+		}
+		// Clear any glow left by the last rendered frame so idle/disconnected
+		// shows no residual glow now that the loop no longer runs while idle.
+		this._glowDiv.style.display = 'none';
+		if (this._inputBoxContainer) {
+			this._inputBoxContainer.style.borderColor = 'var(--vscode-input-border, transparent)';
+			this._inputBoxContainer.style.boxShadow = 'none';
+		}
+		if (this._inputBoxMicBtn) {
+			this._inputBoxMicBtn.style.boxShadow = 'none';
 		}
 	}
 }

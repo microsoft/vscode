@@ -1848,8 +1848,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}],
 					};
 				}
-				// Installation and verification succeeded — fall through to execute the original command.
-				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded, proceeding with command execution');
+				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded');
+				return {
+					content: [{
+						kind: 'text',
+						value: localize(
+							'runInTerminal.missingDeps.installed',
+							"Sandbox dependencies were installed successfully. If the issue persists, reload the window and try running the command again."
+						),
+					}],
+				};
 			} else {
 				// User chose to cancel — do not run the command
 				this._logService.info('RunInTerminalTool: User cancelled sandbox dependency installation');
@@ -1886,7 +1894,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (refreshedPrereqs.failedCheck !== undefined) {
 				return {
 					content: [{
-						kind: 'text', value: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
+						kind: 'text', value: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. Reload the window and try running the command again.")
 					}],
 				};
 			}

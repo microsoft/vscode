@@ -5,12 +5,12 @@
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IReader, autorun } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -23,9 +23,8 @@ import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
-import { BaseAgentHostSessionsProvider, CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveSessionLocal = ContextKeyExpr.equals(SessionTypeContext.key, LocalSessionType.id);
@@ -217,51 +216,4 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 }
 
 
-// -- Context Key Contribution --
-
-class CopilotActiveSessionContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.copilotActiveSession';
-
-	constructor(
-		@ISessionsService sessionsService: ISessionsService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		const hasRepositoryKey = SessionHasGitRepositoryContext.bindTo(contextKeyService);
-
-		this._register(autorun((reader: IReader) => {
-			const session = sessionsService.activeSession.read(reader);
-			if (session?.providerId === COPILOT_PROVIDER_ID) {
-				const provider = sessionsProvidersService.getProvider(session.providerId);
-				const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
-				const isLoading = providerSession?.loading.read(reader);
-				const gitRepository = providerSession?.gitRepository;
-				// An empty repository (no HEAD commit) cannot run worktree
-				// isolation, so treat it as having no usable git repository —
-				// mirrors CopilotCLISession's own worktree gating.
-				const hasHeadCommit = !!gitRepository?.state.read(reader).HEAD?.commit;
-				hasRepositoryKey.set(!isLoading && !!gitRepository && hasHeadCommit);
-			} else if (session?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
-				const provider = sessionsProvidersService.getProvider(session.providerId);
-				const providerSession = provider instanceof BaseAgentHostSessionsProvider
-					? provider.getSessionByResource(session.resource)
-					: undefined;
-
-				const isLoading = providerSession?.loading.read(reader);
-				const workspace = providerSession?.workspace.read(reader);
-				const hasGitRepository = workspace?.folders
-					.some(folder => folder.gitRepository !== undefined) ?? false;
-
-				hasRepositoryKey.set(!isLoading && hasGitRepository);
-			} else {
-				hasRepositoryKey.set(false);
-			}
-		}));
-	}
-}
-
 registerWorkbenchContribution2(CopilotPickerActionViewItemContribution.ID, CopilotPickerActionViewItemContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(CopilotActiveSessionContribution.ID, CopilotActiveSessionContribution, WorkbenchPhase.AfterRestored);

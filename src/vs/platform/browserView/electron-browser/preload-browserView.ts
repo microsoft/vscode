@@ -89,7 +89,11 @@ function init() {
 		// Allow native shortcuts to be handled by the browser
 		const ctrlCmd = isMac ? event.metaKey : event.ctrlKey;
 		if (ctrlCmd && !event.altKey) {
-			const key = event.key.toLowerCase();
+			let key = event.key.toLowerCase();
+			// Prefer remapped Latin letters, falling back to the physical key for non-Latin layouts.
+			if (!/^[a-z]$/.test(key) && /^Key[A-Z]$/.test(event.code)) {
+				key = event.code.slice(3).toLowerCase();
+			}
 			const keySetsToCheck = [
 				nativeCtrlCmdKeybindings[isMac ? 'mac' : 'nonMac'].always,
 				nativeCtrlCmdKeybindings[isMac ? 'mac' : 'nonMac'][event.shiftKey ? 'withShift' : 'noShift'],

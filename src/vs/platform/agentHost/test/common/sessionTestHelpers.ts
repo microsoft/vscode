@@ -22,6 +22,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	getFileEditsByTurnCalls = 0;
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
+	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -96,7 +97,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
-	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
+	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
+		this.setTurnEventIdCalls.push({ turnId, eventId });
+	}
 
 	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
 

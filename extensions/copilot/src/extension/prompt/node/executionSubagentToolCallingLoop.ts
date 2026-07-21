@@ -129,8 +129,13 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 
 		if (modelName) {
 			try {
-				// Try to get the specified model
-				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				// The setting is model-name based, so prefer an exact model-id match.
+				// IChatEndpoint exposes the model id, so we can resolve it directly
+				// from the known endpoints. Fall back to family resolution (the prior
+				// behavior) when no id matches, e.g. when the setting is a CAPI family.
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const endpoint = allEndpoints.find(e => e.model === modelName)
+					?? await this.endpointProvider.getChatEndpoint(modelName);
 				if (endpoint.supportsToolCalls) {
 					return endpoint;
 				}

@@ -30,6 +30,8 @@ import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
+export { ChatOutline } from './chatOutline.js';
+
 /**
  * A workspace item that can be selected in the workspace picker.
  */
@@ -121,6 +123,8 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+
+	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
 	/**
 	 * Fires when a chat session is no longer open in any chat widget.
@@ -359,6 +363,7 @@ export interface IChatWidgetViewModelChangeEvent {
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
+	readonly visible: boolean;
 	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;

@@ -83,8 +83,11 @@ export interface IMicCaptureService {
 
 	readonly isCapturing: boolean;
 
-	/** Fired when a PTT segment begins (mic ready). */
-	readonly onPttStart: Event<void>;
+	/**
+	 * Fired when a PTT segment begins (mic ready). The boolean payload is the
+	 * `passive` flag captured at the corresponding `pttDown` call (see there).
+	 */
+	readonly onPttStart: Event<boolean>;
 
 	/** Fired during PTT hold with base64-encoded raw PCM16 chunks. */
 	readonly onPttAudioChunk: Event<string>;
@@ -112,8 +115,14 @@ export interface IMicCaptureService {
 	 * `turnId` is an opaque per-press identifier propagated into the
 	 * eventual `onPttDiagnostic` payload for correlation with backend logs.
 	 * Pass empty string when no correlation is needed.
+	 *
+	 * `passive` marks this press as a hands-free barge-in listen (mic opened
+	 * during assistant playback, not a real user press). It is captured
+	 * immutably at call time and carried on the `onPttStart` emission. This
+	 * stays correct even if the caller's own state changes during the async
+	 * mic acquire.
 	 */
-	pttDown(turnId: string): Promise<void>;
+	pttDown(turnId: string, passive?: boolean): Promise<void>;
 
 	/**
 	 * End a PTT segment. Sends any remaining audio chunks, then fires pttEnd.
@@ -199,8 +208,8 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 	private _diagPttUpWithoutCapture = false;
 	private _diagFireTimer: ReturnType<typeof setTimeout> | undefined;
 
-	private readonly _onPttStart = this._register(new Emitter<void>());
-	readonly onPttStart: Event<void> = this._onPttStart.event;
+	private readonly _onPttStart = this._register(new Emitter<boolean>());
+	readonly onPttStart: Event<boolean> = this._onPttStart.event;
 
 	private readonly _onPttAudioChunk = this._register(new Emitter<string>());
 	readonly onPttAudioChunk: Event<string> = this._onPttAudioChunk.event;
@@ -225,12 +234,20 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._window = window;
 	}
 
-	async pttDown(turnId: string): Promise<void> {
+	async pttDown(turnId: string, passive: boolean = false): Promise<void> {
 		if (this._pttHeld) { return; }
 		// If a previous press is still in its drain window, finish it
 		// now: cancel the fallback timer, mark streaming closed, fire
 		// `_onPttEnd`. Otherwise the backend would keep the prior turn
 		// open and our new turn would race against it.
+		//
+		// This is also a required ordering guarantee: flushing the
+		// drain (and its `_onPttEnd`) before this turn's `_onPttStart`
+		// fires below keeps the wire order `ptt_end`(prev) then
+		// `ptt_start`(next). `ptt_end` carries no turn_id, so the backend
+		// relies on that order to end the correct turn and never the
+		// freshly opened one. Keep `_finishDrain()` ahead of every
+		// `_onPttStart.fire()` path if this method is refactored.
 		this._finishDrain();
 		// If a previous press's diagnostic hasn't fired yet (back-to-back
 		// presses inside the diagnostic window), emit it now so it
@@ -243,7 +260,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 		this._isMuted = false;
 
 		if (this._isCapturing) {
-			this._onPttStart.fire();
+			this._onPttStart.fire(passive);
 			return;
 		}
 		if (!this._window) { return; }
@@ -260,7 +277,7 @@ export class MicCaptureService extends Disposable implements IMicCaptureService 
 			throw err;
 		}
 		this._pttAcquiring = false;
-		this._onPttStart.fire();
+		this._onPttStart.fire(passive);
 
 		if (this._pttReleasedDuringAcquire) {
 			this._pttReleasedDuringAcquire = false;

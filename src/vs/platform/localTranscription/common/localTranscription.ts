@@ -50,31 +50,25 @@ export interface ILocalTranscriptionResult {
 	readonly text: string;
 	/** True for the final result emitted after `stop`. */
 	readonly isFinal: boolean;
+	/**
+	 * The leading portion of `text` that Foundry has already finalized (its
+	 * endpointed segments). The remainder of `text` is the still-in-progress
+	 * interim tail. Lets the renderer stop shimmering finalized text as soon as
+	 * a segment is endpointed — including the last one during a trailing silence
+	 * — instead of waiting for a later interim to confirm it stopped changing.
+	 */
+	readonly finalizedText?: string;
 }
 
-/**
- * Proxy/TLS settings forwarded from the renderer's configuration so the first-use
- * model download can honour corporate proxies and strict-SSL. The transcription
- * worker is a DI-less utility process with no access to `IConfigurationService`
- * or `IRequestService`, so the renderer reads the relevant `http.*` settings and
- * hands them across. Mirrors the values `RequestService` itself reads.
- */
-export interface ILocalTranscriptionProxyConfig {
-	/** Value of `http.proxy`, when configured. */
-	readonly url?: string;
-	/** Value of `http.proxyStrictSSL` (defaults to strict when unset). */
-	readonly strictSSL?: boolean;
-	/** Value of `http.proxyAuthorization`, when configured. */
-	readonly authorization?: string;
-}
 
 /**
- * On-device speech-to-text using a downloaded model. Two model families are
- * supported: Whisper (encoder-decoder, run via transformers.js on
- * onnxruntime-node) and Nemotron (NeMo RNN-T, run directly on onnxruntime-node);
- * the model is chosen by the `chat.speechToText.model` setting. Runs in a
- * utility process. A single transcription session is active at a time (dictation
- * is a singleton in the renderer).
+ * On-device speech-to-text using a downloaded model. Transcription runs through
+ * Microsoft's Foundry Local streaming ASR engine (onnxruntime + onnxruntime-genai
+ * native runtime), which handles decoding, VAD and endpointing internally; the
+ * default model is NVIDIA's `nemotron-speech-streaming-en-0.6b` streaming RNN-T
+ * (the model the GitHub Copilot app ships for dictation). Runs in a utility
+ * process. A single transcription session is active at a time (dictation is a
+ * singleton in the renderer).
  *
  * The renderer streams PCM16 mono 16 kHz audio via `pushAudio`; the service
  * emits interim transcripts on `onDidTranscribe` and a final one after `stop`.
@@ -84,9 +78,9 @@ export interface ILocalTranscriptionService {
 
 	/**
 	 * Whether on-device transcription can run in this environment. False on web
-	 * (no utility process) and on desktop platforms/architectures without an
-	 * onnxruntime-node binary. When false, dictation is unavailable — there is
-	 * no cloud fallback.
+	 * (no utility process) and on desktop platforms/architectures without a
+	 * Foundry Local native runtime. When false, dictation is unavailable — there
+	 * is no cloud fallback.
 	 */
 	readonly isSupported: boolean;
 
@@ -101,13 +95,16 @@ export interface ILocalTranscriptionService {
 
 	/**
 	 * Ensure the model is downloaded/loaded (idempotent) and begin a new
-	 * transcription session. `cacheDir` is where model files are stored. `model`
-	 * selects the on-device model (Whisper or Nemotron); when omitted the
-	 * service default is used. `language` optionally hints the spoken language
-	 * (Whisper only; Nemotron auto-detects). `proxy` carries the renderer's
-	 * `http.*` settings so a first-use download can traverse a corporate proxy.
+	 * transcription session. `cacheDir` is where model files are stored.
+	 * `language` optionally hints the spoken language.
+	 *
+	 * NOTE: Foundry Local performs the first-use model download itself and does
+	 * not currently expose a hook for VS Code's `http.proxy`/`http.proxyStrictSSL`
+	 * settings, so those are not honoured for the model download. Behind a
+	 * corporate proxy the first-use download may fail until Foundry Local gains a
+	 * supported proxy mechanism.
 	 */
-	start(options: { readonly cacheDir: string; readonly model?: string; readonly language?: string; readonly proxy?: ILocalTranscriptionProxyConfig }): Promise<void>;
+	start(options: { readonly cacheDir: string; readonly language?: string }): Promise<void>;
 
 	/** Append captured audio (raw little-endian PCM16 mono 16 kHz). */
 	pushAudio(chunk: VSBuffer): Promise<void>;

@@ -462,7 +462,7 @@ Then if you want to include those files you can call the tool again by setting "
 
 	private getDefaultMaxResults(): number {
 		const result =  this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchDefaultMaxResults, this.experimentationService);
-		return Number.isFinite(result) ? Math.floor(result) : 20;
+		return Number.isFinite(result) ? Math.floor(result) : 100;
 	}
 
 	private getMaxResultsCap(): number {

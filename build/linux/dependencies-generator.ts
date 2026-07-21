@@ -31,7 +31,13 @@ const bundledDeps = [
 	'libvulkan.so.1',
 	'libvk_swiftshader.so',
 	'libffmpeg.so',
-	'libonnxruntime.so.1'
+	// on-device chat dictation (foundry-local-sdk) bundles the onnxruntime,
+	// onnxruntime-genai and Foundry Local Core shared libraries next to its
+	// native addon. NOTE: exact Linux sonames must be confirmed on a Linux
+	// package build; adjust these if the dependency scanner reports them as new.
+	'libonnxruntime.so.1',
+	'libonnxruntime-genai.so',
+	'Microsoft.AI.Foundry.Local.Core.so'
 ];
 
 export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: string, applicationName: string, arch: string): Promise<string[]> {

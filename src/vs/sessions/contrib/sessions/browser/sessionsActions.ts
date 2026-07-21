@@ -1198,7 +1198,7 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 // committed chat.
 MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,
@@ -1211,7 +1211,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 // the Conversations menu only ever appears in one place at a time.
 MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
 	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 10,

@@ -277,19 +277,20 @@ export function createManageModelsAction(commandService: ICommandService): IActi
  *
  * Layout:
  * 1. Auto (always first)
- * 2. Promoted section (selected + recently used + featured models from control manifest)
+ * 2. Pinned models, grouped by provider name and sorted by model name within each group
+ * 3. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
  *    - Promoted models show an inline source label (the provider group
  *      name) when more than one group is configured.
- * 3. Other Models (collapsible toggle) - models grouped by provider group
+ * 4. Other Models (collapsible toggle) - models grouped by provider group
  *    (vendor + user-configured group name) with separator headers
  *    - Each provider group has a titled separator header. This matches
  *      the buckets shown in the model configuration view, so a BYOK setup
  *      with several groups under a single vendor (e.g. an "OpenAI
  *      Compatible" group and an "AWS Bedrock" group both registered to
  *      the `customoai` vendor) renders as distinct sections.
- * 4. Optional "Manage Models..." action shown in Other Models after a separator
+ * 5. Optional "Manage Models..." action shown in Other Models after a separator
  *
  * When `restrictedMode` is set (untrusted workspace), an explanatory "Models
  * unavailable while in Restricted mode" header and a "Trust Workspace to enable
@@ -521,6 +522,12 @@ export function buildModelPickerItems(
 					pinnedModels.push(model);
 				}
 			}
+			pinnedModels.sort((a, b) => {
+				const aGroup = getProviderGroupForModel(a, modelToGroup, languageModelsService!);
+				const bGroup = getProviderGroupForModel(b, modelToGroup, languageModelsService!);
+				const groupCompare = aGroup.groupName.localeCompare(bGroup.groupName);
+				return groupCompare || a.metadata.name.localeCompare(b.metadata.name);
+			});
 			if (pinnedModels.length > 0) {
 				items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.pinned', "Pinned") });
 				for (const model of pinnedModels) {

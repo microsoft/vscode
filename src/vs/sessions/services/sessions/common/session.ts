@@ -495,6 +495,8 @@ export interface ISession {
 	readonly createdAt: Date;
 	/** Workspace this session operates on. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/** Whether the session has a usable Git repository. Providers may refine this beyond workspace metadata. */
+	readonly hasGitRepository?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
 

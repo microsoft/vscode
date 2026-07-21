@@ -49,6 +49,7 @@ const SERVER_SHUTDOWN_TIMEOUT_MS = 30_000;
 const TEMP_DIR_CLEANUP_TIMEOUT_MS = 30_000;
 /** A synthetic token used on replay (no real credential needed). */
 export const REPLAY_PLACEHOLDER_TOKEN = 'replay-no-token';
+export type AgentHostE2EModelTraffic = 'recorded' | 'none';
 
 async function stopServer(server: IServerHandle | undefined): Promise<void> {
 	const serverProcess = server?.process;
@@ -97,6 +98,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
  * from `out/`/`out-build/` — resolve up to the repo root and into `src/...`.
  */
 const CAPTURES_DIR = fileURLToPath(new URL('../../../../../../../../src/vs/platform/agentHost/test/node/e2e/captures/', import.meta.url));
+const EMPTY_CAPTURE_PATH = join(CAPTURES_DIR, 'empty.yaml');
 
 /** Per-test fixture path derived from the provider + test title. */
 function fixturePathFor(provider: string, testTitle: string): string {
@@ -107,10 +109,13 @@ function fixturePathFor(provider: string, testTitle: string): string {
 /**
  * Build the `capiReplay` option for a test: replays the committed per-test
  * fixture by default (tokenless), or records it against real CAPI when
- * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Shared by
- * {@link defineAgentHostE2ETests} and provider-specific suites.
+ * `AGENT_HOST_REPLAY_RECORD=1` or `AGENT_HOST_UPDATE_SNAPSHOTS=1`. Tests that
+ * declare no model traffic always use the strict shared empty replay fixture.
  */
-export function capiReplayFor(provider: string, testTitle: string): { fixturePath: string; real: true; mode: CapiReplayMode } {
+export function capiReplayFor(provider: string, testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): { fixturePath: string; real: true; mode: CapiReplayMode } {
+	if (modelTraffic === 'none') {
+		return { fixturePath: EMPTY_CAPTURE_PATH, real: true, mode: 'replay' };
+	}
 	return { fixturePath: fixturePathFor(provider, testTitle), real: true, mode: REPLAY_MODE };
 }
 
@@ -599,11 +604,20 @@ export class AgentHostE2EServerLease {
 	private _server: IServerHandle | undefined;
 	private _client: TestProtocolClient | undefined;
 	private readonly _shared: boolean;
+	private _dataDir: string | undefined;
+	private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir: string; readonly userDataDir: string };
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		private readonly _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly homeDir?: string; readonly userDataDir?: string },
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string } = {},
 	) {
+		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		this._dataDir = dataDir;
+		this._startOptions = {
+			...startOptions,
+			homeDir: dataDir,
+			userDataDir: join(dataDir, 'user-data'),
+		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
 		// In replay it is always safe because every test drains its turns, so the
@@ -612,8 +626,8 @@ export class AgentHostE2EServerLease {
 	}
 
 	/** Acquire a server + connected client for a test, returning both. */
-	async acquire(testTitle: string): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
-		const capiReplay = capiReplayFor(this._config.provider, testTitle);
+	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+		const capiReplay = capiReplayFor(this._config.provider, testTitle, modelTraffic);
 		if (this._shared && this._server) {
 			const proxy = this._server.capiReplay;
 			if (!proxy) {
@@ -676,12 +690,20 @@ export class AgentHostE2EServerLease {
 
 	/** Tear down a shared server at the end of the suite (no-op for per-test). */
 	async dispose(): Promise<void> {
-		if (this._server) {
-			try {
-				await this._server.capiReplay?.close();
-			} finally {
-				await stopServer(this._server);
-				this._server = undefined;
+		const dataDir = this._dataDir;
+		this._dataDir = undefined;
+		try {
+			if (this._server) {
+				try {
+					await this._server.capiReplay?.close();
+				} finally {
+					await stopServer(this._server);
+					this._server = undefined;
+				}
+			}
+		} finally {
+			if (dataDir) {
+				await removeTempDirs([dataDir]);
 			}
 		}
 	}
