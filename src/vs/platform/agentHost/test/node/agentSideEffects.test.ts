@@ -3574,7 +3574,7 @@ suite('AgentSideEffects', () => {
 				action: {
 					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
 					toolCallId: 'tc-1', invocationMessage: 'Delegating task...',
-					toolInput: JSON.stringify({ prompt: 'Review the auth module for security issues' }),
+					toolInput: undefined,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},
 			});
@@ -3586,6 +3586,7 @@ suite('AgentSideEffects', () => {
 				agentName: 'code-reviewer',
 				agentDisplayName: 'Code Reviewer',
 				agentDescription: 'Reviews code',
+				taskPrompt: 'Review the auth module for security issues',
 			});
 
 			// Verify the subagent chat was created
@@ -3652,27 +3653,27 @@ suite('AgentSideEffects', () => {
 
 			// Level-1 subagent spawned from the default chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l1', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l1', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l1 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
-			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l1', agentName: 'l1', agentDisplayName: 'L1', agentDescription: 'first' });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l1', agentName: 'l1', agentDisplayName: 'L1', agentDescription: 'first', taskPrompt: 'l1 prompt' });
 
 			// Level-2 subagent's spawning tool runs INSIDE the level-1
 			// subagent (parentToolCallId = tc-l1), so it lands on the level-1
 			// subagent chat rather than the default chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l2', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l2', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l2 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l1', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l2', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Level-2 subagent starts. Its spawning tool (tc-l2) lives in the
 			// level-1 subagent chat, so the signal carries parentToolCallId = tc-l1.
-			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l2', agentName: 'l2', agentDisplayName: 'L2', agentDescription: 'second', parentToolCallId: 'tc-l1' });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l2', agentName: 'l2', agentDisplayName: 'L2', agentDescription: 'second', taskPrompt: 'l2 prompt', parentToolCallId: 'tc-l1' });
 
 			// Level-3 subagent's spawning tool runs INSIDE the level-2
 			// subagent (parentToolCallId = tc-l2), landing on the level-2 chat.
 			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-l3', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: 'subagent', language: undefined } } });
-			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l3', invocationMessage: 'Delegating...', toolInput: JSON.stringify({ prompt: 'l3 prompt' }), confirmed: ToolCallConfirmationReason.NotNeeded } });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), parentToolCallId: 'tc-l2', action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-l3', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Level-3 subagent starts. Its spawning tool (tc-l3) lives in the
 			// level-2 subagent chat, so the signal carries parentToolCallId = tc-l2.
-			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l3', agentName: 'l3', agentDisplayName: 'L3', agentDescription: 'third', parentToolCallId: 'tc-l2' });
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-l3', agentName: 'l3', agentDisplayName: 'L3', agentDescription: 'third', taskPrompt: 'l3 prompt', parentToolCallId: 'tc-l2' });
 
 			const l1ChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-l1');
 			const l2ChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-l2');
@@ -3703,9 +3704,8 @@ suite('AgentSideEffects', () => {
 			assertDiscoveryBlock(l1ChatUri, 'tc-l2', l2ChatUri, 'the level-1 chat');
 			assertDiscoveryBlock(l2ChatUri, 'tc-l3', l3ChatUri, 'the level-2 chat');
 
-			// Each child chat's opening request is seeded from its spawning tool
-			// call's prompt, resolved via the immediate parent chat — so a
-			// fallback to the top-level chat would surface the wrong prompt.
+			// Each child chat's opening request is seeded from its own
+			// `subagent_started` signal's `taskPrompt`.
 			assert.deepStrictEqual(
 				[l1ChatUri, l2ChatUri, l3ChatUri].map(uri => stateManager.getSessionState(uri)?.activeTurn?.message.text),
 				['l1 prompt', 'l2 prompt', 'l3 prompt'],

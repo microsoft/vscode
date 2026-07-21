@@ -39,7 +39,6 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
@@ -76,7 +75,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
-import { computeVoiceGlowStyle, readIdleVoiceGlowIntensity, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
+import { computeVoiceGlowStyle, isGlowingVoiceState, readVoiceGlowIntensity } from '../../voiceClient/voiceGlow.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -148,7 +147,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentTitleBarStatusService _agentTitleBarStatusService: IAgentTitleBarStatusService,
 		@IVoicePlaybackService _voicePlaybackService: IVoicePlaybackService,
@@ -461,21 +459,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				animFrameId = win.requestAnimationFrame(animate);
 				const connected = this.voiceSessionController.isConnected.get();
 				const voiceState = this.voiceSessionController.voiceState.get();
-				const glowActive = connected && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking');
+				const glowActive = connected && isGlowingVoiceState(voiceState);
 				const target = getActiveInputContainer();
 
 				// If the target changed, clear styling on the old one
 				if (lastGlowTarget && lastGlowTarget !== target) {
 					lastGlowTarget.style.borderColor = '';
 					lastGlowTarget.style.boxShadow = '';
-					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
+					lastGlowTarget.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 				}
 				lastGlowTarget = target;
 
 				if (!glowActive) {
 					target.style.borderColor = '';
 					target.style.boxShadow = '';
-					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
+					target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 					return;
 				}
 
@@ -483,9 +481,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const analyser = this.ttsPlaybackService.analyserNode
 					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
-				const intensity = voiceState === 'idle'
-					? readIdleVoiceGlowIntensity(win.performance.now(), this.accessibilityService.isMotionReduced())
-					: readVoiceGlowIntensity(analyser, glowDataArrayRef);
+				const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
 				const transcriptHidden = this.configurationService.getValue<boolean>('agents.voice.showTranscript') === false;
 				const { borderColor, boxShadow } = computeVoiceGlowStyle(voiceState, intensity, transcriptHidden);
@@ -494,7 +490,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				target.classList.add('voice-active');
 				target.classList.toggle('voice-listening', voiceState === 'listening');
 				target.classList.toggle('voice-speaking', voiceState === 'speaking');
-				target.classList.toggle('voice-idle', voiceState === 'idle');
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -506,7 +501,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const target = lastGlowTarget ?? inputContainerEl;
 			target.style.borderColor = '';
 			target.style.boxShadow = '';
-			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking', 'voice-idle');
+			target.classList.remove('voice-active', 'voice-listening', 'voice-speaking');
 			lastGlowTarget = undefined;
 		};
 
@@ -523,7 +518,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			if (connected && (voiceState === 'idle' || voiceState === 'listening' || voiceState === 'speaking')) {
+			// Only run the per-frame glow loop for states that actually render a
+			// glow. Idle renders none, so keeping the loop alive then would burn a
+			// requestAnimationFrame callback every frame for nothing.
+			if (connected && isGlowingVoiceState(voiceState)) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();

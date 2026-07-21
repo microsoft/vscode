@@ -1894,6 +1894,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				agentName: model ?? 'codex',
 				agentDisplayName: model ?? 'Subagent',
 				taskDescription,
+				// Codex surfaces the full delegated instruction as `item.prompt`.
+				taskPrompt: typeof item.prompt === 'string' && item.prompt.length > 0 ? item.prompt : undefined,
 			});
 			this._logService.trace(`[Codex:${session.sessionId}] subagent spawned thread=${childThreadId} toolCall=${entry.toolCallId} model=${model ?? '(default)'}`);
 		}

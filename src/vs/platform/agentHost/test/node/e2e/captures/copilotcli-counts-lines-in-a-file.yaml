@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Count the lines in lines.txt and reply with the number only.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: bash
+          input:
+            command: wc -l lines.txt
+            description: Count lines in lines.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Count the lines in lines.txt and reply with the number only.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: bash
+              input:
+                command: wc -l lines.txt
+                description: Count lines in lines.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                4 lines.txt
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: '4'
+      stopReason: end_turn

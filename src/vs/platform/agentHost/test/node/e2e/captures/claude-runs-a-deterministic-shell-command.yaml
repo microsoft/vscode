@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.
+    response:
+      content:
+        - type: text
+          text: I'll run a command to print that value.
+        - type: tool_use
+          id: toolcall_0
+          name: Bash
+          input:
+            command: printf '%s\n' "SHELL_VALUE_73"
+            description: Print the value SHELL_VALUE_73
+      stopReason: tool_use
+  - request:
+      model: claude-opus-4.8
+      system: ${system}
+      messages:
+        - role: user
+          content: Run a shell command that prints SHELL_VALUE_73, then reply with that exact value only.
+        - role: assistant
+          content:
+            - type: text
+              text: I'll run a command to print that value.
+            - type: tool_use
+              name: Bash
+              input:
+                command: printf '%s\n' "SHELL_VALUE_73"
+                description: Print the value SHELL_VALUE_73
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SHELL_VALUE_73
+    response:
+      content: SHELL_VALUE_73
+      stopReason: end_turn

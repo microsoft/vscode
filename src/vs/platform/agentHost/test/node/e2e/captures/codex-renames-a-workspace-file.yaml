@@ -1,0 +1,48 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Rename before.txt to after.txt without changing its contents.
+    response:
+      content:
+        - type: text
+          text: I’ll rename `before.txt` to `after.txt` in place and keep the file contents unchanged. I’m doing that now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: mv before.txt after.txt
+            workdir: ${workdir}/ahp-coverage-rename-${temp}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Rename before.txt to after.txt without changing its contents.
+        - role: assistant
+          content: I’ll rename `before.txt` to `after.txt` in place and keep the file contents unchanged. I’m doing that now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: mv before.txt after.txt
+                workdir: ${workdir}/ahp-coverage-rename-${temp}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: 993beb
+                Wall time: 0.0000 seconds
+                Process exited with code 0
+                Original token count: 0
+                Output:
+    response:
+      content: Renamed `before.txt` to `after.txt` with contents unchanged.
+      stopReason: end_turn
