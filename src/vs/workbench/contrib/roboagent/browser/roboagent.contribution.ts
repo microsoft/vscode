@@ -25,7 +25,8 @@ import { Ros2GraphEditorInput } from './ros2GraphEditorInput.js';
 import { Ros2PackageExplorerView } from './ros2PackageExplorerView.js';
 import { Ros2StatusBar } from './ros2StatusBar.js';
 import { IndexRos2WorkspaceAction, registerRoboAgentActions } from './ros2WorkspaceActions.js';
-
+import { RoboAgentAuthStatusBar } from './roboagentAuthStatusBar.js';
+import { registerAuthActions, SignInAction, SignUpAction } from './roboagentAuthCommands.js';
 // --- Service ---------------------------------------------------------------
 
 registerSingleton(IRos2WorkspaceService, Ros2WorkspaceService, InstantiationType.Delayed);
@@ -67,6 +68,17 @@ viewsRegistry.registerViewWelcomeContent(Ros2PackageExplorerView.ID, {
 	order: 10,
 });
 
+// --- Auth welcome buttons (visible when not signed in) ----------------------
+
+viewsRegistry.registerViewWelcomeContent(Ros2PackageExplorerView.ID, {
+	content: `[$(account) ${localize('roboagent.logInButton', "Log In to RoboAgent")}](command:${SignInAction.ID})`,
+	order: 20,
+});
+viewsRegistry.registerViewWelcomeContent(Ros2PackageExplorerView.ID, {
+	content: `[$(person-add) ${localize('roboagent.signUpButton', "Sign Up for RoboAgent")}](command:${SignUpAction.ID})`,
+	order: 21,
+});
+
 // --- ROS2 graph editor (REQ-5) ---------------------------------------------
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -94,6 +106,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 // --- Commands / actions ----------------------------------------------------
 
 registerRoboAgentActions();
+registerAuthActions();
 
 // --- Startup bootstrap: index the workspace once restored ------------------
 
@@ -111,3 +124,7 @@ registerWorkbenchContribution2(Ros2IndexBootstrap.ID, Ros2IndexBootstrap, Workbe
 // --- Status bar indicator (WS2) --------------------------------------------
 
 registerWorkbenchContribution2(Ros2StatusBar.ID, Ros2StatusBar, WorkbenchPhase.AfterRestored);
+
+// --- Auth status bar -------------------------------------------------------
+
+registerWorkbenchContribution2(RoboAgentAuthStatusBar.ID, RoboAgentAuthStatusBar, WorkbenchPhase.AfterRestored);

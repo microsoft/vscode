@@ -15,7 +15,6 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IRos2WorkspaceService } from '../common/ros2WorkspaceService.js';
 import { Ros2GraphEditorInput } from './ros2GraphEditorInput.js';
-import { Ros2PackageExplorerView } from './ros2PackageExplorerView.js';
 
 const ROBOAGENT_CATEGORY = localize2('roboagent.category', "RoboAgent");
 
@@ -46,7 +45,7 @@ export class IndexRos2WorkspaceAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.equals('view', Ros2PackageExplorerView.ID)
+				when: ContextKeyExpr.equals('view', 'roboagent.ros2PackageExplorer')
 			}]
 		});
 	}
@@ -72,7 +71,7 @@ export class ShowRos2GraphAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.equals('view', Ros2PackageExplorerView.ID)
+				when: ContextKeyExpr.equals('view', 'roboagent.ros2PackageExplorer')
 			}]
 		});
 	}

@@ -85,6 +85,7 @@ class SessionsSetUpWidget extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._start();
@@ -155,7 +156,7 @@ class SessionsSetUpWidget extends Disposable {
 		if (this.dialogRef.value) {
 			return;
 		}
-		if (!initialAccount) {
+		if (!initialAccount && !this.chatEntitlementService.sentiment.completed) {
 			this._showWelcome(false);
 			return;
 		}

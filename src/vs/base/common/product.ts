@@ -85,6 +85,7 @@ export interface IProductConfiguration {
 	readonly agentsTelemetryAppName?: string;
 
 	readonly urlProtocol: string;
+	readonly supabaseAnonKey?: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 

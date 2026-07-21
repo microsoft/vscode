@@ -472,6 +472,7 @@ import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+import '../workbench/contrib/roboagent/browser/roboagent.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

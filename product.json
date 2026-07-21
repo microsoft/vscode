@@ -22,6 +22,7 @@
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "RoboAgent.RoboAgent",
+	"supabaseAnonKey": "sb_publishable_X4kqMiq7T9hySnTzR03ZFg_H_bUWBho",
 	"win32ShellNameShort": "R&oboAgent",
 	"win32TunnelServiceMutex": "roboagent-tunnelservice",
 	"win32TunnelMutex": "roboagent-tunnel",

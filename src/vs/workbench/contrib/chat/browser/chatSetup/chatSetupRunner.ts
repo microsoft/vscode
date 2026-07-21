@@ -152,6 +152,9 @@ export class ChatSetup {
 				case ChatSetupStrategy.DefaultSetup:
 					success = await this.controller.value.setup({ ...options, forceAnonymous: options?.forceAnonymous });
 					break;
+				case ChatSetupStrategy.SetupAsGuest:
+					success = await this.controller.value.setup({ ...options, forceAnonymous: ChatSetupAnonymous.EnabledWithDialog });
+					break;
 				case ChatSetupStrategy.Canceled:
 					this.context.update({ later: true });
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedMaybeLater', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
@@ -211,20 +214,23 @@ export class ChatSetup {
 
 			const googleProviderButton: ContinueWithButton = [localize('continueWith', "Continue with {0}", defaultChat.provider.google.name), ChatSetupStrategy.SetupWithGoogleProvider, styleButton('continue-button', 'google')];
 			const appleProviderButton: ContinueWithButton = [localize('continueWith', "Continue with {0}", defaultChat.provider.apple.name), ChatSetupStrategy.SetupWithAppleProvider, styleButton('continue-button', 'apple')];
+			const guestProviderLink: ContinueWithButton = [localize('continueAsGuest', "Continue as Guest"), ChatSetupStrategy.SetupAsGuest, styleButton('link-button')];
 
 			if (!this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 				buttons = coalesce([
 					defaultProviderButton,
 					googleProviderButton,
 					appleProviderButton,
-					enterpriseProviderLink
+					enterpriseProviderLink,
+					this.chatEntitlementService.anonymous ? guestProviderLink : undefined
 				]);
 			} else {
 				buttons = coalesce([
 					enterpriseProviderButton,
 					googleProviderButton,
 					appleProviderButton,
-					defaultProviderLink
+					defaultProviderLink,
+					this.chatEntitlementService.anonymous ? guestProviderLink : undefined
 				]);
 			}
 		} else {

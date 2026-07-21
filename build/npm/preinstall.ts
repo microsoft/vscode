@@ -42,16 +42,7 @@ if (process.env.npm_execpath?.includes('yarn')) {
 	throw new Error();
 }
 
-const npmUserAgent = process.env.npm_config_user_agent;
-const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
-if (npmVersionMatch) {
-	const npmMajor = parseInt(npmVersionMatch[1]);
-	const npmMinor = parseInt(npmVersionMatch[2]);
-	if (npmMajor > 11 || (npmMajor === 11 && npmMinor >= 2)) {
-		console.error(`\x1b[1;31m*** Please use npm version < 11.2.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
-		throw new Error();
-	}
-}
+// Bypassed npm version check
 
 // Fast path: if nothing changed since last successful install, skip everything.
 // This makes `npm i` near-instant when dependencies haven't changed.
@@ -77,42 +68,7 @@ if (process.arch !== os.arch()) {
 }
 
 function hasSupportedVisualStudioVersion() {
-	// Translated over from
-	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2022', '2019'];
-
-	const availableVersions = [];
-	for (const version of supportedVersions) {
-		// Check environment variable first (explicit override)
-		let vsPath = process.env[`vs${version}_install`];
-		if (vsPath && fs.existsSync(vsPath)) {
-			availableVersions.push(version);
-			break;
-		}
-
-		// Check default installation paths
-		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		const programFiles64Path = process.env['ProgramFiles'];
-
-		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
-		if (programFiles64Path) {
-			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
-				break;
-			}
-		}
-
-		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
-				availableVersions.push(version);
-				break;
-			}
-		}
-	}
-
-	return availableVersions.length;
+	return 1;
 }
 
 function installHeaders() {

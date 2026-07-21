@@ -49,7 +49,8 @@ export enum ChatSetupStrategy {
 	SetupWithoutEnterpriseProvider = 2,
 	SetupWithEnterpriseProvider = 3,
 	SetupWithGoogleProvider = 4,
-	SetupWithAppleProvider = 5
+	SetupWithAppleProvider = 5,
+	SetupAsGuest = 6
 }
 
 export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;

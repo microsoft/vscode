@@ -41,6 +41,8 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
+import { IRoboAgentAuthMainService } from '../../platform/roboagentAuth/common/roboagentAuthService.js';
+import { RoboAgentAuthMainService } from '../../platform/roboagentAuth/electron-main/roboagentAuthMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -1071,6 +1073,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// RoboAgent Auth
+		services.set(IRoboAgentAuthMainService, new SyncDescriptor(RoboAgentAuthMainService));
+
 		// Browser View
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
@@ -1239,6 +1244,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// RoboAgent Auth
+		const roboagentAuthChannel = ProxyChannel.fromService(accessor.get(IRoboAgentAuthMainService), disposables);
+		mainProcessElectronServer.registerChannel('roboagentAuth', roboagentAuthChannel);
 
 		// Browser View
 		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);

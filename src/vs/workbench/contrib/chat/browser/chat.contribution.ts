@@ -1582,7 +1582,7 @@ configurationRegistry.registerConfiguration({
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
