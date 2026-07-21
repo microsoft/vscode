@@ -16,13 +16,20 @@ import { CompletionItem, CompletionItemKind } from '../../../../editor/common/la
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { getCommandArgumentHint } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { getCommandArgumentHint, getCompletionAction, type IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
+import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../../workbench/contrib/chat/browser/agentHostCompletionAction.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
@@ -42,6 +49,26 @@ interface IReferenceArg {
 
 CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IReferenceArg) => {
 	arg.handler.acceptCompletion(arg.entry, arg.insertText, arg.range);
+});
+
+/**
+ * Command ID used by config-action completion items (permission/mode toggles)
+ * to apply the session-config change on accept.
+ */
+const CONFIG_ACTION_COMMAND = 'sessions.chat.applyAgentHostConfigAction';
+
+interface IConfigActionArg {
+	readonly handler: AgentHostInputCompletionHandler;
+	readonly action: IAgentHostCompletionAction;
+	/** Reference to add (for the argument hint) for keep-text items; undefined for toggles. */
+	readonly entry: IChatRequestVariableEntry | undefined;
+	/** Text of the kept command reference (without the trailing space). */
+	readonly referenceText: string;
+	readonly referenceRange: OffsetRange | undefined;
+}
+
+CommandsRegistry.registerCommand(CONFIG_ACTION_COMMAND, async (accessor: ServicesAccessor, arg: IConfigActionArg) => {
+	await arg.handler.applyConfigAction(accessor, arg);
 });
 
 /**
@@ -162,6 +189,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -244,11 +272,48 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		return { sessionResource, context: undefined };
 	}
 
-	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem | undefined {
 		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'command': {
+				const action = getCompletionAction(attachment._meta);
+				if (action) {
+					// Omit an elevated auto-approve toggle (Allow all / Assisted)
+					// when enterprise policy disables global auto-approval, rather
+					// than offering an item that would warn then clamp to Default.
+					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+						return undefined;
+					}
+					// Config-action completion (permission/mode toggle). Keep-text
+					// items (non-empty insertText) retain the `/command ` text and
+					// its argument-hint reference; toggle items insert nothing.
+					const keep = item.insertText !== '';
+					const label = item.label ?? item.insertText;
+					const referenceText = item.insertText.trimEnd();
+					const entry = keep
+						? toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta)
+						: undefined;
+					return {
+						label: { label, description: attachment.description },
+						insertText: item.insertText,
+						filterText: label,
+						range: replaceRange,
+						kind: CompletionItemKind.Text,
+						documentation: attachment.description,
+						command: {
+							id: CONFIG_ACTION_COMMAND,
+							title: '',
+							arguments: [{
+								handler: this,
+								action,
+								entry,
+								referenceText,
+								referenceRange: entry ? this._toOffsetRange(replaceRange.replace, referenceText) : undefined,
+							} satisfies IConfigActionArg],
+						},
+					};
+				}
 				const referenceText = item.insertText.trimEnd();
 				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
@@ -341,6 +406,34 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._insertedReferences.set(entry.id, { text: insertText, range });
 		this._contextAttachments.setAttachments([...this._contextAttachments.attachments.filter(e => e.id !== entry.id), entry]);
 		this._updateDecorations();
+	}
+
+	/**
+	 * Accept handler for config-action completions (permission/mode toggles).
+	 * Applies the session-config change (gated by the elevated-permission
+	 * confirmation for `autoApprove`) via the active session's agent-host
+	 * provider. Keep-text items (non-empty insertText) then add their argument-
+	 * hint reference; toggle items insert nothing, so there is no text to remove.
+	 */
+	async applyConfigAction(accessor: ServicesAccessor, arg: IConfigActionArg): Promise<void> {
+		const session = this._sessionsService.activeSession.get();
+		if (!session) {
+			return;
+		}
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
+			const provider = sessionsProvidersService.getProvider(session.providerId);
+			if (provider && isAgentHostProvider(provider)) {
+				await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value).catch(() => { /* best-effort */ })));
+			}
+		});
+		// Keep-text items add their argument-hint reference once applied. Toggle
+		// items insert nothing, so there is no text to remove.
+		if (applied && arg.entry) {
+			this.acceptCompletion(arg.entry, arg.referenceText, arg.referenceRange);
+		}
 	}
 
 	getAttachmentsForSend(messageText?: string, messageOffset = 0): IChatRequestVariableEntry[] {

@@ -7,9 +7,22 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
-import { CompletionItemKind } from '../../common/state/protocol/commands.js';
+import { CompletionItem, CompletionItemKind } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageAttachmentKind, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandInfo, parseLeadingSlashCommand } from '../../node/copilot/copilotSlashCommandCompletionProvider.js';
+
+/**
+ * The provider now also injects workbench-defined config-action items
+ * (permission/mode toggles like `/yolo`, `/autopilot`) into every leading-slash
+ * completion result; these carry an `action` bag on their attachment `_meta`.
+ * The runtime-focused assertions below filter them out with this helper so they
+ * keep asserting on the runtime SDK command set. Runtime commands whose name
+ * collides with a config-action command (e.g. `plan`) are intentionally dropped
+ * by the provider, so they no longer appear even after filtering.
+ */
+function runtimeOnly(items: readonly CompletionItem[]): CompletionItem[] {
+	return items.filter(i => i.attachment?._meta?.action === undefined);
+}
 
 suite('CopilotSlashCommandCompletionProvider', () => {
 
@@ -124,9 +137,18 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items, []);
 		});
 
-		test('returns all items for lone "/"', async () => {
+		test('returns all runtime items for lone "/" (config-action items filtered)', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/research ', '/rubber-duck ', '/env ', '/review ', '/security-review '].sort());
+			// `plan` collides with a config-action command and is dropped from the runtime set.
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/compact ', '/research ', '/rubber-duck ', '/env ', '/review ', '/security-review '].sort());
+		});
+
+		test('injects config-action items (permission/mode toggles) for a leading slash', async () => {
+			const items = await run('/');
+			const byLabel = new Map(items.filter(i => i.attachment?._meta?.action !== undefined).map(i => [i.attachment?.label, i]));
+			assert.ok(byLabel.has('/yolo'));
+			assert.ok(byLabel.has('/autopilot on'));
+			assert.strictEqual(byLabel.get('/autopilot')?.insertText, '/autopilot ');
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -183,7 +205,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('attachment is Simple with command + description meta', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
+			assert.deepStrictEqual(runtimeOnly(items).map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
 				{
 					insertText: '/compact ',
 					type: MessageAttachmentKind.Simple,
@@ -198,15 +220,6 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					meta: {
 						command: 'env',
 						description: 'Runtime env',
-					},
-				},
-				{
-					insertText: '/plan ',
-					type: MessageAttachmentKind.Simple,
-					meta: {
-						command: 'plan',
-						description: 'Runtime plan',
-						argumentHint: 'task',
 					},
 				},
 				{
@@ -257,10 +270,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), [
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), [
 				'/compact ',
 				'/env ',
-				'/plan ',
 				'/research ',
 				'/review ',
 				'/security-review '
@@ -276,7 +288,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items, []);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
 		test('filters out runtime commands omitted from the catalog', async () => {
@@ -288,9 +300,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), [
+			// `plan` collides with a config-action command and is dropped from the runtime set.
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), [
 				'/compact ',
-				'/plan ',
 				'/research ',
 				'/review ',
 				'/rubber-duck ',
@@ -316,7 +328,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/focus ']);
 		});
 
-		test('keeps runtime commands that also have local send-time handling', async () => {
+		test('config-action commands shadow runtime commands of the same name', async () => {
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				isRubberDuckEnabled: () => true,
 				getRuntimeSlashCommands: async () => [
@@ -329,7 +341,12 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact ', '/runtime-only '].sort());
+			// `plan` collides with a config-action command, so the runtime `plan` is
+			// dropped; non-colliding runtime commands are kept.
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/compact ', '/runtime-only '].sort());
+			// The config-action `/plan ` item is still surfaced (carrying an action bag).
+			const planItem = items.find(i => i.insertText === '/plan ');
+			assert.ok(planItem?.attachment?._meta?.action !== undefined);
 		});
 
 		test('uses runtime input metadata to determine trailing space insertion', async () => {
@@ -464,7 +481,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
 		});
 
 		test('excludes runtime skills that match a known plugin skill (with plugin prefix)', async () => {
@@ -473,7 +490,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[plugin('my-plugin', [skill('my-skill')])],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items, []);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
 		test('excludes runtime skills that match a known plugin skill with the same name (no prefix)', async () => {
@@ -482,7 +499,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[plugin('monitor-pr', [skill('monitor-pr')])],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items, []);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
 		test('excludes runtime skills that match a known synced plugin skill (no prefix)', async () => {
@@ -491,7 +508,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[syncedPlugin('skills-bundle', [skill('monitor-pr')])],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items, []);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
 		test('includes runtime skills whose name differs from the prefixed known skill candidate', async () => {
@@ -501,7 +518,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[plugin('my-plugin', [skill('my-skill')])],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
 		});
 
 		test('treats skills inside disabled containers as unknown', async () => {
@@ -510,7 +527,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[plugin('my-plugin', [skill('my-skill')], false)],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-plugin:my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-plugin:my-skill ']);
 		});
 
 		test('ignores mcp server containers when computing known skills', async () => {
@@ -527,7 +544,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				[mcpServer],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
 		});
 
 		test('surfaces the skill prompt hint as an argument hint', async () => {
@@ -535,7 +552,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ name: 'my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true, input: { hint: 'do stuff' } },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
+			assert.deepStrictEqual(runtimeOnly(items).map(item => ({ insertText: item.insertText, type: item.attachment?.type, meta: item.attachment?._meta })), [
 				{
 					insertText: '/my-skill ',
 					type: MessageAttachmentKind.Simple,
@@ -553,16 +570,16 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				{ name: 'toggle-skill', description: 'Toggle skill', kind: 'skill', allowDuringAgentExecution: true, input: { hint: '[on|off]' } },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/toggle-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/toggle-skill ']);
 		});
 
 		test('surfaces runtime skills alongside builtins for a leading slash', async () => {
 			const provider = createProvider([
-				{ name: 'plan', description: 'Runtime plan', kind: 'builtin', allowDuringAgentExecution: true, input: { hint: 'task' } },
+				{ name: 'compact', description: 'Runtime compact', kind: 'builtin', allowDuringAgentExecution: true },
 				{ name: 'alpha-skill', description: 'Alpha skill', kind: 'skill', allowDuringAgentExecution: true },
 			]);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/alpha-skill '].sort());
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/compact ', '/alpha-skill '].sort());
 		});
 
 		test('returns only runtime skills for an in-message slash token', async () => {

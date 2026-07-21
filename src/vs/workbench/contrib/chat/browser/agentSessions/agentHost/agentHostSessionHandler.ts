@@ -799,6 +799,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			insertText: raw.insertText,
 			attachment
 		};
+		if (raw.label !== undefined) {
+			item.label = raw.label;
+		}
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
 		}
