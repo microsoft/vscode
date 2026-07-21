@@ -35,6 +35,9 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
@@ -9196,6 +9199,75 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				prepareCount: 1,
 				turnCount: 1,
+			});
+		});
+
+		test('silently authenticates an existing session without an active turn', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
+				authServiceOverride: {
+					getOrActivateProviderIdForServer: async () => 'notion',
+					getSessions: async () => [{
+						id: 'notion-session',
+						accessToken: 'notion-token',
+						account: { id: 'notion-account', label: 'Notion' },
+						scopes: [],
+					}],
+				},
+			});
+			instantiationService.stub(IAuthenticationMcpAccessService, {
+				isAccessAllowedForUrl: () => true,
+			});
+			instantiationService.stub(IAuthenticationMcpService, {
+				getAccountPreference: () => 'Notion',
+			});
+			instantiationService.stub(IAuthenticationMcpUsageService, {
+				addAccountUsage: () => { },
+			});
+			const backendSession = AgentSession.uri('copilot', 'background-mcp-auth');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/background-mcp-auth' });
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Background MCP auth',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				customizations: [{
+					type: CustomizationType.McpServer,
+					id: 'notion',
+					name: 'notion',
+					enabled: true,
+					uri: 'https://mcp.notion.com/mcp',
+					state: {
+						kind: McpServerStatus.AuthRequired,
+						reason: McpAuthRequiredReason.Required,
+						resource: {
+							resource: 'https://mcp.notion.com/mcp',
+							resource_name: 'Notion MCP',
+							authorization_servers: ['https://mcp.notion.com'],
+						},
+					},
+				}],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				authenticateCalls: agentHostService.authenticateCalls,
+				turnActions: agentHostService.turnActions,
+			}, {
+				authenticateCalls: [{
+					resource: 'https://mcp.notion.com/mcp',
+					scopes: [],
+					token: 'notion-token',
+				}],
+				turnActions: [],
 			});
 		});
 
