@@ -581,6 +581,7 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
 			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'explore', agentName: 'explore' } } },
 			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect the implementation.' } },
 			// Inner subagent message + tool call, tagged only with the
 			// envelope-level agentId (no data.parentToolCallId).
 			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: '', toolRequests: [{ toolCallId: 'tc-inner', name: 'bash' }] } },
@@ -607,10 +608,37 @@ suite('mapSessionEvents — subagent routing', () => {
 		const subagentTurns = subagentTurnsByToolCallId.get('tc-task');
 		assert.ok(subagentTurns, 'Expected subagent turns for tc-task');
 		assert.strictEqual(subagentTurns!.length, 1);
+		assert.strictEqual(subagentTurns![0].message.text, 'Inspect the implementation.');
 		assert.deepStrictEqual(partKinds(subagentTurns![0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
+	});
+
+	test('drops subagent user messages whose agentId cannot be mapped', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'root-message', data: { interactionId: 'm1', content: 'Continue the task' } },
+			{ type: 'user.message', id: 'orphan-subagent-message', agentId: 'unknown-agent', data: { interactionId: 'm2', content: 'Delegated prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'm3', content: 'Done.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			turns: turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				parts: partKinds(turn.responseParts),
+			})),
+			subagentTurns: [...subagentTurnsByToolCallId],
+		}, {
+			turns: [{
+				id: 'root-message',
+				message: 'Continue the task',
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'Done.' }],
+			}],
+			subagentTurns: [],
+		});
 	});
 
 	test('routes subagent skill events into the subagent transcript', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -17,7 +18,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -51,6 +51,72 @@ type DictationMode = 'auto' | 'toggle' | 'pushToTalk';
 function getDictationMode(configurationService: IConfigurationService): DictationMode {
 	const value = configurationService.getValue<DictationMode>(DICTATION_MODE_SETTING);
 	return value === 'toggle' || value === 'pushToTalk' ? value : 'auto';
+}
+
+/** Services required to run the dictation shortcut, see {@link runDictationShortcut}. */
+export interface IDictationShortcutContext {
+	readonly speechService: IChatSpeechToTextService;
+	readonly keybindingService: IKeybindingService;
+	readonly configurationService: IConfigurationService;
+	readonly logService: ILogService;
+}
+
+/**
+ * Run the dictation shortcut for `editor`, honoring the tap-vs-hold
+ * `chat.speechToText.mode` setting. Shared by the main chat input toggle action
+ * and the Agents composer's Cmd/Ctrl+I command so both behave identically:
+ * tapping toggles, holding is push-to-talk (release stops).
+ *
+ * `commandId` is the keybinding command being run; it is used to detect a held
+ * shortcut via {@link IKeybindingService.enableKeybindingHoldMode}, which
+ * returns `undefined` when not invoked through a held key (e.g. the toolbar mic
+ * or the command palette), collapsing the behavior to a plain toggle.
+ */
+export async function runDictationShortcut(context: IDictationShortcutContext, commandId: string, editor: ICodeEditor): Promise<void> {
+	const { speechService, keybindingService, configurationService, logService } = context;
+
+	// A second invocation while dictating always stops (toggles off), regardless
+	// of mode. This is the tap-again-to-stop path and also how the toolbar stop
+	// button behaves.
+	if (isDictating()) {
+		await stopDictation();
+		return;
+	}
+
+	if (speechService.state !== ChatSpeechToTextState.Idle) {
+		return;
+	}
+
+	const window = getWindow(editor.getDomNode()) ?? getActiveWindow();
+	const mode = getDictationMode(configurationService);
+
+	// Pure toggle mode (or when the action is not invoked via a held keybinding,
+	// e.g. the toolbar mic or the command palette): just start dictating and rely
+	// on the next invocation to stop.
+	const holdMode = mode === 'toggle' ? undefined : keybindingService.enableKeybindingHoldMode(commandId);
+	await startDictation(speechService, editor, window, logService);
+	if (!holdMode) {
+		return;
+	}
+
+	// The shortcut is being held: wait for release and decide between the tap
+	// (toggle) and hold (push-to-talk) intents based on how long it was held.
+	const heldFrom = Date.now();
+	await holdMode;
+	const heldMs = Date.now() - heldFrom;
+
+	if (heldMs < HOLD_TO_TALK_THRESHOLD_MS) {
+		if (mode === 'pushToTalk') {
+			// A quick tap in push-to-talk mode is treated as accidental and
+			// discarded rather than transcribing a fraction of a second.
+			cancelDictation();
+		}
+		// In auto mode a quick tap means "toggle on": leave dictation running so
+		// the user can tap again to stop.
+		return;
+	}
+
+	await stopDictation();
 }
 
 class ToggleChatSpeechToTextAction extends Action2 {
@@ -93,66 +159,26 @@ class ToggleChatSpeechToTextAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
-		const speechService = accessor.get(IChatSpeechToTextService);
-		const keybindingService = accessor.get(IKeybindingService);
-		const configurationService = accessor.get(IConfigurationService);
 
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
-		// A second invocation while dictating always stops (toggles off),
-		// regardless of mode. This is the tap-again-to-stop path and also how the
-		// toolbar stop button behaves.
-		if (isDictating()) {
-			await stopDictation();
-			return;
-		}
-
-		if (speechService.state !== ChatSpeechToTextState.Idle) {
-			return;
-		}
-
-		const window = getWindow(widget.domNode) ?? getActiveWindow();
-		const mode = getDictationMode(configurationService);
-
-		// Pure toggle mode (or when the action is not invoked via a held
-		// keybinding, e.g. the toolbar mic or the command palette): just start
-		// dictating and rely on the next invocation to stop.
-		const holdMode = mode === 'toggle' ? undefined : keybindingService.enableKeybindingHoldMode(ToggleChatSpeechToTextAction.ID);
-		await startDictation(speechService, widget.inputEditor, window, accessor.get(ILogService));
-		if (!holdMode) {
-			return;
-		}
-
-		// The shortcut is being held: wait for release and decide between the
-		// tap (toggle) and hold (push-to-talk) intents based on how long it was
-		// held.
-		const heldFrom = Date.now();
-		await holdMode;
-		const heldMs = Date.now() - heldFrom;
-
-		if (heldMs < HOLD_TO_TALK_THRESHOLD_MS) {
-			if (mode === 'pushToTalk') {
-				// A quick tap in push-to-talk mode is treated as accidental and
-				// discarded rather than transcribing a fraction of a second.
-				cancelDictation();
-			}
-			// In auto mode a quick tap means "toggle on": leave dictation running
-			// so the user can tap again to stop.
-			return;
-		}
-
-		await stopDictation();
+		await runDictationShortcut({
+			speechService: accessor.get(IChatSpeechToTextService),
+			keybindingService: accessor.get(IKeybindingService),
+			configurationService: accessor.get(IConfigurationService),
+			logService: accessor.get(ILogService),
+		}, ToggleChatSpeechToTextAction.ID, widget.inputEditor);
 	}
 }
 
 /**
  * Shown in place of the mic button while the on-device model is downloading/loading.
- * Renders a spinner; clicking it cancels an in-flight dictation (if any).
+ * Renders a cloud-download affordance; clicking it cancels an in-flight dictation (if any).
  */
-class ChatSpeechToTextPreparingAction extends Action2 {
+export class ChatSpeechToTextPreparingAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.speechToTextPreparing';
 
 	constructor() {
@@ -161,7 +187,7 @@ class ChatSpeechToTextPreparingAction extends Action2 {
 			title: localize2('chat.speechToText.preparing', "Preparing Speech to Text Model…"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			icon: spinningLoading,
+			icon: Codicon.cloudDownload,
 			precondition: ChatSpeechToTextPreparing,
 			menu: [{
 				id: MenuId.ChatExecute,

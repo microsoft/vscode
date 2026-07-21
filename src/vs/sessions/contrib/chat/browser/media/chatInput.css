@@ -388,6 +388,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	position: relative;
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
@@ -418,6 +419,54 @@
 
 .monaco-workbench .sessions-chat-stt-button .codicon[class*='codicon-'] {
 	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* Determinate download ring shown over the mic while the on-device dictation
+	model downloads on first use (see DictationDownloadRing). */
+.sessions-chat-stt-button > .dictation-download-ring {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22px;
+	height: 22px;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	pointer-events: none;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	opacity: 0.25;
+}
+
+.hc-black .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track,
+.hc-light .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-track {
+	opacity: 1;
+}
+
+.sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	fill: none;
+	stroke: var(--vscode-progressBar-background);
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring .dictation-download-ring-progress {
+	transition: stroke-dashoffset 120ms ease;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate {
+	animation: dictation-download-ring-spin 1.2s linear infinite;
+}
+
+.monaco-workbench.monaco-enable-motion .sessions-chat-stt-button > .dictation-download-ring.indeterminate .dictation-download-ring-progress {
+	transition: none;
+}
+
+@keyframes dictation-download-ring-spin {
+	from { transform: translate(-50%, -50%) rotate(-90deg); }
+	to { transform: translate(-50%, -50%) rotate(270deg); }
 }
 
 /* Attached context container */

@@ -1287,15 +1287,17 @@ export class CopilotAgentSession extends Disposable {
 		if (!githubToken || requestUrl === undefined) {
 			return undefined;
 		}
-		let configuredUrl: string | undefined;
+		const configuredUrls = [gitHubMcpServerUrl(undefined)];
 		try {
 			const resolvedUrl = gitHubMcpServerUrl(await this._copilotApiService.resolveApiEndpoint(githubToken));
-			configuredUrl = resolvedUrl ? normalizeMcpServerUrl(resolvedUrl) : undefined;
+			if (resolvedUrl) {
+				configuredUrls.push(resolvedUrl);
+			}
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to resolve the GitHub MCP server URL: ${getErrorMessage(error)}`);
 			return undefined;
 		}
-		return requestUrl === configuredUrl ? githubToken : undefined;
+		return configuredUrls.some(u => u && requestUrl === normalizeMcpServerUrl(u)) ? githubToken : undefined;
 	}
 
 	private _protectedResourceFromMcpAuthRequest(request: McpAuthRequest): ProtectedResourceMetadata {
@@ -2884,11 +2886,9 @@ export class CopilotAgentSession extends Disposable {
 
 		// Handle `user.message` events with three responsibilities:
 		//
-		// 1. Skip SDK-injected (`source !== 'user'`) messages outright —
-		//    they are skill content / harness injections that must not
-		//    surface to the user and must not be associated with a turn
-		//    boundary (the SDK's truncate/fork mapping keys off the
-		//    user-visible message's event id).
+		// 1. Skip subagent and SDK-injected (`source !== 'user'`) messages
+		//    outright — neither represents a root user turn and neither may
+		//    be associated with the root turn boundary.
 		//
 		// 2. If the content matches a steering message we acknowledged
 		//    via {@link sendSteering}, promote it to its own protocol
@@ -2902,7 +2902,7 @@ export class CopilotAgentSession extends Disposable {
 		//    so doing this for synthetic injections would permanently
 		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
-			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+			if (e.agentId || (e.data.source && e.data.source.toLowerCase() !== 'user')) {
 				return;
 			}
 			// First SDK event for the loop: promote the turn out of `pending`.
@@ -3938,8 +3938,8 @@ export class CopilotAgentSession extends Disposable {
 		const sessionId = this.sessionId;
 
 		this._register(wrapper.onUserMessage(e => {
-			// Skip SDK-injected messages (matches guard on this event above).
-			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+			// Skip subagent and SDK-injected messages (matches guard on this event above).
+			if (e.agentId || (e.data.source && e.data.source.toLowerCase() !== 'user')) {
 				return;
 			}
 			void (async () => {

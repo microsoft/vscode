@@ -44,7 +44,7 @@
     "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.13",
     "ssh2": "^1.16.0",
-    "tar": "^7.5.9",
+    "tar": "^7.5.20",
     "tas-client": "0.3.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
