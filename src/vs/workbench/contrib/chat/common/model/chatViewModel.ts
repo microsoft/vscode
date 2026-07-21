@@ -235,9 +235,18 @@ export interface IChatTurnPillsPart {
 }
 
 /**
+ * Placeholder for absent tail slots so the progressive and final
+ * content arrays stay aligned.  A dedicated kind prevents code
+ * from accidentally treating a placeholder as real content.
+ */
+export interface IChatTailPlaceholder {
+	readonly kind: 'tailPlaceholder';
+}
+
+/**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatMcpAuthenticationRequired | IChatMcpServersStartingSlow | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart | IChatTurnPillsPart | IChatTailPlaceholder;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;

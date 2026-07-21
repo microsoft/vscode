@@ -59,7 +59,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatTailPlaceholder } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../common/chatProgressFormatting.js';
@@ -1341,34 +1341,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
+
+		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
+		// The part will hide itself if the list is empty.
+		content.push({ kind: 'references', references: isFiltered ? [] : element.contentReferences });
+
 		if (!isFiltered) {
-			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
-			// The part will hide itself if the list is empty.
-			content.push({ kind: 'references', references: element.contentReferences });
 			content.push(...annotateSpecialMarkdownContent(element.response.value));
-			if (element.codeCitations.length) {
-				content.push({ kind: 'codeCitations', citations: element.codeCitations });
-			}
 		}
 
-		if (element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName) {
-			content.push({ kind: 'errorDetails', errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element });
-		}
-
-		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		if (fileChangesSummaryPart) {
-			content.push(fileChangesSummaryPart);
-		}
-
-		const turnPillsPart = this.getChatTurnPillsPart(element);
-		if (turnPillsPart) {
-			content.push(turnPillsPart);
-		}
-
-		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
-		if (workingProgress) {
-			content.push(workingProgress);
-		}
+		const codeCitations = !isFiltered && element.codeCitations.length
+			? { kind: 'codeCitations' as const, citations: element.codeCitations }
+			: undefined;
+		const hasErrorDetails = element.model.response === element.model.entireResponse && !element.isCanceled && element.errorDetails?.message && element.errorDetails.message !== canceledName;
+		const errorDetails = hasErrorDetails
+			? { kind: 'errorDetails' as const, errorDetails: element.errorDetails, isLast: getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element }
+			: undefined;
+		this.appendTailPlaceholders(element, templateData, content, false, codeCitations, errorDetails);
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
@@ -1463,6 +1452,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart?.kind === 'progressMessage') {
 				return undefined;
 			}
+			// No thinking/tool activity to report for markdown-only responses.
+			if ((!lastPart || lastPart.kind === 'markdownContent' || lastPart.kind === 'references') && !workingParts.some(p => p.kind === 'toolInvocation' || p.kind === 'toolInvocationSerialized' || p.kind === 'thinking')) {
+				return undefined;
+			}
 			return { kind: 'working', state: workingState };
 		}
 
@@ -1505,7 +1498,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
-			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
+			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element) && workingParts.some(p => p.kind === 'toolInvocation' || p.kind === 'toolInvocationSerialized' || p.kind === 'thinking')) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'externalEdit' && !workingParts.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
@@ -2253,22 +2246,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		const workingProgress = this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData);
-		if (workingProgress) {
-			partsToRender.push(workingProgress);
-		}
-
-		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
-		if (fileChangesSummaryPart) {
-			partsToRender.push(fileChangesSummaryPart);
-		}
-
-		const turnPillsPart = this.getChatTurnPillsPart(element);
-		if (turnPillsPart) {
-			partsToRender.push(turnPillsPart);
-		}
+		this.appendTailPlaceholders(element, templateData, partsToRender, moreContentAvailable);
 
 		return { content: partsToRender, moreContentAvailable };
+	}
+
+	private static readonly TAIL_PLACEHOLDER: IChatTailPlaceholder = { kind: 'tailPlaceholder' };
+
+	/**
+	 * Both progressive and final paths must call this so that the content
+	 * arrays always have the same length and order, preventing diff
+	 * misalignment.
+	 *
+	 * Slot order:
+	 *   1. codeCitations   2. errorDetails   3. changesSummary
+	 *   4. turnPills       5. workingProgress
+	 */
+	private appendTailPlaceholders(
+		element: IChatResponseViewModel,
+		templateData: IChatListItemTemplate,
+		content: IChatRendererContent[],
+		moreContentAvailable: boolean,
+		codeCitations?: IChatCodeCitations,
+		errorDetails?: IChatErrorDetailsPart,
+	): void {
+		const tail = ChatListItemRenderer.TAIL_PLACEHOLDER;
+		content.push(codeCitations ?? tail);
+		content.push(errorDetails ?? tail);
+
+		const fileChangesSummaryPart = this.getChatFileChangesSummaryPart(element);
+		content.push(fileChangesSummaryPart ?? tail);
+
+		const turnPillsPart = this.getChatTurnPillsPart(element);
+		content.push(turnPillsPart ?? tail);
+
+		const workingProgress = this.shouldShowWorkingProgress(element, content, moreContentAvailable, templateData);
+		content.push(workingProgress ?? tail);
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
@@ -2765,6 +2778,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
 				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
+			} else if (content.kind === 'tailPlaceholder') {
+				return this.renderNoContent(other => other.kind === 'tailPlaceholder');
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -2804,8 +2819,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 	private renderChatErrorDetails(context: IChatContentPartRenderContext, content: IChatErrorDetailsPart, templateData: IChatListItemTemplate): IChatContentPart {
-		if (!isResponseVM(context.element)) {
-			return this.renderNoContent(other => content.kind === other.kind);
+		// message is typed as string but may be empty at runtime
+		if (!isResponseVM(context.element) || !content.errorDetails.message) {
+			return this.renderNoContent(other => other.kind === 'errorDetails' && other.errorDetails.message === content.errorDetails.message);
 		}
 
 		const isLast = content.isLast;
@@ -2875,9 +2891,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return referencesPart;
 	}
 
-	private renderCodeCitations(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCodeCitationContentPart {
-		const citationsPart = this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
-		return citationsPart;
+	private renderCodeCitations(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		if (citations.citations.length === 0) {
+			return this.renderNoContent(other => other.kind === 'codeCitations' && other.citations.length === 0);
+		}
+		return this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
 	}
 
 	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
@@ -3966,6 +3984,9 @@ function isSubagentToolInvocation(invocation: IChatToolInvocation | IChatToolInv
 
 export function getWorkingProgressRelevantParts(parts: readonly IChatRendererContent[]): IChatRendererContent[] {
 	return parts.filter(part => {
+		if (part.kind === 'tailPlaceholder') {
+			return false;
+		}
 		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 			return !isSubagentToolInvocation(part);
 		}
