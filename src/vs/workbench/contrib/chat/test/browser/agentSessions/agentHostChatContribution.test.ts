@@ -9271,6 +9271,90 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('deduplicates concurrent silent authentication across sessions', async () => {
+			const sessionsGate = new DeferredPromise<void>();
+			let sessionRequests = 0;
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
+				authServiceOverride: {
+					getOrActivateProviderIdForServer: async () => 'notion',
+					getSessions: async () => {
+						sessionRequests++;
+						await sessionsGate.p;
+						return [{
+							id: 'notion-session',
+							accessToken: 'notion-token',
+							account: { id: 'notion-account', label: 'Notion' },
+							scopes: [],
+						}];
+					},
+				},
+			});
+			instantiationService.stub(IAuthenticationMcpAccessService, {
+				isAccessAllowedForUrl: () => true,
+			});
+			instantiationService.stub(IAuthenticationMcpService, {
+				getAccountPreference: () => 'Notion',
+			});
+			instantiationService.stub(IAuthenticationMcpUsageService, {
+				addAccountUsage: () => { },
+			});
+			const sessionResources = ['background-mcp-auth-1', 'background-mcp-auth-2'].map(id => {
+				const backendSession = AgentSession.uri('copilot', id);
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(),
+						provider: 'copilot',
+						title: 'Background MCP auth',
+						status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(),
+						modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeClients: [],
+					customizations: [{
+						type: CustomizationType.McpServer,
+						id: `notion-${id}`,
+						name: 'notion',
+						enabled: true,
+						uri: 'https://mcp.notion.com/mcp',
+						state: {
+							kind: McpServerStatus.AuthRequired,
+							reason: McpAuthRequiredReason.Required,
+							resource: {
+								resource: 'https://mcp.notion.com/mcp',
+								resource_name: 'Notion MCP',
+								authorization_servers: ['https://mcp.notion.com'],
+							},
+						},
+					}],
+				});
+				return URI.from({ scheme: 'agent-host-copilot', path: `/${id}` });
+			});
+
+			const chatSessions = await Promise.all(sessionResources.map(resource => sessionHandler.provideChatSessionContent(resource, CancellationToken.None)));
+			for (const chatSession of chatSessions) {
+				disposables.add(toDisposable(() => chatSession.dispose()));
+			}
+			await timeout(0);
+			const requestsBeforeResolution = sessionRequests;
+			sessionsGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				requestsBeforeResolution,
+				sessionRequests,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				requestsBeforeResolution: 1,
+				sessionRequests: 1,
+				authenticateCalls: [{
+					resource: 'https://mcp.notion.com/mcp',
+					scopes: [],
+					token: 'notion-token',
+				}],
+			});
+		});
+
 		test('surfaces an unauthenticated server once, then suppresses it on the next turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-1' });

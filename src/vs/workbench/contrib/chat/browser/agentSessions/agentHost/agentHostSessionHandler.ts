@@ -2416,7 +2416,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _autoAuthenticateMcpServer(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): Promise<boolean> {
-		const pending = this._pendingMcpAutoAuthentication.get(server.id);
+		const key = JSON.stringify([
+			agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
+			[...(server.requiredScopes ?? [])].sort(),
+			server.oauthClient?.clientId,
+		]);
+		const pending = this._pendingMcpAutoAuthentication.get(key);
 		if (pending) {
 			return pending;
 		}
@@ -2439,12 +2444,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
 			return false;
 		});
-		this._pendingMcpAutoAuthentication.set(server.id, operation);
+		this._pendingMcpAutoAuthentication.set(key, operation);
 		try {
 			return await operation;
 		} finally {
-			if (this._pendingMcpAutoAuthentication.get(server.id) === operation) {
-				this._pendingMcpAutoAuthentication.delete(server.id);
+			if (this._pendingMcpAutoAuthentication.get(key) === operation) {
+				this._pendingMcpAutoAuthentication.delete(key);
 			}
 		}
 	}
