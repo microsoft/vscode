@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/dictationSession.css';
-import { disposableTimeout } from '../../../../../base/common/async.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
@@ -30,14 +29,6 @@ const INTERIM_SHIMMER_CLASS = 'dictation-interim-shimmer';
 const INTERIM_SETTLED_CLASS = 'dictation-interim-settled';
 
 const LOG_PREFIX = '[chat-stt-dictation]';
-
-/**
- * How long transcription updates must pause before the still-shimmering tail is
- * settled. Foundry keeps the last spoken segment as an interim result until more
- * audio (or `stop`) arrives, so on a trailing silence it never sends a final for
- * it; treat a gap this long as the user having paused and stop the shimmer.
- */
-const IDLE_SETTLE_MS = 700;
 
 /** Number of leading characters `a` and `b` share. */
 function commonPrefixLength(a: string, b: string): number {
@@ -93,7 +84,7 @@ class LiveTranscriptInserter {
 	 * shuts down (after `stopAndTranscribe` resolves), which would otherwise
 	 * overwrite the final text and re-apply the shimmer.
 	 */
-	update(fullText: string, interim: boolean = true, finalizedText: string = ''): void {
+	update(fullText: string, interim: boolean = true): void {
 		this._logService.trace(`${LOG_PREFIX} inserter.update interim=${interim} finalized=${this._finalized} len=${fullText.length}`);
 		if (this._finalized && interim) {
 			this._logService.trace(`${LOG_PREFIX} inserter.update ignored (already finalized)`);
@@ -142,7 +133,7 @@ class LiveTranscriptInserter {
 			[Selection.fromPositions(caret)],
 		);
 
-		this._updateInterimDecorations(text, fullText, interim, finalizedText);
+		this._updateInterimDecorations(text, fullText, interim);
 		this._prevInterimText = interim ? fullText : '';
 	}
 
@@ -159,13 +150,12 @@ class LiveTranscriptInserter {
 
 	/**
 	 * Render the interim text in the placeholder color, shimmering only the
-	 * still-processing trailing portion. The settled prefix is the longer of two
-	 * measures: the part Foundry has actually finalized (`finalizedText`, which
-	 * stops shimmering as soon as a segment is endpointed — including the last
-	 * one after the user goes silent), and the part that has not changed since
-	 * the previous interim update. Cleared entirely once the text is finalized.
+	 * still-processing trailing portion. The settled prefix is the part of the
+	 * transcript that has not changed since the previous interim update, so words
+	 * stop shimmering once the recognizer stops revising them. Cleared entirely
+	 * once the text is finalized.
 	 */
-	private _updateInterimDecorations(text: string, fullText: string, interim: boolean, finalizedText: string): void {
+	private _updateInterimDecorations(text: string, fullText: string, interim: boolean): void {
 		if (!interim || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
 			this._logService.trace(`${LOG_PREFIX} interim decorations clear (interim=${interim})`);
 			this._settledDecorations?.clear();
@@ -180,12 +170,7 @@ class LiveTranscriptInserter {
 		// in-progress word shimmers. But once the transcript stops changing (the
 		// common prefix already covers the entire current text) settle
 		// everything, otherwise the last word would shimmer forever.
-		const heuristicSettled = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
-		// Text Foundry has finalized never shimmers, regardless of the interim
-		// diff — this is what settles the final words during a trailing silence,
-		// where no later interim arrives to confirm they stopped changing.
-		const finalizedChars = finalizedText ? commonPrefixLength(fullText, finalizedText) : 0;
-		const settledChars = Math.min(fullText.length, Math.max(heuristicSettled, finalizedChars));
+		const settledChars = common >= fullText.length ? fullText.length : wordBoundaryAtOrBefore(fullText, common);
 		const splitPosition = this._positionAtOffset(text, leading + settledChars);
 
 		this._settledDecorations ??= this._editor.createDecorationsCollection();
@@ -209,28 +194,6 @@ class LiveTranscriptInserter {
 		this._logService.trace(`${LOG_PREFIX} clearShimmer`);
 		this._settledDecorations?.clear();
 		this._shimmerDecorations?.clear();
-	}
-
-	/**
-	 * Settle the whole in-progress region, stopping the shimmer on the trailing
-	 * words while keeping the not-yet-committed (placeholder) styling. Called
-	 * after a pause in speech: Foundry holds the last spoken segment as an
-	 * interim result until more audio (or `stop`) arrives, so without this the
-	 * final words would shimmer indefinitely during a trailing silence. A later
-	 * interim/final update re-applies the shimmer to any new tail.
-	 */
-	settleShimmer(): void {
-		if (this._finalized || !this._anchor || !this._end || Position.equals(this._anchor, this._end)) {
-			return;
-		}
-		this._logService.trace(`${LOG_PREFIX} settleShimmer`);
-		this._settledDecorations ??= this._editor.createDecorationsCollection();
-		this._shimmerDecorations ??= this._editor.createDecorationsCollection();
-		this._settledDecorations.set([{
-			range: Range.fromPositions(this._anchor, this._end),
-			options: { description: 'chatSpeechToText-settled', inlineClassName: INTERIM_SETTLED_CLASS },
-		}]);
-		this._shimmerDecorations.clear();
 	}
 
 	/**
@@ -334,13 +297,9 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		}
 		editor.updateOptions({ placeholder: previousPlaceholder });
 	}));
-	const idleSettle = disposables.add(new MutableDisposable());
-	disposables.add(service.onDidUpdateTranscript(update => {
-		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${update.text.length} finalized=${update.finalizedText.length} state=${service.state}`);
-		inserter.update(update.text, true, update.finalizedText);
-		// Restart the idle timer: if no further transcript arrives, the user has
-		// paused, so stop shimmering the trailing (still-interim) words.
-		idleSettle.value = disposableTimeout(() => inserter.settleShimmer(), IDLE_SETTLE_MS);
+	disposables.add(service.onDidUpdateTranscript(text => {
+		logService.trace(`${LOG_PREFIX} onDidUpdateTranscript len=${text.length} state=${service.state}`);
+		inserter.update(text);
 	}));
 	disposables.add(service.onDidChangePreparingModel(() => applyPlaceholder()));
 	disposables.add(service.onDidChangeState(state => {
