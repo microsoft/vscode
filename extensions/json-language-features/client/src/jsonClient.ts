@@ -870,10 +870,11 @@ function computeSettings(): Settings {
 		if (!Array.isArray(fileMatch) || !workspaceFolder) {
 			return fileMatch;
 		}
-		// Lowercase a drive letter like the server's uri normalization does, so that the folder
-		// is spelled the way the document uris are.
+		// Lowercase a drive letter and percent-encode `#` and `?`, like the server's uri
+		// normalization does, so that the folder is spelled the way the document uris are.
 		const folderPath = escapeGlobCharacters(workspaceFolder.path
 			.replace(/^\/[A-Z]:/, s => s.toLowerCase())
+			.replace(/[#?]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
 			.replace(/\/$/, ''));
 		const prefix = '${workspaceFolder}/';
 		return fileMatch.map(fm => {
