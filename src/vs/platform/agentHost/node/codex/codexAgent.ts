@@ -2411,6 +2411,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
+		createSessionChat: async (chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+			// Provision the (fresh) session and bind its session-backed (default)
+			// chat in one call — the replacement for the former createSession +
+			// bindSessionChat pair. `config.session` (set by the orchestrator) is
+			// the owning session URI; binding here matches the orchestrator's
+			// post-create bindSessionChat.
+			resolveAgentChatContext(context, chat);
+			const result = await this._createSession(config ?? {});
+			this._bindSessionChat(chat, result.session);
+			return result;
+		},
 		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			return this._forkChat(chat, resolveAgentChatContext(context, chat), source, options);
 		},

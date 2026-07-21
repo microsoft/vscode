@@ -1500,6 +1500,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
+		createSessionChat: async (chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+			// Provision the (fresh/import) session and bind its session-backed
+			// (default) chat in one call — the replacement for the former
+			// createSession + bindSessionChat pair. The session reuses its id as
+			// its SDK id; binding here is equivalent to the orchestrator's
+			// post-create bindSessionChat. `config.session` (set by the
+			// orchestrator) is the owning session URI.
+			resolveAgentChatContext(context, chat);
+			const result = await this._createSession(config ?? {});
+			this._bindSessionChat(AgentSession.id(result.session), chat);
+			return result;
+		},
 		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), { ...options, fork: source });
 		},
