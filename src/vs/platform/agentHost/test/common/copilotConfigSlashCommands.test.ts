@@ -52,7 +52,7 @@ suite('copilotConfigSlashCommands', () => {
 		});
 
 		test('autoApprove state hides the no-op bypass/default toggles across aliases', () => {
-			// Already bypassing: hide the bypass forms (bare + `on`), keep `off`.
+			// Already bypassing: hide the bypass `on` form, keep `off`.
 			const bypassing = new Set(getCopilotConfigSlashCommandItems('yolo', { autoApprove: 'autoApprove' }).map(i => i.label));
 			assert.deepStrictEqual([...bypassing].sort(), ['/yolo off']);
 
