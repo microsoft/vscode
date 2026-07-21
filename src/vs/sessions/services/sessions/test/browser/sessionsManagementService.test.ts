@@ -885,10 +885,10 @@ suite('SessionsManagementService', () => {
 				{ id: 'quick-agent', label: 'Quick Agent', icon: Codicon.vm },
 			];
 			override resolveWorkspace(folderUri: URI): ISessionWorkspace | undefined {
-				return folderUri.toString() === availableFolder.toString() ? { folderUri } as unknown as ISessionWorkspace : undefined;
+				return extUriBiasedIgnorePathCase.isEqual(folderUri, availableFolder) ? { folderUri } as unknown as ISessionWorkspace : undefined;
 			}
 			override getSessionTypes(folderUri: URI): ISessionType[] {
-				return folderUri.toString() === availableFolder.toString() ? [this.sessionTypes[0]] : [];
+				return extUriBiasedIgnorePathCase.isEqual(folderUri, availableFolder) ? [this.sessionTypes[0]] : [];
 			}
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
@@ -1133,6 +1133,34 @@ suite('SessionsManagementService', () => {
 		onDidChangeModels.fire();
 
 		await assert.rejects(request, /Model 'removed-model' is unavailable/);
+		assert.strictEqual(deleted, true);
+	});
+
+	test('createAndSendNewChatRequest rejects when the workspace stops advertising the session type', async () => {
+		const folderUri = URI.parse('test:///folder');
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const onDidChangeSessionTypes = disposables.add(new Emitter<void>());
+		let folderTypeAvailable = true;
+		let deleted = false;
+		const provider = new class extends TestSessionsProvider {
+			override readonly onDidChangeSessionTypes = onDidChangeSessionTypes.event;
+			override resolveWorkspace(): ISessionWorkspace { return { uri: folderUri } as ISessionWorkspace; }
+			override getSessionTypes(candidate: URI): ISessionType[] {
+				return folderTypeAvailable && extUriBiasedIgnorePathCase.isEqual(candidate, folderUri) ? [...this.sessionTypes] : [];
+			}
+			override getModelsSnapshot(): ISessionModelsSnapshot {
+				return { models: [], desiredModelResolution: { kind: 'pending', identifier: 'gpt-4o' }, modelTarget: undefined };
+			}
+			override deleteNewSession(): void { deleted = true; }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		const request = service.createAndSendNewChatRequest(folderUri, { query: 'hi' }, { modelId: 'gpt-4o' });
+		await Promise.resolve();
+		folderTypeAvailable = false;
+		onDidChangeSessionTypes.fire();
+
+		await assert.rejects(request, /Session type 'test' is no longer available/);
 		assert.strictEqual(deleted, true);
 	});
 

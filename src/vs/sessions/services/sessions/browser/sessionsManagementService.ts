@@ -599,7 +599,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const session = provider.createNewSession(folderUri, sessionTypeId);
 		const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
 			.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
-		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token);
+		return this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri);
 	}
 
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
@@ -615,13 +615,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		createOptions: ICreateNewSessionOptions | undefined,
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
+		folderUri?: URI,
 	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			if (createOptions?.modelId) {
-				await this._waitForRequestedModel(provider, session, createOptions.modelId, token);
+				await this._waitForRequestedModel(provider, session, createOptions.modelId, token, folderUri);
 				provider.setModel(session.sessionId, createOptions.modelId);
 			}
 			if (createOptions?.modeId) {
@@ -652,7 +653,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken): Promise<void> {
+	private async _waitForRequestedModel(provider: ISessionsProvider, session: ISession, modelId: string, token: CancellationToken, folderUri?: URI): Promise<void> {
 		const resolveCurrent = () => provider.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution;
 		const initial = resolveCurrent();
 		if (initial.kind === 'available' || initial.kind === 'notRequested') {
@@ -690,7 +691,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			};
 			disposables.add(provider.onDidChangeModels(check));
 			disposables.add(provider.onDidChangeSessionTypes(() => {
-				if (!provider.sessionTypes.some(type => type.id === session.sessionType)) {
+				const sessionTypes = folderUri ? provider.getSessionTypes(folderUri) : provider.sessionTypes;
+				if (!sessionTypes.some(type => type.id === session.sessionType)) {
 					finish(new Error(`Session type '${session.sessionType}' is no longer available for sessions provider '${provider.id}'`));
 				}
 			}));
