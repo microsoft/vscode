@@ -1027,7 +1027,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						lastIncomingDataTime = Date.now() - e.millisSinceLastIncomingData;
 						reconnectionAttempts = e.attempt;
 						if (wasReplaced) {
-							logService.warn(`Reconnected to a replaced remote server; previous server-side session state is gone.`);
+							logService.warn('Reconnected to a replaced remote server; previous server-side session state is gone.');
 						}
 
 						type RemoteConnectionGainClassification = {

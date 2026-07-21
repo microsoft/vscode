@@ -65,7 +65,7 @@ export interface ErrorMessage {
 	type: 'error';
 	/** Human-readable diagnostic (description plus any detail). Always populated for older/forked clients. */
 	reason: string;
-	/** Stable machine-readable code. Newer servers always populate this; control flow (e.g. recovery decisions) matches on it. */
+	/** Stable machine-readable code. Newer servers populate this on connection rejections and recovery control flow matches on it; other error paths (e.g. tunnel connect failures) carry only `reason`. */
 	reasonCode?: ConnectionRejectionReason;
 }
 
@@ -823,16 +823,19 @@ export class ManagementPersistentConnection extends PersistentConnection {
 		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, { remoteAuthority, clientId }, options.ipcLogger));
 
 		// On a stale-token recovery the protocol session is wiped and the new server expects the init
-		// context as msg #1; do it (and replay subscriptions) synchronously while _isReconnecting so they
-		// replay in order on the next endAcceptReconnection.
-		this._register(protocol.onDidResetSession(() => this.client.reinitialize()));
+		// context as msg #1; replay it (and the event subscriptions) synchronously while _isReconnecting so
+		// they ride the next endAcceptReconnection ahead of any concurrent sends. Pending calls are rejected
+		// here, at reset time, rather than earlier in the reconnect loop: that also covers calls made while
+		// the fresh socket was being established, which the reset would otherwise silently discard, leaving
+		// their promises hanging forever. Rejecting after reinitialize() keeps the init context as msg #1;
+		// the rejections' PromiseCancel messages queue behind it and the new server ignores their unknown ids.
+		this._register(protocol.onDidResetSession(() => {
+			this.client.reinitialize();
+			this.client.cancelPendingCalls();
+		}));
 	}
 
 	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
-		if (options.isFreshHandshakeOnExistingProtocol) {
-			// Reject in-flight calls up front; the replaced server can't answer them.
-			this.client.cancelPendingCalls();
-		}
 		await doConnectRemoteAgentManagement(options, timeoutCancellationToken);
 	}
 }
@@ -867,7 +870,7 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 function getErrorFromMessage(msg: any): Error | null {
 	if (msg && msg.type === 'error') {
 		const reasonCode: ConnectionRejectionReason | undefined = msg.reasonCode ?? inferReasonCodeFromLegacyReason(msg.reason);
-		const reason: string = msg.reason ?? (reasonCode ? describeConnectionRejection(reasonCode) : 'unknown');
+		const reason: string = msg.reason ?? 'unknown';
 		const error = new Error(`Connection error: ${reason}`);
 		// eslint-disable-next-line local/code-no-any-casts
 		(<any>error).code = 'VSCODE_CONNECTION_ERROR';

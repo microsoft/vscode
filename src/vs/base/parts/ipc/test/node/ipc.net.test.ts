@@ -12,6 +12,7 @@ import { Barrier, timeout } from '../../../../common/async.js';
 import { VSBuffer } from '../../../../common/buffer.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
+import { ChannelClient, ChannelServer, IChannel, IServerChannel } from '../../common/ipc.js';
 import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType, SocketTimeoutReason } from '../../common/ipc.net.js';
 import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net.js';
 import { flakySuite } from '../../../../test/common/testUtils.js';
@@ -628,6 +629,66 @@ suite('PersistentProtocol reconnection', () => {
 				assert.strictEqual(second.toString(), 'after-context');
 
 				freshBMessages.dispose();
+				a.dispose();
+				freshB.dispose();
+			}
+		);
+	});
+
+	test('calls made while a fresh handshake is in flight are rejected at session reset instead of hanging', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const a = new PersistentProtocol({ socket: new NodeSocket(ether.a), loadEstimator });
+				const b = new PersistentProtocol({ socket: new NodeSocket(ether.b), loadEstimator });
+
+				// channel layer on top of the protocol, wired like ManagementPersistentConnection
+				const channelClient = new ChannelClient(a);
+				const resetListener = a.onDidResetSession(() => {
+					channelClient.reinitialize();
+					channelClient.cancelPendingPromiseRequests();
+				});
+				const serverChannel: IServerChannel = {
+					call: (_, command): Promise<any> => command === 'marco' ? Promise.resolve('polo') : new Promise(() => { }),
+					listen: (): Event<any> => { throw new Error('not implemented'); }
+				};
+				const firstServer = new ChannelServer(b, 'ctx');
+				firstServer.registerChannel('test', serverChannel);
+				const channel = channelClient.getChannel<IChannel>('test');
+				assert.strictEqual(await channel.call('marco'), 'polo');
+
+				// the server goes away and a reconnect attempt leaves the protocol reconnecting
+				firstServer.dispose();
+				b.dispose();
+				const ether2 = new Ether();
+				a.beginAcceptReconnection(new NodeSocket(ether2.a), null);
+
+				// a call made in this window is only queued (never written); the reset used to
+				// silently discard it with the queue, leaving the promise hanging forever
+				const inFlight = channel.call('never');
+				a.resetSessionStateForFreshHandshake();
+				await assert.rejects(inFlight, /Canceled/);
+
+				// and the client stays usable against the fresh server
+				const freshB = new PersistentProtocol({ socket: new NodeSocket(ether2.b), loadEstimator });
+				const freshServer = new ChannelServer(freshB, 'ctx');
+				freshServer.registerChannel('test', serverChannel);
+				a.endAcceptReconnection();
+				assert.strictEqual(await channel.call('marco'), 'polo');
+
+				resetListener.dispose();
+				channelClient.dispose();
+				firstServer.dispose();
+				freshServer.dispose();
 				a.dispose();
 				freshB.dispose();
 			}
