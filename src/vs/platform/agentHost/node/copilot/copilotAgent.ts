@@ -3204,7 +3204,7 @@ class SessionDiscoveredEntry extends Disposable {
 	private readonly _fileService: IFileService;
 
 	constructor(
-		workingDirectory: URI,
+		workingDirectory: URI[],
 		userHome: URI,
 		private readonly _onDidRefresh: () => void,
 		private readonly _logService: ILogService,
@@ -3957,7 +3957,7 @@ class SessionPluginController extends Disposable {
 		}
 		if (!this._sessionDiscovered.value) {
 			this._sessionDiscovered.value = new SessionDiscoveredEntry(
-				this._directory,
+				[this._directory],
 				this._parent.getUserHome(),
 				() => this._onDidPublish.fire({
 					type: ActionType.SessionCustomizationsChanged,

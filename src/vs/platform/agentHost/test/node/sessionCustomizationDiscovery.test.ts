@@ -18,6 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
+import type { AgentsDiscoverRequest } from '../../node/copilot/copilotRCP.js';
 import { DiscoveredType, SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../../node/shared/sessionPluginBundler.js';
 import { mapToParsedPlugin, toDiscoveredDirectoryCustomizations } from '../../node/copilot/copilotAgent.js';
@@ -61,7 +62,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const wsCopilotInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
 		const wsGeminiInstructions = await seed('/workspace/GEMINI.md', 'workspace gemini instructions');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None))
 			.flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })))
 			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
@@ -75,7 +76,7 @@ suite('SessionCustomizationDiscovery', () => {
 	});
 
 	test('groups discovered customizations by parent folder', async () => {
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const client = {
 			rpc: {
 				agents: {
@@ -110,6 +111,93 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
+	test('discovers agents from multiple working directories', async () => {
+		const secondWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace2' });
+		const requestedProjectPaths: string[][] = [];
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome));
+		const client = {
+			rpc: {
+				agents: {
+					discover: async (request: AgentsDiscoverRequest) => {
+						requestedProjectPaths.push(request.projectPaths ?? []);
+						return {
+							agents: [
+								{ id: 'one', name: 'One', description: '', path: '/workspace/.github/agents/one.agent.md', userInvocable: false },
+								{ id: 'two', name: 'Two', description: '', path: '/workspace2/.github/agents/two.agent.md', userInvocable: false },
+							],
+						};
+					},
+				},
+				instructions: { discover: async () => ({ sources: [] }) },
+				skills: { discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const agentDirectories = customizations.filter(customization => customization.contents === 'agent');
+		const getPath = (uri: string) => URI.parse(uri).path;
+
+		assert.deepStrictEqual(requestedProjectPaths, [[workspace.fsPath, secondWorkspace.fsPath]]);
+		assert.deepStrictEqual(agentDirectories.map(customization => getPath(customization.uri)).sort(), [
+			'/workspace/.github/agents',
+			'/workspace2/.github/agents',
+		]);
+	});
+
+	test('resolves relative instruction paths against their own working directory', async () => {
+		const secondWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace2' });
+		const requestedProjectPaths: string[][] = [];
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome));
+		const client = {
+			rpc: {
+				agents: { discover: async () => ({ agents: [] }) },
+				instructions: {
+					discover: async (request: AgentsDiscoverRequest) => {
+						const projectPath = (request.projectPaths ?? [])[0];
+						requestedProjectPaths.push(request.projectPaths ?? []);
+						return {
+							sources: [
+								{ id: `rule-${projectPath}`, label: 'Rule', description: '', sourcePath: '.github/copilot-instructions.md', applyTo: undefined },
+							],
+						};
+					},
+				},
+				skills: { discover: async () => ({ skills: [] }) },
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const ruleDirectories = customizations.filter(customization => customization.contents === 'rule');
+		const getPath = (uri: string) => URI.parse(uri).path;
+
+		// instructions.discover is called once per working directory (relative paths are resolved per-project).
+		assert.deepStrictEqual(requestedProjectPaths.map(paths => [...paths].sort()).sort(), [
+			[workspace.fsPath],
+			[secondWorkspace.fsPath],
+		].sort());
+		assert.deepStrictEqual(ruleDirectories.map(customization => getPath(customization.uri)).sort(), [
+			'/workspace/.github',
+			'/workspace2/.github',
+		]);
+	});
+
+	test('scans customization files across multiple working directories', async () => {
+		const secondWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace2' });
+		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'first workspace agent');
+		const ws2Agent = await seed('/workspace2/.github/agents/bar.agent.md', 'second workspace agent');
+		const ws2Skill = await seed('/workspace2/.github/skills/baz/SKILL.md', 'second workspace skill');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome));
+		const files = (await discovery.scan(CancellationToken.None))
+			.flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
+
+		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
+			{ uri: ws2Agent, type: DiscoveredType.Agent },
+			{ uri: ws2Skill, type: DiscoveredType.Skill },
+			{ uri: wsAgent, type: DiscoveredType.Agent },
+		].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())));
+	});
+
 	test('returns directories sorted by type and URI', async () => {
 		await seed('/workspace/.github/agents/aaa.agent.md', 'workspace agent a');
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
@@ -124,7 +212,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/home/.agents/skills/aaa/SKILL.md', 'user skill aaa');
 		await seed('/home/.agents/skills/zap/SKILL.md', 'user skill');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const directories = await discovery.scan(CancellationToken.None);
 		const actual = directories.map(directory => `${directory.type}:${directory.uri.toString()}`);
 		const expected = [...actual].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
@@ -143,7 +231,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.claude/GEMINI.md', 'unsupported filename in .claude');
 		await seed('/home/copilot-instructions.md', 'unsupported home root');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None))
 			.flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })))
 			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
@@ -177,7 +265,7 @@ suite('SessionCustomizationDiscovery', () => {
 			return originalWatch(resource, options);
 		}) as typeof fileService.watch;
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 
 		const watched = new Map<string, boolean>();
@@ -218,7 +306,7 @@ suite('SessionCustomizationDiscovery', () => {
 			};
 		}) as typeof fileService.watch;
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		const watchCallsAfterFirstScan = watchCalls.length;
 
@@ -232,7 +320,7 @@ suite('SessionCustomizationDiscovery', () => {
 		// Seed an existing agent so `.github/agents` is discovered and watched.
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 
 		// Flush buffered file change events from the initial seed/scan so the
@@ -255,7 +343,7 @@ suite('SessionCustomizationDiscovery', () => {
 	test('fires onDidChange when an existing agent file is modified under a non-recursively watched root', async () => {
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		await timeout(50);
 
@@ -278,7 +366,7 @@ suite('SessionCustomizationDiscovery', () => {
 		// Seed a second agent so the parent directory still exists after the deletion.
 		await seed('/workspace/.github/agents/bar.agent.md', 'workspace agent bar');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		await timeout(50);
 
@@ -299,7 +387,7 @@ suite('SessionCustomizationDiscovery', () => {
 		// AGENTS.md lives directly under the workspace root, which is watched non-recursively.
 		await seed('/workspace/AGENTS.md', 'agents instructions');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		await timeout(50);
 
@@ -320,7 +408,7 @@ suite('SessionCustomizationDiscovery', () => {
 		// Seed a customization so the workspace + `.github` dirs get watchers.
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		await timeout(50);
 
@@ -348,7 +436,7 @@ suite('SessionCustomizationDiscovery', () => {
 	test('cancellation of one caller does not affect another concurrent caller', async () => {
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const cancelSource = new CancellationTokenSource();
 		disposables.add(cancelSource);
 
@@ -374,7 +462,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/agents/not-an-agent.txt', 'ignored');
 		await seed('/workspace/.github/hooks/not-a-hook.md', 'ignored');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const directories = await discovery.scan(CancellationToken.None);
 		const files = directories.flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
@@ -395,7 +483,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const nestedWsHook = await seed('/workspace/.github/hooks/team/security/pre-tool.json', '{"PreToolUse": []}');
 		const nestedUserHook = await seed('/home/.copilot/hooks/domain/tools/post-tool.json', '{"PostToolUse": []}');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None)).flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
@@ -411,7 +499,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const claudeLocalSettings = await seed('/workspace/.claude/settings.local.json', '{"hooks": {"SessionEnd": []}}');
 		await seed('/workspace/.github/copilot/settings.dev.json', '{"hooks": {"Ignored": []}}');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None)).flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
@@ -425,7 +513,7 @@ suite('SessionCustomizationDiscovery', () => {
 	test('fires onDidChange when fixed hook settings file is modified', async () => {
 		await seed('/workspace/.github/copilot/settings.json', '{"hooks": {"PreToolUse": []}}');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		await discovery.scan(CancellationToken.None);
 		await timeout(50);
 
@@ -448,7 +536,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const wsLowerReadmeAgent = await seed('/workspace/.github/agents/readme.md', 'docs lower');
 		await seed('/workspace/.github/agents/README.md', 'docs');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None)).flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
@@ -467,7 +555,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const wsSkill = await seed('/workspace/.github/agents/SKILL.md', 'skill body');
 		const wsSkillLowercase = await seed('/workspace/.github/agents/skill.md', 'skill body lowercase');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None)).flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
@@ -485,7 +573,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const nestedWsInstr = await seed('/workspace/.github/instructions/team/security/policy.instructions.md', 'workspace nested instruction');
 		const nestedUserInstr = await seed('/home/.copilot/instructions/domain/tools/deep.instructions.md', 'user nested instruction');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const files = (await discovery.scan(CancellationToken.None)).flatMap(directory => directory.files.map(file => ({ uri: file.uri, type: directory.type })));
 
 		assert.deepStrictEqual([...files].sort((a, b) => a.uri.toString().localeCompare(b.uri.toString())), [
@@ -500,7 +588,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/instructions/team/security/policy.instructions.md', 'workspace nested instruction');
 		await seed('/home/.copilot/instructions/domain/tools/deep.instructions.md', 'user nested instruction');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const result = await bundler.bundle(await discovery.scan(CancellationToken.None));
 
@@ -519,7 +607,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await fileService.createFolder(workspace);
 		await fileService.createFolder(userHome);
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const directories = await discovery.scan(CancellationToken.None);
 
 		// Even with no files, discovery should return all search root directories
@@ -550,7 +638,7 @@ suite('SessionCustomizationDiscovery', () => {
 		const skill = await seed('/workspace/.github/skills/bar/SKILL.md', '---\nname: Workspace Skill\ndescription: Skill description\n---\nbody');
 		const instruction = await seed('/workspace/.github/instructions/baz.instructions.md', '---\nname: Workspace Rule\ndescription: Rule description\nglobs:\n  - src/**\n---\nbody');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const customizations = await toDiscoveredDirectoryCustomizations(await discovery.scan(CancellationToken.None), fileService);
 
 		const plugin = mapToParsedPlugin(customizations);
@@ -583,7 +671,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace instructions');
 		await seed('/workspace/.agents/skills/bar/SKILL.md', '---\nname: bar\ndescription: Skill description\n---\nbody');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const customizations = await toDiscoveredDirectoryCustomizations(await discovery.scan(CancellationToken.None), fileService);
 
 		const plugin = mapToParsedPlugin(customizations);
@@ -598,7 +686,7 @@ suite('SessionCustomizationDiscovery', () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace instructions');
 		await seed('/home/.copilot/copilot-instructions.md', 'user instructions');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const customizations = await toDiscoveredDirectoryCustomizations(await discovery.scan(CancellationToken.None), fileService);
 
 		const plugin = mapToParsedPlugin(customizations);
@@ -648,7 +736,7 @@ suite('SessionPluginBundler', () => {
 		await seed('/workspace/.github/instructions/baz.instructions.md', 'instr body');
 		await seed('/workspace/.github/hooks/pre-tool.json', '{"PreToolUse": []}');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const directories = await discovery.scan(CancellationToken.None);
 		const result = await bundler.bundle(directories);
@@ -679,7 +767,7 @@ suite('SessionPluginBundler', () => {
 		await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 		await seed('/workspace/.github/skills/bar/SKILL.md', 'skill body');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const first = await bundler.bundle(await discovery.scan(CancellationToken.None));
 
@@ -721,7 +809,7 @@ suite('SessionPluginBundler', () => {
 	test('returns undefined without rewriting when cancelled', async () => {
 		await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
 
-		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 
 		let writeCalls = 0;

@@ -221,7 +221,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private readonly _watchers = new ResourceMap<IWatchSpec & { readonly disposable: IDisposable }>();
 
 	constructor(
-		private readonly _workingDirectory: URI,
+		private readonly _workingDirectory: URI[],
 		private readonly _userHome: URI,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
@@ -247,7 +247,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	public async discover(client: CopilotClient, token: CancellationToken): Promise<readonly DirectoryCustomization[]> {
 		throwIfCancelled(token);
 
-		const p: AgentsDiscoverRequest = { projectPaths: [this._workingDirectory.fsPath] };
+		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectory.map(uri => uri.fsPath) };
 
 		try {
 			const [agents, rules, skills] = await Promise.all([
@@ -283,17 +283,20 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, token: CancellationToken): Promise<RuleCustomization[]> {
 		const rules: RuleCustomization[] = [];
-
-		const instructionDiscovery = await raceCancellationError(client.rpc.instructions.discover(discoveryRequest), token);
-		for (const instruction of instructionDiscovery.sources) {
-			let uri: URI;
-			if (isAbsolute(instruction.sourcePath)) {
-				uri = URI.file(instruction.sourcePath);
-			} else {
-				uri = joinPath(this._workingDirectory, instruction.sourcePath);
+		const projectPaths = discoveryRequest.projectPaths ?? [];
+		await Promise.all(projectPaths.map(async projectPath => {
+			const perProjectdiscoveryRequest: AgentsDiscoverRequest = { projectPaths: [projectPath], excludeHostAgents: discoveryRequest.excludeHostAgents };
+			const instructionDiscovery = await raceCancellationError(client.rpc.instructions.discover(perProjectdiscoveryRequest), token);
+			for (const instruction of instructionDiscovery.sources) {
+				let uri: URI;
+				if (isAbsolute(instruction.sourcePath)) {
+					uri = URI.file(instruction.sourcePath);
+				} else {
+					uri = joinPath(URI.file(projectPath), instruction.sourcePath);
+				}
+				rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
 			}
-			rules.push({ type: CustomizationType.Rule, uri: uri.toString(), id: instruction.id, name: instruction.label, description: instruction.description, globs: instruction.applyTo, alwaysApply: false });
-		}
+		}));
 		return rules;
 	}
 
@@ -357,9 +360,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris, token)),
+			...searchRoots.workspace.map(root => this._workingDirectory.map(workingDirectory => this._scanRoot(workingDirectory, root, seen, result, nextWatchRootUris, token))).flat(),
 			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, token)),
-			this._scanFixedDiscoveryFiles(this._workingDirectory, fixedDiscoveryFiles.workspace, seen, result, nextWatchRootUris, token),
+			...this._workingDirectory.map(workingDirectory => this._scanFixedDiscoveryFiles(workingDirectory, fixedDiscoveryFiles.workspace, seen, result, nextWatchRootUris, token)).flat(),
 			this._scanFixedDiscoveryFiles(this._userHome, fixedDiscoveryFiles.user, seen, result, nextWatchRootUris, token)
 		]);
 
