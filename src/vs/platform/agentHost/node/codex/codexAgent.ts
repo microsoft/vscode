@@ -3592,9 +3592,14 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private async _readSession(session: URI): Promise<ThreadReadResponse | undefined> {
 		// Resolve the codex thread id for this session URI. Resolution
-		// order: in-memory session → persisted metadata overlay → URI host
-		// (for sessions materialized in a prior process where sessionId
-		// equals threadId by convention).
+		// order: in-memory session → persisted metadata overlay → URI host.
+		// The final `?? sessionId` is a LEGACY-COMPAT shim, not an active I3
+		// invariant: fresh sessions always decouple sessionId from the
+		// app-server-assigned threadId (recorded in the overlay by
+		// `_persistMaterializedSession`), so this fallback only fires for
+		// pre-existing sessions enumerated as `codex:/<threadId>`, where the
+		// thread id genuinely IS the session's persisted identity. Removing it
+		// would require migrating those sessions (disallowed), so it stays.
 		const sessionId = AgentSession.id(session);
 		const existing = this._sessions.get(sessionId);
 		let threadId = existing?.threadId;
@@ -3624,6 +3629,12 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		// After the orchestrator-owned session registry (I3-removal stage 2),
+		// AH no longer unions provider `listSessions()` for top-level
+		// enumeration; this now serves only the registry's one-time backfill of
+		// pre-registry hosts. Threads with no live in-memory session are mapped
+		// to `codex:/<threadId>` below — that thread→URI identity is the LEGACY
+		// persisted identity of those sessions, not an active I3 invariant.
 		if (!this._githubToken) {
 			return [];
 		}
