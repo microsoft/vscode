@@ -8,7 +8,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
 import { toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { getCopilotConfigSlashCommandItems, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
+import { getCopilotConfigSlashCommandItems, ICopilotConfigSlashCommandState, isCopilotConfigSlashCommand } from '../../common/copilotConfigSlashCommands.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from '../agentHostCompletions.js';
 import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken } from '../agentHostSlashCompletion.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
@@ -31,6 +31,12 @@ export interface ICopilotSlashCommandSessionInfo {
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	/**
+	 * The session's current config state (`mode` / `autoApprove` axes), used to
+	 * filter config-action slash command completions so only the state-changing
+	 * forms are offered. When omitted, all forms are offered.
+	 */
+	getSessionConfigState?(sessionId: string): ICopilotConfigSlashCommandState | undefined;
 }
 
 export interface ICopilotRuntimeSlashCommandQueryOptions {
@@ -220,7 +226,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		// offered for leading `/command` tokens (not the whitespace-delimited
 		// skill form).
 		if (!returnJustSkills) {
-			for (const item of getCopilotConfigSlashCommandItems(typed)) {
+			const configState = this._sessionInfo.getSessionConfigState?.(sessionId);
+			for (const item of getCopilotConfigSlashCommandItems(typed, configState)) {
 				completionItems.push({
 					insertText: item.insertText,
 					label: item.label,

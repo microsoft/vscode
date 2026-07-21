@@ -90,7 +90,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'yolo', sortText: 'z1_yolo',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
@@ -98,15 +97,6 @@ function getConfigSlashCommands(): readonly IConfigSlashCommand[] {
 		{
 			command: 'allow-all', sortText: 'z1_allow-all',
 			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
-				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
-			],
-		},
-		{
-			command: 'autoApprove', sortText: 'z1_autoApprove',
-			options: [
-				{ detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'on', detail: setBypassDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_BYPASS } },
 				{ arg: 'off', detail: setDefaultDetail(), config: { [SessionConfigKey.AutoApprove]: AUTO_APPROVE_DEFAULT } }
 			],
@@ -144,11 +134,51 @@ export function isCopilotConfigSlashCommand(command: string): boolean {
 }
 
 /**
+ * The current session-config state used to filter config-action slash command
+ * completions so only the state-changing forms are offered (e.g. `/autopilot on`
+ * is hidden while already in autopilot mode).
+ */
+export interface ICopilotConfigSlashCommandState {
+	/** The session's current `mode` axis value (e.g. `interactive` / `plan` / `autopilot`). */
+	readonly mode?: string;
+	/** The session's current `autoApprove` axis value (e.g. `default` / `autoApprove`). */
+	readonly autoApprove?: string;
+}
+
+/**
+ * Returns whether the option should be offered for the current session state.
+ * Unknown state and keep-text options are always offered.
+ */
+function shouldOfferOption(option: IConfigSlashOption, state: ICopilotConfigSlashCommandState | undefined): boolean {
+	// Keep-text forms carry a typed prompt/objective and are always relevant.
+	if (option.argumentHint !== undefined || !state) {
+		return true;
+	}
+	const autoApproveTarget = option.config[SessionConfigKey.AutoApprove];
+	if (autoApproveTarget !== undefined) {
+		const isBypass = state.autoApprove === AUTO_APPROVE_BYPASS;
+		return autoApproveTarget === AUTO_APPROVE_BYPASS ? !isBypass : isBypass;
+	}
+	const modeTarget = option.config[SessionConfigKey.Mode];
+	if (modeTarget === MODE_AUTOPILOT) {
+		return state.mode !== MODE_AUTOPILOT;
+	}
+	if (modeTarget === MODE_INTERACTIVE) {
+		return state.mode === MODE_AUTOPILOT;
+	}
+	return true;
+}
+
+/**
  * Returns the flattened completion items (one per command form) whose command
  * name matches `typed` (the text after the leading `/`, case-insensitive prefix).
  * When `typed` is empty, all items are returned.
+ *
+ * When `state` (the session's current config values) is provided, pure toggle
+ * forms that would be a no-op are filtered out so only the state-changing forms
+ * are offered (see {@link shouldOfferOption}).
  */
-export function getCopilotConfigSlashCommandItems(typed: string): ICopilotConfigSlashCommandItem[] {
+export function getCopilotConfigSlashCommandItems(typed: string, state?: ICopilotConfigSlashCommandState): ICopilotConfigSlashCommandItem[] {
 	const typedLower = typed.trim().toLowerCase();
 	const items: ICopilotConfigSlashCommandItem[] = [];
 	for (const command of getConfigSlashCommands()) {
@@ -156,6 +186,9 @@ export function getCopilotConfigSlashCommandItems(typed: string): ICopilotConfig
 			continue;
 		}
 		for (const option of command.options) {
+			if (!shouldOfferOption(option, state)) {
+				continue;
+			}
 			// Keep-text items (those expecting a typed argument) insert `/command `
 			// and show the argument hint; pure toggles insert nothing (the display
 			// comes from `label`).
