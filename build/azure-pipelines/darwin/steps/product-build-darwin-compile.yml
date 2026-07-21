@@ -73,6 +73,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - task: PipAuthenticate@1
+    inputs:
+      artifactFeeds: Monaco/vscode
+    displayName: Setup Python Package Authentication
+
   - script: |
       set -e
       c++ --version
@@ -113,7 +118,7 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS CLI (${{ upper(parameters.VSCODE_ARCH) }})" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact (background)
@@ -214,7 +219,7 @@ steps:
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli=macOS CLI (${{ upper(parameters.VSCODE_ARCH) }})" unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Wait for CLI artifact
@@ -237,21 +242,6 @@ steps:
         mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
         chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
       displayName: Make CLI executable
-
-    - script: |
-        set -e
-        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-        APP_NAME="`ls $APP_ROOT | head -n 1`"
-        APP_PATH="$APP_ROOT/$APP_NAME"
-        EXEC_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
-        # Create a symlink from 'Electron' to the actual executable for backward compatibility
-        # This ensures apps that relied on the hardcoded path 'Contents/MacOS/Electron' continue to work
-        # Remove this step once main branch is on 1.112 release.
-        if [ "$EXEC_NAME" != "Electron" ] && [ ! -L "$APP_PATH/Contents/MacOS/Electron" ]; then
-          ln -s "$EXEC_NAME" "$APP_PATH/Contents/MacOS/Electron"
-        fi
-      condition: eq(variables['BUILT_CLIENT'], 'true')
-      displayName: Create Electron symlink for backward compatibility
 
     - script: |
         set -e

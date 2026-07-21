@@ -8,6 +8,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
@@ -59,8 +60,9 @@ export interface ISessionModelPickerOptions {
 
 export interface ISessionModelsSnapshot {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
-	/** Whether absence of the requested restored model is conclusive. */
-	readonly isResolved: boolean;
+	readonly desiredModelResolution: ModelIdentifierResolution;
+	/** Concrete chat session type targeted by this model pool, or undefined for the shared pool. */
+	readonly modelTarget: string | undefined;
 }
 
 /**
@@ -224,10 +226,10 @@ export interface ISessionsProvider {
 	renameSession(sessionId: string, title: string): Promise<void>;
 
 	/**
-	 * Get selectable models and whether absence of `restoredModelId` is conclusive.
-	 * Callers wait for {@link onDidChangeModels} before repairing an unresolved selection.
+	 * Get selectable models and the current resolution of `desiredModelId`.
+	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 */
-	getModelsSnapshot(sessionId: string, restoredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the

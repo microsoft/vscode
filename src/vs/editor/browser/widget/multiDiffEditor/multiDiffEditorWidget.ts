@@ -61,6 +61,15 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {
+		// `MultiDiffEditor.clearInput()` awaits `super.clearInput()` before it
+		// calls `setViewModel(undefined)`; during that await the editor pane and
+		// its scoped instantiation service can be disposed. Once this widget is
+		// disposed the `_widgetImpl` derived is no longer observed, so reading it
+		// here would re-create the impl via `createInstance` on the disposed
+		// instantiation service and throw. Bail out instead.
+		if (this._store.isDisposed) {
+			return;
+		}
 		// An editor opened with `preserveFocus` (e.g. restored in the background
 		// or on a session switch) must not have its automatic first-change
 		// selection steal keyboard focus from elsewhere (such as the chat input).

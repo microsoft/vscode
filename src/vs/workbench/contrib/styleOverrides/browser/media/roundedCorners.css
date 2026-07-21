@@ -303,3 +303,7 @@
 .style-override.monaco-workbench .monaco-count-badge.long {
 	border-radius: var(--vscode-cornerRadius-small);
 }
+
+.style-override.monaco-workbench .part.panel .scm-view .scm-editor-container {
+	border-radius: var(--vscode-cornerRadius-small);
+}

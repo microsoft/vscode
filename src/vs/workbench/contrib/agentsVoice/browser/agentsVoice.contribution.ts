@@ -25,6 +25,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -179,12 +180,46 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
+		const keybindingService = accessor.get(IKeybindingService);
+
+		// Capture hold-mode FIRST, synchronously, before any `await`. The
+		// keybinding service only reports a held chord while it is still
+		// dispatching this command; the moment `run()` first suspends on an
+		// await it clears `_currentlyDispatchingCommandId`, after which
+		// `enableKeybindingHoldMode` returns `undefined`. Calling it up-front is
+		// what makes press-and-hold work even on the very first (cold) press
+		// where we still have to connect. `undefined` here means the action was
+		// invoked without a held key (toolbar mic button / command palette).
+		const holdMode = keybindingService.enableKeybindingHoldMode('agentsVoice.startVoiceInChat');
+
+		// Ensure the session is connected before we start recording. The mic
+		// button's first press connects; a held keybinding also connects here so
+		// that press-and-hold works on the very first invocation. If the user
+		// releases the key while we're still connecting, `holdMode` resolves
+		// early and the awaited release below fires right after pttDown() — the
+		// controller then treats it as a quick tap (toggle on).
 		if (!voiceController.isConnected.get()) {
 			await voiceController.connect(mainWindow);
-		} else {
-			voiceController.pttDown();
-			voiceController.pttUp();
 		}
+
+		// Map the physical key/button gesture directly onto the controller's
+		// push-to-talk model: press => pttDown(), release => pttUp(). The
+		// controller itself decides tap-vs-hold based on how long the key was
+		// held (a quick tap enters toggle mode and keeps recording; a real hold
+		// records only while held). `enableKeybindingHoldMode` also swallows OS
+		// key-repeat while held, so holding the shortcut no longer rapidly
+		// toggles.
+		voiceController.pttDown();
+		if (!holdMode) {
+			// Not invoked via a held keybinding (toolbar mic button or command
+			// palette): emulate a tap so the controller enters toggle mode and
+			// keeps listening. Pressing the button/shortcut again stops.
+			voiceController.pttUp();
+			return;
+		}
+
+		await holdMode;
+		voiceController.pttUp();
 	}
 });
 
@@ -209,18 +244,11 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: -10
 			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.Space,
-				},
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
-					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_LISTENING.isEqualTo(true),
-				),
-			},
+			// NOTE: intentionally no keybinding. The Cmd+Shift+Space chord is
+			// owned solely by `agentsVoice.startVoiceInChat`, which handles both
+			// starting and stopping (via the controller's push-to-talk model).
+			// Binding the same chord here as well caused the two actions to
+			// fight on every OS key-repeat, producing rapid start/stop toggling.
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -266,6 +294,11 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.agents.voice.enabled', true),
 					ChatContextKeys.inChatInput,
 					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					// Don't disconnect voice while a request is running — pressing
+					// Escape there is meant to interrupt/cancel that request, not
+					// tear down the voice session (which is especially disruptive
+					// in hands-free mode where there is no reconnect button).
+					ChatContextKeys.hasActiveRequest.negate(),
 					EditorContextKeys.hoverVisible.toNegated(),
 					EditorContextKeys.hasNonEmptySelection.toNegated(),
 					EditorContextKeys.hasMultipleSelections.toNegated(),
@@ -275,7 +308,44 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		voiceController.disconnect();
+		voiceController.disconnect('explicit');
+	}
+});
+
+// --- Cancel Active Request via Escape (while voice-connected in the chat input) ---
+//
+// The Disconnect-on-Escape action above deliberately does NOTHING while a
+// request is running (its `when` negates hasActiveRequest) so it doesn't tear
+// down the voice session mid-turn. But the built-in Cancel action is bound to
+// Cmd/Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
+// be a no-op there. Restore the expected behavior: plain Escape cancels the
+// in-flight request while leaving the idle-only disconnect intact.
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.cancelActiveRequest',
+			title: nls.localize2('agentsVoice.cancelActiveRequest', "Voice Mode: Cancel Request"),
+			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 5,
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					ChatContextKeys.inChatInput,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					// Mirror the disconnect binding's editor negations so Escape
+					// still dismisses IntelliSense/hover and clears selections first.
+					ChatContextKeys.hasActiveRequest,
+					EditorContextKeys.hoverVisible.toNegated(),
+					EditorContextKeys.hasNonEmptySelection.toNegated(),
+					EditorContextKeys.hasMultipleSelections.toNegated(),
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ICommandService).executeCommand('workbench.action.chat.cancel');
 	}
 });
 
@@ -494,9 +564,34 @@ configurationRegistry.registerConfiguration({
 			default: 'maya_neutral',
 			scope: ConfigurationScope.APPLICATION,
 		},
+		'agents.voice.language': {
+			type: 'string',
+			enum: ['auto', 'en', 'de', 'es', 'fr', 'it', 'pt', 'ja', 'ko', 'zh'],
+			enumItemLabels: [
+				nls.localize('agents.voice.language.auto', "Automatic"),
+				nls.localize('agents.voice.language.en', "English"),
+				nls.localize('agents.voice.language.de', "German"),
+				nls.localize('agents.voice.language.es', "Spanish"),
+				nls.localize('agents.voice.language.fr', "French"),
+				nls.localize('agents.voice.language.it', "Italian"),
+				nls.localize('agents.voice.language.pt', "Portuguese"),
+				nls.localize('agents.voice.language.ja', "Japanese"),
+				nls.localize('agents.voice.language.ko', "Korean"),
+				nls.localize('agents.voice.language.zh', "Chinese"),
+			],
+			markdownDescription: nls.localize('agents.voice.language', "The language used for speech recognition and spoken responses. The selectable languages support native voice output. Automatic follows the system or browser locale for speech recognition and uses English voice output when the detected language does not support native voice output. Changing this while voice mode is connected takes effect immediately."),
+			default: 'auto',
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.showTranscript': {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.showTranscript', "Show the voice transcript overlay in the chat input area while voice mode is active. Enable this to read responses as text when `#agents.voice.speakResponses#` is disabled."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+		},
+		'agents.voice.liveTranscript': {
+			type: 'boolean',
+			markdownDescription: nls.localize('agents.voice.liveTranscript', "Show your speech as a live, word-by-word transcript while you are speaking. When disabled, your transcript appears only once you finish speaking. Requires `#agents.voice.showTranscript#` to be enabled to be visible."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 		},

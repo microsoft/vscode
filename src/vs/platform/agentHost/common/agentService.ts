@@ -45,6 +45,9 @@ export const enum AgentHostIpcChannels {
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
+/** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
+export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
 // root-config keys in `copilotCliConfig.ts`.
@@ -1250,6 +1253,15 @@ export interface IAgentSubagentStartedSignal {
 	 */
 	readonly taskDescription?: string;
 	/**
+	 * The full delegated instruction the parent handed the subagent (the
+	 * spawning tool's `prompt` input). Populated by each provider at emit
+	 * time from its own native source, so the shared orchestrator never
+	 * parses a provider-specific tool-input shape. Seeds the subagent peer
+	 * chat's opening request. Distinct from {@link taskDescription} (a short
+	 * tab-title label). Absent when the harness does not surface a prompt.
+	 */
+	readonly taskPrompt?: string;
+	/**
 	 * If set, the spawning tool call ({@link toolCallId}) itself lives
 	 * inside another subagent's chat — this is the tool call **one level up**
 	 * from the spawning tool (its parent), i.e. the tool that spawned the
@@ -1665,14 +1677,6 @@ export interface IAgent {
 	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void;
-
-	/**
-	 * Notifies the agent that a customization has been toggled on or off.
-	 * The agent MAY restart its client before the next message is sent.
-	 *
-	 * @param id The opaque session-unique customization id.
-	 */
-	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Request a session MCP server start/restart by customization id. */
 	startMcpServer?(session: URI, id: string): Promise<void>;

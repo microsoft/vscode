@@ -78,8 +78,6 @@ export interface ChatState {
 	steeringMessage?: PendingMessage;
 	/** Messages to send automatically as new turns after the current turn finishes */
 	queuedMessages?: PendingMessage[];
-	/** Requests for user input that are currently blocking or informing chat progress */
-	inputRequests?: ChatInputRequest[];
 	/**
 	 * The user's in-progress draft input for this chat — the message they are
 	 * composing but have not sent yet, including its
@@ -351,11 +349,11 @@ export type ChatInputQuestion = ChatInputTextQuestion
 	| ChatInputMultiSelectQuestion;
 
 /**
- * A live request for user input.
+ * The request payload carried by an {@link InputRequestResponsePart}.
  *
- * The server creates or replaces requests with `chat/inputRequested`.
- * Clients sync drafts with `chat/inputAnswerChanged` and complete requests
- * with `chat/inputCompleted`.
+ * The server creates or replaces the containing response part with
+ * `chat/inputRequested`. Clients sync drafts with `chat/inputAnswerChanged`
+ * and submit responses with `chat/inputCompleted`.
  *
  * @category Chat Input Types
  */
@@ -839,19 +837,16 @@ export type ResponsePart =
 	| InputRequestResponsePart;
 
 /**
- * A resolved input request (elicitation) recorded in the turn transcript.
+ * A live or resolved input request (elicitation) in the turn response stream.
  *
- * While an input request is open it lives in {@link ChatState.inputRequests}
- * as live, interactive state (see {@link ChatInputRequest}). When the request
- * completes via `chat/inputCompleted`, the reducer removes it from
- * `inputRequests` and appends this part to the active turn so the decision
- * survives in history. This mirrors how a tool-call confirmation persists in
- * its {@link ToolCallResponsePart} (via `confirmed` / `selectedOption` on the
- * terminal {@link ToolCallState}): the live surface drives in-flight UX, the
- * terminal outcome is durable and backfillable via `fetchTurns`.
+ * The server inserts the part with `chat/inputRequested`. While
+ * {@link response} is absent, clients can update answer drafts with
+ * `chat/inputAnswerChanged` and submit a response with `chat/inputCompleted`.
+ * Completion updates this part in place so its stream position is stable and
+ * the full interaction remains durable and backfillable via `fetchTurns`.
  *
- * No part is recorded when an outstanding request is *abandoned* (the turn
- * completes, is cancelled, errors, or is truncated) rather than *completed*.
+ * If the turn ends without a submitted response, the unresolved part remains
+ * in the completed turn transcript with {@link response} absent.
  *
  * @category Response Parts
  */
@@ -859,12 +854,15 @@ export interface InputRequestResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.InputRequest;
 	/**
-	 * The resolved request, carrying its `id`, `message`, `url`, `questions`,
-	 * and the final `answers` synced/submitted at completion.
+	 * The request, carrying its `id`, `message`, `url`, `questions`, and current
+	 * draft or submitted `answers`.
 	 */
 	request: ChatInputRequest;
-	/** How the request was resolved: `accept`, `decline`, or `cancel`. */
-	response: ChatInputResponseKind;
+	/**
+	 * How the request was resolved. Absent until a client submits `accept`,
+	 * `decline`, or `cancel` with `chat/inputCompleted`.
+	 */
+	response?: ChatInputResponseKind;
 }
 
 /**

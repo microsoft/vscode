@@ -29,14 +29,12 @@
 
 .style-override .part.editor .tabs-container > .tab {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
-	background-clip: padding-box;
-	border-right: var(--vscode-spacing-size40) solid transparent !important;
+	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	border-top-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
-	border-bottom-right-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size40));
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
+	margin-right: var(--vscode-spacing-size40) !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
 }
@@ -85,10 +83,10 @@
 }
 
 .style-override .part.editor .tabs-container > .tab.sticky-compact {
-	width: 32px !important;
-	min-width: 32px !important;
-	max-width: 32px !important;
-	flex: 0 0 32px !important;
+	width: 28px !important;
+	min-width: 28px !important;
+	max-width: 28px !important;
+	flex: 0 0 28px !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -100,6 +98,33 @@
 
 .style-override .part.editor .tabs-container > .tab.active {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container,
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	display: block !important;
+	z-index: 6;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: auto !important;
+	height: auto !important;
+	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent !important;
+	box-sizing: border-box;
+}
+
+.style-override .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-selectedBorderTop) !important;
+}
+
+.style-override .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-border-top-container {
+	--tab-border-top-color: var(--vscode-tab-activeBorderTop, var(--vscode-tab-selectedBorderTop)) !important;
 }
 
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
@@ -121,6 +146,16 @@
 
 .style-override.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:not(.active):hover {
 	background-color: color-mix(in srgb, var(--vscode-foreground) 6%, transparent) !important;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container {
+	flex: 1 !important;
+	min-width: 0;
+	text-overflow: ellipsis !important;
+}
+
+.style-override.monaco-workbench .part.editor .tabs-container > .tab:is(.sizing-shrink, .sizing-fixed) > .tab-label > .monaco-icon-label-container::after {
+	display: none;
 }
 
 /* Keep scrolling tabs from showing through compact pinned pills and their spacing. */
@@ -285,6 +320,10 @@
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a {
 	color: var(--vscode-foreground) !important;
+}
+
+.style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+	color: var(--vscode-tab-selectedForeground) !important;
 }
 
 /* Ensure decoration color cascades to every part of the tab label. */

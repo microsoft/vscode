@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, PermissionAllowAllMode, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -24,14 +26,15 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, readUsageInfoMeta, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
-import { CustomizationType, McpAuthRequiredReason, McpServerStatus } from '../../common/state/protocol/channels-session/state.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -39,8 +42,10 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledCo
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -61,6 +66,9 @@ class MockCopilotSession {
 	readonly compactCalls: unknown[] = [];
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
+	readonly mcpEnableCalls: Array<{ serverName: string }> = [];
+	readonly mcpDisableCalls: Array<{ serverName: string }> = [];
+	mcpDisableGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
 	commandListResult: {
@@ -79,6 +87,7 @@ class MockCopilotSession {
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
+	planReadPromise: Promise<{ exists: boolean; content: string | null; path: string | null }> | undefined;
 
 	getInstructionSourcesResult: { sources: Array<{ id: string; label: string; sourcePath: string; content: string; type: string; location: string; applyTo?: string[] }> } = { sources: [] };
 	getInstructionSourcesError: unknown = undefined;
@@ -91,6 +100,7 @@ class MockCopilotSession {
 			this._allHandlers.add(eventTypeOrHandler);
 			return () => { this._allHandlers.delete(eventTypeOrHandler); };
 		}
+
 		const eventType = eventTypeOrHandler;
 		let set = this._handlers.get(eventType);
 		if (!set) {
@@ -141,7 +151,7 @@ class MockCopilotSession {
 			},
 		},
 		plan: {
-			read: async () => this.planReadResult,
+			read: async () => this.planReadPromise ?? this.planReadResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
 		},
@@ -171,6 +181,22 @@ class MockCopilotSession {
 				}
 				return this.mcpListResult;
 			},
+			enable: async (params: { serverName: string }) => {
+				this.mcpEnableCalls.push(params);
+				this.mcpListResult = {
+					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'pending' } : server),
+				};
+			},
+			listTools: async (_params: { serverName: string }) => {
+				return { tools: [] };
+			},
+			disable: async (params: { serverName: string }) => {
+				this.mcpDisableCalls.push(params);
+				await this.mcpDisableGate;
+				this.mcpListResult = {
+					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'disabled' } : server),
+				};
+			},
 			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
 			cancelSamplingExecution: async () => { /* no-op */ },
 		},
@@ -198,8 +224,24 @@ class MockCopilotSession {
 
 	readonly sandboxConfigUpdates: unknown[] = [];
 
-	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
+	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'needs-auth' | 'pending' | 'disabled' | 'not_configured'; error?: string }> } = { servers: [] };
 	mcpListError: unknown = undefined;
+}
+
+class TestCopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
+
+	apiEndpoint: string | undefined;
+
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
+	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
+	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> { throw new Error('not used'); }
+	async countTokens(): Promise<Anthropic.MessageTokensCount> { throw new Error('not used'); }
+	async models(): Promise<CCAModel[]> { return []; }
+	async responses(): Promise<Response> { throw new Error('not used'); }
+	async utilityChatCompletion(_githubToken: string, _request: ICopilotUtilityChatCompletionRequest): Promise<string> { throw new Error('not used'); }
+	async resolveRestrictedTelemetryContext() { return { restrictedTelemetryEnabled: false, trackingId: undefined, telemetryEndpoint: undefined }; }
+	async resolveApiEndpoint() { return this.apiEndpoint; }
 }
 
 class CapturingLogService extends NullLogService {
@@ -290,13 +332,19 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
+	sessionCustomizations?: () => readonly Customization[];
+	sessionUri?: URI;
+	chatChannelUri?: URI;
+	resolveMcpChildId?: (serverName: string) => string | undefined;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
 	platform?: NodeJS.Platform;
 	githubToken?: string;
+	copilotApiEndpoint?: string;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -334,7 +382,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		return deferred.p;
 	};
 
-	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+	const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
+	const sessionUri = options?.sessionUri ?? parentSessionUri;
+	const chatChannelUri = options?.chatChannelUri ?? URI.parse(buildDefaultChatUri(parentSessionUri));
 	const mockSession = new MockCopilotSession();
 	options?.configureMockSession?.(mockSession);
 
@@ -367,6 +417,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
+	const copilotApiService = new TestCopilotApiService();
+	copilotApiService.apiEndpoint = options?.copilotApiEndpoint;
+	services.set(ICopilotApiService, copilotApiService);
 	const storedFileContents = new Map(Object.entries(options?.fileContents ?? {}));
 	services.set(IFileService, {
 		_serviceBrand: undefined,
@@ -386,7 +439,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			storedFileContents.delete(resource.fsPath);
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService());
+	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -413,6 +466,23 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
+	const stateManager = disposables.add(new class extends AgentHostStateManager {
+		override getSessionState(session: string) {
+			if (!options?.sessionCustomizations || session !== sessionUri.toString()) {
+				return undefined;
+			}
+			const state = createSessionState({
+				resource: sessionUri.toString(),
+				provider: 'copilot',
+				title: 'Test session',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			return mergeSessionWithDefaultChat({ ...state, customizations: [...options.sessionCustomizations()] }, undefined);
+		}
+	}(new NullLogService()));
+	services.set(IAgentHostStateManager, stateManager);
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
@@ -427,7 +497,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		CopilotAgentSession,
 		{
 			sessionUri,
-			chatChannelUri: URI.parse(buildDefaultChatUri(sessionUri)),
+			chatChannelUri,
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
@@ -435,7 +505,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
 			activeClientToolSet: options?.activeClientToolSet,
-			resolveMcpChildId: () => undefined,
+			resolveMcpChildId: options?.resolveMcpChildId ?? (() => undefined),
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
@@ -1636,7 +1706,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.ok(session.respondToPermissionRequest('tc-create', false));
-			assert.strictEqual((await resultPromise).kind, 'reject');
+			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
@@ -1838,7 +1908,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'reject');
+			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
 		test('auto-approves sandboxed-by-default shell command without prompting', async () => {
@@ -2128,7 +2198,7 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.ok(session.respondToPermissionRequest('tc-assisted-bypass', false));
 
-			assert.strictEqual((await resultPromise).kind, 'reject');
+			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
 		});
 
 		test('does not send when the SDK rejects the requested permission mode', async () => {
@@ -2368,6 +2438,27 @@ suite('CopilotAgentSession', () => {
 
 			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
+		});
+
+		test('does not flip turns for subagent user messages', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+			} as SessionEventPayload<'user.message'>['data'], { agentId: 'agent-1', id: 'evt-subagent' });
+			await timeout(0);
+
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				turnStarted,
+				setTurnEventIdCalls: sessionDatabase.setTurnEventIdCalls,
+			}, {
+				turnStarted: undefined,
+				setTurnEventIdCalls: [],
+			});
 		});
 
 		test('does not flip turns when the user.message content does not match', async () => {
@@ -3705,6 +3796,7 @@ suite('CopilotAgentSession', () => {
 
 		test('handleUserInputRequest fires user_input_request progress event', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
 
 			// Start the request (don't await — it blocks waiting for response)
 			const resultPromise = runtime.handleUserInputRequest(
@@ -3735,6 +3827,7 @@ suite('CopilotAgentSession', () => {
 
 		test('handleUserInputRequest with choices generates SingleSelect question', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
 
 			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
@@ -3767,6 +3860,7 @@ suite('CopilotAgentSession', () => {
 
 		test('handleUserInputRequest returns empty answer on cancel', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
 
 			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Cancel me' },
@@ -3788,6 +3882,7 @@ suite('CopilotAgentSession', () => {
 
 		test('handleUserInputRequest returns empty answer on skipped question', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
 
 			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Skip me' },
@@ -3809,6 +3904,7 @@ suite('CopilotAgentSession', () => {
 
 		test('pending user inputs are cancelled on dispose', async () => {
 			const { session, runtime } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
 
 			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Will be cancelled' },
@@ -3819,6 +3915,20 @@ suite('CopilotAgentSession', () => {
 			const result = await resultPromise;
 			assert.strictEqual(result.answer, '');
 			assert.strictEqual(result.wasFreeform, true);
+		});
+
+		test('handleUserInputRequest rejects without an active turn', async () => {
+			const { runtime, signals } = await createAgentSession(disposables);
+
+			const result = await runtime.handleUserInputRequest(
+				{ question: 'Cannot be displayed' },
+				{ sessionId: 'test-session-1' },
+			);
+
+			assert.deepStrictEqual({ result, signals }, {
+				result: { answer: 'No active turn', wasFreeform: true },
+				signals: [],
+			});
 		});
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
@@ -3842,9 +3952,10 @@ suite('CopilotAgentSession', () => {
 		test('autopilot does not auto-answer when mode is not "autopilot"', async () => {
 			// Sanity check: with mode=interactive the question must
 			// still be surfaced as a progress event (the existing behavior).
-			const { runtime, signals } = await createAgentSession(disposables, {
+			const { session, runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.Mode]: 'interactive' },
 			});
+			session.resetTurnState('turn-input');
 
 			runtime.handleUserInputRequest(
 				{ question: 'Need user input' },
@@ -3883,6 +3994,7 @@ suite('CopilotAgentSession', () => {
 
 		test('form-mode request projects schema fields to questions and accept round-trips content', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -3943,6 +4055,7 @@ suite('CopilotAgentSession', () => {
 
 		test('skipped and missing answers are omitted from accept content', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -3968,6 +4081,7 @@ suite('CopilotAgentSession', () => {
 
 		test('url-mode request surfaces url and accept returns no content', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -3986,6 +4100,7 @@ suite('CopilotAgentSession', () => {
 
 		test('free-form request (no schema) returns submitted text as content.answer', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -4006,6 +4121,7 @@ suite('CopilotAgentSession', () => {
 
 		test('decline response maps to action=decline', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -4021,6 +4137,7 @@ suite('CopilotAgentSession', () => {
 
 		test('cancel response maps to action=cancel', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -4052,6 +4169,7 @@ suite('CopilotAgentSession', () => {
 
 		test('pending elicitations are cancelled on dispose', async () => {
 			const { session, runtime } = await createAgentSession(disposables);
+			session.resetTurnState('turn-elicitation');
 
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
@@ -4063,6 +4181,22 @@ suite('CopilotAgentSession', () => {
 			session.dispose();
 			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
 		});
+
+		test('elicitation rejects without an active turn', async () => {
+			const { runtime, signals } = await createAgentSession(disposables);
+
+			const result = await runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Cannot be displayed',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			assert.deepStrictEqual({ result, signals }, {
+				result: { action: 'decline' },
+				signals: [],
+			});
+		});
 	});
 
 	suite('SDK callback logging', () => {
@@ -4070,6 +4204,7 @@ suite('CopilotAgentSession', () => {
 		test('logs and rethrows user input callback failures', async () => {
 			const logService = new CapturingLogService();
 			const { session, runtime } = await createAgentSession(disposables, { logService });
+			session.resetTurnState('turn-input');
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			sessionInternals._onDidSessionProgress.fire = () => {
 				throw new Error('user input boom');
@@ -4234,6 +4369,110 @@ suite('CopilotAgentSession', () => {
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('client tool auto-readies when SDK allow-all mode is on', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-allow-all',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
+			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
+			const readyAction = readySignal.action as ChatToolCallReadyAction;
+			assert.deepStrictEqual({
+				permissionModeSetCalls: mockSession.permissionModeSetCalls,
+				toolCallId: readyAction.toolCallId,
+				toolInput: readyAction.toolInput === undefined ? undefined : JSON.parse(readyAction.toolInput),
+				confirmed: readyAction.confirmed,
+			}, {
+				permissionModeSetCalls: ['on'],
+				toolCallId: 'tc-allow-all',
+				toolInput: { file: 'test.ts' },
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-allow-all', { file: 'test.ts' });
+			session.handleClientToolCallComplete('tc-allow-all', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
+		});
+
+		test('SDK-approved client tool auto-readies in assisted mode', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot,
+				activeClientToolSet: activeClientToolSetWith('test-client'),
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-assisted',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('permission.requested', {
+				requestId: 'permission-assisted',
+				permissionRequest: {
+					kind: 'custom-tool',
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+				},
+				promptRequest: {
+					kind: 'custom-tool',
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+					autoApproval: {
+						recommendation: 'approve',
+						reason: 'The requested browser navigation is safe.',
+					},
+				},
+			} as SessionEventPayload<'permission.requested'>['data']);
+			const permissionResult = await runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-assisted',
+				toolName: 'my_tool',
+			});
+			const readySignal = signals.find((s): s is IAgentToolPendingConfirmationSignal => s.kind === 'pending_confirmation');
+			const readyState = readySignal?.state;
+
+			assert.deepStrictEqual({
+				permissionModeSetCalls: mockSession.permissionModeSetCalls,
+				permissionResult,
+				ready: readyState ? {
+					...readyState,
+					toolInput: readyState.toolInput === undefined ? undefined : JSON.parse(readyState.toolInput),
+				} : undefined,
+			}, {
+				permissionModeSetCalls: ['auto'],
+				permissionResult: { kind: 'approve-once' },
+				ready: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-assisted',
+					toolName: 'my_tool',
+					displayName: 'my_tool',
+					invocationMessage: 'my_tool',
+					toolInput: { file: 'test.ts' },
+					riskAssessment: {
+						kind: ToolCallRiskAssessmentKind.Judge,
+						status: ToolCallRiskAssessmentStatus.Complete,
+						reason: 'The requested browser navigation is safe.',
+						safety: 1,
+					},
+				},
+			});
 		});
 
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {
@@ -4862,8 +5101,28 @@ suite('CopilotAgentSession', () => {
 			await responsePromise;
 		});
 
+		test('handleExitPlanModeRequest rejects when its turn changes while reading the plan', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+			const planRead = new DeferredPromise<{ exists: boolean; content: string | null; path: string | null }>();
+			mockSession.planReadPromise = planRead.p;
+			session.resetTurnState('turn-plan');
+
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			session.resetTurnState('turn-next');
+			planRead.complete({ exists: true, content: '## Plan', path: '/sessions/abc/plan.md' });
+
+			assert.deepStrictEqual({
+				response: await responsePromise,
+				inputRequests: signals.filter(signal => isAction(signal, ActionType.ChatInputRequested)).length,
+			}, {
+				response: { approved: false },
+				inputRequests: 0,
+			});
+		});
+
 		test('completing the input request with autopilot preserves Ask When Needed and syncs mode=autopilot', async () => {
 			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -4889,6 +5148,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
@@ -4904,6 +5164,7 @@ suite('CopilotAgentSession', () => {
 
 		test('completing the input request with interactive resolves with approved + interactive (no autoApprove) and syncs mode=interactive', async () => {
 			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -4926,6 +5187,7 @@ suite('CopilotAgentSession', () => {
 
 		test('declining the input request resolves with approved=false', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -4937,6 +5199,7 @@ suite('CopilotAgentSession', () => {
 
 		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -4956,6 +5219,7 @@ suite('CopilotAgentSession', () => {
 
 		test('freeform feedback alongside a selected action becomes a revision request', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -4983,6 +5247,7 @@ suite('CopilotAgentSession', () => {
 
 		test('selectedAction not in offered actions falls back to recommendedAction', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -5006,6 +5271,7 @@ suite('CopilotAgentSession', () => {
 
 		test('selectedAction not in offered actions and no fallback resolves to approved=false', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			// SDK offered `exit_only` only and recommended a value not in
 			// the offered set. The client picked something invalid. With
@@ -5028,6 +5294,7 @@ suite('CopilotAgentSession', () => {
 
 		test('text answer with feedback becomes a revision request without selectedAction', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -5055,6 +5322,7 @@ suite('CopilotAgentSession', () => {
 
 		test('whitespace-only freeform feedback is ignored', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
@@ -5135,6 +5403,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
 			});
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
@@ -5152,6 +5421,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
+			session.resetTurnState('turn-plan');
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
@@ -5163,6 +5433,257 @@ suite('CopilotAgentSession', () => {
 	});
 
 	suite('MCP server inventory', () => {
+
+		test('session MCP desired enablement reconciles runtime drift', async () => {
+			const serverName = 'slack';
+			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			let desiredEnabled = true;
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: desiredEnabled,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+
+			desiredEnabled = false;
+			await session.send('disable Slack');
+			const afterDisable = session.topLevelMcpCustomizations();
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'pending' }] });
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			const afterRuntimeUpdate = session.topLevelMcpCustomizations();
+			await session.send('keep Slack disabled');
+			const afterReconcile = session.topLevelMcpCustomizations();
+			desiredEnabled = true;
+			await session.send('enable Slack');
+
+			assert.deepStrictEqual({
+				disableCalls: mockSession.mcpDisableCalls,
+				afterDisable,
+				afterRuntimeUpdate,
+				afterReconcile,
+				enableCalls: mockSession.mcpEnableCalls,
+				afterEnable: session.topLevelMcpCustomizations(),
+			}, {
+				disableCalls: [{ serverName }, { serverName }],
+				afterDisable: [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: false,
+					state: { kind: McpServerStatus.Stopped },
+					channel: undefined,
+					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				}],
+				afterRuntimeUpdate: [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: false,
+					state: { kind: McpServerStatus.Starting },
+					channel: undefined,
+					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				}],
+				afterReconcile: [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: false,
+					state: { kind: McpServerStatus.Stopped },
+					channel: undefined,
+					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				}],
+				enableCalls: [{ serverName }],
+				afterEnable: [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Starting },
+					channel: undefined,
+					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				}],
+			});
+		});
+
+		test('sending a message optimistically marks an enabled server as Starting', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				// The server is settled (failed) before the turn; the SDK reconnects
+				// enabled servers in the background on send without a live event.
+				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+			});
+
+			const beforeSend = session.topLevelMcpCustomizations()[0]?.state;
+			await session.send('hello');
+			const afterSend = session.topLevelMcpCustomizations()[0]?.state;
+
+			assert.deepStrictEqual({ beforeSend, afterSend }, {
+				beforeSend: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
+				afterSend: { kind: McpServerStatus.Starting },
+			});
+		});
+
+		test('startMcpServer optimistically marks the server Starting before the blocking reconnect', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const { session } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				// Settled (failed) before the explicit restart; the disable->enable
+				// reconnect is a background SDK operation with no live "starting" event.
+				configureMockSession: mock => { mock.mcpListResult = { servers: [{ name: serverName, status: 'failed', error: 'boom' }] }; },
+			});
+
+			const beforeStart = session.topLevelMcpCustomizations()[0]?.state;
+			await session.startMcpServer(id);
+			// The trailing inventory refresh is fire-and-forget, so right after the
+			// awaited enable the optimistic Starting is observable.
+			const afterStart = session.topLevelMcpCustomizations()[0]?.state;
+
+			assert.deepStrictEqual({ beforeStart, afterStart }, {
+				beforeStart: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'boom' } },
+				afterStart: { kind: McpServerStatus.Starting },
+			});
+		});
+
+		test('peer chat MCP desired enablement uses parent session customizations', async () => {
+			const parentSessionUri = AgentSession.uri('copilot', 'parent-session');
+			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
+			const serverName = 'slack';
+			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: false,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+
+			await session.send('keep Slack disabled');
+
+			assert.deepStrictEqual({
+				disableCalls: mockSession.mcpDisableCalls,
+				effectiveEnabled: session.topLevelMcpCustomizations()[0]?.enabled,
+			}, {
+				disableCalls: [{ serverName }],
+				effectiveEnabled: false,
+			});
+		});
+
+		test('nested MCP desired enablement includes parent container enablement', async () => {
+			const serverName = 'slack';
+			const serverId = 'plugin-1/mcp/slack';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.Plugin,
+					id: 'plugin-1',
+					uri: 'file:///plugin',
+					name: 'Slack Plugin',
+					enabled: false,
+					children: [{
+						type: CustomizationType.McpServer,
+						id: serverId,
+						uri: 'file:///plugin/package.json',
+						name: serverName,
+						enabled: true,
+						state: { kind: McpServerStatus.Starting },
+					}],
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+				resolveMcpChildId: name => name === serverName ? serverId : undefined,
+			});
+
+			await session.send('keep plugin disabled');
+
+			assert.deepStrictEqual(mockSession.mcpDisableCalls, [{ serverName }]);
+		});
+
+		test('disabling an MCP server cancels its pending authentication before awaiting the SDK', async () => {
+			const serverName = 'slack';
+			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			let desiredEnabled = true;
+			const { session, mockSession, runtime } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: desiredEnabled,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-disable',
+				serverName,
+				serverUrl: 'https://mcp.slack.com/mcp',
+				reason: 'initial',
+				resourceMetadata: JSON.stringify({
+					resource: 'https://mcp.slack.com',
+					authorization_servers: ['https://slack.com/oauth'],
+				}),
+			}, { sessionId: session.sessionId });
+			mockSession.mcpDisableGate = authPromise;
+			desiredEnabled = false;
+
+			let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await Promise.race([
+					session.send('disable Slack'),
+					new Promise((_, reject) => {
+						timeoutHandle = setTimeout(() => reject(new Error('Timed out disabling Slack')), 1000);
+					}),
+				]);
+			} finally {
+				clearTimeout(timeoutHandle);
+			}
+
+			assert.deepStrictEqual({
+				authResult: await authPromise,
+				disableCalls: mockSession.mcpDisableCalls,
+			}, {
+				authResult: { kind: 'cancelled' },
+				disableCalls: [{ serverName }],
+			});
+		});
 
 		test('tool-triggered MCP auth transitions the active MCP tool call until authentication resolves', async () => {
 			const { session, mockSession, runtime, signals } = await createAgentSession(disposables);
@@ -5328,6 +5849,28 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('initial GitHub MCP auth reuses the existing token for the per-user enterprise endpoint', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				githubToken: 'existing-enterprise-token',
+				copilotApiEndpoint: 'https://api.enterprise.githubcopilot.com',
+			});
+
+			const result = await runtime.handleMcpAuthRequest({
+				requestId: 'enterprise-initial-auth',
+				serverName: 'github',
+				serverUrl: 'https://api.enterprise.githubcopilot.com/mcp/',
+				reason: 'initial',
+			}, { sessionId: 'test-session-1' });
+
+			assert.deepStrictEqual({
+				result,
+				customizationUpdates: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationUpdated),
+			}, {
+				result: { kind: 'token', accessToken: 'existing-enterprise-token' },
+				customizationUpdates: [],
+			});
+		});
+
 		test('MCP auth request publishes authRequired state and resolves with authenticate token', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { githubToken: 'existing-token' });
 
@@ -5336,6 +5879,11 @@ suite('CopilotAgentSession', () => {
 				serverName: 'github',
 				serverUrl: 'https://api.githubcopilot.com/mcp',
 				reason: 'upscope',
+				staticClientConfig: {
+					clientId: 'configured-client-id',
+					clientSecret: 'configured-client-secret',
+					publicClient: false,
+				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://api.githubcopilot.com/mcp',
 					resource_name: 'GitHub MCP Server',
@@ -5357,6 +5905,10 @@ suite('CopilotAgentSession', () => {
 				state: {
 					kind: McpServerStatus.AuthRequired,
 					reason: McpAuthRequiredReason.InsufficientScope,
+					oauthClient: {
+						clientId: 'configured-client-id',
+						clientSecret: 'configured-client-secret',
+					},
 					resource: {
 						resource: 'https://api.githubcopilot.com/mcp',
 						resource_name: 'GitHub MCP Server',
@@ -5382,6 +5934,10 @@ suite('CopilotAgentSession', () => {
 				serverName: 'github',
 				serverUrl: 'https://mcp.example.com',
 				reason: 'initial',
+				staticClientConfig: {
+					clientId: 'public-client-id',
+					publicClient: true,
+				},
 				resourceMetadata: JSON.stringify({
 					resource: 'https://mcp.example.com',
 					resource_name: 'Lookalike MCP',
@@ -5400,11 +5956,13 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({
 				resolved,
 				result: await authPromise,
+				oauthClient: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.oauthClient : undefined,
 				requiredScopes: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.requiredScopes : undefined,
 				supportedScopes: customization.state.kind === McpServerStatus.AuthRequired ? customization.state.resource.scopes_supported : undefined,
 			}, {
 				resolved: true,
 				result: { kind: 'token', accessToken: 'interactive-token' },
+				oauthClient: { clientId: 'public-client-id' },
 				requiredScopes: undefined,
 				supportedScopes: ['repo'],
 			});
@@ -5465,6 +6023,71 @@ suite('CopilotAgentSession', () => {
 				servers: [{ name: 'late', status: 'connected' }],
 			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+		});
+
+		test('a failed MCP server logs at error with structured attributes and preserves the failure detail', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, { logService });
+
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'db',
+				status: 'failed',
+				error: 'connection refused',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+
+			const signal = await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)) as IAgentActionSignal;
+			const action = signal.action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+			const record = logService.errors.find(e => String(e.first).includes('MCP server \'db\''));
+
+			assert.deepStrictEqual({
+				state: action.customization.type === 'mcpServer' ? action.customization.state : undefined,
+				body: record ? String(record.first).replace(/^\[Copilot:[^\]]*\]\s*/, '') : undefined,
+				attributes: record?.args[0] instanceof OtelData ? record.args[0].attributes : undefined,
+			}, {
+				state: { kind: McpServerStatus.Error, error: { errorType: 'mcp-server-failed', message: 'connection refused' } },
+				body: 'MCP server \'db\' failed (error): connection refused',
+				attributes: { mcpEvent: 'statusChanged', mcpServer: 'db', mcpStatus: 'failed', mcpState: 'error', errorType: 'mcp-server-failed' },
+			});
+		});
+
+		test('an MCP lifecycle change logs at info with the SDK-reported metadata', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, { logService });
+
+			mockSession.fire('session.mcp_servers_loaded', {
+				servers: [{ name: 'docs', status: 'connected', source: 'plugin', transport: 'stdio', pluginName: 'acme', pluginVersion: '1.2.3' }],
+			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+
+			const record = logService.infos.find(i => i.message.includes('MCP server \'docs\''));
+			assert.deepStrictEqual(record?.args[0] instanceof OtelData ? record.args[0].attributes : undefined, {
+				mcpEvent: 'loaded',
+				mcpServer: 'docs',
+				mcpStatus: 'connected',
+				mcpState: 'ready',
+				mcpSource: 'plugin',
+				mcpTransport: 'stdio',
+				mcpPlugin: 'acme',
+				mcpPluginVersion: '1.2.3',
+			});
+		});
+
+		test('an unchanged MCP status is not logged twice', async () => {
+			const logService = new CapturingLogService();
+			// Seeding the same server keeps the first log deterministic regardless
+			// of when the rpc seed and the live events interleave.
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				logService,
+				configureMockSession: m => { m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] }; },
+			});
+
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: 'docs', status: 'connected' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: 'docs', status: 'connected' }] } as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await timeout(0);
+
+			const docsLogs = logService.infos.filter(i => i.message.includes('MCP server \'docs\''));
+			assert.strictEqual(docsLogs.length, 1);
 		});
 	});
 
@@ -5544,6 +6167,24 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 0, 'should short-circuit before the RPC');
+		});
+
+		test('skips subagent user messages', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			mockSession.fire('user.message', {
+				content: 'delegated prompt',
+			} as SessionEventPayload<'user.message'>['data'], { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				events: telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected'),
+				getSourcesCalls: mockSession.getInstructionSourcesCallCount,
+			}, {
+				events: [],
+				getSourcesCalls: 0,
+			});
 		});
 
 		test('does not emit or leak an unhandled rejection when getSources throws', async () => {
