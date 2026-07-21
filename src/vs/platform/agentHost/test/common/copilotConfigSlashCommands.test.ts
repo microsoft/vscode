@@ -16,9 +16,8 @@ suite('copilotConfigSlashCommands', () => {
 			const items = getCopilotConfigSlashCommandItems('');
 			const byLabel = new Map(items.map(i => [i.label, i]));
 
-			// Permission command: bare toggle plus on/off sub-args, inserts nothing.
-			assert.strictEqual(byLabel.get('/yolo')?.insertText, '');
-			assert.deepStrictEqual(byLabel.get('/yolo')?.applyConfig, { autoApprove: 'autoApprove' });
+			// Permission command: on/off sub-args insert nothing.
+			assert.strictEqual(byLabel.get('/yolo on')?.insertText, '');
 			assert.deepStrictEqual(byLabel.get('/yolo on')?.applyConfig, { autoApprove: 'autoApprove' });
 			assert.deepStrictEqual(byLabel.get('/yolo off')?.applyConfig, { autoApprove: 'default' });
 
