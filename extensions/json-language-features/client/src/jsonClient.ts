@@ -23,6 +23,7 @@ import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem, createSchemaLoadIssueItem, createSchemaLoadStatusItem } from './languageStatus';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 import { matchesUrlPattern } from './utils/urlMatch';
+import { escapeGlobCharacters } from './utils/strings';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -869,13 +870,11 @@ function computeSettings(): Settings {
 		if (!Array.isArray(fileMatch) || !workspaceFolder) {
 			return fileMatch;
 		}
-		// Lowercase a drive letter like the server's uri normalization does, and turn glob
-		// metacharacters in the folder path into regex hex escapes, which the glob passes
-		// through, so folder names can not alter the meaning of the pattern.
-		const folderPath = workspaceFolder.path
+		// Lowercase a drive letter like the server's uri normalization does, so that the folder
+		// is spelled the way the document uris are.
+		const folderPath = escapeGlobCharacters(workspaceFolder.path
 			.replace(/^\/[A-Z]:/, s => s.toLowerCase())
-			.replace(/\/$/, '')
-			.replace(/[*?{}[\],\\]/g, c => `\\x${c.charCodeAt(0).toString(16)}`);
+			.replace(/\/$/, ''));
 		const prefix = '${workspaceFolder}/';
 		return fileMatch.map(fm => {
 			if (typeof fm !== 'string') {
