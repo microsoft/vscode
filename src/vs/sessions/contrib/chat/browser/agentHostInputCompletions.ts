@@ -30,7 +30,7 @@ import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from 
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
 /**
@@ -185,7 +185,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		private readonly _editor: CodeEditorWidget,
 		private readonly _contextAttachments: NewChatContextAttachments,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -198,9 +198,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		this._decorations = this._editor.createDecorationsCollection();
 		this._registerDecorations();
 
-		// Watch the active session and (re-)register the Monaco provider
-		// with the trigger characters announced by whichever content
-		// provider handles the active session's resource scheme.
+		// Watch this input's scoped session and (re-)register the Monaco
+		// provider with the trigger characters announced by whichever content
+		// provider handles that session's resource scheme. Using the
+		// input-scoped `ISessionContext` (rather than the window-global active
+		// session) ensures completions — and the config changes they apply on
+		// accept — target the session this input composes for, even when another
+		// same-type session is the window's active one.
 		//
 		// We key off the resource scheme (via `getChatSessionType`) rather
 		// than `ISession.sessionType` because the latter is the *agent
@@ -211,7 +215,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		// looks up.
 		let currentScheme: string | undefined;
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionContext.session.read(reader);
 			const scheme = session ? getChatSessionType(session.resource) : undefined;
 			if (scheme === currentScheme) {
 				return;
@@ -230,9 +234,9 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			return;
 		}
 
-		// The active session may have changed mid-await — bail if its
+		// The scoped session may have changed mid-await — bail if its
 		// resource scheme is no longer the one we registered for.
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionContext.session.get();
 		if (!activeSession || getChatSessionType(activeSession.resource) !== scheme) {
 			return;
 		}
@@ -257,14 +261,14 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		if (/^\s*\/troubleshoot\b/.test(model.getValue())) {
 			return undefined;
 		}
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionContext.session.get();
 		if (!session) {
 			return undefined;
 		}
 		const sessionResource = session.resource;
-		// Only respond when the currently-active session matches the
+		// Only respond when this input's scoped session matches the
 		// scheme this registration was made for. Stale registrations
-		// (active session changed during the host RPC, etc.) are
+		// (the scoped session changed during the host RPC, etc.) are
 		// silently ignored.
 		if (getChatSessionType(sessionResource) !== scheme) {
 			return undefined;
@@ -411,12 +415,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	/**
 	 * Accept handler for config-action completions (permission/mode toggles).
 	 * Applies the session-config change (gated by the elevated-permission
-	 * confirmation for `autoApprove`) via the active session's agent-host
-	 * provider. Keep-text items (non-empty insertText) then add their argument-
-	 * hint reference; toggle items insert nothing, so there is no text to remove.
+	 * confirmation for `autoApprove`) via this input's scoped session's
+	 * agent-host provider. Keep-text items (non-empty insertText) then add their
+	 * argument-hint reference; toggle items insert nothing, so there is no text
+	 * to remove.
 	 */
 	async applyConfigAction(accessor: ServicesAccessor, arg: IConfigActionArg): Promise<void> {
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionContext.session.get();
 		if (!session) {
 			return;
 		}
