@@ -85,7 +85,7 @@ import { AccessibilityCommandId } from '../../../../accessibility/common/accessi
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../../../codeEditor/browser/simpleEditorOptions.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, getImageAttachmentLimit, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isBrowserViewVariableEntry, isElementVariableEntry, isExplicitFileOrImageVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModes, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isAgentHostTarget, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
@@ -3856,7 +3856,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.handleAttachmentNavigation(e);
 		}));
 
-		const attachments = [...this.attachmentModel.attachments.entries()];
+		// Completion references (agent-host skills/commands) render as inline
+		// decorations rather than attachment pills, so exclude them. Re-index
+		// contiguously over the rendered pills so the focus bookkeeping (which
+		// stores/compares indices and counts) stays aligned with the visible pills
+		// and not the model, which may contain non-rendered entries.
+		const attachments = this.getRenderableAttachments()
+			.map((attachment, index): [number, IChatRequestVariableEntry] => [index, attachment]);
 		const hasAttachments = Boolean(attachments.length);
 
 		// Render implicit context (active editor in Ask mode, or selection)
@@ -3930,7 +3936,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
 			const range = isLocation(attachment.value) ? attachment.value.range : undefined;
-			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
+			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, attachments.length - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true, isCurrentInput: true };
@@ -3970,7 +3976,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				attachmentWidget.element.focus();
 			}
 
-			if (index === Math.min(this._indexOfLastOpenedContext, this.attachmentModel.size - 1)) {
+			if (index === Math.min(this._indexOfLastOpenedContext, attachments.length - 1)) {
 				attachmentWidget.element.focus();
 			}
 
@@ -4007,7 +4013,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		if (this._attachmentModel.size === 0) {
+		if (this.getRenderableAttachments().length === 0) {
 			this.focus();
 		}
 
@@ -4015,11 +4021,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
+	/**
+	 * The attachments that are rendered as pills in the input. Agent-host
+	 * completion entries (skills/commands) live in the model so their `_meta`
+	 * reaches the outgoing message, but they are shown as inline decorations
+	 * rather than pills, so they are excluded here.
+	 */
+	private getRenderableAttachments(): IChatRequestVariableEntry[] {
+		return this.attachmentModel.attachments.filter(attachment => !isAgentHostCompletionVariableEntry(attachment));
+	}
+
 	private handleAttachmentOpen(index: number, attachment: IChatRequestVariableEntry): void {
 		this._indexOfLastOpenedContext = index;
 		this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 
-		if (this._attachmentModel.size === 0) {
+		if (this.getRenderableAttachments().length === 0) {
 			this.focus();
 		}
 	}

@@ -2401,6 +2401,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (_element.isComplete) {
 			return true;
 		}
+		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& other.toolSpecificData?.kind === 'subagent'
+			&& !other.subAgentInvocationId) {
+			return false;
+		}
 
 		if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized' || other.kind === 'markdownContent' || other.kind === 'hook') {
 			return true;

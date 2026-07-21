@@ -36,6 +36,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
@@ -176,6 +177,7 @@ function getToolCommand(input: ToolUseHookInput): string | undefined {
 }
 
 function toCopilotSdkMode(mode: string | undefined): CopilotSdkMode | undefined {
+	mode = mode?.toLowerCase() === 'goal' ? 'plan' : mode;
 	switch (mode) {
 		case 'interactive':
 		case 'plan':
@@ -1412,9 +1414,20 @@ export class CopilotAgentSession extends Disposable {
 			this._completeActiveTurn();
 			return;
 		}
-		if (slashCommand?.command === 'plan') {
-			mode = 'plan';
-			prompt = slashCommand.rest;
+		const configAction = slashCommand ? resolveCopilotConfigSlashCommandOnSend(slashCommand.command, slashCommand.rawRest) : undefined;
+		if (configAction) {
+			// Workbench config-action command (permission/mode toggle, e.g.
+			// `/autopilot <prompt>`, `/plan`, `/yolo`). The config is applied
+			// client-side on accept via the session provider; here we re-apply the
+			// mode for this turn (belt-and-suspenders) and strip the command token
+			// so it is not dispatched to the runtime as a runtime command.
+			// `autoApprove` changes are already reflected in the session config and
+			// applied by `syncPermissionMode('turn-start')` below.
+			const sdkMode = toCopilotSdkMode(configAction.applyConfig[SessionConfigKey.Mode]);
+			if (sdkMode) {
+				mode = sdkMode;
+			}
+			prompt = configAction.strippedPrompt;
 		} else if (slashCommand?.command === 'rubber-duck') {
 			if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RubberDuck) !== true) {
 				// Feature not enabled — pass the remaining text through as a plain

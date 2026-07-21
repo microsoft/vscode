@@ -675,7 +675,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			SessionReferenceCompletionHandler, this._editor, this._contextAttachments,
 		));
 
-		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
+		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 

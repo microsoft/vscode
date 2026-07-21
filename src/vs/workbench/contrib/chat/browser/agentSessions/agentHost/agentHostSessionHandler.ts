@@ -272,8 +272,33 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 	}
 }
 
-function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
-	return readToolCallMeta(toolCall).autoApproveBySetting === true;
+function getClientToolPreApproval(toolCall: ToolCallState): ConfirmedReason | undefined {
+	if (readToolCallMeta(toolCall).autoApproveBySetting === true) {
+		return { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove };
+	}
+
+	// Only trust `Running` and `AuthRequired` as evidence of a genuine
+	// approval: they can only be entered after the agent host confirmed the
+	// call, so their `confirmed` reason is authoritative. `Completed` and
+	// `PendingResultConfirmation` are excluded because the reducer
+	// synthesizes a `NotNeeded` confirmation when a `ChatToolCallComplete`
+	// arrives while the call is still `PendingConfirmation`, which would
+	// otherwise let us falsely confirm and execute a call that was never
+	// approved.
+	switch (toolCall.status) {
+		case ToolCallStatus.Running:
+		case ToolCallStatus.AuthRequired:
+			switch (toolCall.confirmed) {
+				case ToolCallConfirmationReason.NotNeeded:
+					return { type: ToolConfirmKind.ConfirmationNotNeeded };
+				case ToolCallConfirmationReason.Setting:
+					return { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove };
+				case ToolCallConfirmationReason.UserAction:
+					return { type: ToolConfirmKind.UserAction };
+			}
+	}
+
+	return undefined;
 }
 
 /**
@@ -799,6 +824,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			insertText: raw.insertText,
 			attachment
 		};
+		if (raw.label !== undefined) {
+			item.label = raw.label;
+		}
 		if (raw.rangeStart !== undefined) {
 			item.start = offsetToPosition(text, raw.rangeStart);
 		}
@@ -2757,8 +2785,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const state = invocation.state.read(reader);
 			const tc = part$.read(reader).toolCall;
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
-				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+			const preApproval = getClientToolPreApproval(tc);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && preApproval) {
+				state.confirm(preApproval);
 				return;
 			}
 			if (confirmationDispatched) {
@@ -2830,8 +2859,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const state = invocation.state.read(reader);
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
-				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+			const preApproval = getClientToolPreApproval(tc);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && preApproval) {
+				state.confirm(preApproval);
 			}
 			if (tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed) {
 				// The protocol tool call reached a terminal state. If this was
@@ -2902,9 +2932,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// pass it through so the invocation transitions straight to
 				// executing instead of briefly flashing a confirmation prompt
 				// (which would flicker "needs input" in the sessions list).
-				preApproved: shouldAutoApproveClientToolCall(tc)
-					? { type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove }
-					: undefined,
+				preApproved: getClientToolPreApproval(tc),
 			};
 			const noOpCountTokens = async () => 0;
 			this._logService.info(`[AgentHost] Invoking client tool: ${toolName} (callId=${toolCallId})`);

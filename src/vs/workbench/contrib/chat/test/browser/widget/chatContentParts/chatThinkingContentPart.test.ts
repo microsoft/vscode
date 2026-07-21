@@ -1524,6 +1524,25 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
 		});
 
+		test('should return false when a tool becomes a parent subagent', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const toolInvocation = {
+				kind: 'toolInvocation' as const,
+				toolSpecificData: { kind: 'subagent' },
+				subAgentInvocationId: undefined,
+			} as unknown as IChatRendererContent;
+
+			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
+		});
+
 		test('should return true for markdown content', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
