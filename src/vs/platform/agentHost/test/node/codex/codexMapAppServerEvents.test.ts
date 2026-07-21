@@ -644,7 +644,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(complete.result.error?.code, 'denied');
 	});
 
-	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the peer chat shows it)', () => {
+	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the child conversation shows it)', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
 			item: {
@@ -656,9 +656,9 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const toolCallId = state.itemToToolCall.get('collab_1')!.toolCallId;
-		// spawnAgent opens a read-only peer chat (the host attaches the
-		// subagent-discovery block to this tool call), so the raw prompt is
-		// deliberately NOT dumped into the tool box.
+		// spawnAgent opens a read-only child conversation (the host attaches
+		// the subagent-discovery block to this tool call), so the raw prompt
+		// is deliberately NOT dumped into the tool box.
 		assert.deepStrictEqual({
 			actions: startActions,
 			entryToolName: state.itemToToolCall.get('collab_1')!.toolName,

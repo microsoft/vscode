@@ -905,6 +905,29 @@ export interface IAgentCreateSessionConfig {
 	readonly progressToken?: string;
 }
 
+/**
+ * Host-owned transient context for an addressed chat operation.
+ *
+ * `session` is the chat's owning session. `resource` is the provider-owned
+ * persistence/configuration scope the host chose for that chat (for example the
+ * owning session URI or the concrete chat URI). Providers must not derive
+ * either value from `chat` themselves.
+ */
+export interface IAgentChatContext {
+	readonly session: URI;
+	readonly resource: URI;
+}
+
+/**
+ * Normalize a legacy session-only chat context into the explicit
+ * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
+ */
+export function resolveAgentChatContext(sessionOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
+	return URI.isUri(sessionOrContext)
+		? { session: sessionOrContext, resource }
+		: sessionOrContext;
+}
+
 /** Options for creating an additional chat within a session. */
 export interface IAgentCreateChatOptions {
 	/** Optional display title for the new chat. */
@@ -918,6 +941,25 @@ export interface IAgentCreateChatOptions {
 	 * is forked from the source so it can continue independently.
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
+	/**
+	 * The owning session's resolved context, supplied by the orchestrator when
+	 * adding an additional chat to an existing session. The agent uses these
+	 * values to stand up the new chat's backing conversation and MUST NOT read
+	 * them back from the parent session's own state.
+	 */
+	readonly inheritedContext?: IAgentInheritedChatContext;
+}
+
+/**
+ * The owning session's resolved context the orchestrator passes to an agent
+ * when creating an additional chat, so the agent never resolves it from the
+ * parent session.
+ */
+export interface IAgentInheritedChatContext {
+	/** The AH-resolved working directory (worktree or folder) the chat runs in. */
+	readonly workingDirectory: URI;
+	/** The owning session's config values, for provider-specific setting resolution (e.g. permissions). */
+	readonly config?: Record<string, unknown>;
 }
 
 /** Identifies a source chat and turn to fork a new chat from. */
@@ -944,8 +986,8 @@ export interface IAgentCreateChatResult {
 	 */
 	readonly providerData?: string;
 	/**
-	 * The SDK-level session URI that backs this peer chat, when the agent mints
-	 * one in the same session store its own {@link IAgent.listSessions} enumerates
+	 * The SDK-level session URI that backs this chat, when the agent mints one in
+	 * the same session store its own {@link IAgent.listSessions} enumerates
 	 * (e.g. Claude). First-class and non-opaque — unlike {@link providerData} the
 	 * orchestrator reads it to correlate and suppress the backing session so it
 	 * never surfaces as a top-level session. `undefined` when the agent keeps no
@@ -956,15 +998,15 @@ export interface IAgentCreateChatResult {
 
 /** Payload of {@link IAgent.onDidChangeChatData}. */
 export interface IAgentChatDataChange {
-	/** The peer chat whose backing chat's blob changed. */
+	/** The concrete chat whose backing blob changed. */
 	readonly chat: URI;
 	/** The new opaque blob to persist (replaces any previously stored value). */
 	readonly providerData: string;
 }
 
-/** A legacy peer chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
+/** A legacy concrete chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
 export interface IAgentLegacyChat {
-	/** The peer chat's channel URI (see {@link buildChatUri}). */
+	/** The concrete chat's channel URI (see {@link buildChatUri}). */
 	readonly uri: URI;
 	/** The opaque, agent-owned backing blob, encoded as {@link materializeChat} expects. */
 	readonly providerData?: string;
@@ -1065,13 +1107,12 @@ export namespace SubagentChatSignal {
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
  *
- * Every operation method addresses a chat by a concrete chat channel URI:
- * the default chat channel for a session's DEFAULT chat, or an additional
- * chat's own channel URI. The orchestrator ({@link IAgentService}) owns the
- * feature-level `(session, chat)` to chat-channel mapping and only ever calls
- * these operations with a concrete chat URI. This replaces the legacy
- * `(session, chat?)` parameter pairs and the per-agent default-chat handling on
- * {@link IAgent}.
+ * Every operation method addresses a chat by a concrete chat channel URI. The
+ * orchestrator ({@link IAgentService}) owns the feature-level `(session, chat)`
+ * to chat-channel mapping and only ever calls these operations with a concrete
+ * chat URI plus transient context when the provider needs the owning session or
+ * storage scope. This replaces the legacy `(session, chat?)` parameter pairs
+ * and the per-agent chat-role handling on {@link IAgent}.
  *
  * Optional on {@link IAgent}: agents implement this incrementally (waves
  * C2/C3/C4). Until an agent exposes it, {@link IAgentService} falls back to the
@@ -1079,51 +1120,66 @@ export namespace SubagentChatSignal {
  */
 export interface IAgentChats {
 	/**
-	 * Create a fresh additional chat within the session the `chat` URI belongs
-	 * to, sharing the session's working directory, model, agent, and
-	 * customizations. `chat` is the client-chosen channel URI the new chat is
-	 * addressed by; its parent session is derived from it.
-	 * Returns the opaque {@link IAgentCreateChatResult} blob to persist for
-	 * restore (or `void` when the agent keeps no resumable backing).
+	 * Create a fresh additional chat within an already-provisioned `session`,
+	 * inheriting the session's working directory and config via
+	 * {@link IAgentCreateChatOptions.inheritedContext}. `chat` is the
+	 * client-chosen channel URI the new chat is addressed by. The orchestrator
+	 * supplies the owning session plus the provider-owned persistence scope via
+	 * `context`, so the agent never has to recover either by parsing `chat`.
+	 * The session itself is provisioned separately via {@link IAgent.createSession}
+	 * (then bound with {@link bindSessionChat}), so this method never creates a
+	 * session. Returns the opaque {@link IAgentCreateChatResult} blob to persist
+	 * for restore (or `void` when the agent keeps no resumable backing).
 	 */
-	createChat(chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Fork a new chat from an existing one. The new `chat`
 	 * inherits `source`'s backing up to and including
 	 * {@link IAgentCreateChatForkSource.turnId} and then continues
-	 * independently. The new chat's parent session is derived from its URI.
+	 * independently. `context` carries the new chat's owning session plus its
+	 * host-chosen persistence scope.
 	 */
-	fork(chat: URI, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+	fork(chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
+
+	/** Dispose the addressed chat and free its backing. */
+	disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
-	 * Dispose an additional chat created via
-	 * {@link createChat}/{@link fork}, freeing its backing. A session's
-	 * default chat cannot be disposed in isolation; it lives and dies
-	 * with the session.
+	 * Bind a session-owned chat to its SDK conversation on restore, before any
+	 * operation is addressed to it. The host supplies the owning `session` so
+	 * the agent records the SDK-session id and storage scope explicitly. Chats
+	 * with independent persisted backings are restored via
+	 * {@link IAgent.materializeChat}; this chat carries no `providerData`.
 	 */
-	disposeChat(chat: URI): Promise<void>;
+	bindSessionChat?(chat: URI, context: URI | IAgentChatContext): Promise<void>;
+
+	/** Release the addressed chat's in-memory backing without deleting durable data. */
+	releaseChat(chat: URI): Promise<void>;
 
 	/**
 	 * Send a user message into `chat`; on first send, the host passes the resolved
-	 * working directory (or `undefined` for workspace-less sessions).
+	 * working directory (or `undefined` for workspace-less sessions). `session`
+	 * is transient operation context for providers that need inherited settings
+	 * to materialize a cold SDK conversation; providers must not retain it as
+	 * chat membership state.
 	 */
-	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string): Promise<void>;
+	sendMessage(chat: URI, prompt: string, workingDirectory: URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, context?: URI | IAgentChatContext): Promise<void>;
 
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI): Promise<void>;
 
 	/** Change the model for `chat`. */
-	changeModel(chat: URI, model: ModelSelection): Promise<void>;
+	changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
 	 * Change (or clear) the selected custom agent for `chat`. Passing
 	 * `undefined` clears the selection (provider default behavior).
 	 */
-	changeAgent(chat: URI, agent: AgentSelection | undefined): Promise<void>;
+	changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void>;
 
 	/** Reconstruct the turns for `chat` (used on restore). */
-	getMessages(chat: URI): Promise<readonly Turn[]>;
+	getMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]>;
 }
 
 export interface IAgentResolveSessionConfigParams {
@@ -1444,7 +1500,9 @@ export interface IAgent {
 	 * Re-attach an agent's in-memory backing for a peer chat on session
 	 * restore, decoding the opaque `providerData` produced earlier by
 	 * {@link IAgentChats.createChat} (or the latest
-	 * {@link onDidChangeChatData}). After this resolves the agent MUST
+	 * {@link onDidChangeChatData}). `session` is the chat's owning session,
+	 * supplied explicitly by the orchestrator so the agent never has to
+	 * recover it by parsing `chat`. After this resolves the agent MUST
 	 * be able to serve {@link getSessionMessages}/
 	 * {@link IAgentChats.sendMessage} for `chat`.
 	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
@@ -1453,7 +1511,7 @@ export interface IAgent {
 	 * no stored blob, in which case the agent MAY consult its own legacy
 	 * persistence once to recover the backing.
 	 */
-	materializeChat?(chat: URI, providerData: string | undefined): Promise<void>;
+	materializeChat?(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void>;
 
 	/**
 	 * Migration-only enumeration of a session's peer chats persisted in the
@@ -1505,15 +1563,6 @@ export interface IAgent {
 	setPendingMessages?(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], chat?: URI): void;
 
 	/**
-	 * Retrieve the reconstructed turns for a session, used when restoring
-	 * sessions from persistent storage. Each agent owns the conversion from
-	 * its SDK-specific event log to protocol {@link Turn}s, including
-	 * subagent sessions (callers pass the subagent URI to retrieve the
-	 * child session's turns).
-	 */
-	getSessionMessages(session: URI): Promise<readonly Turn[]>;
-
-	/**
 	 * Returns the subagent child sessions discoverable in a session's event
 	 * log so a parent restore can eagerly register them in a single pass.
 	 * Without this, every child is restored separately by re-fetching and
@@ -1550,8 +1599,12 @@ export interface IAgent {
 	/** Available models from this provider. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
-	/** List persisted sessions from this provider. */
-	listSessions(): Promise<IAgentSessionMetadata[]>;
+	/**
+	 * Enumerate the agent's own persisted SDK sessions, keyed by session URI
+	 * ({@link AgentSession.uri}). The orchestrator owns the session-to-chat
+	 * mapping, so the agent never derives chat URIs here.
+	 */
+	listSessions(): Promise<readonly IAgentSessionMetadata[]>;
 
 	/** Retrieve metadata for a single persisted session, without enumerating the provider catalog. */
 	getSessionMetadata?(session: URI): Promise<IAgentSessionMetadata | undefined>;
@@ -1621,7 +1674,7 @@ export interface IAgent {
 	 *
 	 * Optional — not all providers support truncation.
 	 */
-	truncateSession?(session: URI, turnId: string | undefined, chat: URI): Promise<void>;
+	truncateSession?(session: URI, turnId: string | undefined, chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
 	 * Notifies the provider that a session's archived state has changed.
@@ -1641,6 +1694,9 @@ export interface IAgent {
 	 * without re-entering its own SDK callbacks. Optional.
 	 */
 	onSessionConfigChanged?(session: URI, values: Record<string, unknown>): void;
+
+	/** Notifies the provider that a client changed the addressed chat's inherited session config. */
+	onChatConfigChanged?(chat: URI, values: Record<string, unknown>): void;
 
 	/**
 	 * Get (or lazily create) the per-session handle for an active client,

@@ -254,11 +254,11 @@ function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string):
  * Human labels for a Codex collab-agent (subagent) tool call, mirroring the
  * reference client's phrasing. Codex surfaces subagent orchestration as
  * `collabAgentToolCall` items on the parent thread, but each spawned agent
- * ALSO runs as its own child thread that emits a full `turn/*` + `item/*`
+ * also runs as its own child thread that emits a full `turn/*` + `item/*`
  * event stream. The host ({@link CodexAgent}) renders that child stream in a
- * read-only peer chat and attaches a discovery block to the parent
+ * read-only child conversation and attaches a discovery block to the parent
  * `spawnAgent` tool call; the lifecycle collab tools (`wait`, `closeAgent`,
- * `sendInput`, …) render as plain tool calls in the parent chat.
+ * `sendInput`, …) render as plain tool calls in the parent conversation.
  */
 function collabAgentToolLabels(tool: CollabAgentTool): { readonly displayName: string; readonly present: string; readonly past: string } {
 	switch (tool) {
@@ -671,13 +671,13 @@ function mapItemStartedBody(
 			toolName,
 			output: '',
 		});
-		// `spawnAgent` opens a read-only peer chat for the child thread (the
-		// host attaches the subagent-discovery block to THIS tool call on
+		// `spawnAgent` opens a read-only child conversation for the child thread
+		// (the host attaches the subagent-discovery block to THIS tool call on
 		// `subagent_started`), so we deliberately do NOT dump the raw prompt
-		// into the tool box — it would duplicate the child chat's first user
-		// message and blow out the tool-call width. The other collab tools
-		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no peer
-		// chat, so they keep a compact prompt/model summary.
+		// into the tool box — it would duplicate the child conversation's first
+		// user message and blow out the tool-call width. The other collab tools
+		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no child
+		// conversation, so they keep a compact prompt/model summary.
 		if (params.item.tool === 'spawnAgent') {
 			return [
 				{

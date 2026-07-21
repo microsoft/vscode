@@ -12,6 +12,11 @@
 > **Status: COMPLETE** (2026-07-01)
 > All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and
 > Copilot all use the unified orchestrator path.
+>
+> The *operational* chat surface (send/abort/model/agent/history) is fully
+> chat-addressed and uniform across harnesses. Session ownership lives in the
+> orchestrator: it drives every harness through the chat-surface seam — see
+> [§7 Session Ownership (T2/T4)](#7-session-ownership-t2t4--the-orchestrator-owns-the-session).
 
 ---
 
@@ -22,7 +27,7 @@
 | Term | What it is | Owner |
 |------|-----------|-------|
 | **Session** (SDK-level) | The SDK-level session: working directory, active client, tool permissions, restore identity. Owns the default chat implicitly. | Agent harness |
-| **Chat** | A thread of turns within a session, addressed by a chat channel URI. The default chat's URI is derived from the session URI with `buildDefaultChatUri`. Additional (peer) chats have their own `ahp-chat://` URIs. | Agent harness (SDK) |
+| **Chat** | A thread of turns addressed by a chat channel URI. AH owns its URI and membership; the agent owns its SDK backing. | `AgentService` + agent harness |
 | **Orchestrator session** | The protocol-visible entity that bundles a session with its chat catalog, state, and persistence. The orchestrator owns the catalog (which chats exist), the default-chat pointer, and all persistence. | `AgentService` + `AgentHostStateManager` |
 
 ### Guiding principles
@@ -39,6 +44,25 @@
 - **Single catalog path.** Whether a chat is created by the user ("Add Chat")
   or spawned by the harness (subagent tool call), it enters the catalog through
   exactly one path (`AgentHostStateManager.addChat`). See invariant I4 below.
+
+### Terminology convention: "session" is overloaded — read it by layer
+
+The word **session** means two different things depending on which side of the
+seam you are on. To avoid confusion, follow this convention:
+
+| Where | What `session` means | Notes |
+|-------|----------------------|-------|
+| AHP wire protocol (`common/state/protocol/`) and the orchestrator (`AgentService`, `AgentHostStateManager`) | The **AH session** — the protocol-visible grouping of a default chat plus its peer chats. | This is the vocabulary the generated protocol types pin (`SessionState`, `SessionSummary`, `sessionAdded`, ...); it is immutable and authoritative. |
+| Inside an agent harness (`node/claude`, `node/copilot`, `node/codex`) | The agent's **own SDK / provider session** — the provider's native concept (Codex calls it a *thread*). The agent has no notion of the AH grouping; it only ever deals in chats and its own SDK sessions. | Prefer the provider's native term where one exists (Codex "thread"); otherwise spell it out as "SDK session" / "provider session" in comments and local names wherever the two could be confused. |
+| The `IAgent` seam (`createSession` / `disposeSession` / `releaseSession`, `session: URI`) | A **shared identity**: the URI is AH-minted (`AgentSession.uri`), but by invariant I3 its raw id *is* the SDK session id, so both sides agree on identity without importing each other's concept. | These few methods legitimately keep the name `session`. Chat-addressed operations do **not** — they were renamed to conversation/chat (e.g. `getConversationMetadata`, `listConversations`, `chats.*`). |
+
+**Why we do not rename the agents' "SDK session" symbols:** the generated
+protocol fixes "Session" = AH session across hundreds of references we cannot
+change, and the `IAgent` seam genuinely passes AH session URIs. Renaming the
+provider-internal concept to `providerSession` would create a new inconsistency
+against the protocol rather than removing one. The durable fix is this
+convention plus the chat-addressed rename of the operational surface, not a
+symbol-level rename of "session".
 
 ---
 
@@ -89,6 +113,9 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 - Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without a `createSession` call in this process lifetime).
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
+- Disposes and releases every catalog chat in stable order: peers first, default last.
+- Fans session config changes out to concrete chats for chat-addressed providers.
+- Supplies the owning session's resolved context (`IAgentCreateChatOptions.inheritedContext` = `{ workingDirectory, config }`) when creating an additional chat, so the agent stands up the new chat's backing without reading it back from the parent session's own state (`_buildInheritedChatContext`). The working directory is the AH-resolved worktree/folder; model/agent continue through the client + draft path.
 - Persists and restores the orchestrator-owned peer-chat catalog (`PEER_CHATS_METADATA_KEY` in the session database, serialized per session via `_peerChatCatalogWrites`).
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
@@ -119,7 +146,7 @@ Agents do **not** maintain the chat catalog, persist membership, or know about t
 A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
 **I3 — The default chat's backing SDK session IS the session.**
-The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`), and its backing SDK session id equals the session raw id. The default chat owns the session-level resources: working directory, active client, and restore-by-session-id. Peer chats are satellites, each backed by its own SDK session id (`IPersistedChat.sdkSessionId`). This distinction is encapsulated inside each harness's session container; the orchestrator never special-cases it.
+The default chat's URI is derived deterministically from the session URI (`buildDefaultChatUri(sessionUri)`), and its backing SDK session id equals the session raw id. Peer chats can have independent SDK session ids (`IPersistedChat.sdkSessionId`). This identity rule does not give the agent ownership of chat grouping: AH's `SessionState.chats` and `defaultChat` remain authoritative and drive lifecycle/config fan-out.
 
 **I4 — Single catalog path (spawn channel).**
 Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
@@ -174,9 +201,9 @@ graph LR
     end
 
     subgraph Harnesses["Agent Harnesses"]
-        claude["ClaudeAgent\n_sessions: DisposableMap<id, ClaudeSessionEntry>"]
-        copilot["CopilotAgent\n_sessions: DisposableMap<id, CopilotSessionEntry>\n_chatBackings: Map<chatUri, IPersistedChat>"]
-        codex["CodexAgent\n_sessions: Map<id, ICodexSession>\n(single-chat)"]
+        claude["ClaudeAgent\n_chatEntriesBySdkId: DisposableMap<sdkId, ClaudeChatEntry>\n_chatBindings: Map<chatUri, binding>"]
+        copilot["CopilotAgent\n_chatEntriesBySdkId: DisposableMap<sdkId, CopilotChatEntry>\n_sdkIdsByChatUri: Map<chatUri, sdkId>"]
+        codex["CodexAgent\n_sessions: Map<id, ICodexSession>\n_sessionIdByChatUri: Map<chatUri, id>"]
     end
 
     provider -->|"IPC (agentHost channel)"| svc
@@ -197,7 +224,7 @@ sequenceDiagram
 
     UI->>AS: createChat(session, chatUri, options?)
     AS->>AS: _findProviderForSession(session)
-    AS->>A: chats.createChat(chatUri, convOptions)
+    AS->>A: chats.createChat(chatUri, session, convOptions)
     A-->>AS: IAgentCreateChatResult { providerData?, backingSession? }
     AS->>SM: addChat(session, chatUri, { providerData })
     SM-->>UI: ActionEnvelope (SessionChatAdded)
@@ -249,7 +276,7 @@ sequenceDiagram
     Note over AS: Peer chats: read PEER_CHATS_METADATA_KEY from DB
     alt catalog present (defined)
         loop for each IPersistedPeerChat (in catalog order)
-            AS->>A: materializeChat(chatUri, providerData?)
+            AS->>A: materializeChat(chatUri, session, providerData?)
             AS->>A: chats.getMessages(chatUri)
             A-->>AS: Turn[]
             AS->>SM: restoreChat(session, chatUri, {title, turns, draft, providerData})
@@ -293,31 +320,117 @@ The orchestrator resolves the owning **session** from the session URI for sessio
 
 ### Claude (`node/claude/claudeAgent.ts`)
 
-Single `_sessions: DisposableMap<string, ClaudeSessionEntry>` keyed by session id.
+Claude deliberately has no AH-session container and no membership/role concept of its own:
+- `_chatEntriesBySdkId: DisposableMap<string, ClaudeChatEntry>` is the single disposable owner of every live SDK conversation and provides direct SDK-callback routing.
+- `_chatBindings: Map<string, IClaudeChatBinding>` is the one concrete binding map, keyed by the exact host-supplied chat URI, holding only `{ sdkSessionId, model? }`. It deliberately does **not** retain the owning AH session or a storage URI: AH supplies the owning session and the persistence/config `resource` transiently on every operation (`IAgentChatContext`), and Claude never parses either back out of the chat URI. There is no default-vs-additional discriminator on the binding.
+- `IClaudeChatBinding` is the single source of truth for both live and released chats: releasing a chat drops its `_chatEntriesBySdkId` leaf but keeps the binding so a later send can cold-resume from `sdkSessionId`/`model` alone.
 
-`ClaudeSessionEntry` (`claudeAgent.ts:ClaudeSessionEntry`) is a thin subclass of the shared `AgentSessionEntry<ClaudeAgentSession>` (`node/agentPeerChats.ts`), which is a `Disposable` container holding ALL chats of the session — the default (main) chat and any peers — together in ONE map keyed by each chat's channel URI string:
-- `_chats: DisposableMap<string, AgentSessionEntry<ClaudeAgentSession>>` — every chat (default + peers) as a leaf entry, keyed by chat URI string.
-- `_defaultChatKey` — the key of the default chat within `_chats`. `defaultChat` reads it; Claude narrows the base's optional `defaultChat` accessor to non-optional because a Claude entry is always seeded with a materialized default chat.
+Every chat operation resolves exactly one binding and routes to exactly one leaf; there is no default-vs-additional branch and no cascade between chats of the same session. An additional chat's send after restart materializes only that chat and never creates a provisional storage-scoped conversation. Capabilities remain `multipleChats: { fork: true }`.
 
-Chat resolution: `entry.resolveChat(chatKey)` is ONE uniform map lookup that returns the `ClaudeAgentSession` for any chat - default or peer - plus whether the resolved entry is the default chat. Operational methods derive the owning session from the concrete chat URI and use that resolved entry rather than branching on `isDefaultChatUri`. Capabilities: `supportsMultipleChats: true, supportsFork: true`.
+Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the additional chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the orchestrator-owned catalog simply drops the entry so it is never resumed again. (Claude writes no legacy `claude.chats` blob and has no legacy migration: Claude multi-chat shipped only with the orchestrator-owned catalog, so there is nothing to drain. Copilot keeps its own `copilot.chats` migration because `copilot.chats` predates the catalog.)
 
-Each peer chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the peer chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the orchestrator-owned catalog simply drops the entry so it is never resumed again. (Claude writes no legacy `claude.chats` blob and has no legacy migration: Claude multi-chat shipped only with the orchestrator-owned catalog, so there is nothing to drain. Copilot keeps its own `copilot.chats` migration because `copilot.chats` predates the catalog.)
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
-F2 complete (2026-07-01): single `_sessions: DisposableMap<string, CopilotSessionEntry>` keyed by session id; the parallel `_chatSessions` map has been removed.
+Copilot also has no AH-session container:
+- `_chatEntriesBySdkId: DisposableMap<string, CopilotChatEntry>` owns every live SDK conversation and its MCP/customization subscriptions.
+- `_sdkIdsByChatUri: Map<string, string>` routes each concrete host chat URI to exactly one SDK conversation; SDK callbacks route directly by SDK id.
+- Direct `createSession` fork/import results can remain unbound in the SDK-id owner until AH calls `bindSessionChat` with the concrete chat URI.
+- `_chatBackings: Map<string, IPersistedChat>` remains peer-only provider metadata and preserves the existing `providerData` codec and one-time `copilot.chats` migration.
 
-`CopilotSessionEntry` (`copilotAgent.ts:CopilotSessionEntry`) is an empty subclass of the shared `AgentSessionEntry<CopilotAgentSession>` (`node/agentPeerChats.ts`) — its API matches the base exactly. It is a `Disposable` container holding ALL chats (default + peers) in ONE map keyed by chat URI string:
-- `_chats: DisposableMap<string, AgentSessionEntry<CopilotAgentSession>>` — every chat (default + peers) as a leaf entry.
-- `defaultChat: CopilotAgentSession | undefined` — the default chat via `_defaultChatKey`; `undefined` while the session is still provisional (not yet materialized).
-- `setDefaultChat(chatKey, entry)` / `clearDefaultChat()` — lifecycle for the default chat (e.g. config-driven restart), seeding/dropping it in the same map as peers.
-
-Chat resolution reads that single map: `_findAnySession` returns `entry.defaultChat`, `_findPeerChat` returns `entry.getPeerChat(chatKey)`, and operational methods use `entry.resolveChat(chatKey)` so default and peer chats are resolved through the same map. Remaining `isDefaultChatUri` checks are outside the operational chat surface, for chat lifecycle, tool routing, and legacy/subagent guards.
-
-The peer-chat `providerData` codec (`IPersistedChat` + `encodeProviderData`/`decodeProviderData`) is also shared from `node/agentPeerChats.ts`; both agents import it rather than carrying private copies.
-
-An orthogonal `_chatBackings: Map<string, IPersistedChat>` records the live SDK session id (`sdkSessionId`) + model override for each peer chat URI so the agent can resume peer chats without re-consulting disk. This map is populated by `createChat`/`materializeChat` and is separate from the orchestrator's `_chatProviderData` (which holds the opaque blob the agent produced, while `_chatBackings` is the agent's own in-memory parse of that blob). Capabilities: `multipleChats: { fork: true }`.
+No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
-Single-chat harness. `_sessions: Map<string, ICodexSession>` keyed by session id; no peer-chat map. `chats.createChat` and `chats.fork` **throw** (`"Codex agent does not support multiple chats"` / `"Codex agent does not support chat forking"`); `chats.disposeChat` is a no-op; `sendMessage`/`abort`/`changeModel`/`getMessages` first resolve the addressed chat to Codex's single session and then operate on it (and `changeAgent` is a no-op). `getDescriptor().capabilities` omits `multipleChats` (absent = unsupported), so the UI never offers "Add Chat" or "Fork" for Codex sessions.
+Codex remains a single-chat harness, but its sole SDK thread is explicitly bound to the concrete chat URI AH supplies:
+- `_sessions: Map<string, ICodexSession>` owns thread/session state by Codex session id.
+- `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.
+- `_sessionIdByThreadId` continues to route app-server callbacks by thread id.
+- `bindSessionChat` attaches restored/forked direct-create threads before history or operations; provision binds at creation.
+
+Codex never recognizes or derives a default-chat URI. `chats.createChat` and `chats.fork` still throw because `multipleChats` is unsupported; exact disposal affects only the bound thread. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and app-server protocol are unchanged.
+
+---
+
+## 7. Session Ownership (T2/T4) — the orchestrator owns the Session
+
+**Status: implemented — the orchestrator owns the Session; the agent only ever creates chats.**
+
+Earlier the agent harness co-owned the *Session* type: it implemented
+`createSession`/`disposeSession`/`listSessions`/`getSessionMetadata` and kept an
+outer per-session grouping. T2/T4 makes the orchestrator own the Session concept
+entirely — identity, lifecycle, and grouping — while the agent talks only in
+chats and one dedicated session-provisioning method.
+
+Session *creation* and *chat* creation are distinct operations, so they are
+distinct methods on the agent — the orchestrator does **not** overload
+`chats.createChat` to also provision a session. `chats.createChat` has exactly
+one meaning: add an additional chat to an already-provisioned session.
+
+### The seam
+
+- **Create.** `AgentService._createProviderSession` provisions the session by
+  calling the agent's dedicated `createSession(config)` and then binding its
+  default chat with `chats.bindSessionChat(buildDefaultChatUri(session), …)` —
+  the same path fork/import already used. The agent-specific provisioning
+  (working directory / scratch dir, git project probe, permission mode,
+  provisional SDK construction) runs inside `createSession` and returns an
+  `IAgentCreateSessionResult` (`{ session, workingDirectory?, project?,
+  provisional? }`), preserving provisional / `onDidMaterializeSession` /
+  deferred-`sessionAdded` semantics. There is **no** `newSession` payload on
+  `createChat`, and no `provision` result on `IAgentCreateChatResult`; the agent
+  never distinguishes "a chat for a new session" from "a chat for an existing
+  session".
+- **Add a chat.** `AgentService.createChat` dispatches to `chats.createChat` /
+  `chats.fork` for additional chats only, supplying the owning session's resolved
+  context via `IAgentCreateChatOptions.inheritedContext` (`{ workingDirectory,
+  config }`) so the agent never reads it back from the parent session.
+- **Dispose/release.** `AgentService` reads the authoritative chat catalog and
+  calls `chats.disposeChat` (or optional `chats.releaseChat`) for every chat,
+  peers first and the default last. Each chat hook is exact; an agent never
+  cascades from the default chat to siblings. Providers without `releaseChat`
+  retain the legacy `releaseSession` fallback.
+- **Config.** `AgentSideEffects` fans merged session config values out through
+  optional `onChatConfigChanged(chat, values)`. Providers without it retain the
+  legacy `onSessionConfigChanged` hook.
+- **Enumerate.** `AgentService._enumerateProviderSessions` calls
+  `agent.listConversations()` (each entry is an `IAgentConversationMetadata`
+  addressed by a chat URI) and groups them into sessions via the default-chat URI
+  convention (`parseDefaultChatUri`): a conversation whose chat URI is a session's
+  default-chat URI *is* that session; peer-chat conversations are grouped under
+  their session (restored via the peer-chat catalog) and never surface as
+  top-level sessions.
+
+### No provider-side default-chat derivation
+
+AH supplies both the chat URI and its owning session explicitly on every `createChat`/`fork`/`materializeChat` call, during provision, fork/import binding, and restore alike — no harness ever recovers the owning session by decoding the chat URI. Claude and Copilot record only the `chat → SDK conversation` link in their flat routing indexes (`_chatBindings` / `_sdkIdsByChatUri`, neither of which retains the owning session or a storage URI) and take the owning session and persistence `resource` from the transient `IAgentChatContext` on each operation; Codex records the `chat → session` link in its `_sessionIdByChatUri` routing index. Direct SDK-created conversations remain temporarily unbound until AH calls `bindSessionChat`. No harness calls `defaultChatUriForSession`, `buildDefaultChatUri`, `parseDefaultChatUri`, or `isDefaultChatUri` to derive an owning session from a chat URI.
+
+### Storage-preservation
+
+The seam is uniform for every harness — there is no per-agent opt-in flag; the
+orchestrator always provisions via `createSession` + `bindSessionChat`, and
+disposes/enumerates through the chat surface, and every harness (Claude, Copilot,
+Codex) implements it. It is **storage-preserving**: session URIs (and the derived
+`sdkSessionId == session raw id`, invariant I3) are unchanged, agents read/write
+the same SDK stores, and `providerData` / `PEER_CHATS_METADATA_KEY` formats are
+untouched. There is no data migration.
+
+### Interface surface
+
+`IAgent` no longer exposes `listSessions` or `getSessionMessages` — they are
+superseded by `listConversations` and `chats.getMessages`. Each harness keeps
+those as private methods its own chat/conversation bridge delegates to.
+
+`createSession` and `disposeSession` remain on `IAgent`. `createSession` is the
+single session-provisioning primitive: the orchestrator calls it to provision a
+session (then binds the default chat with `chats.bindSessionChat`), for the
+non-fork create path and the **fork/import** path alike. `chats.createChat` never
+provisions a session — it only adds additional chats. `disposeSession` is
+superseded by iterating the catalog and calling `chats.disposeChat` per chat.
+
+Per-session metadata lookup is exposed as `getConversationMetadata(chat)` (renamed
+from `getSessionMetadata`): it is addressed by a chat URI and returns the same
+`IAgentConversationMetadata` shape as `listConversations`, keeping the single-item
+and list lookups terminologically aligned. It remains a genuine single-conversation
+fast path — the orchestrator maps the default-chat URI back to a session when it
+hydrates restore metadata.

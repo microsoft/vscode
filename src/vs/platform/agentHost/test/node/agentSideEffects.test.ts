@@ -3549,6 +3549,52 @@ suite('AgentSideEffects', () => {
 				values: { permissionMode: 'bypassPermissions', autoApprove: 'default' },
 			}]);
 		});
+
+		test('SessionConfigChanged fans merged values out to concrete chats when supported', () => {
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const chatConfigCalls: { chat: string; values: Record<string, unknown> }[] = [];
+			const localAgentContract: IAgent = localAgent;
+			localAgentContract.onChatConfigChanged = (chat, values) => chatConfigCalls.push({ chat: chat.toString(), values });
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService: createSessionDataService(sessionDb),
+				onTurnComplete: () => { },
+			});
+			const session = localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			});
+			session.config = { schema: { type: 'object', properties: {} }, values: { permissionMode: 'default', autoApprove: 'default' } };
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			localStateManager.addChat(sessionUri.toString(), peerChat, {});
+
+			localStateManager.dispatchClientAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { permissionMode: 'bypassPermissions' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			localSideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { permissionMode: 'bypassPermissions' },
+			});
+
+			assert.deepStrictEqual({
+				chatConfigCalls,
+				sessionConfigCalls: localAgent.onSessionConfigChangedCalls,
+			}, {
+				chatConfigCalls: [
+					{ chat: defaultChatUri, values: { permissionMode: 'bypassPermissions', autoApprove: 'default' } },
+					{ chat: peerChat, values: { permissionMode: 'bypassPermissions', autoApprove: 'default' } },
+				],
+				sessionConfigCalls: [],
+			});
+		});
 	});
 
 	// ---- Subagent sessions ----------------------------------------------

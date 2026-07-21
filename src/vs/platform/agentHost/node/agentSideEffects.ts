@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -24,6 +24,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
+	buildDefaultChatUri,
 	buildSubagentChatUri,
 	getToolFileEdits,
 	isAhpChatChannel,
@@ -37,6 +38,7 @@ import {
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
+	resolveChatUri,
 	SessionLifecycle,
 	SessionStatus,
 	ToolCallStatus,
@@ -213,6 +215,12 @@ export class AgentSideEffects extends Disposable {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 		}));
+	}
+
+	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
+		const sessionUri = URI.parse(session);
+		const chatUri = URI.parse(chat);
+		return { session: sessionUri, resource: resolveChatUri(sessionUri, chatUri) };
 	}
 
 	/**
@@ -1208,7 +1216,7 @@ export class AgentSideEffects extends Disposable {
 					: action.turnId;
 				// Route to the chat being truncated: the default chat (addressed
 				// by the session) or a peer chat with its own backing.
-				agent?.truncateSession?.(URI.parse(sessionChannel), sdkTurnId, URI.parse(chatChannel)).catch(err => {
+				agent?.truncateSession?.(URI.parse(sessionChannel), sdkTurnId, URI.parse(chatChannel), this._chatContext(sessionChannel, chatChannel)).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
 				// Drop persisted local turns that no longer survive in the
@@ -1300,7 +1308,17 @@ export class AgentSideEffects extends Disposable {
 				// forward a live, session-mutable change (e.g. Claude's
 				// `permissionMode`) to its running SDK without re-entering its own
 				// tool callbacks.
-				this._options.getAgent(channel)?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
+				const agent = this._options.getAgent(channel);
+				if (agent?.onChatConfigChanged) {
+					const chats = sessionState?.chats.length
+						? sessionState.chats.map(chat => URI.parse(chat.resource))
+						: [URI.parse(buildDefaultChatUri(channel))];
+					for (const chat of chats) {
+						agent.onChatConfigChanged(chat, values ?? {});
+					}
+				} else {
+					agent?.onSessionConfigChanged?.(URI.parse(channel), values ?? {});
+				}
 				break;
 			}
 			case ActionType.ChatToolCallComplete: {
@@ -1530,19 +1548,20 @@ export class AgentSideEffects extends Disposable {
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const resolvedWorkingDirectory = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			const chatContext = this._chatContext(options.sessionChannel, chat);
 
 			const selectionUpdates: Promise<void>[] = [];
 			if (message.model) {
-				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model).catch(err => {
+				selectionUpdates.push(agent.chats.changeModel(chatUri, message.model, chatContext).catch(err => {
 					this._logService.error('[AgentSideEffects] changeModel failed', err);
 				}));
 			}
-			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent).catch(err => {
+			selectionUpdates.push(agent.chats.changeAgent(chatUri, message.agent, chatContext).catch(err => {
 				this._logService.error('[AgentSideEffects] changeAgent failed', err);
 			}));
 
 			await Promise.all(selectionUpdates);
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectory, message.attachments, turnId, senderClientId, chatContext);
 		} catch (err) {
 			const errCode = (err as { code?: number })?.code;
 			this._logService.error(`[AgentSideEffects] sendMessage failed for session=${turnChannel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);

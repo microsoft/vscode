@@ -331,6 +331,14 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly chatChannelUri: URI;
+	/**
+	 * The host-chosen persistence/config scope for this chat (the
+	 * {@link IAgentChatContext.resource}): the session URI for a session's
+	 * default chat, or the concrete chat URI for an additional chat. Stored
+	 * verbatim; when omitted (internal resume/unbound paths that carry no
+	 * explicit resource) it falls back to a one-time URI-shape inference.
+	 */
+	readonly resource?: URI;
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
@@ -508,7 +516,22 @@ class CopilotTurn {
 export class CopilotAgentSession extends Disposable {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
-	private readonly _chatChannelUri: URI;
+	private _chatChannelUri: URI;
+	/**
+	 * Persistence/config scope for this chat, fixed at construction. It is the
+	 * host-supplied {@link IAgentChatContext.resource} when available, and is
+	 * NOT re-derived from the (mutable) routing channel — so an explicitly
+	 * chosen resource is preserved across a later {@link bindChatChannel}.
+	 */
+	private readonly _storageUri: URI;
+
+	get chatChannelUri(): URI {
+		return this._chatChannelUri;
+	}
+
+	bindChatChannel(chatChannelUri: URI): void {
+		this._chatChannelUri = chatChannelUri;
+	}
 
 	/** Working directory this session operates in, if any. */
 	get workingDirectory(): URI | undefined { return this._workingDirectory; }
@@ -656,10 +679,6 @@ export class CopilotAgentSession extends Disposable {
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
-	private get _storageUri(): URI {
-		return isDefaultChatUri(this._chatChannelUri) ? this.sessionUri : this._chatChannelUri;
-	}
-
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
 	 * up to the agent and on to the protocol server. Fired by the
@@ -716,6 +735,9 @@ export class CopilotAgentSession extends Disposable {
 		this.sessionUri = options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
+		// Persistence scope: honor the host-supplied resource; otherwise fall
+		// back once to the URI-shape inference (default chat → session scope).
+		this._storageUri = options.resource ?? (isDefaultChatUri(this._chatChannelUri) ? this.sessionUri : this._chatChannelUri);
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
@@ -1693,9 +1715,9 @@ export class CopilotAgentSession extends Disposable {
 				const content = (tc as { content?: readonly ToolResultContent[] }).content;
 				const subagentContent = content ? getToolSubagentContent({ content }) : undefined;
 				// Prefer the spawning Task tool's short `description` (captured on
-				// the parent tool call's `_meta`) so restored peer tabs match the
-				// live path's concise, per-task naming; fall back to the agent
-				// type's display name.
+				// the parent tool call's `_meta`) so restored subagent tabs match
+				// the live path's concise, per-task naming; fall back to the
+				// agent type's display name.
 				const taskDescription = readToolCallMeta(tc).subagentDescription;
 				out.push({
 					resource: URI.parse(buildSubagentSessionUri(parentSessionStr, tc.toolCallId)),
@@ -3318,7 +3340,7 @@ export class CopilotAgentSession extends Disposable {
 				agentDescription: e.data.agentDescription,
 				// The spawning Task tool's short `description` input (captured on
 				// tool start) is the concise per-task tab title for the subagent's
-				// read-only peer chat — distinct even for same-type subagents.
+				// read-only chat — distinct even for same-type subagents.
 				taskDescription: tracked?.meta?.subagentDescription,
 				// The full delegated instruction (the spawning tool's `prompt`
 				// argument) seeds the subagent peer chat's opening request.

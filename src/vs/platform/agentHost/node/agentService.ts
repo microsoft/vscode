@@ -22,7 +22,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentInheritedChatContext, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -32,7 +32,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, readSessionSpawnDepth, resolveChatUri, withSessionSpawnDepth, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionWorkspaceless, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
@@ -736,10 +736,15 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
+	/** Enumerate a provider's persisted sessions. */
+	private async _enumerateProviderSessions(provider: IAgent): Promise<IAgentSessionMetadata[]> {
+		return [...await provider.listSessions()];
+	}
+
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		const results = await Promise.all(
-			[...this._providers.values()].map(p => p.listSessions())
+			[...this._providers.values()].map(p => this._enumerateProviderSessions(p))
 		);
 		const flat = results.flat();
 
@@ -1199,7 +1204,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// subscribers once the chat can actually receive messages. The agent
 		// returns the opaque `providerData` blob the orchestrator persists for
 		// restore (it never parses it); single-chat-only agents return `void`.
-		const createResult = await this._createChat(provider, chat, createOptions);
+		const createResult = await this._createChat(provider, chat, session, createOptions);
 		const providerData = createResult?.providerData;
 		this._stateManager.addChat(sessionKey, chat.toString(), {
 			...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
@@ -1252,6 +1257,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return !!provider.chats;
 	}
 
+	private _chatContext(session: URI, chat: URI): IAgentChatContext {
+		return { session, resource: resolveChatUri(session, chat) };
+	}
+
 	private async _createProviderSession(provider: IAgent, config: IAgentCreateSessionConfig | undefined, deferWorktreeCreation: boolean): Promise<IAgentCreateSessionResult> {
 		const requestedSessionId = deferWorktreeCreation && config?.session ? AgentSession.id(config.session) : undefined;
 		if (requestedSessionId) {
@@ -1260,7 +1269,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let created: IAgentCreateSessionResult | undefined;
 		try {
+			// Provision the session through the agent's dedicated createSession
+			// method, then bind its default chat — the same path fork/import
+			// uses. The agent stands up the session's infrastructure; the chat
+			// surface is reserved for adding additional chats to it.
 			created = await provider.createSession(config ? this._toProviderConfig(config) : undefined);
+			const defaultChatUri = URI.parse(buildDefaultChatUri(created.session));
+			await provider.chats.bindSessionChat?.(defaultChatUri, this._chatContext(created.session, defaultChatUri));
 			if (deferWorktreeCreation && created.provisional) {
 				this._worktree?.notePending(AgentSession.id(created.session));
 			}
@@ -1273,16 +1288,52 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	private _getSessionChatsInTeardownOrder(session: URI): URI[] {
+		const state = this._stateManager.getSessionState(session.toString());
+		const defaultChat = state?.defaultChat ?? buildDefaultChatUri(session.toString());
+		const result: URI[] = [];
+		const seen = new Set<string>();
+		for (const summary of state?.chats ?? []) {
+			if (summary.resource !== defaultChat && !seen.has(summary.resource)) {
+				seen.add(summary.resource);
+				result.push(URI.parse(summary.resource));
+			}
+		}
+		if (!seen.has(defaultChat)) {
+			result.push(URI.parse(defaultChat));
+		}
+		return result;
+	}
+
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
-		await provider.disposeSession(session);
+		for (const chat of this._getSessionChatsInTeardownOrder(session)) {
+			await provider.chats.disposeChat(chat, this._chatContext(session, chat));
+		}
+	}
+
+	private async _releaseSession(provider: IAgent, session: URI, chats: readonly URI[]): Promise<void> {
+		// Release every catalog chat even if one rejects: idle eviction has
+		// already dropped the session state, so a chat leaf skipped here would
+		// remain resident indefinitely. Visit all, then surface the first error.
+		let firstError: unknown;
+		for (const chat of chats) {
+			try {
+				await provider.chats.releaseChat(chat);
+			} catch (err) {
+				firstError ??= err;
+			}
+		}
+		if (firstError !== undefined) {
+			throw firstError;
+		}
 	}
 
 	/**
 	 * Reconstruct the turns for a chat. `chat` is the concrete chat channel URI,
 	 * except for legacy restore paths that still address subagent sessions.
 	 */
-	private async _getChatMessages(provider: IAgent, chat: URI): Promise<readonly Turn[]> {
-		const turns = await provider.chats.getMessages(chat);
+	private async _getChatMessages(provider: IAgent, chat: URI, session?: URI): Promise<readonly Turn[]> {
+		const turns = await provider.chats.getMessages(chat, session ? this._chatContext(session, chat) : undefined);
 		// Host-owned worktree restore announcement: re-inject the "Created isolated
 		// worktree" message at the top of the default chat's first turn from
 		// persisted metadata. No-op for folder sessions and non-default chats (peer
@@ -1366,17 +1417,42 @@ export class AgentService extends Disposable implements IAgentService {
 	 * always a peer URI here (the default chat is created implicitly with
 	 * the session), so no default-chat resolution is needed.
 	 */
-	private _createChat(provider: IAgent, chat: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
-		const convOptions: IAgentCreateChatOptions | undefined = options && (options.title !== undefined || options.model !== undefined)
-			? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.model !== undefined ? { model: options.model } : {}) }
+	private _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
+		const inheritedContext = this._buildInheritedChatContext(session);
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || inheritedContext)
+			? {
+				...(options?.title !== undefined ? { title: options.title } : {}),
+				...(options?.model !== undefined ? { model: options.model } : {}),
+				...(inheritedContext ? { inheritedContext } : {}),
+			}
 			: undefined;
+		const context = this._chatContext(session, chat);
 		return options?.fork
-			? provider.chats.fork(chat, options.fork, convOptions)
-			: provider.chats.createChat(chat, convOptions);
+			? provider.chats.fork(chat, context, options.fork, convOptions)
+			: provider.chats.createChat(chat, context, convOptions);
+	}
+
+	/**
+	 * Resolve the owning session's context so the orchestrator can hand it to an
+	 * agent creating an additional chat, sparing the agent from reading it back
+	 * out of the parent session. The working directory prefers the AH-resolved
+	 * worktree; config is the session's current config values.
+	 */
+	private _buildInheritedChatContext(session: URI): IAgentInheritedChatContext | undefined {
+		const state = this._stateManager.getSessionState(session.toString());
+		const rawWorkingDirectory = state?.workingDirectory;
+		const workingDirectory = this._worktree?.getResolvedWorktree(AgentSession.id(session))
+			?? (typeof rawWorkingDirectory === 'string' ? URI.parse(rawWorkingDirectory) : rawWorkingDirectory);
+		if (!workingDirectory) {
+			return undefined;
+		}
+		const config = this._configurationService.getSessionConfigValues(session.toString());
+		return { workingDirectory, ...(config && Object.keys(config).length > 0 ? { config } : {}) };
 	}
 
 	private async _disposeChat(provider: IAgent, chat: URI): Promise<void> {
-		await provider.chats.disposeChat(chat);
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+		await provider.chats.disposeChat(chat, this._chatContext(session, chat));
 	}
 
 	/**
@@ -1952,6 +2028,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!targetState || targetState.activeTurn !== undefined) {
 			return;
 		}
+		const chats = this._getSessionChatsInTeardownOrder(evictionTarget);
 		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
 		// Also evict any sibling subagent entries cached under the parent: their
 		// authoritative state is the parent's turn tree, and dropping the parent
@@ -1967,7 +2044,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// the provider sequences the release internally and re-checks its own
 		// invariants (e.g. a turn that started after this call).
 		const provider = this._findProviderForSession(evictionTarget);
-		provider?.releaseSession?.(evictionTarget).catch(err => {
+		if (!provider) {
+			return;
+		}
+		this._releaseSession(provider, evictionTarget, chats).catch(err => {
 			this._logService.error(err, `[AgentService] Failed to release idle session ${evictionTargetKey}`);
 		});
 	}
@@ -2290,9 +2370,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
+		// Bind the session-backed chat before loading its history or restoring peers, so
+		// the agent resolves the session-backed chat by its chat URI (SDK id +
+		// storage scope) rather than inferring it. Symmetric with the peer
+		// restore below (which calls `materializeChat`).
+		await agent.chats.bindSessionChat?.(defaultChatUri, this._chatContext(session, defaultChatUri));
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, defaultChatUri);
+			turns = await this._getChatMessages(agent, defaultChatUri, session);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -2580,14 +2665,14 @@ export class AgentService extends Disposable implements IAgentService {
 			// backing.
 			if (agent.materializeChat) {
 				try {
-					await agent.materializeChat(chatUri, entry.providerData);
+					await agent.materializeChat(chatUri, this._chatContext(session, chatUri), entry.providerData);
 				} catch (err) {
 					this._logService.warn(`[AgentService] Failed to materialize peer chat ${entry.uri}: ${toErrorMessage(err)}`);
 				}
 			}
 			let turns: readonly Turn[] = [];
 			try {
-				turns = await this._getChatMessages(agent, chatUri);
+				turns = await this._getChatMessages(agent, chatUri, session);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load history for peer chat ${chatUri.toString()}: ${toErrorMessage(err)}`);
 			}
@@ -2892,7 +2977,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		if (agent.getSessionMetadata) {
 			try {
-				return await this._withWorktreeProject(session, await agent.getSessionMetadata(session));
+				const meta = await agent.getSessionMetadata(session);
+				return await this._withWorktreeProject(session, meta);
 			} catch (err) {
 				if (err instanceof ProtocolError) {
 					throw err;
@@ -2933,7 +3019,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionStr = session.toString();
 		let allSessions;
 		try {
-			allSessions = await agent.listSessions();
+			allSessions = await this._enumerateProviderSessions(agent);
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
