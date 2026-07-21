@@ -646,6 +646,10 @@ suite('VoiceSessionController', () => {
 		);
 		await controller.connect(mainWindow);
 		Reflect.get(controller, '_isConnected').set(true, undefined);
+		// Install a focused window so the multi-window hands-free focus gate
+		// (#8507) lets the passive barge-in turn open; the headless test window
+		// reports `document.hasFocus()` as false.
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
 
 		voiceClientService.fireAudioResponse({
 			audio: 'story-start',
