@@ -862,18 +862,18 @@ function computeSettings(): Settings {
 	};
 
 	/*
-	 * Expand a leading `${workspaceFolder}` (also after a `!` exclusion prefix) to the folder uri,
-	 * anchoring the pattern to the workspace folder root. Patterns are matched against the full
-	 * document uri, so the expansion uses the uri string (also pinning scheme and authority).
+	 * Expand a leading `${workspaceFolder}` (also after a `!` exclusion prefix) to the workspace
+	 * folder path, anchoring the pattern to the folder.
 	 */
 	const expandWorkspaceFolder = (fileMatch: string[] | undefined, workspaceFolder: Uri | undefined): string[] | undefined => {
 		if (!Array.isArray(fileMatch) || !workspaceFolder) {
 			return fileMatch;
 		}
-		// Drop the query and fragment like the server does for document uris, and turn glob
-		// metacharacters in the folder string into regex hex escapes, which the glob passes
+		// Lowercase a drive letter like the server's uri normalization does, and turn glob
+		// metacharacters in the folder path into regex hex escapes, which the glob passes
 		// through, so folder names can not alter the meaning of the pattern.
-		const folderString = workspaceFolder.with({ query: '', fragment: '' }).toString(true)
+		const folderPath = workspaceFolder.path
+			.replace(/^\/[A-Z]:/, s => s.toLowerCase())
 			.replace(/\/$/, '')
 			.replace(/[*?{}[\],\\]/g, c => `\\x${c.charCodeAt(0).toString(16)}`);
 		const prefix = '${workspaceFolder}/';
@@ -886,9 +886,7 @@ function computeSettings(): Settings {
 			if (!pattern.startsWith(prefix)) {
 				return fm;
 			}
-			// Concatenated as a string instead of Uri.joinPath: the rest of the pattern is a
-			// glob, and uri encoding would alter `?` or `#` in it.
-			return exclusion + folderString + '/' + pattern.substring(prefix.length);
+			return exclusion + folderPath + '/' + pattern.substring(prefix.length);
 		});
 	};
 
