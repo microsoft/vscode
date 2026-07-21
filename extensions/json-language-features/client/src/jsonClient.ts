@@ -88,7 +88,7 @@ type Settings = {
 		format?: { enable?: boolean };
 		keepLines?: { enable?: boolean };
 		validate?: { enable?: boolean };
-		schemaStore?: { enable?: boolean };
+		schemaStore?: { enable?: boolean; exclude?: string[] };
 		resultLimit?: number;
 		jsonFoldingLimit?: number;
 		jsoncFoldingLimit?: number;
@@ -114,6 +114,7 @@ export namespace SettingIds {
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const enableSchemaStore = 'json.schemaStore.enable';
+	export const schemaStoreExclude = 'json.schemaStore.exclude';
 	export const trustedDomains = 'json.schemaDownload.trustedDomains';
 	export const maxItemsComputed = 'json.maxItemsComputed';
 	export const editorFoldingMaximumRegions = 'editor.foldingMaximumRegions';
@@ -573,6 +574,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaStore)) {
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
 			triggerValidation();
+		} else if (e.affectsConfiguration(SettingIds.schemaStoreExclude)) {
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
+			triggerValidation();
 		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings(true) });
 		} else if (e.affectsConfiguration(SettingIds.trustedDomains)) {
@@ -862,7 +866,7 @@ function computeSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
-			schemaStore: { enable: configuration.get(SettingIds.enableSchemaStore) },
+			schemaStore: { enable: configuration.get(SettingIds.enableSchemaStore), exclude: configuration.get(SettingIds.schemaStoreExclude) },
 			schemas,
 			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
 			jsonFoldingLimit: jsonFoldingLimit + 1,

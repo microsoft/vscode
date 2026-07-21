@@ -223,7 +223,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				schemaValidation?: SeverityLevel;
 				schemaRequest?: SeverityLevel;
 			};
-			schemaStore?: { enable?: boolean };
+			schemaStore?: { enable?: boolean; exclude?: string[] };
 			resultLimit?: number;
 			jsonFoldingLimit?: number;
 			jsoncFoldingLimit?: number;
@@ -255,6 +255,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let schemaRequestSeverity: SeverityLevel | undefined = undefined;
 	let keepLinesEnabled = false;
 	let schemaStoreEnabled = true;
+	let schemaStoreExclude: string[] | undefined = undefined;
 
 	// The settings have changed. Is sent on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
@@ -268,6 +269,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		schemaRequestSeverity = settings.json?.validate?.schemaRequest;
 		keepLinesEnabled = settings.json?.keepLines?.enable || false;
 		schemaStoreEnabled = settings.json?.schemaStore?.enable !== false;
+		schemaStoreExclude = settings.json?.schemaStore?.exclude;
 		updateConfiguration();
 
 		const sanitizeLimitSetting = (settingValue: any) => Math.trunc(Math.max(settingValue, 0));
@@ -365,7 +367,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const languageSettings: LanguageSettings = {
 			validate: validateEnabled,
 			allowComments: true,
-			schemaStore: { enable: schemaStoreEnabled },
+			schemaStore: { enable: schemaStoreEnabled, exclude: schemaStoreExclude },
 			schemas
 		};
 		if (schemaAssociations) {
