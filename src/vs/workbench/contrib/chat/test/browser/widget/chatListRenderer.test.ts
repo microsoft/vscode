@@ -131,7 +131,7 @@ suite('ChatListRenderer', () => {
 				},
 				completionDateTime: new Date(completedAt).toISOString(),
 				hasAlternate: true,
-				duration: '24s',
+				duration: formatChatResponseDetails('24s', formatChatRequestTimestamp(completedAt)!.fullText),
 				details: 'Claude Opus 4.8',
 				separatorHidden: 'true',
 				ariaIncludesElapsed: true,
