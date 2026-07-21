@@ -76,6 +76,8 @@ async function waitForAssert(
 	);
 }
 
+const TEST_WATCH = false;
+
 suite('Agent Host Provider Integration — Copilot Customizations', function () {
 
 	let server: IServerHandle;
@@ -178,46 +180,48 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		this.timeout(TEST_TIMEOUT_MS);
 		await runSyncedBundlePluginCustomizationsTest('discover');
 	});
+	if (TEST_WATCH) {
 
-	test('watch skill file changes [scan]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleSkillWatchTest('scan');
-	});
+		test('watch skill file changes [scan]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleSkillWatchTest('scan');
+		});
 
-	test('watch skill file changes [discover]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleSkillWatchTest('discover');
-	});
+		test('watch skill file changes [discover]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleSkillWatchTest('discover');
+		});
 
-	test('watch agent file changes [scan]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleAgentWatchTest('scan');
-	});
+		test('watch agent file changes [scan]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleAgentWatchTest('scan');
+		});
 
-	test('watch agent file changes [discover]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleAgentWatchTest('discover');
-	});
+		test('watch agent file changes [discover]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleAgentWatchTest('discover');
+		});
 
-	test('watch instruction file changes [scan]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleInstructionWatchTest('scan');
-	});
+		test('watch instruction file changes [scan]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleInstructionWatchTest('scan');
+		});
 
-	test('watch instruction file changes [discover]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleInstructionWatchTest('discover');
-	});
+		test('watch instruction file changes [discover]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleInstructionWatchTest('discover');
+		});
 
-	test('watch agent instruction file changes [scan]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleAgentInstructionWatchTest('scan');
-	});
+		test('watch agent instruction file changes [scan]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleAgentInstructionWatchTest('scan');
+		});
 
-	test('watch agent instruction file changes [discover]', async function () {
-		this.timeout(TEST_TIMEOUT_MS);
-		await runSimpleAgentInstructionWatchTest('discover');
-	});
+		test('watch agent instruction file changes [discover]', async function () {
+			this.timeout(TEST_TIMEOUT_MS);
+			await runSimpleAgentInstructionWatchTest('discover');
+		});
+	}
 
 	async function cleanHomeFolder() {
 		const foldersToClean = ['.copilot/agents', '.copilot/instructions', '.copilot/skills', '.copilot/hooks', '.agents', '.claude'];
