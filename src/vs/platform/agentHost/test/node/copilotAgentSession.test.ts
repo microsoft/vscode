@@ -26,7 +26,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, mergeSessionWithDefaultChat, readUsageInfoMeta, SessionStatus, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
@@ -42,7 +42,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledCo
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
@@ -332,6 +332,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	rootValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	sessionDatabase?: ISessionDatabase;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	sessionCustomizations?: () => readonly Customization[];
@@ -438,7 +439,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			storedFileContents.delete(resource.fsPath);
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService());
+	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -2437,6 +2438,27 @@ suite('CopilotAgentSession', () => {
 
 			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
+		});
+
+		test('does not flip turns for subagent user messages', async () => {
+			const sessionDatabase = new TestSessionDatabase();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { sessionDatabase });
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+			} as SessionEventPayload<'user.message'>['data'], { agentId: 'agent-1', id: 'evt-subagent' });
+			await timeout(0);
+
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual({
+				turnStarted,
+				setTurnEventIdCalls: sessionDatabase.setTurnEventIdCalls,
+			}, {
+				turnStarted: undefined,
+				setTurnEventIdCalls: [],
+			});
 		});
 
 		test('does not flip turns when the user.message content does not match', async () => {
@@ -6145,6 +6167,24 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 0, 'should short-circuit before the RPC');
+		});
+
+		test('skips subagent user messages', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			mockSession.fire('user.message', {
+				content: 'delegated prompt',
+			} as SessionEventPayload<'user.message'>['data'], { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				events: telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected'),
+				getSourcesCalls: mockSession.getInstructionSourcesCallCount,
+			}, {
+				events: [],
+				getSourcesCalls: 0,
+			});
 		});
 
 		test('does not emit or leak an unhandled rejection when getSources throws', async () => {

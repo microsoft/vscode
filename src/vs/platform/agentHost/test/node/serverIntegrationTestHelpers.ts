@@ -10,7 +10,7 @@ import { userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { CapiReplayProxy, type CapiReplayMode } from './e2e/harness/capiReplayProxy.js';
-import { resolve as resolvePath } from '../../../../base/common/path.js';
+import { join, resolve as resolvePath } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SubscribeResult, type DispatchActionParams } from '../../common/state/protocol/commands.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
@@ -425,6 +425,10 @@ export async function startRealServer(options?: { readonly claudeSdkRoot?: strin
 			...(options?.homeDir ? {
 				HOME: options.homeDir,
 				USERPROFILE: options.homeDir,
+				XDG_CONFIG_HOME: join(options.homeDir, '.config'),
+				COPILOT_HOME: join(options.homeDir, '.copilot'),
+				CLAUDE_CONFIG_DIR: undefined,
+				CODEX_HOME: undefined,
 			} : {}),
 			// Codex defaults to disabled; opt it in for the agent host e2e suite when a
 			// codex SDK root is supplied so the provider actually registers.
