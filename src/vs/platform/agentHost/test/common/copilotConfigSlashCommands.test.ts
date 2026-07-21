@@ -58,7 +58,7 @@ suite('copilotConfigSlashCommands', () => {
 
 			// Not bypassing: hide `off`, keep the bypass forms (bare + `on`).
 			const notBypassing = new Set(getCopilotConfigSlashCommandItems('allow-all', { autoApprove: 'default' }).map(i => i.label));
-			assert.deepStrictEqual([...notBypassing].sort(), ['/allow-all', '/allow-all on']);
+			assert.deepStrictEqual([...notBypassing].sort(), ['/allow-all on']);
 		});
 	});
 
