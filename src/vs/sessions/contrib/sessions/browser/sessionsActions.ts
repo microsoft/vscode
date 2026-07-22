@@ -1201,7 +1201,7 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
 	order: 100,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext)),
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
 });
 
 /**
