@@ -79,8 +79,8 @@ export interface IVoiceSessionController {
 	connect(window: Window & typeof globalThis): Promise<void>;
 	disconnect(): void;
 
-	pttDown(): void;
-	pttUp(): void;
+	pttDown(forceNewTurn?: boolean): void;
+	pttUp(forceFinish?: boolean): void;
 
 	/**
 	 * Mark a session as having been cancelled by the user from VS Code UI. The
@@ -1180,13 +1180,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._statusText.set('Reconnecting...', undefined);
 	}
 
-	pttDown(): void {
+	pttDown(forceNewTurn = false): void {
 		if (!this._isConnected.get()) { return; }
 
 		this._clearAutoSendSilenceTimer();
 
 		// Toggle mode: second tap finishes recording
-		if (this._pttToggleMode) {
+		if (forceNewTurn) {
+			this._pttToggleMode = false;
+		} else if (this._pttToggleMode) {
 			this._pttToggleMode = false;
 			this._finishPtt();
 			return;
@@ -1263,14 +1265,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}, VoiceSessionController._PTT_MAX_DURATION_MS);
 	}
 
-	pttUp(): void {
+	pttUp(forceFinish = false): void {
 		if (!this._pttHeld) { return; }
 
 		// Short tap: enter toggle mode — keep recording until next tap
-		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
-		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
-			this._pttToggleMode = true;
-			return;
+		if (!forceFinish) {
+			const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+			if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+				this._pttToggleMode = true;
+				return;
+			}
 		}
 
 		this._finishPtt();
