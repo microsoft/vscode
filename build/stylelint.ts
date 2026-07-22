@@ -6,6 +6,7 @@
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
+import { containsRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
 import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
@@ -30,9 +31,6 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const restrictedPathPattern = /^src[\/\\]vs[\/\\](base|platform|editor)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
-	// Root-anchored :has() makes every DOM mutation pay workbench-wide style invalidation
-	// (microsoft/vscode#324985). Matches contiguous compounds only: `.monaco-workbench.foo:has()` yes, `.monaco-workbench .foo:has()` no.
-	const rootAnchoredHasPattern = /(^|[\s,{])(body|html|:root|\.monaco-workbench)[^\s,{}>+~]*:has\(/;
 	const hasAnchorCheckerDisablePattern = /\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\//;
 
 	// Per-category tally of design-token suggestions for the summary footer.
@@ -62,7 +60,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 				errorCount++;
 			}
 
-			if (!isHasAnchorCheckerDisabled && rootAnchoredHasPattern.test(line)) {
+			if (!isHasAnchorCheckerDisabled && containsRootAnchoredHas(line)) {
 				reporter(file.relative + '(' + (i + 1) + ',1): Root-anchored :has() (on body/html/:root/.monaco-workbench) makes every DOM mutation pay workbench-wide style invalidation (see microsoft/vscode#324985). Toggle a class from code instead', true);
 				errorCount++;
 			}
