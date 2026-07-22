@@ -511,7 +511,7 @@ suite('Multicursor selection', () => {
 		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
 			// Simulate the find widget owning the search: focus is in the find
 			// widget, regex mode is on and the search string is non-empty
-			(editor as { hasTextFocus: () => boolean }).hasTextFocus = () => false;
+			editor.setHasTextFocus(false);
 			findController.getState().change({ isRevealed: true, searchString: 'abc|qwe', isRegex: true }, false);
 
 			action.run(null!, editor);
@@ -537,6 +537,31 @@ suite('Multicursor selection', () => {
 				new Selection(1, 1, 1, 4),
 				new Selection(2, 1, 2, 4),
 				new Selection(3, 1, 3, 4),
+			]);
+		});
+	});
+
+	test('issue #107090: AddSelectionToNextFindMatchAction does not get stuck on zero-width regex matches', () => {
+		const text = [
+			'abc',
+			'def',
+			'ghi'
+		];
+		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
+			editor.setHasTextFocus(false);
+			findController.getState().change({ isRevealed: true, searchString: '^', isRegex: true }, false);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+			]);
+
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getSelections(), [
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+				new Selection(3, 1, 3, 1),
 			]);
 		});
 	});
