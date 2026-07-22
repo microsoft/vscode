@@ -529,7 +529,7 @@ export class SCMViewService implements ISCMViewService {
 			return comparePaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
 		}
 
-		// Sort by name, path
+		// Sort by repository name, using the path as a tie-breaker.
 		const name1 = getRepositoryName(this.workspaceContextService, op1.repository);
 		const name2 = getRepositoryName(this.workspaceContextService, op2.repository);
 
