@@ -1323,7 +1323,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: new Date(1000).toISOString(),
 				modifiedAt: new Date(2000).toISOString(),
 				project: { uri: URI.file('/project').toString(), displayName: 'project' },
-				workingDirectory: URI.file('/worktree').toString(),
+				workingDirectories: [URI.file('/worktree').toString()],
 			}, []);
 			agent.releaseList.complete();
 
@@ -4799,7 +4799,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// The state manager should have the worktree path, not the source path
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 
 		test('createSession falls back to config working directory when agent does not resolve', async () => {
@@ -4811,7 +4811,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, sourceDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], sourceDir.toString());
 		});
 
 		test('restoreSession uses agent working directory in state', async () => {
@@ -4830,7 +4830,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(session);
 
 			const state = service.stateManager.getSessionState(session.toString());
-			assert.strictEqual(state?.workingDirectory, worktreeDir.toString());
+			assert.strictEqual(state?.workingDirectories?.[0], worktreeDir.toString());
 		});
 	});
 

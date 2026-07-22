@@ -50,15 +50,34 @@ export interface ChatState {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Optional per-chat working directory.
+	 * The subset of the session's
+	 * {@link SessionState.workingDirectories | `workingDirectories`} that this
+	 * chat's agent has tool access to. Every entry MUST be present in the owning
+	 * session's `workingDirectories`; servers MUST reject a
+	 * `chat/workingDirectorySet` action that violates this constraint.
 	 *
-	 * If absent, the chat inherits
-	 * {@link SessionState.workingDirectory | the session's working directory}.
-	 * Hosts MAY override this for individual chats — for example, to give a
-	 * subordinate chat its own git worktree so multiple chats in a session can
-	 * make independent edits that the orchestrator later merges back.
+	 * When absent, the chat inherits the full session set. When present but empty
+	 * (not recommended), the chat has no working-directory tool access at all.
+	 *
+	 * Dispatch `chat/workingDirectorySet` / `chat/workingDirectoryRemoved` to
+	 * update the subset on a running chat.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
+	/**
+	 * The chat's primary working directory — the distinguished root this chat is
+	 * centered on (e.g. the agent's process root for this chat, the default
+	 * location for relative paths). MUST be one of this chat's effective working
+	 * directories ({@link workingDirectories}, or the session's set when that is
+	 * absent). Present when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.requiresPrimary}.
+	 *
+	 * **Read-only and fixed at creation.** It is set from
+	 * {@link CreateChatParams.primaryWorkingDirectory} (or, for the session's
+	 * default chat, {@link CreateSessionParams.primaryWorkingDirectory}) and does
+	 * not change over the chat's lifetime — there is no action to mutate it, and
+	 * it does not participate in `session/chatUpdated`.
+	 */
+	primaryWorkingDirectory?: URI;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -127,13 +146,15 @@ export interface ChatSummary {
 	 */
 	interactivity?: ChatInteractivity;
 	/**
-	 * Optional per-chat working directory.
-	 *
-	 * If absent, the chat inherits
-	 * {@link SessionSummary.workingDirectory | the session's working directory}.
-	 * See {@link ChatState.workingDirectory} for usage notes.
+	 * The subset of the session's working directories this chat uses.
+	 * See {@link ChatState.workingDirectories} for the full semantics.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
+	/**
+	 * The chat's primary working directory.
+	 * See {@link ChatState.primaryWorkingDirectory} for the full semantics.
+	 */
+	primaryWorkingDirectory?: URI;
 }
 
 /**

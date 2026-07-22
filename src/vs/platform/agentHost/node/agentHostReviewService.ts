@@ -68,7 +68,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		if (!sessionState) {
 			throw new Error(`Session not found: ${parsed.sessionUri}`);
 		}
-		if (!sessionState.workingDirectory) {
+		if (!sessionState.workingDirectories?.[0]) {
 			throw new Error(`Session has no working directory: ${parsed.sessionUri}`);
 		}
 
@@ -80,7 +80,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			databaseRef.dispose();
 		}
 
-		const workingDirectory = URI.parse(sessionState.workingDirectory);
+		const workingDirectory = URI.parse(sessionState.workingDirectories?.[0]);
 		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, readSessionGitState(sessionState._meta)?.baseBranchName);
 		await this._sequencer.queue(parsed.sessionUri, async () => {
 			for (const resource of resources) {
@@ -234,7 +234,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 	}
 
 	private async _disposeSessionData(session: ProtocolURI): Promise<void> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
+		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
 		if (!workingDirectory) {
 			// No working directory means we can't resolve the repository root
 			// (session was never git-backed, or its working directory is gone).

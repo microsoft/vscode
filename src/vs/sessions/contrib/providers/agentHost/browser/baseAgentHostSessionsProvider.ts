@@ -2934,7 +2934,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	getWorkingDirectory(sessionId: string): string | undefined {
 		const sessionState = this._lastSessionStates.get(sessionId);
-		return sessionState?.workingDirectory;
+		return sessionState?.workingDirectories?.[0];
 	}
 
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[] {
@@ -4224,8 +4224,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleSessionAdded(summary: SessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
-		const workingDir = typeof summary.workingDirectory === 'string'
-			? this.mapWorkingDirectoryUri(URI.parse(summary.workingDirectory))
+		const workingDir = typeof summary.workingDirectories?.[0] === 'string'
+			? this.mapWorkingDirectoryUri(URI.parse(summary.workingDirectories?.[0]))
 			: undefined;
 		const meta: IAgentSessionMetadata = {
 			session: sessionUri,

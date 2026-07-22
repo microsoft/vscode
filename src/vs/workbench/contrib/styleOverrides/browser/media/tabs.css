@@ -47,6 +47,10 @@
 .style-override .part.editor .tabs-container > .tab.sticky-compact {
 	justify-content: center;
 	padding: 0 !important;
+	width: 28px !important;
+	min-width: 28px !important;
+	max-width: 28px !important;
+	flex: 0 0 28px !important;
 }
 
 .style-override .part.editor .tabs-container > .tab.sticky-compact > .tab-label {
@@ -85,13 +89,6 @@
 	width: auto !important;
 	min-width: 0 !important;
 	flex: 0 0 auto !important;
-}
-
-.style-override .part.editor .tabs-container > .tab.sticky-compact {
-	width: 28px !important;
-	min-width: 28px !important;
-	max-width: 28px !important;
-	flex: 0 0 28px !important;
 }
 
 /* Center tabs vertically and strip the bottom border so the pills float. */
@@ -229,7 +226,7 @@
  */
 .style-override .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
@@ -273,14 +270,14 @@
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 22px; /* keep consistent with other 22px title/control heights */
 }
 
 .style-override .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 .style-override .part.sidebar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .style-override .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
@@ -307,7 +304,7 @@
 
 .style-override .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /*
@@ -349,7 +346,7 @@
 	border-radius: var(--vscode-cornerRadius-small) !important;
 	border-bottom: none !important;
 	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-semiBold);
 	padding: 2px 8px !important;
 }
 
